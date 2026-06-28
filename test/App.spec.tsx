@@ -59,10 +59,20 @@ jest.mock('../src/services/jellyfin', () => ({
   reportPlaybackStopped: jest.fn(async () => undefined),
 }));
 
+jest.mock('../src/services/iap', () => ({
+  checkAstraProReceipt: jest.fn(async () => false),
+  isIapAvailable: jest.fn(() => false),
+  purchaseAstraPro: jest.fn(async () => false),
+}));
+
 jest.mock('../src/services/storage', () => ({
   getLastUsedServerProfile: jest.fn(async () => null),
+  incrementLaunchCount: jest.fn(async () => 1),
   readServerProfiles: jest.fn(async () => []),
+  readAppState: jest.fn(async () => ({isPro: false, launchCount: 0})),
+  setProStatus: jest.fn(async () => undefined),
   upsertServerProfile: jest.fn(async () => undefined),
+  writeAppState: jest.fn(async () => ({isPro: false, launchCount: 1})),
 }));
 
 describe('App', () => {

@@ -1,6 +1,7 @@
 import React from 'react';
 import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../../components/FocusableItem';
+import {APP_VERSION, BUILD_DATE} from '../../config/app';
 import {ServerProfile} from '../../services/storage';
 
 interface SettingsScreenProps {
@@ -59,7 +60,8 @@ export const SettingsScreen = ({
     <View style={styles.group}>
       <Text style={styles.groupTitle}>About</Text>
       <View style={styles.about}>
-        <Text style={styles.aboutText}>Astra 0.1.0</Text>
+        <Text style={styles.aboutText}>Astra {APP_VERSION}</Text>
+        <Text style={styles.aboutText}>Build date: {BUILD_DATE}</Text>
         <Text style={styles.aboutText}>GPL-3.0 licensed media client</Text>
         <Text style={styles.aboutText}>
           Backends: Jellyfin now, Kodi and Emby planned

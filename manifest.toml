@@ -4,6 +4,7 @@ schema-version = 1
 title = "Astra"
 version = "0.1.0"
 id = "com.astra.tv"
+icon = "@image/icon_512x512.png"
 
 [components]
 [[components.interactive]]

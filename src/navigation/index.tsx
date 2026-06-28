@@ -7,11 +7,15 @@ import {SetupScreen} from '../screens/SetupScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
+import {SupportScreen} from '../screens/SupportScreen';
 import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
+import {checkAstraProReceipt} from '../services/iap';
 import {
   getLastUsedServerProfile,
+  incrementLaunchCount,
   readServerProfiles,
   ServerProfile,
+  setProStatus,
 } from '../services/storage';
 
 type LaunchRoute =
@@ -22,7 +26,8 @@ type LaunchRoute =
   | 'detail'
   | 'player'
   | 'search'
-  | 'settings';
+  | 'settings'
+  | 'support';
 
 export const RootNavigator = () => {
   const [route, setRoute] = useState<LaunchRoute>('loading');
@@ -41,13 +46,19 @@ export const RootNavigator = () => {
     const bootstrap = async () => {
       const profiles = await readServerProfiles();
       const lastUsedProfile = await getLastUsedServerProfile();
+      const launchCount = await incrementLaunchCount();
+      const isPro = await checkAstraProReceipt();
 
       if (!mounted) {
         return;
       }
 
       setServerProfile(lastUsedProfile);
-      setRoute(profiles.length > 0 ? 'home' : 'setup');
+      if (!isPro && launchCount > 0 && launchCount % 10 === 0) {
+        setRoute('support');
+      } else {
+        setRoute(profiles.length > 0 ? 'home' : 'setup');
+      }
     };
 
     bootstrap();
@@ -142,6 +153,19 @@ export const RootNavigator = () => {
       <SettingsScreen
         onBack={() => setRoute('home')}
         serverProfile={serverProfile}
+      />
+    );
+  }
+
+  if (route === 'support') {
+    return (
+      <SupportScreen
+        onDismiss={() => setRoute(serverProfile ? 'home' : 'setup')}
+        onProPurchased={() => {
+          setProStatus(true).finally(() =>
+            setRoute(serverProfile ? 'home' : 'setup'),
+          );
+        }}
       />
     );
   }
