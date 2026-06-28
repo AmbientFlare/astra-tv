@@ -91,6 +91,62 @@ exports[`App matches snapshot 1`] = `
       >
         No local servers found.
       </Text>
+      <View
+        accessibilityRole="button"
+        accessibilityState={
+          Object {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          Object {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          Object {
+            "alignItems": "center",
+            "backgroundColor": "#24313A",
+            "borderColor": "transparent",
+            "borderRadius": 8,
+            "borderWidth": 3,
+            "height": 48,
+            "justifyContent": "center",
+            "opacity": 1,
+            "width": 180,
+          }
+        }
+        testID="setup-scan-button"
+      >
+        <Text
+          style={
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 20,
+              "fontWeight": "700",
+            }
+          }
+        >
+          Scan again
+        </Text>
+      </View>
     </View>
     <View
       style={

@@ -9,7 +9,9 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {
   getStreamUrl,
   JellyfinMediaItem,
+  JellyfinMediaTrack,
   JellyfinStreamInfo,
+  JellyfinQualityOption,
   reportPlaybackProgress,
   reportPlaybackStart,
   reportPlaybackStopped,
@@ -39,17 +41,29 @@ export const PlayerScreen = ({
   const videoRef = useRef<VideoPlayer | null>(null);
   const surfaceHandle = useRef<string | null>(null);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
+  const initialized = useRef(false);
   const stoppedReported = useRef(false);
+  const selectedAudioIndex = useRef<number | undefined>();
+  const selectedBitrate = useRef<number | undefined>();
+  const selectedSubtitleIndex = useRef<number | undefined>();
+  const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
+  const [currentStream, setCurrentStream] = useState<JellyfinStreamInfo | null>(
+    null,
+  );
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [isPaused, setPaused] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const currentPositionTicks = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
 
-    return toTicks(
+    latestPositionTicks.current = toTicks(
       typeof currentTime === 'number' ? currentTime : undefined,
       (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
     );
+
+    return latestPositionTicks.current;
   }, [item.resumePositionTicks]);
 
   const reportStopped = useCallback(async () => {
@@ -108,6 +122,99 @@ export const PlayerScreen = ({
     }
   }, []);
 
+  const loadStream = useCallback(
+    async (startTicks = latestPositionTicks.current) => {
+      const stream = await getStreamUrl(
+        serverUrl,
+        accessToken,
+        item.id,
+        userId,
+        startTicks,
+        {
+          audioStreamIndex: selectedAudioIndex.current,
+          maxStreamingBitrate: selectedBitrate.current,
+          subtitleStreamIndex: selectedSubtitleIndex.current,
+        },
+      );
+      streamInfo.current = stream;
+      setCurrentStream(stream);
+
+      const video = videoRef.current ?? new VideoPlayer();
+      videoRef.current = video;
+
+      if (!videoRef.current) {
+        return stream;
+      }
+
+      if (!initialized.current) {
+        await video.initialize();
+        initialized.current = true;
+      } else {
+        video.pause();
+      }
+
+      video.autoplay = false;
+      video.defaultSeekIntervalInSec = SEEK_SECONDS;
+      video.src = stream.url;
+      video.load();
+      video.currentTime = startTicks / TICKS_PER_SECOND;
+      video.playbackRate = playbackRate;
+
+      const selectedExternalSubtitle = stream.subtitleTracks.find(
+        (track) =>
+          track.index === selectedSubtitleIndex.current && track.deliveryUrl,
+      );
+      if (selectedExternalSubtitle?.deliveryUrl) {
+        const textTrack = video.addTextTrack(
+          'subtitles',
+          selectedExternalSubtitle.title,
+          selectedExternalSubtitle.language,
+          selectedExternalSubtitle.deliveryUrl,
+          'text/vtt',
+        );
+        textTrack.mode = 'showing';
+      }
+
+      if (surfaceHandle.current) {
+        video.setSurfaceHandle(surfaceHandle.current);
+      }
+
+      return stream;
+    },
+    [accessToken, item.id, playbackRate, serverUrl, userId],
+  );
+
+  const reloadWithTrack = useCallback(
+    async ({
+      audioTrack,
+      bitrate,
+      subtitleTrack,
+    }: {
+      audioTrack?: JellyfinMediaTrack;
+      bitrate?: number;
+      subtitleTrack?: JellyfinMediaTrack | null;
+    }) => {
+      selectedAudioIndex.current =
+        audioTrack?.index ?? selectedAudioIndex.current;
+      selectedBitrate.current = bitrate ?? selectedBitrate.current;
+      selectedSubtitleIndex.current =
+        subtitleTrack === null
+          ? undefined
+          : subtitleTrack?.index ?? selectedSubtitleIndex.current;
+      setStatusText('Switching stream...');
+      const stream = await loadStream(currentPositionTicks());
+      await reportPlaybackProgress(serverUrl, accessToken, {
+        ...stream,
+        isPaused,
+        positionTicks: currentPositionTicks(),
+      });
+      videoRef.current?.play();
+      setPaused(false);
+      setStatusText('Playing');
+    },
+    [accessToken, currentPositionTicks, isPaused, loadStream, serverUrl],
+  );
+
   useTVEventHandler((event) => {
     if (event.eventKeyAction === 1) {
       return;
@@ -115,7 +222,15 @@ export const PlayerScreen = ({
 
     switch (event.eventType) {
       case 'back':
-        handleBack();
+        if (showSettings) {
+          setShowSettings(false);
+        } else {
+          handleBack();
+        }
+        break;
+      case 'menu':
+      case 'context_menu':
+        setShowSettings((visible) => !visible);
         break;
       case 'playPause':
       case 'playpause':
@@ -152,26 +267,7 @@ export const PlayerScreen = ({
 
     const initialize = async () => {
       try {
-        const stream = await getStreamUrl(
-          serverUrl,
-          accessToken,
-          item.id,
-          userId,
-          startTicks,
-        );
-        streamInfo.current = stream;
-
-        const video = new VideoPlayer();
-        videoRef.current = video;
-        await video.initialize();
-        video.autoplay = false;
-        video.defaultSeekIntervalInSec = SEEK_SECONDS;
-        video.src = stream.url;
-        video.load();
-
-        if (startTicks > 0) {
-          video.currentTime = startTicks / TICKS_PER_SECOND;
-        }
+        const stream = await loadStream(startTicks);
 
         await reportPlaybackStart(serverUrl, accessToken, {
           ...stream,
@@ -209,6 +305,7 @@ export const PlayerScreen = ({
     accessToken,
     item.id,
     item.resumePositionTicks,
+    loadStream,
     reportStopped,
     serverUrl,
     setSurface,
@@ -244,6 +341,13 @@ export const PlayerScreen = ({
   const onSurfaceViewDestroyed = useCallback((handle: string) => {
     videoRef.current?.clearSurfaceHandle(handle);
     surfaceHandle.current = null;
+  }, []);
+
+  const setSpeed = useCallback((rate: number) => {
+    setPlaybackRate(rate);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = rate;
+    }
   }, []);
 
   return (
@@ -292,9 +396,109 @@ export const PlayerScreen = ({
           </FocusableItem>
         </View>
       </View>
+      {showSettings && currentStream ? (
+        <PlaybackSettingsOverlay
+          onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
+          onSelectQuality={(quality) =>
+            reloadWithTrack({bitrate: quality.bitrate})
+          }
+          onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
+          onSetSpeed={setSpeed}
+          playbackRate={playbackRate}
+          streamInfo={currentStream}
+        />
+      ) : null}
     </View>
   );
 };
+
+const PlaybackSettingsOverlay = ({
+  onSelectAudio,
+  onSelectQuality,
+  onSelectSubtitle,
+  onSetSpeed,
+  playbackRate,
+  streamInfo,
+}: {
+  onSelectAudio: (track: JellyfinMediaTrack) => void;
+  onSelectQuality: (quality: JellyfinQualityOption) => void;
+  onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
+  onSetSpeed: (rate: number) => void;
+  playbackRate: number;
+  streamInfo: JellyfinStreamInfo;
+}) => (
+  <View style={styles.settingsOverlay} testID="player-settings-overlay">
+    <Text style={styles.settingsTitle}>Playback Settings</Text>
+    <SettingsColumn title="Audio">
+      {streamInfo.audioTracks.length ? (
+        streamInfo.audioTracks.map((track) => (
+          <SettingsButton
+            key={track.id}
+            label={track.title}
+            onPress={() => onSelectAudio(track)}
+          />
+        ))
+      ) : (
+        <Text style={styles.settingsEmpty}>Default audio</Text>
+      )}
+    </SettingsColumn>
+    <SettingsColumn title="Subtitles">
+      <SettingsButton label="Off" onPress={() => onSelectSubtitle(null)} />
+      {streamInfo.subtitleTracks.map((track) => (
+        <SettingsButton
+          key={track.id}
+          label={track.title}
+          onPress={() => onSelectSubtitle(track)}
+        />
+      ))}
+    </SettingsColumn>
+    <SettingsColumn title="Quality">
+      {streamInfo.qualityOptions.map((quality) => (
+        <SettingsButton
+          key={quality.id}
+          label={quality.label || 'Auto'}
+          onPress={() => onSelectQuality(quality)}
+        />
+      ))}
+    </SettingsColumn>
+    <SettingsColumn title="Speed">
+      {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
+        <SettingsButton
+          key={rate}
+          label={`${rate}x${rate === playbackRate ? ' selected' : ''}`}
+          onPress={() => onSetSpeed(rate)}
+        />
+      ))}
+    </SettingsColumn>
+  </View>
+);
+
+const SettingsColumn = ({
+  children,
+  title,
+}: React.PropsWithChildren<{title: string}>) => (
+  <View style={styles.settingsColumn}>
+    <Text style={styles.settingsHeading}>{title}</Text>
+    {children}
+  </View>
+);
+
+const SettingsButton = ({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) => (
+  <FocusableItem
+    focusedStyle={styles.settingsButtonFocused}
+    onPress={onPress}
+    style={styles.settingsButton}>
+    <Text numberOfLines={1} style={styles.settingsButtonText}>
+      {label}
+    </Text>
+  </FocusableItem>
+);
 
 const styles = StyleSheet.create({
   screen: {
@@ -344,5 +548,50 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '700',
+  },
+  settingsOverlay: {
+    position: 'absolute',
+    top: 44,
+    right: 44,
+    width: 520,
+    maxHeight: 640,
+    borderRadius: 8,
+    backgroundColor: 'rgba(12,17,22,0.94)',
+    padding: 24,
+  },
+  settingsTitle: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  settingsColumn: {
+    marginBottom: 18,
+  },
+  settingsHeading: {
+    color: '#89CFF0',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  settingsButton: {
+    height: 42,
+    borderRadius: 8,
+    backgroundColor: '#25313A',
+    justifyContent: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  settingsButtonFocused: {
+    backgroundColor: '#2E5A72',
+  },
+  settingsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  settingsEmpty: {
+    color: '#B8C5CC',
+    fontSize: 18,
   },
 });

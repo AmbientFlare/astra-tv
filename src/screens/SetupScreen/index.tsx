@@ -29,27 +29,50 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   const [discoveredServers, setDiscoveredServers] = useState<
     DiscoveredServer[]
   >([]);
-  const [isScanning, setScanning] = useState(true);
+  const [isScanning, setScanning] = useState(false);
   const [isConnecting, setConnecting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  const scanForServers = async () => {
+    setScanning(true);
+    setErrorText(null);
+
+    try {
+      const servers = await discoverServers({
+        subnetPrefixes: ['192.168.1'],
+        timeoutMs: 180,
+      });
+      setDiscoveredServers(servers);
+    } catch (error) {
+      setErrorText(
+        error instanceof Error ? error.message : 'Server discovery failed.',
+      );
+    } finally {
+      setScanning(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
 
     const scan = async () => {
-      setScanning(true);
-      const servers = await discoverServers();
+      const servers = await discoverServers({
+        subnetPrefixes: ['192.168.1'],
+        timeoutMs: 180,
+      });
 
       if (mounted) {
         setDiscoveredServers(servers);
-        setScanning(false);
       }
     };
 
-    scan();
+    const timeout = setTimeout(() => {
+      scan().catch(() => undefined);
+    }, 1500);
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
     };
   }, []);
 
@@ -125,6 +148,15 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               <Text style={styles.discoveredAddress}>{server.address}</Text>
             </FocusableItem>
           ))}
+          <FocusableItem
+            focusedStyle={styles.discoveredFocused}
+            onPress={scanForServers}
+            style={styles.scanButton}
+            testID="setup-scan-button">
+            <Text style={styles.scanText}>
+              {isScanning ? 'Scanning' : 'Scan again'}
+            </Text>
+          </FocusableItem>
         </View>
 
         <View style={styles.field}>
@@ -259,6 +291,19 @@ const styles = StyleSheet.create({
   },
   discoveredFocused: {
     backgroundColor: '#244654',
+  },
+  scanButton: {
+    width: 180,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#24313A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
   },
   discoveredName: {
     color: '#FFFFFF',

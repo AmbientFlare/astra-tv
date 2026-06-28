@@ -1,9 +1,12 @@
 import React, {useEffect, useState} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import {HomeScreen} from '../screens/HomeScreen';
+import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {LibraryScreen} from '../screens/LibraryScreen';
 import {SetupScreen} from '../screens/SetupScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
+import {SearchScreen} from '../screens/SearchScreen';
+import {SettingsScreen} from '../screens/SettingsScreen';
 import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
 import {
   getLastUsedServerProfile,
@@ -11,7 +14,15 @@ import {
   ServerProfile,
 } from '../services/storage';
 
-type LaunchRoute = 'loading' | 'setup' | 'home' | 'library' | 'player';
+type LaunchRoute =
+  | 'loading'
+  | 'setup'
+  | 'home'
+  | 'library'
+  | 'detail'
+  | 'player'
+  | 'search'
+  | 'settings';
 
 export const RootNavigator = () => {
   const [route, setRoute] = useState<LaunchRoute>('loading');
@@ -58,10 +69,16 @@ export const RootNavigator = () => {
   if (route === 'home') {
     return (
       <HomeScreen
+        onSearch={() => setRoute('search')}
         onSelectLibrary={(library) => {
           setSelectedLibrary(library);
           setRoute('library');
         }}
+        onSelectItem={(item) => {
+          setSelectedItem(item);
+          setRoute('detail');
+        }}
+        onSettings={() => setRoute('settings')}
         serverProfile={serverProfile}
       />
     );
@@ -73,6 +90,20 @@ export const RootNavigator = () => {
         libraryId={selectedLibrary.id}
         libraryName={selectedLibrary.name}
         onSelectItem={(item) => {
+          setSelectedItem(item);
+          setRoute('detail');
+        }}
+        serverProfile={serverProfile}
+      />
+    );
+  }
+
+  if (route === 'detail' && selectedItem && serverProfile) {
+    return (
+      <ItemDetailScreen
+        item={selectedItem}
+        onBack={() => setRoute(selectedLibrary ? 'library' : 'home')}
+        onPlay={(item) => {
           setSelectedItem(item);
           setRoute('player');
         }}
@@ -89,6 +120,28 @@ export const RootNavigator = () => {
         onBack={() => setRoute('library')}
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
+      />
+    );
+  }
+
+  if (route === 'search' && serverProfile) {
+    return (
+      <SearchScreen
+        onBack={() => setRoute('home')}
+        onSelectItem={(item) => {
+          setSelectedItem(item);
+          setRoute('detail');
+        }}
+        serverProfile={serverProfile}
+      />
+    );
+  }
+
+  if (route === 'settings' && serverProfile) {
+    return (
+      <SettingsScreen
+        onBack={() => setRoute('home')}
+        serverProfile={serverProfile}
       />
     );
   }
