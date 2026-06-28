@@ -2,92 +2,46 @@
 
 exports[`App matches snapshot 1`] = `
 <View
-  accessibilityIgnoresInvertColors={true}
   style={
     Object {
+      "backgroundColor": "#0C1116",
       "flex": 1,
-      "padding": 160,
+      "paddingHorizontal": 144,
+      "paddingVertical": 76,
     }
   }
+  testID="setup-screen"
 >
-  <Image
-    source={
-      Object {
-        "testUri": "../../../src/assets/background.png",
-      }
-    }
-    style={
-      Array [
-        Object {
-          "bottom": 0,
-          "left": 0,
-          "position": "absolute",
-          "right": 0,
-          "top": 0,
-        },
-        Object {
-          "height": undefined,
-          "width": undefined,
-        },
-        undefined,
-      ]
-    }
-  />
   <View
     style={
       Object {
-        "alignItems": "flex-start",
-        "flex": 3,
-        "flexDirection": "row",
+        "marginBottom": 36,
       }
     }
   >
-    <View
+    <Text
       style={
         Object {
-          "flex": 1,
+          "color": "#FFFFFF",
+          "fontSize": 82,
+          "fontWeight": "800",
+          "letterSpacing": 0,
         }
       }
     >
-      <Text
-        style={
-          Object {
-            "color": "#FFFFFF",
-            "fontSize": 160,
-            "fontWeight": "600",
-            "lineHeight": 170,
-          }
-        }
-      >
-        Hello Vega,
-      </Text>
-      <Text
-        style={
-          Object {
-            "color": "#FFFFFF",
-            "fontSize": 50,
-          }
-        }
-      >
-        Use your remote to explore and start your Vega journey 🚀
-      </Text>
-    </View>
-    <Image
-      resizeMode="contain"
-      source={
-        Object {
-          "testUri": "../../../src/assets/vega.png",
-        }
-      }
+      Astra
+    </Text>
+    <Text
       style={
         Object {
-          "height": 350,
-          "marginLeft": 120,
-          "width": 500,
+          "color": "#AAB7C0",
+          "fontSize": 30,
+          "marginTop": 8,
         }
       }
-      testID="vega-logo"
-    />
+    >
+      Connect your media server
+    </Text>
   </View>
   <View
     collapsable={false}
@@ -99,10 +53,7 @@ exports[`App matches snapshot 1`] = `
           "minWidth": 1,
         },
         Object {
-          "alignItems": "flex-end",
-          "flex": 1,
-          "flexDirection": "row",
-          "justifyContent": "space-between",
+          "width": 840,
         },
         Object {
           "display": "flex",
@@ -111,107 +62,393 @@ exports[`App matches snapshot 1`] = `
     }
   >
     <View
-      accessibilityLabel="Home"
-      accessibilityRole="button"
-      accessibilityState={
-        Object {
-          "busy": undefined,
-          "checked": undefined,
-          "disabled": undefined,
-          "expanded": undefined,
-          "selected": undefined,
-        }
-      }
-      accessibilityValue={
-        Object {
-          "max": undefined,
-          "min": undefined,
-          "now": undefined,
-          "text": undefined,
-        }
-      }
-      accessible={true}
-      collapsable={false}
-      focusable={false}
-      hasTVPreferredFocus={true}
-      onClick={[Function]}
-      onResponderGrant={[Function]}
-      onResponderMove={[Function]}
-      onResponderRelease={[Function]}
-      onResponderTerminate={[Function]}
-      onResponderTerminationRequest={[Function]}
-      onStartShouldSetResponder={[Function]}
       style={
         Object {
-          "backgroundColor": "#FF6200",
-          "borderRadius": 44,
-          "height": 320,
-          "opacity": 1,
-          "overflow": "hidden",
-          "padding": 20,
-          "transform": Array [
+          "marginBottom": 22,
+        }
+      }
+    >
+      <Text
+        style={
+          Object {
+            "color": "#E6EDF2",
+            "fontSize": 26,
+            "fontWeight": "700",
+            "marginBottom": 10,
+          }
+        }
+      >
+        Found servers
+      </Text>
+      <Text
+        style={
+          Object {
+            "color": "#91A2AD",
+            "fontSize": 22,
+            "marginTop": 8,
+          }
+        }
+      >
+        No local servers found.
+      </Text>
+    </View>
+    <View
+      style={
+        Object {
+          "marginBottom": 22,
+        }
+      }
+    >
+      <Text
+        style={
+          Object {
+            "color": "#E6EDF2",
+            "fontSize": 26,
+            "fontWeight": "700",
+            "marginBottom": 8,
+          }
+        }
+      >
+        Server URL
+      </Text>
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        hasTVPreferredFocus={true}
+        onBlur={[Function]}
+        onChangeText={[Function]}
+        onFocus={[Function]}
+        placeholder="https://jellyfin.example.com"
+        placeholderTextColor="#7D8A92"
+        style={
+          Array [
             Object {
-              "scale": 1.1,
+              "backgroundColor": "#162027",
+              "borderColor": "#2F3D46",
+              "borderRadius": 8,
+              "borderWidth": 3,
+              "color": "#FFFFFF",
+              "fontSize": 28,
+              "height": 68,
+              "paddingHorizontal": 24,
+              "width": 840,
             },
-          ],
-          "width": 320,
+            false,
+          ]
+        }
+        testID="setup-server-url-input"
+        value=""
+      />
+      <Text
+        style={
+          Object {
+            "color": "#91A2AD",
+            "fontSize": 22,
+            "marginTop": 8,
+          }
+        }
+      >
+        Enter IP, domain, or Tailscale address.
+      </Text>
+    </View>
+    <View
+      style={
+        Object {
+          "marginBottom": 22,
         }
       }
-      testID="tile-home"
     >
-      <View
+      <Text
         style={
           Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
+            "color": "#E6EDF2",
+            "fontSize": 26,
+            "fontWeight": "700",
+            "marginBottom": 8,
           }
         }
       >
-        <Image
-          accessible={false}
-          resizeMode="contain"
-          source={
-            Object {
-              "testUri": "../../../src/assets/home.png",
-            }
-          }
-          style={
-            Object {
-              "height": 80,
-              "tintColor": "#FFFFFF",
-              "width": 80,
-            }
-          }
-        />
-      </View>
-      <View
+        Username
+      </Text>
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        onBlur={[Function]}
+        onChangeText={[Function]}
+        onFocus={[Function]}
+        placeholder="Media server username"
+        placeholderTextColor="#7D8A92"
         style={
-          Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
-          }
-        }
-      >
-        <Text
-          style={
+          Array [
             Object {
+              "backgroundColor": "#162027",
+              "borderColor": "#2F3D46",
+              "borderRadius": 8,
+              "borderWidth": 3,
               "color": "#FFFFFF",
-              "fontSize": 52,
-              "fontWeight": "bold",
-              "includeFontPadding": false,
-              "lineHeight": 52,
-              "textAlign": "center",
+              "fontSize": 28,
+              "height": 68,
+              "paddingHorizontal": 24,
+              "width": 840,
+            },
+            false,
+          ]
+        }
+        testID="setup-username-input"
+        value=""
+      />
+    </View>
+    <View
+      style={
+        Object {
+          "marginBottom": 22,
+        }
+      }
+    >
+      <Text
+        style={
+          Object {
+            "color": "#E6EDF2",
+            "fontSize": 26,
+            "fontWeight": "700",
+            "marginBottom": 8,
+          }
+        }
+      >
+        Password
+      </Text>
+      <TextInput
+        onBlur={[Function]}
+        onChangeText={[Function]}
+        onFocus={[Function]}
+        placeholder="Password"
+        placeholderTextColor="#7D8A92"
+        secureTextEntry={true}
+        style={
+          Array [
+            Object {
+              "backgroundColor": "#162027",
+              "borderColor": "#2F3D46",
+              "borderRadius": 8,
+              "borderWidth": 3,
+              "color": "#FFFFFF",
+              "fontSize": 28,
+              "height": 68,
+              "paddingHorizontal": 24,
+              "width": 840,
+            },
+            false,
+          ]
+        }
+        testID="setup-password-input"
+        value=""
+      />
+    </View>
+    <View
+      style={
+        Object {
+          "marginBottom": 22,
+        }
+      }
+    >
+      <Text
+        style={
+          Object {
+            "color": "#E6EDF2",
+            "fontSize": 26,
+            "fontWeight": "700",
+            "marginBottom": 8,
+          }
+        }
+      >
+        Server Type
+      </Text>
+      <View
+        style={
+          Object {
+            "flexDirection": "row",
+            "gap": 16,
+          }
+        }
+      >
+        <View
+          accessibilityLabel="jellyfin"
+          accessibilityRole="button"
+          accessibilityState={
+            Object {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
             }
           }
+          accessibilityValue={
+            Object {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            Object {
+              "alignItems": "center",
+              "backgroundColor": "#1F6F5A",
+              "borderColor": "transparent",
+              "borderRadius": 8,
+              "borderWidth": 3,
+              "height": 62,
+              "justifyContent": "center",
+              "opacity": 1,
+              "width": 180,
+            }
+          }
+          testID="setup-server-type-jellyfin"
         >
-          Home
-        </Text>
+          <Text
+            style={
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "textTransform": "uppercase",
+              }
+            }
+          >
+            jellyfin
+          </Text>
+        </View>
+        <View
+          accessibilityLabel="kodi"
+          accessibilityRole="button"
+          accessibilityState={
+            Object {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            Object {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            Object {
+              "alignItems": "center",
+              "backgroundColor": "#172129",
+              "borderColor": "transparent",
+              "borderRadius": 8,
+              "borderWidth": 3,
+              "height": 62,
+              "justifyContent": "center",
+              "opacity": 1,
+              "width": 180,
+            }
+          }
+          testID="setup-server-type-kodi"
+        >
+          <Text
+            style={
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "textTransform": "uppercase",
+              }
+            }
+          >
+            kodi
+          </Text>
+        </View>
+        <View
+          accessibilityLabel="emby"
+          accessibilityRole="button"
+          accessibilityState={
+            Object {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            Object {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            Object {
+              "alignItems": "center",
+              "backgroundColor": "#172129",
+              "borderColor": "transparent",
+              "borderRadius": 8,
+              "borderWidth": 3,
+              "height": 62,
+              "justifyContent": "center",
+              "opacity": 1,
+              "width": 180,
+            }
+          }
+          testID="setup-server-type-emby"
+        >
+          <Text
+            style={
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 24,
+                "fontWeight": "700",
+                "textTransform": "uppercase",
+              }
+            }
+          >
+            emby
+          </Text>
+        </View>
       </View>
     </View>
     <View
-      accessibilityLabel="Get started"
+      accessibilityLabel="Connect"
       accessibilityRole="button"
       accessibilityState={
         Object {
@@ -232,8 +469,7 @@ exports[`App matches snapshot 1`] = `
       }
       accessible={true}
       collapsable={false}
-      focusable={false}
-      hasTVPreferredFocus={false}
+      focusable={true}
       onClick={[Function]}
       onResponderGrant={[Function]}
       onResponderMove={[Function]}
@@ -243,260 +479,31 @@ exports[`App matches snapshot 1`] = `
       onStartShouldSetResponder={[Function]}
       style={
         Object {
-          "backgroundColor": "#0074B8",
-          "borderRadius": 44,
-          "height": 320,
+          "alignItems": "center",
+          "backgroundColor": "#2F9C7C",
+          "borderColor": "transparent",
+          "borderRadius": 8,
+          "borderWidth": 3,
+          "height": 68,
+          "justifyContent": "center",
+          "marginTop": 8,
           "opacity": 1,
-          "overflow": "hidden",
-          "padding": 20,
-          "width": 320,
+          "width": 280,
         }
       }
-      testID="tile-get-started"
+      testID="setup-connect-button"
     >
-      <View
+      <Text
         style={
           Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
+            "color": "#FFFFFF",
+            "fontSize": 28,
+            "fontWeight": "800",
           }
         }
       >
-        <Image
-          accessible={false}
-          resizeMode="contain"
-          source={
-            Object {
-              "testUri": "../../../src/assets/get-started.png",
-            }
-          }
-          style={
-            Object {
-              "height": 80,
-              "tintColor": "#FFFFFF",
-              "width": 80,
-            }
-          }
-        />
-      </View>
-      <View
-        style={
-          Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
-          }
-        }
-      >
-        <Text
-          style={
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 52,
-              "fontWeight": "bold",
-              "includeFontPadding": false,
-              "lineHeight": 52,
-              "textAlign": "center",
-            }
-          }
-        >
-          Get
-started
-        </Text>
-      </View>
-    </View>
-    <View
-      accessibilityLabel="Test and Debug"
-      accessibilityRole="button"
-      accessibilityState={
-        Object {
-          "busy": undefined,
-          "checked": undefined,
-          "disabled": undefined,
-          "expanded": undefined,
-          "selected": undefined,
-        }
-      }
-      accessibilityValue={
-        Object {
-          "max": undefined,
-          "min": undefined,
-          "now": undefined,
-          "text": undefined,
-        }
-      }
-      accessible={true}
-      collapsable={false}
-      focusable={false}
-      hasTVPreferredFocus={false}
-      onClick={[Function]}
-      onResponderGrant={[Function]}
-      onResponderMove={[Function]}
-      onResponderRelease={[Function]}
-      onResponderTerminate={[Function]}
-      onResponderTerminationRequest={[Function]}
-      onStartShouldSetResponder={[Function]}
-      style={
-        Object {
-          "backgroundColor": "#0074B8",
-          "borderRadius": 44,
-          "height": 320,
-          "opacity": 1,
-          "overflow": "hidden",
-          "padding": 20,
-          "width": 320,
-        }
-      }
-      testID="tile-debug"
-    >
-      <View
-        style={
-          Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
-          }
-        }
-      >
-        <Image
-          accessible={false}
-          resizeMode="contain"
-          source={
-            Object {
-              "testUri": "../../../src/assets/debug.png",
-            }
-          }
-          style={
-            Object {
-              "height": 80,
-              "tintColor": "#FFFFFF",
-              "width": 80,
-            }
-          }
-        />
-      </View>
-      <View
-        style={
-          Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
-          }
-        }
-      >
-        <Text
-          style={
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 52,
-              "fontWeight": "bold",
-              "includeFontPadding": false,
-              "lineHeight": 52,
-              "textAlign": "center",
-            }
-          }
-        >
-          Test &
-Debug
-        </Text>
-      </View>
-    </View>
-    <View
-      accessibilityLabel="Learn more"
-      accessibilityRole="button"
-      accessibilityState={
-        Object {
-          "busy": undefined,
-          "checked": undefined,
-          "disabled": undefined,
-          "expanded": undefined,
-          "selected": undefined,
-        }
-      }
-      accessibilityValue={
-        Object {
-          "max": undefined,
-          "min": undefined,
-          "now": undefined,
-          "text": undefined,
-        }
-      }
-      accessible={true}
-      collapsable={false}
-      focusable={false}
-      hasTVPreferredFocus={false}
-      onClick={[Function]}
-      onResponderGrant={[Function]}
-      onResponderMove={[Function]}
-      onResponderRelease={[Function]}
-      onResponderTerminate={[Function]}
-      onResponderTerminationRequest={[Function]}
-      onStartShouldSetResponder={[Function]}
-      style={
-        Object {
-          "backgroundColor": "#0074B8",
-          "borderRadius": 44,
-          "height": 320,
-          "opacity": 1,
-          "overflow": "hidden",
-          "padding": 20,
-          "width": 320,
-        }
-      }
-      testID="tile-learn-more"
-    >
-      <View
-        style={
-          Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
-          }
-        }
-      >
-        <Image
-          accessible={false}
-          resizeMode="contain"
-          source={
-            Object {
-              "testUri": "../../../src/assets/learn-more.png",
-            }
-          }
-          style={
-            Object {
-              "height": 80,
-              "tintColor": "#FFFFFF",
-              "width": 80,
-            }
-          }
-        />
-      </View>
-      <View
-        style={
-          Object {
-            "alignItems": "center",
-            "flex": 1,
-            "justifyContent": "center",
-          }
-        }
-      >
-        <Text
-          style={
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 52,
-              "fontWeight": "bold",
-              "includeFontPadding": false,
-              "lineHeight": 52,
-              "textAlign": "center",
-            }
-          }
-        >
-          Learn
-more
-        </Text>
-      </View>
+        Connect
+      </Text>
     </View>
   </View>
 </View>
