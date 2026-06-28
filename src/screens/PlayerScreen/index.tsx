@@ -45,6 +45,8 @@ export const PlayerScreen = ({
   const stoppedReported = useRef(false);
   const selectedAudioIndex = useRef<number | undefined>();
   const selectedBitrate = useRef<number | undefined>();
+  const selectedForceTranscode = useRef(false);
+  const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const [currentStream, setCurrentStream] = useState<JellyfinStreamInfo | null>(
@@ -132,6 +134,8 @@ export const PlayerScreen = ({
         startTicks,
         {
           audioStreamIndex: selectedAudioIndex.current,
+          alwaysBurnInSubtitleWhenTranscoding: selectedSubtitleBurnIn.current,
+          forceTranscode: selectedForceTranscode.current,
           maxStreamingBitrate: selectedBitrate.current,
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
@@ -164,15 +168,20 @@ export const PlayerScreen = ({
         (track) =>
           track.index === selectedSubtitleIndex.current && track.deliveryUrl,
       );
-      if (selectedExternalSubtitle?.deliveryUrl) {
+      if (
+        selectedExternalSubtitle?.deliveryUrl &&
+        !selectedExternalSubtitle.burnInRequired
+      ) {
         const textTrack = video.addTextTrack(
           'subtitles',
           selectedExternalSubtitle.title,
           selectedExternalSubtitle.language,
           selectedExternalSubtitle.deliveryUrl,
-          'text/vtt',
+          selectedExternalSubtitle.mimeType ?? 'text/vtt',
         );
         textTrack.mode = 'showing';
+      } else if (selectedSubtitleBurnIn.current) {
+        setStatusText('Playing with burned-in subtitles');
       }
 
       if (surfaceHandle.current) {
@@ -188,19 +197,31 @@ export const PlayerScreen = ({
     async ({
       audioTrack,
       bitrate,
+      forceTranscode,
       subtitleTrack,
     }: {
       audioTrack?: JellyfinMediaTrack;
-      bitrate?: number;
+      bitrate?: number | null;
+      forceTranscode?: boolean;
       subtitleTrack?: JellyfinMediaTrack | null;
     }) => {
       selectedAudioIndex.current =
         audioTrack?.index ?? selectedAudioIndex.current;
-      selectedBitrate.current = bitrate ?? selectedBitrate.current;
+      if (bitrate !== undefined) {
+        selectedBitrate.current = bitrate ?? undefined;
+      }
+      if (forceTranscode !== undefined) {
+        selectedForceTranscode.current = forceTranscode;
+      }
       selectedSubtitleIndex.current =
         subtitleTrack === null
           ? undefined
           : subtitleTrack?.index ?? selectedSubtitleIndex.current;
+      selectedSubtitleBurnIn.current =
+        subtitleTrack === null ? false : Boolean(subtitleTrack?.burnInRequired);
+      if (selectedSubtitleBurnIn.current) {
+        selectedForceTranscode.current = true;
+      }
       setStatusText('Switching stream...');
       const stream = await loadStream(currentPositionTicks());
       await reportPlaybackProgress(serverUrl, accessToken, {
@@ -350,6 +371,23 @@ export const PlayerScreen = ({
     }
   }, []);
 
+  const seekToChapter = useCallback((startPositionTicks: number) => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    video.currentTime = startPositionTicks / TICKS_PER_SECOND;
+    latestPositionTicks.current = startPositionTicks;
+    if (video.paused) {
+      video.play();
+      setPaused(false);
+    }
+    setShowSettings(false);
+    setStatusText('Playing');
+  }, []);
+
   return (
     <View style={styles.screen} testID="player-screen">
       <KeplerVideoSurfaceView
@@ -400,10 +438,15 @@ export const PlayerScreen = ({
         <PlaybackSettingsOverlay
           onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
           onSelectQuality={(quality) =>
-            reloadWithTrack({bitrate: quality.bitrate})
+            reloadWithTrack({
+              bitrate: quality.id === 'auto' ? null : quality.bitrate,
+              forceTranscode: quality.id !== 'auto' && Boolean(quality.bitrate),
+            })
           }
           onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
           onSetSpeed={setSpeed}
+          onSelectChapter={seekToChapter}
+          item={item}
           playbackRate={playbackRate}
           streamInfo={currentStream}
         />
@@ -413,6 +456,8 @@ export const PlayerScreen = ({
 };
 
 const PlaybackSettingsOverlay = ({
+  item,
+  onSelectChapter,
   onSelectAudio,
   onSelectQuality,
   onSelectSubtitle,
@@ -420,6 +465,8 @@ const PlaybackSettingsOverlay = ({
   playbackRate,
   streamInfo,
 }: {
+  item: JellyfinMediaItem;
+  onSelectChapter: (startPositionTicks: number) => void;
   onSelectAudio: (track: JellyfinMediaTrack) => void;
   onSelectQuality: (quality: JellyfinQualityOption) => void;
   onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
@@ -447,7 +494,7 @@ const PlaybackSettingsOverlay = ({
       {streamInfo.subtitleTracks.map((track) => (
         <SettingsButton
           key={track.id}
-          label={track.title}
+          label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
           onPress={() => onSelectSubtitle(track)}
         />
       ))}
@@ -470,6 +517,17 @@ const PlaybackSettingsOverlay = ({
         />
       ))}
     </SettingsColumn>
+    {item.chapters?.length ? (
+      <SettingsColumn title="Chapters">
+        {item.chapters.map((chapter) => (
+          <SettingsButton
+            key={`${chapter.startPositionTicks}-${chapter.name}`}
+            label={chapter.name}
+            onPress={() => onSelectChapter(chapter.startPositionTicks)}
+          />
+        ))}
+      </SettingsColumn>
+    ) : null}
   </View>
 );
 

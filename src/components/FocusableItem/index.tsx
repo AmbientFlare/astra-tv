@@ -7,12 +7,14 @@ interface FocusableItemProps {
   focusedStyle?: StyleProp<ViewStyle>;
   testID?: string;
   accessibilityLabel?: string;
+  disabled?: boolean;
   hasTVPreferredFocus?: boolean;
 }
 
 export const FocusableItem = ({
   accessibilityLabel,
   children,
+  disabled,
   focusedStyle,
   hasTVPreferredFocus,
   onPress,
@@ -26,6 +28,7 @@ export const FocusableItem = ({
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       activeOpacity={1}
+      disabled={disabled}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onBlur={() => setFocused(false)}
       onFocus={() => setFocused(true)}

@@ -20,12 +20,15 @@ export interface JellyfinMediaItem {
   id: string;
   name: string;
   type: string;
+  chapters?: JellyfinChapter[];
   imageUrl?: string;
   backdropUrl?: string;
   communityRating?: number;
   criticsRating?: number;
   genres?: string[];
   indexNumber?: number;
+  isFavorite?: boolean;
+  isPlayed?: boolean;
   mediaType?: string;
   officialRating?: string;
   overview?: string;
@@ -39,6 +42,11 @@ export interface JellyfinMediaItem {
   seriesName?: string;
 }
 
+export interface JellyfinChapter {
+  name: string;
+  startPositionTicks: number;
+}
+
 export interface JellyfinMediaTrack {
   id: string;
   index?: number;
@@ -46,9 +54,13 @@ export interface JellyfinMediaTrack {
   language?: string;
   codec?: string;
   displayTitle?: string;
+  deliveryMethod?: string;
   isDefault?: boolean;
   isExternal?: boolean;
   deliveryUrl?: string;
+  burnInRequired?: boolean;
+  mimeType?: string;
+  supportsTextTrack?: boolean;
   type: 'Audio' | 'Subtitle';
 }
 
@@ -70,6 +82,7 @@ export interface JellyfinStreamInfo {
   runTimeTicks?: number;
   startPositionTicks?: number;
   subtitleTracks: JellyfinMediaTrack[];
+  transcodeUrl?: string;
   url: string;
 }
 
@@ -117,7 +130,39 @@ const buildUrl = (
 };
 
 const itemFields =
-  'MediaSources,MediaStreams,Overview,PrimaryImageAspectRatio,ProductionYear,UserData,Genres,People,CommunityRating,CriticRating,OfficialRating';
+  'MediaSources,MediaStreams,Chapters,Overview,PrimaryImageAspectRatio,ProductionYear,UserData,Genres,People,CommunityRating,CriticRating,OfficialRating';
+
+const qualityCaps: JellyfinQualityOption[] = [
+  {id: 'auto', label: 'Auto'},
+  {id: '20000000', label: '20 Mbps', bitrate: 20000000},
+  {id: '12000000', label: '12 Mbps', bitrate: 12000000},
+  {id: '8000000', label: '8 Mbps', bitrate: 8000000},
+  {id: '4000000', label: '4 Mbps', bitrate: 4000000},
+  {id: '2000000', label: '2 Mbps', bitrate: 2000000},
+];
+
+const subtitleMimeForCodec = (codec?: string) => {
+  switch (codec?.toLowerCase()) {
+    case 'webvtt':
+    case 'vtt':
+      return 'text/vtt';
+    case 'srt':
+    case 'subrip':
+      return 'application/x-subrip';
+    case 'ass':
+    case 'ssa':
+      return 'text/x-ssa';
+    case 'ttml':
+      return 'application/ttml+xml';
+    default:
+      return undefined;
+  }
+};
+
+const supportsTextTrack = (codec?: string) =>
+  ['webvtt', 'vtt', 'srt', 'subrip', 'ttml'].includes(
+    codec?.toLowerCase() ?? '',
+  );
 
 const mapItem = (
   baseUrl: string,
@@ -130,8 +175,14 @@ const mapItem = (
     ProductionYear?: number;
     ImageTags?: {Primary?: string};
     BackdropImageTags?: string[];
+    Chapters?: Array<{Name?: string; StartPositionTicks?: number}>;
     RunTimeTicks?: number;
-    UserData?: {PlaybackPositionTicks?: number};
+    UserData?: {
+      IsFavorite?: boolean;
+      Played?: boolean;
+      PlayCount?: number;
+      PlaybackPositionTicks?: number;
+    };
     Overview?: string;
     Genres?: string[];
     People?: Array<{Id?: string; Name?: string; Role?: string; Type?: string}>;
@@ -150,6 +201,10 @@ const mapItem = (
   type: item.Type ?? 'Media',
   mediaType: item.MediaType,
   productionYear: item.ProductionYear,
+  chapters: item.Chapters?.map((chapter, index) => ({
+    name: chapter.Name ?? `Chapter ${index + 1}`,
+    startPositionTicks: chapter.StartPositionTicks ?? 0,
+  })),
   imageUrl: item.Id
     ? buildUrl(baseUrl, `/Items/${item.Id}/Images/Primary`, {
         fillWidth: 360,
@@ -169,6 +224,8 @@ const mapItem = (
       : undefined,
   runTimeTicks: item.RunTimeTicks,
   resumePositionTicks: item.UserData?.PlaybackPositionTicks,
+  isFavorite: item.UserData?.IsFavorite,
+  isPlayed: item.UserData?.Played,
   overview: item.Overview,
   genres: item.Genres,
   people: item.People?.map((person) => ({
@@ -352,7 +409,9 @@ export const getStreamUrl = async (
   userId?: string,
   startPositionTicks = 0,
   options: {
+    alwaysBurnInSubtitleWhenTranscoding?: boolean;
     audioStreamIndex?: number;
+    forceTranscode?: boolean;
     maxStreamingBitrate?: number;
     subtitleStreamIndex?: number;
   } = {},
@@ -382,6 +441,7 @@ export const getStreamUrl = async (
         IsDefault?: boolean;
         IsExternal?: boolean;
         DeliveryUrl?: string;
+        DeliveryMethod?: string;
       }>;
     }>;
   }>(`${baseUrl}/Items/${itemId}/PlaybackInfo`, {
@@ -396,45 +456,88 @@ export const getStreamUrl = async (
       StartTimeTicks: startPositionTicks,
       AudioStreamIndex: options.audioStreamIndex,
       SubtitleStreamIndex: options.subtitleStreamIndex,
+      AlwaysBurnInSubtitleWhenTranscoding:
+        options.alwaysBurnInSubtitleWhenTranscoding,
       MaxStreamingBitrate: options.maxStreamingBitrate,
-      EnableDirectPlay: true,
+      EnableDirectPlay: !options.forceTranscode,
       EnableDirectStream: true,
-      AllowVideoStreamCopy: true,
+      AllowVideoStreamCopy: !options.forceTranscode,
       AllowAudioStreamCopy: true,
       AutoOpenLiveStream: true,
     }),
   });
   const mediaSource = response.MediaSources?.[0];
-  const playMethod = mediaSource?.SupportsDirectPlay
+  const playMethod = mediaSource?.TranscodingUrl
+    ? 'Transcode'
+    : mediaSource?.SupportsDirectPlay
     ? 'DirectPlay'
     : mediaSource?.SupportsDirectStream
     ? 'DirectStream'
     : 'Transcode';
-  const url =
-    playMethod === 'DirectPlay' || !mediaSource?.TranscodingUrl
-      ? buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
-          static: true,
-          MediaSourceId: mediaSource?.Id,
-          PlaySessionId: response.PlaySessionId,
-          tag: mediaSource?.ETag,
-          api_key: accessToken,
-        })
-      : buildUrl(baseUrl, mediaSource.TranscodingUrl);
+  const url = mediaSource?.TranscodingUrl
+    ? buildUrl(baseUrl, mediaSource.TranscodingUrl)
+    : buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
+        static: true,
+        MediaSourceId: mediaSource?.Id,
+        PlaySessionId: response.PlaySessionId,
+        tag: mediaSource?.ETag,
+        api_key: accessToken,
+      });
   const streams = mediaSource?.MediaStreams ?? [];
-  const mapTrack = (track: (typeof streams)[number]): JellyfinMediaTrack => ({
-    id: String(track.Index ?? track.DisplayTitle ?? track.Title ?? track.Type),
-    index: track.Index,
-    title: track.DisplayTitle ?? track.Title ?? track.Language ?? 'Unknown',
-    language: track.Language,
-    codec: track.Codec,
-    displayTitle: track.DisplayTitle,
-    isDefault: track.IsDefault,
-    isExternal: track.IsExternal,
-    deliveryUrl: track.DeliveryUrl
+  const mapTrack = (track: (typeof streams)[number]): JellyfinMediaTrack => {
+    const isSubtitle = track.Type === 'Subtitle';
+    const textTrackSupported = isSubtitle && supportsTextTrack(track.Codec);
+    const deliveryUrl = track.DeliveryUrl
       ? buildUrl(baseUrl, track.DeliveryUrl, {api_key: accessToken})
-      : undefined,
-    type: track.Type === 'Subtitle' ? 'Subtitle' : 'Audio',
-  });
+      : isSubtitle && track.Index !== undefined && textTrackSupported
+      ? buildUrl(
+          baseUrl,
+          `/Videos/${itemId}/${mediaSource?.Id}/Subtitles/${track.Index}/Stream.vtt`,
+          {api_key: accessToken},
+        )
+      : undefined;
+
+    return {
+      id: String(
+        track.Index ?? track.DisplayTitle ?? track.Title ?? track.Type,
+      ),
+      index: track.Index,
+      title: track.DisplayTitle ?? track.Title ?? track.Language ?? 'Unknown',
+      language: track.Language,
+      codec: track.Codec,
+      displayTitle: track.DisplayTitle,
+      deliveryMethod: track.DeliveryMethod,
+      isDefault: track.IsDefault,
+      isExternal: track.IsExternal,
+      deliveryUrl,
+      burnInRequired: isSubtitle && (!deliveryUrl || !textTrackSupported),
+      mimeType: isSubtitle
+        ? subtitleMimeForCodec(
+            deliveryUrl?.endsWith('.vtt') ? 'vtt' : track.Codec,
+          )
+        : undefined,
+      supportsTextTrack: !isSubtitle || textTrackSupported,
+      type: isSubtitle ? 'Subtitle' : 'Audio',
+    };
+  };
+  const directQuality = mediaSource
+    ? {
+        id: mediaSource.Id ?? 'source',
+        label: [
+          'Source',
+          mediaSource.Height ? `${mediaSource.Height}p` : undefined,
+          mediaSource.Bitrate
+            ? `${Math.round(mediaSource.Bitrate / 1000000)} Mbps`
+            : undefined,
+          mediaSource.Container,
+        ]
+          .filter(Boolean)
+          .join(' / '),
+        bitrate: mediaSource.Bitrate,
+        height: mediaSource.Height,
+        width: mediaSource.Width,
+      }
+    : undefined;
 
   return {
     itemId,
@@ -444,30 +547,17 @@ export const getStreamUrl = async (
     mediaSourceId: mediaSource?.Id,
     playSessionId: response.PlaySessionId,
     playMethod,
-    qualityOptions: mediaSource
-      ? [
-          {
-            id: mediaSource.Id ?? 'default',
-            label: [
-              mediaSource.Height ? `${mediaSource.Height}p` : undefined,
-              mediaSource.Bitrate
-                ? `${Math.round(mediaSource.Bitrate / 1000000)} Mbps`
-                : undefined,
-              mediaSource.Container,
-            ]
-              .filter(Boolean)
-              .join(' / '),
-            bitrate: mediaSource.Bitrate,
-            height: mediaSource.Height,
-            width: mediaSource.Width,
-          },
-        ]
-      : [],
+    qualityOptions: directQuality
+      ? [directQuality, ...qualityCaps]
+      : qualityCaps,
     runTimeTicks: mediaSource?.RunTimeTicks,
     startPositionTicks,
     subtitleTracks: streams
       .filter((track) => track.Type === 'Subtitle')
       .map((track) => mapTrack(track)),
+    transcodeUrl: mediaSource?.TranscodingUrl
+      ? buildUrl(baseUrl, mediaSource.TranscodingUrl)
+      : undefined,
     url,
   };
 };
@@ -518,6 +608,31 @@ export const getNextUp = (
     EnableImageTypes: 'Primary,Backdrop',
     Limit: 24,
   });
+
+export const getLatestItems = async (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  includeItemTypes: string,
+): Promise<JellyfinMediaItem[]> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<Array<Parameters<typeof mapItem>[2]>>(
+    buildUrl(baseUrl, `/Users/${userId}/Items/Latest`, {
+      IncludeItemTypes: includeItemTypes,
+      Fields: itemFields,
+      ImageTypeLimit: 1,
+      EnableImageTypes: 'Primary,Backdrop',
+      Limit: 24,
+    }),
+    {
+      headers: {
+        'X-Emby-Token': accessToken,
+      },
+    },
+  );
+
+  return response.map((item) => mapItem(baseUrl, accessToken, item));
+};
 
 export const searchItems = (
   serverUrl: string,
@@ -640,6 +755,38 @@ export const reportPlaybackStopped = (
   accessToken: string,
   input: PlaybackReportInput,
 ) => reportPlayback(serverUrl, accessToken, 'Playing/Stopped', input);
+
+export const setFavorite = async (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  itemId: string,
+  isFavorite: boolean,
+) => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  await getJson(`${baseUrl}/Users/${userId}/FavoriteItems/${itemId}`, {
+    method: isFavorite ? 'POST' : 'DELETE',
+    headers: {
+      'X-Emby-Token': accessToken,
+    },
+  });
+};
+
+export const setPlayed = async (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  itemId: string,
+  isPlayed: boolean,
+) => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  await getJson(`${baseUrl}/Users/${userId}/PlayedItems/${itemId}`, {
+    method: isPlayed ? 'POST' : 'DELETE',
+    headers: {
+      'X-Emby-Token': accessToken,
+    },
+  });
+};
 
 const scanCandidate = async (
   address: string,

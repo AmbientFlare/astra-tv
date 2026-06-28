@@ -1,6 +1,7 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
 import {getItems, JellyfinMediaItem} from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
@@ -22,10 +23,8 @@ export const LibraryScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadItems = async () => {
+  const loadItems = useCallback(
+    async (mounted = true) => {
       setLoading(true);
       setErrorText(null);
 
@@ -51,20 +50,28 @@ export const LibraryScreen = ({
           setLoading(false);
         }
       }
-    };
+    },
+    [libraryId, serverProfile],
+  );
 
+  useEffect(() => {
     loadItems();
-
-    return () => {
-      mounted = false;
-    };
-  }, [libraryId, serverProfile]);
+  }, [loadItems]);
 
   return (
     <View style={styles.screen} testID="library-screen">
       <Text style={styles.title}>{libraryName}</Text>
       {isLoading ? <Text style={styles.status}>Loading items...</Text> : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+      {errorText ? (
+        <FocusableItem
+          focusedStyle={styles.retryFocused}
+          onPress={() => loadItems()}
+          style={styles.retryButton}
+          testID="library-retry-button">
+          <Text style={styles.retryText}>Retry</Text>
+        </FocusableItem>
+      ) : null}
       {!isLoading && !errorText && items.length === 0 ? (
         <Text style={styles.status}>No playable items found.</Text>
       ) : null}
@@ -114,6 +121,23 @@ const styles = StyleSheet.create({
   error: {
     color: '#FFB4A8',
     fontSize: 28,
+  },
+  retryButton: {
+    width: 130,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: '#24313A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  retryFocused: {
+    backgroundColor: '#315066',
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
   },
   gridGuide: {
     flex: 1,
