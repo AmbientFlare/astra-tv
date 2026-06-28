@@ -1,5 +1,5 @@
 import React from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../../components/FocusableItem';
 import {ServerProfile} from '../../services/storage';
 
@@ -64,9 +64,11 @@ export const SettingsScreen = ({
         <Text style={styles.aboutText}>
           Backends: Jellyfin now, Kodi and Emby planned
         </Text>
-        <View style={styles.qrPlaceholder}>
-          <Text style={styles.qrText}>Ko-fi QR</Text>
-        </View>
+        <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
+        <Image
+          source={require('../../assets/kofi-qr.png')}
+          style={styles.qrImage}
+        />
       </View>
     </View>
   </ScrollView>
@@ -145,18 +147,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginBottom: 10,
   },
-  qrPlaceholder: {
+  qrImage: {
     width: 132,
     height: 132,
     borderRadius: 8,
-    borderColor: '#4CC9F0',
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: 10,
-  },
-  qrText: {
-    color: '#B8C5CC',
-    fontSize: 20,
   },
 });

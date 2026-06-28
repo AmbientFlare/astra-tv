@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {FlatList, StyleSheet, Text, TextInput, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
@@ -22,19 +22,8 @@ export const SearchScreen = ({
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const trimmedQuery = query.trim();
-
-    if (trimmedQuery.length < 2) {
-      setResults([]);
-      setErrorText(null);
-      return () => {
-        mounted = false;
-      };
-    }
-
-    const timeout = setTimeout(async () => {
+  const runSearch = useCallback(
+    async (searchTerm: string, mounted = true) => {
       setLoading(true);
       setErrorText(null);
 
@@ -43,7 +32,7 @@ export const SearchScreen = ({
           serverProfile.serverUrl,
           serverProfile.accessToken,
           serverProfile.userId,
-          trimmedQuery,
+          searchTerm,
         );
 
         if (mounted) {
@@ -60,13 +49,29 @@ export const SearchScreen = ({
           setLoading(false);
         }
       }
-    }, 350);
+    },
+    [serverProfile],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+    const trimmedQuery = query.trim();
+
+    if (trimmedQuery.length < 2) {
+      setResults([]);
+      setErrorText(null);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const timeout = setTimeout(() => runSearch(trimmedQuery, mounted), 350);
 
     return () => {
       mounted = false;
       clearTimeout(timeout);
     };
-  }, [query, serverProfile]);
+  }, [query, runSearch]);
 
   return (
     <View style={styles.screen} testID="search-screen">
@@ -90,6 +95,15 @@ export const SearchScreen = ({
       />
       {isLoading ? <Text style={styles.status}>Searching...</Text> : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+      {errorText ? (
+        <FocusableItem
+          focusedStyle={styles.backFocused}
+          onPress={() => runSearch(query.trim())}
+          style={styles.retryButton}
+          testID="search-retry-button">
+          <Text style={styles.backText}>Retry</Text>
+        </FocusableItem>
+      ) : null}
       {!isLoading && query.trim().length >= 2 && results.length === 0 ? (
         <Text style={styles.status}>No results.</Text>
       ) : null}
@@ -166,6 +180,15 @@ const styles = StyleSheet.create({
     color: '#FFB4A8',
     fontSize: 24,
     marginTop: 18,
+  },
+  retryButton: {
+    width: 120,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: '#24313A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
   },
   gridGuide: {
     flex: 1,

@@ -1,10 +1,11 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
 import {
   getLibraries,
+  getLatestItems,
   getNextUp,
   getResumeItems,
   JellyfinLibrary,
@@ -28,64 +29,83 @@ export const HomeScreen = ({
   serverProfile,
 }: HomeScreenProps) => {
   const [libraries, setLibraries] = useState<JellyfinLibrary[]>([]);
-  const [nextUp, setNextUp] = useState<JellyfinMediaItem[]>([]);
-  const [resumeItems, setResumeItems] = useState<JellyfinMediaItem[]>([]);
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadLibraries = useCallback(async () => {
+    if (!serverProfile) {
+      return;
+    }
 
-    const loadLibraries = async () => {
-      if (!serverProfile) {
-        return;
-      }
+    setLoading(true);
+    setErrorText(null);
 
-      setLoading(true);
-      setErrorText(null);
-
-      try {
-        const [libraryResults, resumeResults, nextUpResults] =
-          await Promise.all([
-            getLibraries(serverProfile.serverUrl, serverProfile.accessToken),
-            getResumeItems(
-              serverProfile.serverUrl,
-              serverProfile.accessToken,
-              serverProfile.userId,
-            ),
-            getNextUp(
-              serverProfile.serverUrl,
-              serverProfile.accessToken,
-              serverProfile.userId,
-            ),
-          ]);
-
-        if (mounted) {
-          setLibraries(libraryResults);
-          setResumeItems(resumeResults);
-          setNextUp(nextUpResults);
-        }
-      } catch (error) {
-        if (mounted) {
-          setErrorText(
-            error instanceof Error
-              ? error.message
-              : 'Unable to load libraries.',
-          );
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadLibraries();
-
-    return () => {
-      mounted = false;
-    };
+    try {
+      const libraryResults = await getLibraries(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+      );
+      setLibraries(libraryResults);
+    } catch (error) {
+      setErrorText(
+        error instanceof Error ? error.message : 'Unable to load libraries.',
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [serverProfile]);
+
+  useEffect(() => {
+    loadLibraries();
+  }, [loadLibraries]);
+
+  const makeRowLoader = useCallback(
+    (kind: 'resume' | 'nextUp' | 'latestMovies' | 'latestShows') =>
+      async () => {
+        if (!serverProfile) {
+          return [];
+        }
+
+        switch (kind) {
+          case 'resume':
+            return getResumeItems(
+              serverProfile.serverUrl,
+              serverProfile.accessToken,
+              serverProfile.userId,
+            );
+          case 'nextUp':
+            return getNextUp(
+              serverProfile.serverUrl,
+              serverProfile.accessToken,
+              serverProfile.userId,
+            );
+          case 'latestMovies':
+            return getLatestItems(
+              serverProfile.serverUrl,
+              serverProfile.accessToken,
+              serverProfile.userId,
+              'Movie',
+            );
+          case 'latestShows':
+            return getLatestItems(
+              serverProfile.serverUrl,
+              serverProfile.accessToken,
+              serverProfile.userId,
+              'Episode',
+            );
+        }
+      },
+    [serverProfile],
+  );
+  const rowLoaders = useMemo(
+    () => ({
+      latestMovies: makeRowLoader('latestMovies'),
+      latestShows: makeRowLoader('latestShows'),
+      nextUp: makeRowLoader('nextUp'),
+      resume: makeRowLoader('resume'),
+    }),
+    [makeRowLoader],
+  );
 
   return (
     <View style={styles.screen} testID="home-screen">
@@ -113,18 +133,37 @@ export const HomeScreen = ({
         <Text style={styles.status}>Loading libraries...</Text>
       ) : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+      {errorText ? (
+        <FocusableItem
+          focusedStyle={styles.actionFocused}
+          onPress={loadLibraries}
+          style={styles.retryButton}
+          testID="home-libraries-retry">
+          <Text style={styles.actionText}>Retry</Text>
+        </FocusableItem>
+      ) : null}
       {!isLoading && !errorText && libraries.length === 0 ? (
         <Text style={styles.status}>No libraries found.</Text>
       ) : null}
       <HomeMediaRow
-        items={resumeItems}
+        loadItems={rowLoaders.resume}
         onSelectItem={onSelectItem}
         title="Continue Watching"
       />
       <HomeMediaRow
-        items={nextUp}
+        loadItems={rowLoaders.nextUp}
         onSelectItem={onSelectItem}
         title="Next Up"
+      />
+      <HomeMediaRow
+        loadItems={rowLoaders.latestMovies}
+        onSelectItem={onSelectItem}
+        title="Latest Movies"
+      />
+      <HomeMediaRow
+        loadItems={rowLoaders.latestShows}
+        onSelectItem={onSelectItem}
+        title="Latest Shows"
       />
       <Text style={styles.rowTitle}>Libraries</Text>
       <ScrollView horizontal={true} style={styles.libraryScroller}>
@@ -144,21 +183,59 @@ export const HomeScreen = ({
 };
 
 const HomeMediaRow = ({
-  items,
+  loadItems,
   onSelectItem,
   title,
 }: {
-  items: JellyfinMediaItem[];
+  loadItems: () => Promise<JellyfinMediaItem[]>;
   onSelectItem?: (item: JellyfinMediaItem) => void;
   title: string;
 }) => {
-  if (items.length === 0) {
+  const [items, setItems] = useState<JellyfinMediaItem[]>([]);
+  const [isLoading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorText(null);
+
+    try {
+      setItems(await loadItems());
+    } catch (error) {
+      setErrorText(
+        error instanceof Error ? error.message : `Unable to load ${title}.`,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [loadItems, title]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (!isLoading && !errorText && items.length === 0) {
     return null;
   }
 
   return (
     <>
       <Text style={styles.rowTitle}>{title}</Text>
+      {isLoading ? (
+        <Text style={styles.rowStatus}>Loading {title}...</Text>
+      ) : null}
+      {errorText ? (
+        <View style={styles.rowErrorLine}>
+          <Text style={styles.error}>{errorText}</Text>
+          <FocusableItem
+            focusedStyle={styles.actionFocused}
+            onPress={load}
+            style={styles.rowRetryButton}
+            testID={`home-${title}-retry`}>
+            <Text style={styles.actionText}>Retry</Text>
+          </FocusableItem>
+        </View>
+      ) : null}
       <ScrollView horizontal={true} style={styles.mediaScroller}>
         <TVFocusGuideView style={styles.libraryRow}>
           {items.map((item) => (
@@ -226,6 +303,15 @@ const styles = StyleSheet.create({
     color: '#FFB4A8',
     fontSize: 28,
   },
+  retryButton: {
+    width: 130,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: '#24313A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+  },
   libraryScroller: {
     flexGrow: 0,
   },
@@ -243,5 +329,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 14,
     marginTop: 18,
+  },
+  rowStatus: {
+    color: '#B8C5CC',
+    fontSize: 22,
+    marginBottom: 10,
+  },
+  rowErrorLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 10,
+  },
+  rowRetryButton: {
+    width: 110,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: '#24313A',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
@@ -8,6 +8,8 @@ import {
   getItemDetails,
   getSeasons,
   JellyfinMediaItem,
+  setFavorite,
+  setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 
@@ -42,11 +44,13 @@ export const ItemDetailScreen = ({
   const [selectedSeason, setSelectedSeason] =
     useState<JellyfinMediaItem | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [isLoading, setLoading] = useState(false);
+  const [isUpdatingUserData, setUpdatingUserData] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadDetail = async () => {
+  const loadDetail = useCallback(
+    async (mounted = true) => {
+      setLoading(true);
+      setErrorText(null);
       try {
         const result = await getItemDetails(
           serverProfile.serverUrl,
@@ -82,15 +86,18 @@ export const ItemDetailScreen = ({
               : 'Unable to load item details.',
           );
         }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    };
+    },
+    [item.id, serverProfile],
+  );
 
+  useEffect(() => {
     loadDetail();
-
-    return () => {
-      mounted = false;
-    };
-  }, [item.id, serverProfile]);
+  }, [loadDetail]);
 
   useEffect(() => {
     let mounted = true;
@@ -137,6 +144,56 @@ export const ItemDetailScreen = ({
     detail.communityRating ? `${detail.communityRating.toFixed(1)}/10` : null,
   ].filter(Boolean);
 
+  const updateFavorite = async () => {
+    const nextValue = !detail.isFavorite;
+    setUpdatingUserData(true);
+    setDetail((current) => ({...current, isFavorite: nextValue}));
+    setErrorText(null);
+
+    try {
+      await setFavorite(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+        serverProfile.userId,
+        detail.id,
+        nextValue,
+      );
+    } catch (error) {
+      setDetail((current) => ({...current, isFavorite: !nextValue}));
+      setErrorText(
+        error instanceof Error ? error.message : 'Unable to update favorite.',
+      );
+    } finally {
+      setUpdatingUserData(false);
+    }
+  };
+
+  const updatePlayed = async () => {
+    const nextValue = !detail.isPlayed;
+    setUpdatingUserData(true);
+    setDetail((current) => ({...current, isPlayed: nextValue}));
+    setErrorText(null);
+
+    try {
+      await setPlayed(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+        serverProfile.userId,
+        detail.id,
+        nextValue,
+      );
+    } catch (error) {
+      setDetail((current) => ({...current, isPlayed: !nextValue}));
+      setErrorText(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update watched state.',
+      );
+    } finally {
+      setUpdatingUserData(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.screen} testID="item-detail-screen">
       <View style={styles.hero}>
@@ -157,6 +214,9 @@ export const ItemDetailScreen = ({
               <Text style={styles.genres}>{detail.genres.join(' / ')}</Text>
             ) : null}
             {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+            {isLoading ? (
+              <Text style={styles.status}>Loading details...</Text>
+            ) : null}
             <TVFocusGuideView style={styles.actions}>
               {detail.type !== 'Series' ? (
                 <FocusableItem
@@ -168,6 +228,37 @@ export const ItemDetailScreen = ({
                   <Text style={styles.actionText}>
                     {detail.resumePositionTicks ? 'Resume' : 'Play'}
                   </Text>
+                </FocusableItem>
+              ) : null}
+              <FocusableItem
+                disabled={isUpdatingUserData}
+                focusedStyle={styles.actionFocused}
+                onPress={updateFavorite}
+                style={styles.actionButton}
+                testID="detail-favorite-button">
+                <Text style={styles.actionText}>
+                  {detail.isFavorite ? 'Unfavorite' : 'Favorite'}
+                </Text>
+              </FocusableItem>
+              {detail.type !== 'Series' ? (
+                <FocusableItem
+                  disabled={isUpdatingUserData}
+                  focusedStyle={styles.actionFocused}
+                  onPress={updatePlayed}
+                  style={styles.actionButton}
+                  testID="detail-watched-button">
+                  <Text style={styles.actionText}>
+                    {detail.isPlayed ? 'Unwatched' : 'Watched'}
+                  </Text>
+                </FocusableItem>
+              ) : null}
+              {errorText ? (
+                <FocusableItem
+                  focusedStyle={styles.actionFocused}
+                  onPress={() => loadDetail()}
+                  style={styles.actionButton}
+                  testID="detail-retry-button">
+                  <Text style={styles.actionText}>Retry</Text>
                 </FocusableItem>
               ) : null}
               <FocusableItem
@@ -279,6 +370,11 @@ const styles = StyleSheet.create({
   },
   error: {
     color: '#FFB4A8',
+    fontSize: 22,
+    marginTop: 16,
+  },
+  status: {
+    color: '#B8C5CC',
     fontSize: 22,
     marginTop: 16,
   },
