@@ -7,6 +7,7 @@
 
 dist
 build
+buildinfo.json
 node_modules
 CMakeUserPresets.json
 npm-debug.log
