@@ -80,7 +80,6 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
 
     const closeKeyboard = () => {
       setKeyboardOpen(false);
-      focusInput();
     };
 
     return (
@@ -88,7 +87,7 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
         <TouchableOpacity
           activeOpacity={1}
           hasTVPreferredFocus={props.hasTVPreferredFocus}
-          onFocus={focusInput}
+          onFocus={openKeyboard}
           onPress={openKeyboard}
           style={[
             styles.container,
@@ -105,6 +104,7 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
             }}
             onFocus={(event) => {
               setFocused(true);
+              setKeyboardOpen(true);
               onFocus?.(event);
             }}
             ref={inputRef}
