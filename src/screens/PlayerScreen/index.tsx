@@ -149,7 +149,7 @@ export const PlayerScreen = ({
     videoRef.current.setSurfaceHandle(surfaceHandle.current);
     videoRef.current.play();
     setPaused(false);
-    setStatusText('Playing');
+    setStatusText('Starting video...');
   }, []);
 
   const loadStream = useCallback(
@@ -203,6 +203,23 @@ export const PlayerScreen = ({
             );
           });
           video.addEventListener('pause', () => setPaused(true));
+          video.addEventListener('loadedmetadata', () => {
+            setStatusText('Stream loaded');
+          });
+          video.addEventListener('canplay', () => {
+            setStatusText('Ready to play');
+          });
+          video.addEventListener('waiting', () => {
+            setStatusText('Buffering...');
+          });
+          video.addEventListener('stalled', () => {
+            setStatusText('Playback stalled. Buffering...');
+          });
+          video.addEventListener('timeupdate', () => {
+            if (typeof video.currentTime === 'number') {
+              setPositionSeconds(video.currentTime);
+            }
+          });
           video.addEventListener('error', () => playbackErrorHandler.current());
           video.addEventListener('ended', () => setStatusText('Finished'));
           playbackEventsAttached.current = true;
@@ -218,6 +235,11 @@ export const PlayerScreen = ({
       video.currentTime = startTicks / TICKS_PER_SECOND;
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
       video.playbackRate = playbackRate;
+      setStatusText(
+        stream.playMethod === 'Transcode'
+          ? 'Loading transcoded MP4 stream...'
+          : 'Loading direct stream...',
+      );
 
       const selectedExternalSubtitle = stream.subtitleTracks.find(
         (track) =>
