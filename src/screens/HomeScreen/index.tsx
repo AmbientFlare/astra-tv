@@ -108,7 +108,10 @@ export const HomeScreen = ({
   );
 
   return (
-    <View style={styles.screen} testID="home-screen">
+    <ScrollView
+      contentContainerStyle={styles.screenContent}
+      style={styles.screen}
+      testID="home-screen">
       <Text style={styles.title}>Astra</Text>
       <Text style={styles.subtitle}>
         {serverProfile ? serverProfile.name : 'Home'}
@@ -178,7 +181,7 @@ export const HomeScreen = ({
           ))}
         </TVFocusGuideView>
       </ScrollView>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -260,8 +263,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#0C1116',
+  },
+  screenContent: {
     paddingHorizontal: 84,
     paddingTop: 56,
+    paddingBottom: 90,
   },
   title: {
     color: '#FFFFFF',

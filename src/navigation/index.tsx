@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
+import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {LibraryScreen} from '../screens/LibraryScreen';
@@ -39,6 +40,33 @@ export const RootNavigator = () => {
   const [selectedItem, setSelectedItem] = useState<JellyfinMediaItem | null>(
     null,
   );
+
+  useTVEventHandler((event) => {
+    if (event.eventKeyAction === 1 || event.eventType !== 'back') {
+      return;
+    }
+
+    switch (route) {
+      case 'setup':
+        if (serverProfile) {
+          setRoute('home');
+        }
+        break;
+      case 'library':
+      case 'search':
+      case 'settings':
+      case 'support':
+        setRoute('home');
+        break;
+      case 'detail':
+        setRoute(selectedLibrary ? 'library' : 'home');
+        break;
+      case 'home':
+      case 'loading':
+      case 'player':
+        break;
+    }
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -128,7 +156,7 @@ export const RootNavigator = () => {
       <PlayerScreen
         accessToken={serverProfile.accessToken}
         item={selectedItem}
-        onBack={() => setRoute('library')}
+        onBack={() => setRoute('detail')}
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
       />
@@ -170,12 +198,30 @@ export const RootNavigator = () => {
     );
   }
 
+  if (!serverProfile) {
+    return (
+      <SetupScreen
+        onConnected={(profile) => {
+          setServerProfile(profile);
+          setRoute('home');
+        }}
+      />
+    );
+  }
+
   return (
-    <SetupScreen
-      onConnected={(profile) => {
-        setServerProfile(profile);
-        setRoute('home');
+    <HomeScreen
+      onSearch={() => setRoute('search')}
+      onSelectLibrary={(library) => {
+        setSelectedLibrary(library);
+        setRoute('library');
       }}
+      onSelectItem={(item) => {
+        setSelectedItem(item);
+        setRoute('detail');
+      }}
+      onSettings={() => setRoute('settings')}
+      serverProfile={serverProfile}
     />
   );
 };
