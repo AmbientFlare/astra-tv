@@ -13,18 +13,64 @@ import {PlayerScreen} from '../screens/PlayerScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {SupportScreen} from '../screens/SupportScreen';
-import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
+import {
+  authenticate,
+  connect,
+  JellyfinLibrary,
+  JellyfinMediaItem,
+} from '../services/jellyfin';
 import {checkAstraProReceipt} from '../services/iap';
+import {
+  DEV_PASSWORD,
+  DEV_SERVER_URL,
+  DEV_USERNAME,
+} from '../config/devCredentials';
 import {
   getLastUsedServerProfile,
   incrementLaunchCount,
   readServerProfiles,
   ServerProfile,
   setProStatus,
+  upsertServerProfile,
 } from '../services/storage';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
+
+const refreshDevServerProfile = async (
+  profile: ServerProfile | null,
+): Promise<ServerProfile | null> => {
+  if (
+    !profile ||
+    profile.serverUrl !== DEV_SERVER_URL ||
+    profile.username !== DEV_USERNAME
+  ) {
+    return profile;
+  }
+
+  try {
+    const serverInfo = await connect(DEV_SERVER_URL);
+    const authResult = await authenticate(
+      DEV_SERVER_URL,
+      DEV_USERNAME,
+      DEV_PASSWORD,
+    );
+    const refreshedProfile: ServerProfile = {
+      ...profile,
+      id: serverInfo.id || profile.id,
+      name: serverInfo.name || profile.name,
+      accessToken: authResult.accessToken,
+      userId: authResult.userId,
+      lastUsed: Date.now(),
+    };
+
+    await upsertServerProfile(refreshedProfile);
+
+    return refreshedProfile;
+  } catch {
+    return profile;
+  }
+};
 
 type LaunchRoute =
   | 'loading'
@@ -134,6 +180,7 @@ export const RootNavigator = () => {
     const bootstrap = async () => {
       const profiles = await readServerProfiles();
       const lastUsedProfile = await getLastUsedServerProfile();
+      const refreshedProfile = await refreshDevServerProfile(lastUsedProfile);
       const launchCount = await incrementLaunchCount();
       const isPro = await checkAstraProReceipt();
 
@@ -141,7 +188,7 @@ export const RootNavigator = () => {
         return;
       }
 
-      setServerProfile(lastUsedProfile);
+      setServerProfile(refreshedProfile);
       if (!isPro && launchCount > 0 && launchCount % 10 === 0) {
         setRoute('support');
       } else {

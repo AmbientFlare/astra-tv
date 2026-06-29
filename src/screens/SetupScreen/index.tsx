@@ -4,6 +4,11 @@ import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {TVTextInput} from '../../components/TVTextInput';
 import {
+  DEV_PASSWORD,
+  DEV_SERVER_URL,
+  DEV_USERNAME,
+} from '../../config/devCredentials';
+import {
   authenticate,
   connect,
   DiscoveredServer,
@@ -22,9 +27,9 @@ interface SetupScreenProps {
 }
 
 export const SetupScreen = ({onConnected}: SetupScreenProps) => {
-  const [serverUrl, setServerUrl] = useState('http://jelly2.ambientflare.art');
-  const [username, setUsername] = useState('Levi');
-  const [password, setPassword] = useState('broken6667');
+  const [serverUrl, setServerUrl] = useState(DEV_SERVER_URL);
+  const [username, setUsername] = useState(DEV_USERNAME);
+  const [password, setPassword] = useState(DEV_PASSWORD);
   const [serverType, setServerType] = useState<ServerType>('jellyfin');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [discoveredServers, setDiscoveredServers] = useState<
