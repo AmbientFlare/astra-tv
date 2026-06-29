@@ -104,6 +104,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         name: serverInfo.name,
         serverUrl: serverUrl.trim().replace(/\/+$/, ''),
         serverType,
+        username: username.trim(),
         userId: authResult.userId,
         accessToken: authResult.accessToken,
         lastUsed: Date.now(),

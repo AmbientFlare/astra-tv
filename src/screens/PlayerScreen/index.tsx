@@ -48,6 +48,9 @@ export const PlayerScreen = ({
   const selectedForceTranscode = useRef(false);
   const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
+  const playbackEventsAttached = useRef(false);
+  const playbackErrorHandler = useRef<() => void>(() => undefined);
+  const retriedAfterPlaybackError = useRef(false);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const [currentStream, setCurrentStream] = useState<JellyfinStreamInfo | null>(
     null,
@@ -56,6 +59,9 @@ export const PlayerScreen = ({
   const [isPaused, setPaused] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [positionSeconds, setPositionSeconds] = useState(
+    (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
+  );
 
   const currentPositionTicks = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
@@ -153,6 +159,18 @@ export const PlayerScreen = ({
       if (!initialized.current) {
         await video.initialize();
         initialized.current = true;
+        if (!playbackEventsAttached.current) {
+          video.addEventListener('playing', () => {
+            setPaused(false);
+            setStatusText(
+              `Playing (${streamInfo.current?.playMethod ?? 'stream'})`,
+            );
+          });
+          video.addEventListener('pause', () => setPaused(true));
+          video.addEventListener('error', () => playbackErrorHandler.current());
+          video.addEventListener('ended', () => setStatusText('Finished'));
+          playbackEventsAttached.current = true;
+        }
       } else {
         video.pause();
       }
@@ -162,6 +180,7 @@ export const PlayerScreen = ({
       video.src = stream.url;
       video.load();
       video.currentTime = startTicks / TICKS_PER_SECOND;
+      setPositionSeconds(startTicks / TICKS_PER_SECOND);
       video.playbackRate = playbackRate;
 
       const selectedExternalSubtitle = stream.subtitleTracks.find(
@@ -235,6 +254,35 @@ export const PlayerScreen = ({
     },
     [accessToken, currentPositionTicks, isPaused, loadStream, serverUrl],
   );
+
+  playbackErrorHandler.current = () => {
+    if (retriedAfterPlaybackError.current) {
+      setStatusText('Playback failed. Open settings and try another quality.');
+      return;
+    }
+
+    retriedAfterPlaybackError.current = true;
+    selectedForceTranscode.current = true;
+    selectedBitrate.current = selectedBitrate.current ?? 8000000;
+    setStatusText('Playback failed. Retrying with transcoding...');
+    loadStream(currentPositionTicks())
+      .then((stream) =>
+        reportPlaybackProgress(serverUrl, accessToken, {
+          ...stream,
+          isPaused: false,
+          positionTicks: currentPositionTicks(),
+        }),
+      )
+      .then(() => {
+        videoRef.current?.play();
+        setPaused(false);
+      })
+      .catch((error) => {
+        setStatusText(
+          error instanceof Error ? error.message : 'Playback retry failed.',
+        );
+      });
+  };
 
   useTVEventHandler((event) => {
     if (event.eventKeyAction === 1) {
@@ -335,6 +383,10 @@ export const PlayerScreen = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (typeof videoRef.current?.currentTime === 'number') {
+        setPositionSeconds(videoRef.current.currentTime);
+      }
+
       if (!streamInfo.current) {
         return;
       }
@@ -388,6 +440,21 @@ export const PlayerScreen = ({
     setStatusText('Playing');
   }, []);
 
+  const durationSeconds =
+    typeof videoRef.current?.duration === 'number' &&
+    videoRef.current.duration > 0
+      ? videoRef.current.duration
+      : (currentStream?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+        TICKS_PER_SECOND;
+  const progressPercent =
+    durationSeconds > 0
+      ? `${Math.min(
+          100,
+          Math.max(0, (positionSeconds / durationSeconds) * 100),
+        )}%`
+      : '0%';
+  const progressWidth = progressPercent as `${number}%`;
+
   return (
     <View style={styles.screen} testID="player-screen">
       <KeplerVideoSurfaceView
@@ -402,13 +469,16 @@ export const PlayerScreen = ({
           {item.name}
         </Text>
         <Text style={styles.status}>{statusText}</Text>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, {width: progressWidth}]} />
+        </View>
         <View style={styles.controls}>
           <FocusableItem
             focusedStyle={styles.focusedButton}
             onPress={() => seek(-SEEK_SECONDS)}
             style={styles.button}
             testID="player-seek-back">
-            <Text style={styles.buttonText}>-10</Text>
+            <Text style={styles.buttonText}>{'<< 10'}</Text>
           </FocusableItem>
           <FocusableItem
             focusedStyle={styles.focusedButton}
@@ -423,7 +493,14 @@ export const PlayerScreen = ({
             onPress={() => seek(SEEK_SECONDS)}
             style={styles.button}
             testID="player-seek-forward">
-            <Text style={styles.buttonText}>+10</Text>
+            <Text style={styles.buttonText}>{'10 >>'}</Text>
+          </FocusableItem>
+          <FocusableItem
+            focusedStyle={styles.focusedButton}
+            onPress={() => setShowSettings((visible) => !visible)}
+            style={styles.button}
+            testID="player-settings">
+            <Text style={styles.buttonText}>Options</Text>
           </FocusableItem>
           <FocusableItem
             focusedStyle={styles.focusedButton}
@@ -590,6 +667,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 18,
     marginTop: 22,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.24)',
+    marginTop: 18,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: '#4CC9F0',
   },
   button: {
     minWidth: 118,

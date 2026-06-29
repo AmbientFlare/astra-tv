@@ -7,6 +7,7 @@ export interface ServerProfile {
   name: string;
   serverUrl: string;
   serverType: ServerType;
+  username?: string;
   userId: string;
   accessToken: string;
   lastUsed: number;

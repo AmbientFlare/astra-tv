@@ -11,10 +11,6 @@ interface SettingsScreenProps {
 
 const settingGroups = [
   {
-    title: 'Server',
-    rows: ['Manage servers', 'Switch user', 'Sign out'],
-  },
-  {
     title: 'Playback Defaults',
     rows: [
       'Preferred audio language',
@@ -42,6 +38,27 @@ export const SettingsScreen = ({
       testID="settings-back-button">
       <Text style={styles.backText}>Back</Text>
     </FocusableItem>
+    <View style={styles.group}>
+      <Text style={styles.groupTitle}>Server</Text>
+      <View style={styles.infoRow}>
+        <Text style={styles.rowText}>Name</Text>
+        <Text numberOfLines={1} style={styles.rowValue}>
+          {serverProfile.name}
+        </Text>
+      </View>
+      <View style={styles.infoRow}>
+        <Text style={styles.rowText}>Address</Text>
+        <Text numberOfLines={1} style={styles.rowValue}>
+          {serverProfile.serverUrl}
+        </Text>
+      </View>
+      <View style={styles.infoRow}>
+        <Text style={styles.rowText}>User</Text>
+        <Text numberOfLines={1} style={styles.rowValue}>
+          {serverProfile.username ?? serverProfile.userId}
+        </Text>
+      </View>
+    </View>
     {settingGroups.map((group) => (
       <View key={group.title} style={styles.group}>
         <Text style={styles.groupTitle}>{group.title}</Text>
@@ -105,6 +122,16 @@ const styles = StyleSheet.create({
   },
   row: {
     height: 62,
+    borderRadius: 8,
+    backgroundColor: '#182027',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 18,
+  },
+  infoRow: {
+    minHeight: 62,
     borderRadius: 8,
     backgroundColor: '#182027',
     flexDirection: 'row',

@@ -238,6 +238,13 @@ exports[`App matches snapshot 1`] = `
           value=""
         />
       </View>
+      <Modal
+        animationType="fade"
+        hardwareAccelerated={false}
+        onRequestClose={[Function]}
+        transparent={true}
+        visible={false}
+      />
       <Text
         style={
           Object {
@@ -339,6 +346,13 @@ exports[`App matches snapshot 1`] = `
           value=""
         />
       </View>
+      <Modal
+        animationType="fade"
+        hardwareAccelerated={false}
+        onRequestClose={[Function]}
+        transparent={true}
+        visible={false}
+      />
     </View>
     <View
       style={
@@ -428,6 +442,13 @@ exports[`App matches snapshot 1`] = `
           value=""
         />
       </View>
+      <Modal
+        animationType="fade"
+        hardwareAccelerated={false}
+        onRequestClose={[Function]}
+        transparent={true}
+        visible={false}
+      />
     </View>
     <View
       style={
