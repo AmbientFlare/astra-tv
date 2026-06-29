@@ -12,3 +12,6 @@ id = "com.astra.tv.main"
 runtime-module = "/com.amazon.kepler.keplerscript.runtime.loader_2@IKeplerScript_2_0"
 launch-type = "singleton"
 categories = ["com.amazon.category.main"]
+
+[[wants.service]]
+id = "com.amazon.inputd.service"
