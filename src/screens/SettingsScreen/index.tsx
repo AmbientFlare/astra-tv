@@ -83,6 +83,9 @@ export const SettingsScreen = ({
         <Text style={styles.aboutText}>
           Backends: Jellyfin now, Kodi and Emby planned
         </Text>
+        <Text style={styles.aboutText}>
+          For Kimberly - whose love of Star Trek started all of this.
+        </Text>
         <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
         <Image
           source={require('../../assets/kofi-qr.png')}

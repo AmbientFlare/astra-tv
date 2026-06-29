@@ -169,6 +169,12 @@ export const PlayerScreen = ({
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
       );
+      console.log(
+        '[Astra] Stream URL:',
+        stream.url,
+        '| PlayMethod:',
+        stream.playMethod,
+      );
       streamInfo.current = stream;
       setCurrentStream(stream);
       if (
@@ -230,11 +236,20 @@ export const PlayerScreen = ({
 
       video.autoplay = false;
       video.defaultSeekIntervalInSec = SEEK_SECONDS;
+      setPositionSeconds(startTicks / TICKS_PER_SECOND);
+      video.playbackRate = playbackRate;
+      const isHLS =
+        stream.url.includes('.m3u8') || stream.url.includes('master.m3u8');
+
+      if (isHLS) {
+        console.log('[Astra] HLS stream detected:', stream.url);
+        setStatusText('HLS stream - Shaka integration pending');
+        return stream;
+      }
+
       video.src = stream.url;
       video.load();
       video.currentTime = startTicks / TICKS_PER_SECOND;
-      setPositionSeconds(startTicks / TICKS_PER_SECOND);
-      video.playbackRate = playbackRate;
       setStatusText(
         stream.playMethod === 'Transcode'
           ? 'Loading transcoded MP4 stream...'
