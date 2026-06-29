@@ -1,5 +1,6 @@
 import React, {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -40,10 +41,16 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
     const inputRef = useRef<TextInput>(null);
     const [isFocused, setFocused] = useState(false);
     const [isKeyboardOpen, setKeyboardOpen] = useState(false);
+    const [cursorIndex, setCursorIndex] = useState(0);
     const inputValue = typeof props.value === 'string' ? props.value : '';
+    const safeCursorIndex = Math.min(cursorIndex, inputValue.length);
     const displayValue = props.secureTextEntry
       ? '*'.repeat(inputValue.length)
       : inputValue;
+    const editableDisplayValue = `${displayValue.slice(
+      0,
+      safeCursorIndex,
+    )}|${displayValue.slice(safeCursorIndex)}`;
     const keyboardRows = useMemo(
       () => [
         ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -55,6 +62,12 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
       [],
     );
 
+    useEffect(() => {
+      if (!isKeyboardOpen) {
+        setCursorIndex(inputValue.length);
+      }
+    }, [inputValue.length, isKeyboardOpen]);
+
     useImperativeHandle(forwardedRef, () => inputRef.current as TextInput);
 
     const focusInput = () => {
@@ -63,6 +76,7 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
 
     const openKeyboard = () => {
       focusInput();
+      setCursorIndex(inputValue.length);
       setKeyboardOpen(true);
     };
 
@@ -71,11 +85,31 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
     };
 
     const appendCharacter = (character: string) => {
-      updateValue(`${inputValue}${character}`);
+      updateValue(
+        `${inputValue.slice(0, safeCursorIndex)}${character}${inputValue.slice(
+          safeCursorIndex,
+        )}`,
+      );
+      setCursorIndex(safeCursorIndex + character.length);
     };
 
     const backspace = () => {
-      updateValue(inputValue.slice(0, -1));
+      if (safeCursorIndex === 0) {
+        return;
+      }
+
+      updateValue(
+        `${inputValue.slice(0, safeCursorIndex - 1)}${inputValue.slice(
+          safeCursorIndex,
+        )}`,
+      );
+      setCursorIndex(safeCursorIndex - 1);
+    };
+
+    const moveCursor = (amount: number) => {
+      setCursorIndex((currentIndex) =>
+        Math.min(inputValue.length, Math.max(0, currentIndex + amount)),
+      );
     };
 
     const closeKeyboard = () => {
@@ -120,7 +154,7 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
           <View style={styles.keyboardScrim}>
             <View style={styles.keyboardPanel}>
               <Text numberOfLines={1} style={styles.keyboardValue}>
-                {displayValue || props.placeholder || ''}
+                {inputValue ? editableDisplayValue : props.placeholder || '|'}
               </Text>
               {keyboardRows.map((row, rowIndex) => (
                 <View key={row.join('')} style={styles.keyboardRow}>
@@ -135,6 +169,16 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
                 </View>
               ))}
               <View style={styles.keyboardRow}>
+                <KeyboardButton
+                  label="left"
+                  onPress={() => moveCursor(-1)}
+                  wide={true}
+                />
+                <KeyboardButton
+                  label="right"
+                  onPress={() => moveCursor(1)}
+                  wide={true}
+                />
                 <KeyboardButton
                   label="space"
                   onPress={() => appendCharacter(' ')}

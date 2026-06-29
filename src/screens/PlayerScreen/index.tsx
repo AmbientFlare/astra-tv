@@ -19,6 +19,7 @@ import {
 
 const TICKS_PER_SECOND = 10000000;
 const SEEK_SECONDS = 10;
+type PlaybackPanel = 'audio' | 'subtitles' | 'quality' | 'speed' | 'chapters';
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -44,8 +45,8 @@ export const PlayerScreen = ({
   const initialized = useRef(false);
   const stoppedReported = useRef(false);
   const selectedAudioIndex = useRef<number | undefined>();
-  const selectedBitrate = useRef<number | undefined>();
-  const selectedForceTranscode = useRef(false);
+  const selectedBitrate = useRef<number | undefined>(20000000);
+  const selectedForceTranscode = useRef(true);
   const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
   const playbackEventsAttached = useRef(false);
@@ -57,7 +58,9 @@ export const PlayerScreen = ({
   );
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [isPaused, setPaused] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
+    null,
+  );
   const [playbackRate, setPlaybackRate] = useState(1);
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
@@ -291,15 +294,15 @@ export const PlayerScreen = ({
 
     switch (event.eventType) {
       case 'back':
-        if (showSettings) {
-          setShowSettings(false);
+        if (settingsPanel) {
+          setSettingsPanel(null);
         } else {
           handleBack();
         }
         break;
       case 'menu':
       case 'context_menu':
-        setShowSettings((visible) => !visible);
+        setSettingsPanel((panel) => (panel ? null : 'quality'));
         break;
       case 'playPause':
       case 'playpause':
@@ -436,7 +439,7 @@ export const PlayerScreen = ({
       video.play();
       setPaused(false);
     }
-    setShowSettings(false);
+    setSettingsPanel(null);
     setStatusText('Playing');
   }, []);
 
@@ -497,11 +500,41 @@ export const PlayerScreen = ({
           </FocusableItem>
           <FocusableItem
             focusedStyle={styles.focusedButton}
-            onPress={() => setShowSettings((visible) => !visible)}
+            onPress={() => setSettingsPanel('audio')}
             style={styles.button}
-            testID="player-settings">
-            <Text style={styles.buttonText}>Options</Text>
+            testID="player-audio">
+            <Text style={styles.buttonText}>Audio</Text>
           </FocusableItem>
+          <FocusableItem
+            focusedStyle={styles.focusedButton}
+            onPress={() => setSettingsPanel('subtitles')}
+            style={styles.button}
+            testID="player-subtitles">
+            <Text style={styles.buttonText}>CC</Text>
+          </FocusableItem>
+          <FocusableItem
+            focusedStyle={styles.focusedButton}
+            onPress={() => setSettingsPanel('quality')}
+            style={styles.button}
+            testID="player-quality">
+            <Text style={styles.buttonText}>Quality</Text>
+          </FocusableItem>
+          <FocusableItem
+            focusedStyle={styles.focusedButton}
+            onPress={() => setSettingsPanel('speed')}
+            style={styles.button}
+            testID="player-speed">
+            <Text style={styles.buttonText}>Speed</Text>
+          </FocusableItem>
+          {item.chapters?.length ? (
+            <FocusableItem
+              focusedStyle={styles.focusedButton}
+              onPress={() => setSettingsPanel('chapters')}
+              style={styles.button}
+              testID="player-chapters">
+              <Text style={styles.buttonText}>Chapters</Text>
+            </FocusableItem>
+          ) : null}
           <FocusableItem
             focusedStyle={styles.focusedButton}
             onPress={handleBack}
@@ -511,8 +544,9 @@ export const PlayerScreen = ({
           </FocusableItem>
         </View>
       </View>
-      {showSettings && currentStream ? (
+      {settingsPanel && currentStream ? (
         <PlaybackSettingsOverlay
+          activePanel={settingsPanel}
           onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
           onSelectQuality={(quality) =>
             reloadWithTrack({
@@ -533,6 +567,7 @@ export const PlayerScreen = ({
 };
 
 const PlaybackSettingsOverlay = ({
+  activePanel,
   item,
   onSelectChapter,
   onSelectAudio,
@@ -542,6 +577,7 @@ const PlaybackSettingsOverlay = ({
   playbackRate,
   streamInfo,
 }: {
+  activePanel: PlaybackPanel;
   item: JellyfinMediaItem;
   onSelectChapter: (startPositionTicks: number) => void;
   onSelectAudio: (track: JellyfinMediaTrack) => void;
@@ -552,49 +588,56 @@ const PlaybackSettingsOverlay = ({
   streamInfo: JellyfinStreamInfo;
 }) => (
   <View style={styles.settingsOverlay} testID="player-settings-overlay">
-    <Text style={styles.settingsTitle}>Playback Settings</Text>
-    <SettingsColumn title="Audio">
-      {streamInfo.audioTracks.length ? (
-        streamInfo.audioTracks.map((track) => (
+    {activePanel === 'audio' ? (
+      <SettingsColumn title="Audio">
+        {streamInfo.audioTracks.length ? (
+          streamInfo.audioTracks.map((track) => (
+            <SettingsButton
+              key={track.id}
+              label={track.title}
+              onPress={() => onSelectAudio(track)}
+            />
+          ))
+        ) : (
+          <Text style={styles.settingsEmpty}>Default audio</Text>
+        )}
+      </SettingsColumn>
+    ) : null}
+    {activePanel === 'subtitles' ? (
+      <SettingsColumn title="Subtitles">
+        <SettingsButton label="Off" onPress={() => onSelectSubtitle(null)} />
+        {streamInfo.subtitleTracks.map((track) => (
           <SettingsButton
             key={track.id}
-            label={track.title}
-            onPress={() => onSelectAudio(track)}
+            label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
+            onPress={() => onSelectSubtitle(track)}
           />
-        ))
-      ) : (
-        <Text style={styles.settingsEmpty}>Default audio</Text>
-      )}
-    </SettingsColumn>
-    <SettingsColumn title="Subtitles">
-      <SettingsButton label="Off" onPress={() => onSelectSubtitle(null)} />
-      {streamInfo.subtitleTracks.map((track) => (
-        <SettingsButton
-          key={track.id}
-          label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
-          onPress={() => onSelectSubtitle(track)}
-        />
-      ))}
-    </SettingsColumn>
-    <SettingsColumn title="Quality">
-      {streamInfo.qualityOptions.map((quality) => (
-        <SettingsButton
-          key={quality.id}
-          label={quality.label || 'Auto'}
-          onPress={() => onSelectQuality(quality)}
-        />
-      ))}
-    </SettingsColumn>
-    <SettingsColumn title="Speed">
-      {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
-        <SettingsButton
-          key={rate}
-          label={`${rate}x${rate === playbackRate ? ' selected' : ''}`}
-          onPress={() => onSetSpeed(rate)}
-        />
-      ))}
-    </SettingsColumn>
-    {item.chapters?.length ? (
+        ))}
+      </SettingsColumn>
+    ) : null}
+    {activePanel === 'quality' ? (
+      <SettingsColumn title="Quality">
+        {streamInfo.qualityOptions.map((quality) => (
+          <SettingsButton
+            key={quality.id}
+            label={quality.label || 'Auto'}
+            onPress={() => onSelectQuality(quality)}
+          />
+        ))}
+      </SettingsColumn>
+    ) : null}
+    {activePanel === 'speed' ? (
+      <SettingsColumn title="Speed">
+        {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
+          <SettingsButton
+            key={rate}
+            label={`${rate}x${rate === playbackRate ? ' selected' : ''}`}
+            onPress={() => onSetSpeed(rate)}
+          />
+        ))}
+      </SettingsColumn>
+    ) : null}
+    {activePanel === 'chapters' && item.chapters?.length ? (
       <SettingsColumn title="Chapters">
         {item.chapters.map((chapter) => (
           <SettingsButton
