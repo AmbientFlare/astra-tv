@@ -169,7 +169,9 @@ exports[`App matches snapshot 1`] = `
       </Text>
       <TextInput
         autoCapitalize="none"
+        autoComplete="url"
         autoCorrect={false}
+        autoFocus={true}
         auxOptions="title:Server URL"
         hasTVPreferredFocus={true}
         inputMode="url"
@@ -177,6 +179,7 @@ exports[`App matches snapshot 1`] = `
         onBlur={[Function]}
         onChangeText={[Function]}
         onFocus={[Function]}
+        onPressIn={[Function]}
         placeholder="https://jellyfin.example.com"
         placeholderTextColor="#7D8A92"
         returnKeyType="done"
@@ -209,6 +212,7 @@ exports[`App matches snapshot 1`] = `
           ]
         }
         testID="setup-server-url-input"
+        textContentType="URL"
         value=""
       />
       <Text
@@ -244,12 +248,15 @@ exports[`App matches snapshot 1`] = `
       </Text>
       <TextInput
         autoCapitalize="none"
+        autoComplete="username"
         autoCorrect={false}
         auxOptions="title:Username"
-        inputMode="text"
+        inputMode="email"
+        keyboardType="email-address"
         onBlur={[Function]}
         onChangeText={[Function]}
         onFocus={[Function]}
+        onPressIn={[Function]}
         placeholder="Media server username"
         placeholderTextColor="#7D8A92"
         returnKeyType="done"
@@ -282,6 +289,7 @@ exports[`App matches snapshot 1`] = `
           ]
         }
         testID="setup-username-input"
+        textContentType="username"
         value=""
       />
     </View>
@@ -305,11 +313,14 @@ exports[`App matches snapshot 1`] = `
         Password
       </Text>
       <TextInput
-        auxOptions="title:Password"
+        autoComplete="password"
+        auxOptions="title:Password;password:true"
         inputMode="text"
+        keyboardType="default"
         onBlur={[Function]}
         onChangeText={[Function]}
         onFocus={[Function]}
+        onPressIn={[Function]}
         placeholder="Password"
         placeholderTextColor="#7D8A92"
         returnKeyType="done"
@@ -343,6 +354,7 @@ exports[`App matches snapshot 1`] = `
           ]
         }
         testID="setup-password-input"
+        textContentType="password"
         value=""
       />
     </View>

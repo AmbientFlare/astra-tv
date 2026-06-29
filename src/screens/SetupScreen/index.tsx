@@ -165,8 +165,11 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           <Text style={styles.label}>Server URL</Text>
           <TVTextInput
             autoCapitalize="none"
+            autoComplete="url"
             autoCorrect={false}
+            autoFocus={true}
             auxOptions="title:Server URL"
+            focusStrategy="native"
             hasTVPreferredFocus={true}
             inputStyle={styles.inputText}
             inputMode="url"
@@ -176,6 +179,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             onFocus={() => handleInputFocus('serverUrl')}
             placeholder="https://jellyfin.example.com"
             placeholderTextColor="#7D8A92"
+            textContentType="URL"
             style={inputStyle('serverUrl')}
             testID="setup-server-url-input"
             value={serverUrl}
@@ -189,15 +193,20 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           <Text style={styles.label}>Username</Text>
           <TVTextInput
             autoCapitalize="none"
+            autoComplete="username"
             autoCorrect={false}
             auxOptions="title:Username"
+            focusDelayMs={350}
+            focusStrategy="delayed"
             inputStyle={styles.inputText}
-            inputMode="text"
+            inputMode="email"
+            keyboardType="email-address"
             onBlur={() => setFocusedInput(null)}
             onChangeText={setUsername}
             onFocus={() => handleInputFocus('username')}
             placeholder="Media server username"
             placeholderTextColor="#7D8A92"
+            textContentType="username"
             style={inputStyle('username')}
             testID="setup-username-input"
             value={username}
@@ -207,15 +216,19 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         <View style={styles.field}>
           <Text style={styles.label}>Password</Text>
           <TVTextInput
-            auxOptions="title:Password"
+            autoComplete="password"
+            auxOptions="title:Password;password:true"
+            focusStrategy="press"
             inputStyle={styles.inputText}
             inputMode="text"
+            keyboardType="default"
             onBlur={() => setFocusedInput(null)}
             onChangeText={setPassword}
             onFocus={() => handleInputFocus('password')}
             placeholder="Password"
             placeholderTextColor="#7D8A92"
             secureTextEntry={true}
+            textContentType="password"
             style={inputStyle('password')}
             testID="setup-password-input"
             value={password}
