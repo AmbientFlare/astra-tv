@@ -166,8 +166,11 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           <TVTextInput
             autoCapitalize="none"
             autoCorrect={false}
+            auxOptions="title:Server URL"
             hasTVPreferredFocus={true}
             inputStyle={styles.inputText}
+            inputMode="url"
+            keyboardType="url"
             onBlur={() => setFocusedInput(null)}
             onChangeText={setServerUrl}
             onFocus={() => handleInputFocus('serverUrl')}
@@ -187,7 +190,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           <TVTextInput
             autoCapitalize="none"
             autoCorrect={false}
+            auxOptions="title:Username"
             inputStyle={styles.inputText}
+            inputMode="text"
             onBlur={() => setFocusedInput(null)}
             onChangeText={setUsername}
             onFocus={() => handleInputFocus('username')}
@@ -202,7 +207,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         <View style={styles.field}>
           <Text style={styles.label}>Password</Text>
           <TVTextInput
+            auxOptions="title:Password"
             inputStyle={styles.inputText}
+            inputMode="text"
             onBlur={() => setFocusedInput(null)}
             onChangeText={setPassword}
             onFocus={() => handleInputFocus('password')}

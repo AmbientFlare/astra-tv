@@ -86,8 +86,11 @@ export const SearchScreen = ({
       </FocusableItem>
       <TVTextInput
         autoCorrect={false}
+        auxOptions="title:Search for Videos"
         hasTVPreferredFocus={true}
         inputStyle={styles.inputText}
+        inputMode="search"
+        keyboardType="default"
         onChangeText={setQuery}
         placeholder="Movie, show, or episode"
         placeholderTextColor="#7E9098"

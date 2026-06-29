@@ -167,83 +167,49 @@ exports[`App matches snapshot 1`] = `
       >
         Server URL
       </Text>
-      <View
-        accessibilityState={
-          Object {
-            "busy": undefined,
-            "checked": undefined,
-            "disabled": undefined,
-            "expanded": undefined,
-            "selected": undefined,
-          }
-        }
-        accessibilityValue={
-          Object {
-            "max": undefined,
-            "min": undefined,
-            "now": undefined,
-            "text": undefined,
-          }
-        }
-        accessible={true}
-        collapsable={false}
-        focusable={true}
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        auxOptions="title:Server URL"
         hasTVPreferredFocus={true}
-        onClick={[Function]}
-        onResponderGrant={[Function]}
-        onResponderMove={[Function]}
-        onResponderRelease={[Function]}
-        onResponderTerminate={[Function]}
-        onResponderTerminationRequest={[Function]}
-        onStartShouldSetResponder={[Function]}
+        inputMode="url"
+        keyboardType="url"
+        onBlur={[Function]}
+        onChangeText={[Function]}
+        onFocus={[Function]}
+        placeholder="https://jellyfin.example.com"
+        placeholderTextColor="#7D8A92"
+        returnKeyType="done"
+        showSoftInputOnFocus={true}
         style={
-          Object {
-            "backgroundColor": "#162027",
-            "borderColor": "#2F3D46",
-            "borderRadius": 8,
-            "borderWidth": 3,
-            "height": 68,
-            "justifyContent": "center",
-            "opacity": 1,
-            "paddingHorizontal": 24,
-            "width": 840,
-          }
-        }
-      >
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          hasTVPreferredFocus={false}
-          onBlur={[Function]}
-          onChangeText={[Function]}
-          onFocus={[Function]}
-          placeholder="https://jellyfin.example.com"
-          placeholderTextColor="#7D8A92"
-          showSoftInputOnFocus={true}
-          style={
+          Array [
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 26,
+              "padding": 0,
+            },
+            undefined,
             Array [
               Object {
-                "color": "#FFFFFF",
-                "flex": 1,
-                "fontSize": 26,
-                "padding": 0,
+                "backgroundColor": "#162027",
+                "borderColor": "#2F3D46",
+                "borderRadius": 8,
+                "borderWidth": 3,
+                "height": 68,
+                "paddingHorizontal": 24,
+                "width": 840,
               },
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 28,
-              },
-            ]
-          }
-          testID="setup-server-url-input"
-          value=""
-        />
-      </View>
-      <Modal
-        animationType="fade"
-        hardwareAccelerated={false}
-        onRequestClose={[Function]}
-        transparent={true}
-        visible={false}
+              false,
+            ],
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 28,
+            },
+            false,
+          ]
+        }
+        testID="setup-server-url-input"
+        value=""
       />
       <Text
         style={
@@ -276,82 +242,47 @@ exports[`App matches snapshot 1`] = `
       >
         Username
       </Text>
-      <View
-        accessibilityState={
-          Object {
-            "busy": undefined,
-            "checked": undefined,
-            "disabled": undefined,
-            "expanded": undefined,
-            "selected": undefined,
-          }
-        }
-        accessibilityValue={
-          Object {
-            "max": undefined,
-            "min": undefined,
-            "now": undefined,
-            "text": undefined,
-          }
-        }
-        accessible={true}
-        collapsable={false}
-        focusable={true}
-        onClick={[Function]}
-        onResponderGrant={[Function]}
-        onResponderMove={[Function]}
-        onResponderRelease={[Function]}
-        onResponderTerminate={[Function]}
-        onResponderTerminationRequest={[Function]}
-        onStartShouldSetResponder={[Function]}
+      <TextInput
+        autoCapitalize="none"
+        autoCorrect={false}
+        auxOptions="title:Username"
+        inputMode="text"
+        onBlur={[Function]}
+        onChangeText={[Function]}
+        onFocus={[Function]}
+        placeholder="Media server username"
+        placeholderTextColor="#7D8A92"
+        returnKeyType="done"
+        showSoftInputOnFocus={true}
         style={
-          Object {
-            "backgroundColor": "#162027",
-            "borderColor": "#2F3D46",
-            "borderRadius": 8,
-            "borderWidth": 3,
-            "height": 68,
-            "justifyContent": "center",
-            "opacity": 1,
-            "paddingHorizontal": 24,
-            "width": 840,
-          }
-        }
-      >
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          hasTVPreferredFocus={false}
-          onBlur={[Function]}
-          onChangeText={[Function]}
-          onFocus={[Function]}
-          placeholder="Media server username"
-          placeholderTextColor="#7D8A92"
-          showSoftInputOnFocus={true}
-          style={
+          Array [
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 26,
+              "padding": 0,
+            },
+            undefined,
             Array [
               Object {
-                "color": "#FFFFFF",
-                "flex": 1,
-                "fontSize": 26,
-                "padding": 0,
+                "backgroundColor": "#162027",
+                "borderColor": "#2F3D46",
+                "borderRadius": 8,
+                "borderWidth": 3,
+                "height": 68,
+                "paddingHorizontal": 24,
+                "width": 840,
               },
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 28,
-              },
-            ]
-          }
-          testID="setup-username-input"
-          value=""
-        />
-      </View>
-      <Modal
-        animationType="fade"
-        hardwareAccelerated={false}
-        onRequestClose={[Function]}
-        transparent={true}
-        visible={false}
+              false,
+            ],
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 28,
+            },
+            false,
+          ]
+        }
+        testID="setup-username-input"
+        value=""
       />
     </View>
     <View
@@ -373,81 +304,46 @@ exports[`App matches snapshot 1`] = `
       >
         Password
       </Text>
-      <View
-        accessibilityState={
-          Object {
-            "busy": undefined,
-            "checked": undefined,
-            "disabled": undefined,
-            "expanded": undefined,
-            "selected": undefined,
-          }
-        }
-        accessibilityValue={
-          Object {
-            "max": undefined,
-            "min": undefined,
-            "now": undefined,
-            "text": undefined,
-          }
-        }
-        accessible={true}
-        collapsable={false}
-        focusable={true}
-        onClick={[Function]}
-        onResponderGrant={[Function]}
-        onResponderMove={[Function]}
-        onResponderRelease={[Function]}
-        onResponderTerminate={[Function]}
-        onResponderTerminationRequest={[Function]}
-        onStartShouldSetResponder={[Function]}
+      <TextInput
+        auxOptions="title:Password"
+        inputMode="text"
+        onBlur={[Function]}
+        onChangeText={[Function]}
+        onFocus={[Function]}
+        placeholder="Password"
+        placeholderTextColor="#7D8A92"
+        returnKeyType="done"
+        secureTextEntry={true}
+        showSoftInputOnFocus={true}
         style={
-          Object {
-            "backgroundColor": "#162027",
-            "borderColor": "#2F3D46",
-            "borderRadius": 8,
-            "borderWidth": 3,
-            "height": 68,
-            "justifyContent": "center",
-            "opacity": 1,
-            "paddingHorizontal": 24,
-            "width": 840,
-          }
-        }
-      >
-        <TextInput
-          hasTVPreferredFocus={false}
-          onBlur={[Function]}
-          onChangeText={[Function]}
-          onFocus={[Function]}
-          placeholder="Password"
-          placeholderTextColor="#7D8A92"
-          secureTextEntry={true}
-          showSoftInputOnFocus={true}
-          style={
+          Array [
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 26,
+              "padding": 0,
+            },
+            undefined,
             Array [
               Object {
-                "color": "#FFFFFF",
-                "flex": 1,
-                "fontSize": 26,
-                "padding": 0,
+                "backgroundColor": "#162027",
+                "borderColor": "#2F3D46",
+                "borderRadius": 8,
+                "borderWidth": 3,
+                "height": 68,
+                "paddingHorizontal": 24,
+                "width": 840,
               },
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 28,
-              },
-            ]
-          }
-          testID="setup-password-input"
-          value=""
-        />
-      </View>
-      <Modal
-        animationType="fade"
-        hardwareAccelerated={false}
-        onRequestClose={[Function]}
-        transparent={true}
-        visible={false}
+              false,
+            ],
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 28,
+            },
+            false,
+          ]
+        }
+        testID="setup-password-input"
+        value=""
       />
     </View>
     <View
