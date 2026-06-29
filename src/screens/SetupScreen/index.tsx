@@ -1,7 +1,8 @@
 import React, {useEffect, useState} from 'react';
-import {StyleSheet, Text, TextInput, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {TVTextInput} from '../../components/TVTextInput';
 import {
   authenticate,
   connect,
@@ -161,10 +162,11 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
         <View style={styles.field}>
           <Text style={styles.label}>Server URL</Text>
-          <TextInput
+          <TVTextInput
             autoCapitalize="none"
             autoCorrect={false}
             hasTVPreferredFocus={true}
+            inputStyle={styles.inputText}
             onBlur={() => setFocusedInput(null)}
             onChangeText={setServerUrl}
             onFocus={() => handleInputFocus('serverUrl')}
@@ -181,9 +183,10 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
         <View style={styles.field}>
           <Text style={styles.label}>Username</Text>
-          <TextInput
+          <TVTextInput
             autoCapitalize="none"
             autoCorrect={false}
+            inputStyle={styles.inputText}
             onBlur={() => setFocusedInput(null)}
             onChangeText={setUsername}
             onFocus={() => handleInputFocus('username')}
@@ -197,7 +200,8 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
         <View style={styles.field}>
           <Text style={styles.label}>Password</Text>
-          <TextInput
+          <TVTextInput
+            inputStyle={styles.inputText}
             onBlur={() => setFocusedInput(null)}
             onChangeText={setPassword}
             onFocus={() => handleInputFocus('password')}
@@ -331,9 +335,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#2F3D46',
     backgroundColor: '#162027',
+    paddingHorizontal: 24,
+  },
+  inputText: {
     color: '#FFFFFF',
     fontSize: 28,
-    paddingHorizontal: 24,
   },
   inputFocused: {
     borderColor: '#4CC9F0',

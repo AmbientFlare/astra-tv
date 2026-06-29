@@ -3,6 +3,7 @@ import {render, waitFor} from '@testing-library/react-native';
 import * as React from 'react';
 
 import {App} from '../src/App';
+import {SearchScreen} from '../src/screens/SearchScreen';
 import {readServerProfiles} from '../src/services/storage';
 
 jest.mock('@amazon-devices/react-native-w3cmedia', () => {
@@ -104,5 +105,42 @@ describe('App', () => {
     expect(screen.getByTestId('setup-username-input')).toBeTruthy();
     expect(screen.getByTestId('setup-password-input')).toBeTruthy();
     expect(screen.getByTestId('setup-connect-button')).toBeTruthy();
+  });
+
+  it('enables the TV soft keyboard for setup input fields', async () => {
+    const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
+    );
+
+    expect(screen.getByTestId('setup-server-url-input').props).toMatchObject({
+      showSoftInputOnFocus: true,
+    });
+    expect(screen.getByTestId('setup-username-input').props).toMatchObject({
+      showSoftInputOnFocus: true,
+    });
+    expect(screen.getByTestId('setup-password-input').props).toMatchObject({
+      showSoftInputOnFocus: true,
+    });
+  });
+
+  it('enables the TV soft keyboard for search input', () => {
+    const screen = render(
+      <SearchScreen
+        serverProfile={{
+          accessToken: 'test-token',
+          id: 'test-server',
+          lastUsed: 1,
+          name: 'Test Server',
+          serverType: 'jellyfin',
+          serverUrl: 'https://example.com',
+          userId: 'test-user',
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('search-input').props).toMatchObject({
+      showSoftInputOnFocus: true,
+    });
   });
 });
