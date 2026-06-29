@@ -113,6 +113,12 @@ const AUTH_HEADER =
 const normalizeServerUrl = (serverUrl: string) =>
   serverUrl.trim().replace(/\/+$/, '');
 
+const getAuthHeaders = (accessToken: string) => ({
+  'X-Emby-Authorization': `${AUTH_HEADER}, Token="${accessToken}"`,
+  'X-Emby-Token': accessToken,
+  'X-MediaBrowser-Token': accessToken,
+});
+
 const buildUrl = (
   baseUrl: string,
   path: string,
@@ -299,7 +305,7 @@ const getJson = async <ResponseBody>(
     });
 
     if (!response.ok) {
-      throw new Error(`Jellyfin request failed ${response.status}: ${url}`);
+      throw new Error(`Jellyfin request failed ${response.status}`);
     }
 
     const text = await response.text();
@@ -372,10 +378,8 @@ export const getLibraries = async (
       CollectionType?: string;
       Type?: string;
     }>;
-  }>(`${baseUrl}/Library/MediaFolders`, {
-    headers: {
-      'X-Emby-Token': accessToken,
-    },
+  }>(buildUrl(baseUrl, '/Library/MediaFolders', {api_key: accessToken}), {
+    headers: getAuthHeaders(accessToken),
   });
 
   return (response.Items ?? []).map((library) => ({
@@ -425,11 +429,10 @@ export const getItems = async (
       EnableImageTypes: 'Primary,Backdrop',
       SortBy: 'SortName',
       SortOrder: 'Ascending',
+      api_key: accessToken,
     }),
     {
-      headers: {
-        'X-Emby-Token': accessToken,
-      },
+      headers: getAuthHeaders(accessToken),
     },
   );
 
@@ -480,29 +483,31 @@ export const getStreamUrl = async (
         DeliveryMethod?: string;
       }>;
     }>;
-  }>(`${baseUrl}/Items/${itemId}/PlaybackInfo`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Emby-Authorization': AUTH_HEADER,
-      'X-Emby-Token': accessToken,
+  }>(
+    buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {api_key: accessToken}),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(accessToken),
+      },
+      body: JSON.stringify({
+        DeviceProfile: fireTVDeviceProfile,
+        UserId: userId,
+        StartTimeTicks: startPositionTicks,
+        AudioStreamIndex: options.audioStreamIndex,
+        SubtitleStreamIndex: options.subtitleStreamIndex,
+        AlwaysBurnInSubtitleWhenTranscoding:
+          options.alwaysBurnInSubtitleWhenTranscoding,
+        MaxStreamingBitrate: options.maxStreamingBitrate ?? 80000000,
+        EnableDirectPlay: !options.forceTranscode,
+        EnableDirectStream: true,
+        AllowVideoStreamCopy: !options.forceTranscode,
+        AllowAudioStreamCopy: true,
+        AutoOpenLiveStream: true,
+      }),
     },
-    body: JSON.stringify({
-      DeviceProfile: fireTVDeviceProfile,
-      UserId: userId,
-      StartTimeTicks: startPositionTicks,
-      AudioStreamIndex: options.audioStreamIndex,
-      SubtitleStreamIndex: options.subtitleStreamIndex,
-      AlwaysBurnInSubtitleWhenTranscoding:
-        options.alwaysBurnInSubtitleWhenTranscoding,
-      MaxStreamingBitrate: options.maxStreamingBitrate ?? 80000000,
-      EnableDirectPlay: !options.forceTranscode,
-      EnableDirectStream: true,
-      AllowVideoStreamCopy: !options.forceTranscode,
-      AllowAudioStreamCopy: true,
-      AutoOpenLiveStream: true,
-    }),
-  });
+  );
   const mediaSource = response.MediaSources?.[0];
   const playMethod = mediaSource?.TranscodingUrl
     ? 'Transcode'
@@ -512,7 +517,7 @@ export const getStreamUrl = async (
     ? 'DirectStream'
     : 'Transcode';
   const url = mediaSource?.TranscodingUrl
-    ? buildUrl(baseUrl, mediaSource.TranscodingUrl)
+    ? buildUrl(baseUrl, mediaSource.TranscodingUrl, {api_key: accessToken})
     : buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
         static: true,
         MediaSourceId: mediaSource?.Id,
@@ -593,7 +598,7 @@ export const getStreamUrl = async (
       .filter((track) => track.Type === 'Subtitle')
       .map((track) => mapTrack(track)),
     transcodeUrl: mediaSource?.TranscodingUrl
-      ? buildUrl(baseUrl, mediaSource.TranscodingUrl)
+      ? buildUrl(baseUrl, mediaSource.TranscodingUrl, {api_key: accessToken})
       : undefined,
     url,
   };
@@ -608,10 +613,8 @@ const getItemCollection = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
     Items?: Array<Parameters<typeof mapItem>[2]>;
-  }>(buildUrl(baseUrl, path, params), {
-    headers: {
-      'X-Emby-Token': accessToken,
-    },
+  }>(buildUrl(baseUrl, path, {...params, api_key: accessToken}), {
+    headers: getAuthHeaders(accessToken),
   });
 
   return (response.Items ?? []).map((item) =>
@@ -660,11 +663,10 @@ export const getLatestItems = async (
       ImageTypeLimit: 1,
       EnableImageTypes: 'Primary,Backdrop',
       Limit: 24,
+      api_key: accessToken,
     }),
     {
-      headers: {
-        'X-Emby-Token': accessToken,
-      },
+      headers: getAuthHeaders(accessToken),
     },
   );
 
@@ -697,11 +699,10 @@ export const getItemDetails = async (
   const item = await getJson<Parameters<typeof mapItem>[2]>(
     buildUrl(baseUrl, `/Users/${userId}/Items/${itemId}`, {
       Fields: itemFields,
+      api_key: accessToken,
     }),
     {
-      headers: {
-        'X-Emby-Token': accessToken,
-      },
+      headers: getAuthHeaders(accessToken),
     },
   );
 
@@ -765,14 +766,17 @@ const reportPlayback = async (
           PlaybackOrder: 'Default',
         };
 
-  await getJson(`${baseUrl}/Sessions/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Emby-Token': accessToken,
+  await getJson(
+    buildUrl(baseUrl, `/Sessions/${endpoint}`, {api_key: accessToken}),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(accessToken),
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
 };
 
 export const reportPlaybackStart = (
@@ -801,12 +805,15 @@ export const setFavorite = async (
   isFavorite: boolean,
 ) => {
   const baseUrl = normalizeServerUrl(serverUrl);
-  await getJson(`${baseUrl}/Users/${userId}/FavoriteItems/${itemId}`, {
-    method: isFavorite ? 'POST' : 'DELETE',
-    headers: {
-      'X-Emby-Token': accessToken,
+  await getJson(
+    buildUrl(baseUrl, `/Users/${userId}/FavoriteItems/${itemId}`, {
+      api_key: accessToken,
+    }),
+    {
+      method: isFavorite ? 'POST' : 'DELETE',
+      headers: getAuthHeaders(accessToken),
     },
-  });
+  );
 };
 
 export const setPlayed = async (
@@ -817,12 +824,15 @@ export const setPlayed = async (
   isPlayed: boolean,
 ) => {
   const baseUrl = normalizeServerUrl(serverUrl);
-  await getJson(`${baseUrl}/Users/${userId}/PlayedItems/${itemId}`, {
-    method: isPlayed ? 'POST' : 'DELETE',
-    headers: {
-      'X-Emby-Token': accessToken,
+  await getJson(
+    buildUrl(baseUrl, `/Users/${userId}/PlayedItems/${itemId}`, {
+      api_key: accessToken,
+    }),
+    {
+      method: isPlayed ? 'POST' : 'DELETE',
+      headers: getAuthHeaders(accessToken),
     },
-  });
+  );
 };
 
 const scanCandidate = async (
