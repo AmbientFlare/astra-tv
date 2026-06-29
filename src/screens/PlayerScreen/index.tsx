@@ -47,8 +47,8 @@ export const PlayerScreen = ({
   const initialized = useRef(false);
   const stoppedReported = useRef(false);
   const selectedAudioIndex = useRef<number | undefined>();
-  const selectedBitrate = useRef<number | undefined>(20000000);
-  const selectedForceTranscode = useRef(true);
+  const selectedBitrate = useRef<number | undefined>();
+  const selectedForceTranscode = useRef(false);
   const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
   const playbackEventsAttached = useRef(false);
@@ -242,8 +242,13 @@ export const PlayerScreen = ({
         stream.url.includes('.m3u8') || stream.url.includes('master.m3u8');
 
       if (isHLS) {
-        console.log('[Astra] HLS stream detected:', stream.url);
-        setStatusText('HLS stream - Shaka integration pending');
+        console.warn(
+          '[Astra] HLS URL received - not yet supported:',
+          stream.url,
+        );
+        setStatusText(
+          'Stream format not supported (HLS). Try forcing a lower quality.',
+        );
         return stream;
       }
 
@@ -603,12 +608,20 @@ export const PlayerScreen = ({
         <PlaybackSettingsOverlay
           activePanel={settingsPanel}
           onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
-          onSelectQuality={(quality) =>
+          onSelectQuality={(quality) => {
+            const forceQualityTranscode =
+              quality.id !== 'auto' &&
+              quality.id !== 'source' &&
+              Boolean(quality.bitrate);
+
             reloadWithTrack({
-              bitrate: quality.id === 'auto' ? null : quality.bitrate,
-              forceTranscode: quality.id !== 'auto' && Boolean(quality.bitrate),
-            })
-          }
+              bitrate:
+                quality.id === 'auto' || quality.id === 'source'
+                  ? null
+                  : quality.bitrate,
+              forceTranscode: forceQualityTranscode,
+            });
+          }}
           onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
           onSetSpeed={setSpeed}
           onSelectChapter={seekToChapter}

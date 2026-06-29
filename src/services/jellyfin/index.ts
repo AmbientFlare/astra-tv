@@ -147,21 +147,27 @@ const qualityCaps: JellyfinQualityOption[] = [
   {id: '2000000', label: '2 Mbps', bitrate: 2000000},
 ];
 
-const DEFAULT_TRANSCODE_BITRATE = 20000000;
-const DEFAULT_AUDIO_BITRATE = 384000;
-
 const fireTVDeviceProfile = {
   MaxStreamingBitrate: 80000000,
   DirectPlayProfiles: [
     {
-      Container: 'mp4,mkv,ts,m4v',
+      Container: 'mp4,ts,m4v',
       Type: 'Video',
       VideoCodec: 'h264,hevc,vp9,av1',
       AudioCodec: 'aac,ac3,eac3,mp3,flac,opus',
     },
-    {Container: 'mp4,mkv,ts,m4v', Type: 'Audio'},
   ],
   TranscodingProfiles: [
+    {
+      Container: 'mp4',
+      Type: 'Video',
+      VideoCodec: 'h264',
+      AudioCodec: 'aac',
+      Protocol: 'http',
+      Context: 'Streaming',
+      MaxAudioChannels: '6',
+      CopyTimestamps: true,
+    },
     {
       Container: 'ts',
       Type: 'Video',
@@ -185,51 +191,6 @@ const fireTVDeviceProfile = {
   ContainerProfiles: [],
   CodecProfiles: [],
 };
-
-const buildProgressiveTranscodeUrl = ({
-  accessToken,
-  baseUrl,
-  itemId,
-  mediaSourceId,
-  playSessionId,
-  startPositionTicks,
-  audioStreamIndex,
-  maxStreamingBitrate,
-  subtitleStreamIndex,
-}: {
-  accessToken: string;
-  baseUrl: string;
-  itemId: string;
-  mediaSourceId?: string;
-  playSessionId?: string;
-  startPositionTicks: number;
-  audioStreamIndex?: number;
-  maxStreamingBitrate?: number;
-  subtitleStreamIndex?: number;
-}) =>
-  buildUrl(baseUrl, `/Videos/${itemId}/stream.mp4`, {
-    api_key: accessToken,
-    Static: false,
-    DeviceId: 'astra-device-001',
-    MediaSourceId: mediaSourceId,
-    PlaySessionId: playSessionId,
-    VideoCodec: 'h264',
-    AudioCodec: 'aac',
-    AudioStreamIndex: audioStreamIndex,
-    SubtitleStreamIndex: subtitleStreamIndex,
-    VideoBitrate: Math.max(
-      1000000,
-      (maxStreamingBitrate ?? DEFAULT_TRANSCODE_BITRATE) -
-        DEFAULT_AUDIO_BITRATE,
-    ),
-    AudioBitrate: DEFAULT_AUDIO_BITRATE,
-    MaxAudioChannels: 2,
-    TranscodingMaxAudioChannels: 2,
-    StartTimeTicks: startPositionTicks,
-    SegmentContainer: 'mp4',
-    RequireAvc: false,
-    EnableAudioVbrEncoding: true,
-  });
 
 const subtitleMimeForCodec = (codec?: string) => {
   switch (codec?.toLowerCase()) {
@@ -515,6 +476,7 @@ export const getStreamUrl = async (
       Width?: number;
       Height?: number;
       TranscodingUrl?: string;
+      Path?: string;
       SupportsDirectPlay?: boolean;
       SupportsDirectStream?: boolean;
       SupportsTranscoding?: boolean;
@@ -557,35 +519,29 @@ export const getStreamUrl = async (
     },
   );
   const mediaSource = response.MediaSources?.[0];
-  const shouldUseTranscode =
-    options.forceTranscode || Boolean(mediaSource?.TranscodingUrl);
-  const playMethod = shouldUseTranscode
+  const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
+  const playMethod: JellyfinStreamInfo['playMethod'] = shouldUseTranscode
     ? 'Transcode'
     : mediaSource?.SupportsDirectPlay
     ? 'DirectPlay'
     : mediaSource?.SupportsDirectStream
     ? 'DirectStream'
     : 'Transcode';
-  const progressiveTranscodeUrl = buildProgressiveTranscodeUrl({
-    accessToken,
-    baseUrl,
-    itemId,
-    mediaSourceId: mediaSource?.Id,
-    playSessionId: response.PlaySessionId,
-    startPositionTicks,
-    audioStreamIndex: options.audioStreamIndex,
-    maxStreamingBitrate: options.maxStreamingBitrate,
-    subtitleStreamIndex: options.subtitleStreamIndex,
-  });
-  const url = shouldUseTranscode
-    ? progressiveTranscodeUrl
-    : buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
-        static: true,
-        MediaSourceId: mediaSource?.Id,
-        PlaySessionId: response.PlaySessionId,
-        tag: mediaSource?.ETag,
-        api_key: accessToken,
-      });
+
+  let url: string;
+  if (mediaSource?.SupportsDirectPlay && mediaSource?.Id) {
+    url = buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
+      static: true,
+      MediaSourceId: mediaSource?.Id,
+      PlaySessionId: response.PlaySessionId,
+      tag: mediaSource?.ETag,
+      api_key: accessToken,
+    });
+  } else if (mediaSource?.TranscodingUrl) {
+    url = buildUrl(baseUrl, mediaSource.TranscodingUrl, {api_key: accessToken});
+  } else {
+    throw new Error('No playable URL returned from Jellyfin.');
+  }
   const streams = mediaSource?.MediaStreams ?? [];
   const mapTrack = (track: (typeof streams)[number]): JellyfinMediaTrack => {
     const isSubtitle = track.Type === 'Subtitle';
@@ -625,7 +581,7 @@ export const getStreamUrl = async (
   };
   const directQuality = mediaSource
     ? {
-        id: mediaSource.Id ?? 'source',
+        id: 'source',
         label: [
           'Source',
           mediaSource.Height ? `${mediaSource.Height}p` : undefined,
@@ -658,7 +614,7 @@ export const getStreamUrl = async (
     subtitleTracks: streams
       .filter((track) => track.Type === 'Subtitle')
       .map((track) => mapTrack(track)),
-    transcodeUrl: shouldUseTranscode ? progressiveTranscodeUrl : undefined,
+    transcodeUrl: shouldUseTranscode ? url : undefined,
     url,
   };
 };
