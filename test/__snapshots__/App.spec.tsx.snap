@@ -44,21 +44,10 @@ exports[`App matches snapshot 1`] = `
     </Text>
   </View>
   <View
-    collapsable={false}
-    destinations={Array []}
     style={
-      Array [
-        Object {
-          "minHeight": 1,
-          "minWidth": 1,
-        },
-        Object {
-          "width": 840,
-        },
-        Object {
-          "display": "flex",
-        },
-      ]
+      Object {
+        "width": 840,
+      }
     }
   >
     <View

@@ -2,11 +2,11 @@ import React, {forwardRef, useImperativeHandle, useRef, useState} from 'react';
 import {
   StyleProp,
   StyleSheet,
-  TextInput,
   TextInputProps,
   TextStyle,
   ViewStyle,
 } from 'react-native';
+import {TextInput} from '@amazon-devices/react-native-kepler';
 
 interface TVTextInputProps extends TextInputProps {
   auxOptions?: string;
@@ -47,12 +47,12 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
 
     useImperativeHandle(forwardedRef, () => inputRef.current as TextInput);
 
-    const requestFocus = () => {
-      inputRef.current?.focus();
+    const requestTVFocus = () => {
+      inputRef.current?.requestTVFocus?.();
     };
 
     const requestDelayedFocus = () => {
-      setTimeout(requestFocus, focusDelayMs);
+      setTimeout(requestTVFocus, focusDelayMs);
     };
 
     return (
@@ -72,7 +72,7 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
         }}
         onPressIn={(event) => {
           if (focusStrategy === 'press') {
-            requestFocus();
+            requestTVFocus();
           }
           onPressIn?.(event);
         }}

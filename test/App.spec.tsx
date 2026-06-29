@@ -6,6 +6,26 @@ import {App} from '../src/App';
 import {SearchScreen} from '../src/screens/SearchScreen';
 import {readServerProfiles} from '../src/services/storage';
 
+jest.mock('@amazon-devices/react-native-kepler', () => {
+  const MockReact = require('react');
+  const {TextInput, View} = require('react-native');
+
+  return {
+    AsyncStorage: {
+      getItem: jest.fn(async () => null),
+      removeItem: jest.fn(async () => undefined),
+      setItem: jest.fn(async () => undefined),
+    },
+    TextInput: MockReact.forwardRef(
+      (props: Record<string, unknown>, ref: React.Ref<unknown>) =>
+        MockReact.createElement(TextInput, {...props, ref}),
+    ),
+    TVFocusGuideView: (props: Record<string, unknown>) =>
+      MockReact.createElement(View, props),
+    useTVEventHandler: jest.fn(),
+  };
+});
+
 jest.mock('@amazon-devices/react-native-w3cmedia', () => {
   const MockReact = require('react');
   const {View} = require('react-native');
