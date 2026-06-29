@@ -167,34 +167,77 @@ exports[`App matches snapshot 1`] = `
       >
         Server URL
       </Text>
-      <TextInput
-        autoCapitalize="none"
-        autoCorrect={false}
-        hasTVPreferredFocus={true}
-        onBlur={[Function]}
-        onChangeText={[Function]}
-        onFocus={[Function]}
-        placeholder="https://jellyfin.example.com"
-        placeholderTextColor="#7D8A92"
-        style={
-          Array [
-            Object {
-              "backgroundColor": "#162027",
-              "borderColor": "#2F3D46",
-              "borderRadius": 8,
-              "borderWidth": 3,
-              "color": "#FFFFFF",
-              "fontSize": 28,
-              "height": 68,
-              "paddingHorizontal": 24,
-              "width": 840,
-            },
-            false,
-          ]
+      <View
+        accessibilityState={
+          Object {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
         }
-        testID="setup-server-url-input"
-        value=""
-      />
+        accessibilityValue={
+          Object {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        hasTVPreferredFocus={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          Object {
+            "backgroundColor": "#162027",
+            "borderColor": "#2F3D46",
+            "borderRadius": 8,
+            "borderWidth": 3,
+            "height": 68,
+            "justifyContent": "center",
+            "opacity": 1,
+            "paddingHorizontal": 24,
+            "width": 840,
+          }
+        }
+      >
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          hasTVPreferredFocus={false}
+          onBlur={[Function]}
+          onChangeText={[Function]}
+          onFocus={[Function]}
+          placeholder="https://jellyfin.example.com"
+          placeholderTextColor="#7D8A92"
+          showSoftInputOnFocus={true}
+          style={
+            Array [
+              Object {
+                "color": "#FFFFFF",
+                "flex": 1,
+                "fontSize": 26,
+                "padding": 0,
+              },
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 28,
+              },
+            ]
+          }
+          testID="setup-server-url-input"
+          value=""
+        />
+      </View>
       <Text
         style={
           Object {
@@ -226,33 +269,76 @@ exports[`App matches snapshot 1`] = `
       >
         Username
       </Text>
-      <TextInput
-        autoCapitalize="none"
-        autoCorrect={false}
-        onBlur={[Function]}
-        onChangeText={[Function]}
-        onFocus={[Function]}
-        placeholder="Media server username"
-        placeholderTextColor="#7D8A92"
-        style={
-          Array [
-            Object {
-              "backgroundColor": "#162027",
-              "borderColor": "#2F3D46",
-              "borderRadius": 8,
-              "borderWidth": 3,
-              "color": "#FFFFFF",
-              "fontSize": 28,
-              "height": 68,
-              "paddingHorizontal": 24,
-              "width": 840,
-            },
-            false,
-          ]
+      <View
+        accessibilityState={
+          Object {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
         }
-        testID="setup-username-input"
-        value=""
-      />
+        accessibilityValue={
+          Object {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          Object {
+            "backgroundColor": "#162027",
+            "borderColor": "#2F3D46",
+            "borderRadius": 8,
+            "borderWidth": 3,
+            "height": 68,
+            "justifyContent": "center",
+            "opacity": 1,
+            "paddingHorizontal": 24,
+            "width": 840,
+          }
+        }
+      >
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          hasTVPreferredFocus={false}
+          onBlur={[Function]}
+          onChangeText={[Function]}
+          onFocus={[Function]}
+          placeholder="Media server username"
+          placeholderTextColor="#7D8A92"
+          showSoftInputOnFocus={true}
+          style={
+            Array [
+              Object {
+                "color": "#FFFFFF",
+                "flex": 1,
+                "fontSize": 26,
+                "padding": 0,
+              },
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 28,
+              },
+            ]
+          }
+          testID="setup-username-input"
+          value=""
+        />
+      </View>
     </View>
     <View
       style={
@@ -273,32 +359,75 @@ exports[`App matches snapshot 1`] = `
       >
         Password
       </Text>
-      <TextInput
-        onBlur={[Function]}
-        onChangeText={[Function]}
-        onFocus={[Function]}
-        placeholder="Password"
-        placeholderTextColor="#7D8A92"
-        secureTextEntry={true}
-        style={
-          Array [
-            Object {
-              "backgroundColor": "#162027",
-              "borderColor": "#2F3D46",
-              "borderRadius": 8,
-              "borderWidth": 3,
-              "color": "#FFFFFF",
-              "fontSize": 28,
-              "height": 68,
-              "paddingHorizontal": 24,
-              "width": 840,
-            },
-            false,
-          ]
+      <View
+        accessibilityState={
+          Object {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
         }
-        testID="setup-password-input"
-        value=""
-      />
+        accessibilityValue={
+          Object {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          Object {
+            "backgroundColor": "#162027",
+            "borderColor": "#2F3D46",
+            "borderRadius": 8,
+            "borderWidth": 3,
+            "height": 68,
+            "justifyContent": "center",
+            "opacity": 1,
+            "paddingHorizontal": 24,
+            "width": 840,
+          }
+        }
+      >
+        <TextInput
+          hasTVPreferredFocus={false}
+          onBlur={[Function]}
+          onChangeText={[Function]}
+          onFocus={[Function]}
+          placeholder="Password"
+          placeholderTextColor="#7D8A92"
+          secureTextEntry={true}
+          showSoftInputOnFocus={true}
+          style={
+            Array [
+              Object {
+                "color": "#FFFFFF",
+                "flex": 1,
+                "fontSize": 26,
+                "padding": 0,
+              },
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 28,
+              },
+            ]
+          }
+          testID="setup-password-input"
+          value=""
+        />
+      </View>
     </View>
     <View
       style={

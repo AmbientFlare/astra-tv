@@ -1,8 +1,9 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {FlatList, StyleSheet, Text, TextInput, View} from 'react-native';
+import {FlatList, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
+import {TVTextInput} from '../../components/TVTextInput';
 import {JellyfinMediaItem, searchItems} from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 
@@ -83,9 +84,10 @@ export const SearchScreen = ({
         testID="search-back-button">
         <Text style={styles.backText}>Back</Text>
       </FocusableItem>
-      <TextInput
+      <TVTextInput
         autoCorrect={false}
         hasTVPreferredFocus={true}
+        inputStyle={styles.inputText}
         onChangeText={setQuery}
         placeholder="Movie, show, or episode"
         placeholderTextColor="#7E9098"
@@ -149,10 +151,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#182027',
     borderColor: '#4CC9F0',
     borderWidth: 2,
-    color: '#FFFFFF',
-    fontSize: 26,
     marginTop: 24,
     paddingHorizontal: 18,
+  },
+  inputText: {
+    color: '#FFFFFF',
+    fontSize: 26,
   },
   backButton: {
     width: 120,
