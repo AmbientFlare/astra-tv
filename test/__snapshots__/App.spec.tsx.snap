@@ -202,7 +202,7 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-server-url-input"
         textContentType="URL"
-        value=""
+        value="http://jelly2.ambientflare.art"
       />
       <Text
         style={
@@ -279,7 +279,7 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-username-input"
         textContentType="username"
-        value=""
+        value="Levi"
       />
     </View>
     <View
@@ -344,7 +344,7 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-password-input"
         textContentType="password"
-        value=""
+        value="broken6667"
       />
     </View>
     <View
