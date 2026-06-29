@@ -100,7 +100,6 @@ export const RootNavigator = () => {
         break;
       case 'player':
         resetExitPresses();
-        setRoute('detail');
         break;
       case 'home':
       case 'loading':
