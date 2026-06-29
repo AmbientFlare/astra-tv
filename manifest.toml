@@ -14,4 +14,7 @@ launch-type = "singleton"
 categories = ["com.amazon.category.main"]
 
 [[wants.service]]
+id = "com.amazon.inputmethod.service"
+
+[[wants.service]]
 id = "com.amazon.inputd.service"
