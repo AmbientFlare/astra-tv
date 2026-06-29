@@ -147,6 +147,9 @@ const qualityCaps: JellyfinQualityOption[] = [
   {id: '2000000', label: '2 Mbps', bitrate: 2000000},
 ];
 
+const DEFAULT_TRANSCODE_BITRATE = 20000000;
+const DEFAULT_AUDIO_BITRATE = 384000;
+
 const fireTVDeviceProfile = {
   MaxStreamingBitrate: 80000000,
   DirectPlayProfiles: [
@@ -182,6 +185,51 @@ const fireTVDeviceProfile = {
   ContainerProfiles: [],
   CodecProfiles: [],
 };
+
+const buildProgressiveTranscodeUrl = ({
+  accessToken,
+  baseUrl,
+  itemId,
+  mediaSourceId,
+  playSessionId,
+  startPositionTicks,
+  audioStreamIndex,
+  maxStreamingBitrate,
+  subtitleStreamIndex,
+}: {
+  accessToken: string;
+  baseUrl: string;
+  itemId: string;
+  mediaSourceId?: string;
+  playSessionId?: string;
+  startPositionTicks: number;
+  audioStreamIndex?: number;
+  maxStreamingBitrate?: number;
+  subtitleStreamIndex?: number;
+}) =>
+  buildUrl(baseUrl, `/Videos/${itemId}/stream.mp4`, {
+    api_key: accessToken,
+    Static: false,
+    DeviceId: 'astra-device-001',
+    MediaSourceId: mediaSourceId,
+    PlaySessionId: playSessionId,
+    VideoCodec: 'h264',
+    AudioCodec: 'aac',
+    AudioStreamIndex: audioStreamIndex,
+    SubtitleStreamIndex: subtitleStreamIndex,
+    VideoBitrate: Math.max(
+      1000000,
+      (maxStreamingBitrate ?? DEFAULT_TRANSCODE_BITRATE) -
+        DEFAULT_AUDIO_BITRATE,
+    ),
+    AudioBitrate: DEFAULT_AUDIO_BITRATE,
+    MaxAudioChannels: 2,
+    TranscodingMaxAudioChannels: 2,
+    StartTimeTicks: startPositionTicks,
+    SegmentContainer: 'mp4',
+    RequireAvc: false,
+    EnableAudioVbrEncoding: true,
+  });
 
 const subtitleMimeForCodec = (codec?: string) => {
   switch (codec?.toLowerCase()) {
@@ -509,15 +557,28 @@ export const getStreamUrl = async (
     },
   );
   const mediaSource = response.MediaSources?.[0];
-  const playMethod = mediaSource?.TranscodingUrl
+  const shouldUseTranscode =
+    options.forceTranscode || Boolean(mediaSource?.TranscodingUrl);
+  const playMethod = shouldUseTranscode
     ? 'Transcode'
     : mediaSource?.SupportsDirectPlay
     ? 'DirectPlay'
     : mediaSource?.SupportsDirectStream
     ? 'DirectStream'
     : 'Transcode';
-  const url = mediaSource?.TranscodingUrl
-    ? buildUrl(baseUrl, mediaSource.TranscodingUrl, {api_key: accessToken})
+  const progressiveTranscodeUrl = buildProgressiveTranscodeUrl({
+    accessToken,
+    baseUrl,
+    itemId,
+    mediaSourceId: mediaSource?.Id,
+    playSessionId: response.PlaySessionId,
+    startPositionTicks,
+    audioStreamIndex: options.audioStreamIndex,
+    maxStreamingBitrate: options.maxStreamingBitrate,
+    subtitleStreamIndex: options.subtitleStreamIndex,
+  });
+  const url = shouldUseTranscode
+    ? progressiveTranscodeUrl
     : buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
         static: true,
         MediaSourceId: mediaSource?.Id,
@@ -597,9 +658,7 @@ export const getStreamUrl = async (
     subtitleTracks: streams
       .filter((track) => track.Type === 'Subtitle')
       .map((track) => mapTrack(track)),
-    transcodeUrl: mediaSource?.TranscodingUrl
-      ? buildUrl(baseUrl, mediaSource.TranscodingUrl, {api_key: accessToken})
-      : undefined,
+    transcodeUrl: shouldUseTranscode ? progressiveTranscodeUrl : undefined,
     url,
   };
 };
