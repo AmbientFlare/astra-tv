@@ -1,10 +1,26 @@
 import 'react-native';
-import {render, waitFor} from '@testing-library/react-native';
+import {act, fireEvent, render, waitFor} from '@testing-library/react-native';
 import * as React from 'react';
 
 import {App} from '../src/App';
 import {SearchScreen} from '../src/screens/SearchScreen';
-import {readServerProfiles} from '../src/services/storage';
+import {
+  getLastUsedServerProfile,
+  readServerProfiles,
+} from '../src/services/storage';
+
+const mockKeplerExitApp = jest.fn();
+let mockHardwareBackPressHandler: (() => boolean | void) | undefined;
+const mockKeplerBackHandler = {
+  addEventListener: jest.fn(
+    (_eventName: string, handler: () => boolean | void) => {
+      mockHardwareBackPressHandler = handler;
+      return {remove: jest.fn()};
+    },
+  ),
+  exitApp: mockKeplerExitApp,
+  removeEventListener: jest.fn(),
+};
 
 jest.mock('@amazon-devices/react-native-kepler', () => {
   const MockReact = require('react');
@@ -22,6 +38,7 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
     ),
     TVFocusGuideView: (props: Record<string, unknown>) =>
       MockReact.createElement(View, props),
+    useKeplerBackHandler: jest.fn(() => mockKeplerBackHandler),
     useTVEventHandler: jest.fn(),
   };
 });
@@ -99,6 +116,7 @@ jest.mock('../src/services/storage', () => ({
 describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHardwareBackPressHandler = undefined;
   });
 
   it('matches snapshot', async () => {
@@ -162,5 +180,40 @@ describe('App', () => {
     expect(screen.getByTestId('search-input').props).toMatchObject({
       showSoftInputOnFocus: true,
     });
+  });
+
+  it('requires repeated root back presses before showing exit confirmation', async () => {
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      serverType: 'jellyfin' as const,
+      serverUrl: 'https://example.com',
+      userId: 'test-user',
+    };
+    (readServerProfiles as jest.Mock).mockResolvedValueOnce([serverProfile]);
+    (getLastUsedServerProfile as jest.Mock).mockResolvedValueOnce(
+      serverProfile,
+    );
+
+    const screen = render(<App />);
+    await waitFor(() => expect(screen.getByTestId('home-screen')).toBeTruthy());
+
+    act(() => {
+      mockHardwareBackPressHandler?.();
+      mockHardwareBackPressHandler?.();
+    });
+    expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+    expect(mockKeplerExitApp).not.toHaveBeenCalled();
+
+    act(() => {
+      mockHardwareBackPressHandler?.();
+    });
+    expect(screen.getByTestId('exit-confirmation')).toBeTruthy();
+    expect(mockKeplerExitApp).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByTestId('exit-cancel-button'));
+    expect(screen.queryByTestId('exit-confirmation')).toBeNull();
   });
 });
