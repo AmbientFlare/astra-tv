@@ -22,9 +22,9 @@ interface SetupScreenProps {
 }
 
 export const SetupScreen = ({onConnected}: SetupScreenProps) => {
-  const [serverUrl, setServerUrl] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [serverUrl, setServerUrl] = useState('http://jelly2.ambientflare.art');
+  const [username, setUsername] = useState('Levi');
+  const [password, setPassword] = useState('broken6667');
   const [serverType, setServerType] = useState<ServerType>('jellyfin');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [discoveredServers, setDiscoveredServers] = useState<
