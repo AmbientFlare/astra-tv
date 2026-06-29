@@ -41,6 +41,8 @@ export const PlayerScreen = ({
 }: PlayerScreenProps) => {
   const videoRef = useRef<VideoPlayer | null>(null);
   const surfaceHandle = useRef<string | null>(null);
+  const streamReady = useRef(false);
+  const surfaceReady = useRef(false);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
   const initialized = useRef(false);
   const stoppedReported = useRef(false);
@@ -61,6 +63,7 @@ export const PlayerScreen = ({
   const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
     null,
   );
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
@@ -133,8 +136,25 @@ export const PlayerScreen = ({
     }
   }, []);
 
+  const tryPlay = useCallback(() => {
+    if (
+      !streamReady.current ||
+      !surfaceReady.current ||
+      !videoRef.current ||
+      !surfaceHandle.current
+    ) {
+      return;
+    }
+
+    videoRef.current.setSurfaceHandle(surfaceHandle.current);
+    videoRef.current.play();
+    setPaused(false);
+    setStatusText('Playing');
+  }, []);
+
   const loadStream = useCallback(
     async (startTicks = latestPositionTicks.current) => {
+      streamReady.current = false;
       const stream = await getStreamUrl(
         serverUrl,
         accessToken,
@@ -151,6 +171,19 @@ export const PlayerScreen = ({
       );
       streamInfo.current = stream;
       setCurrentStream(stream);
+      if (
+        selectedAudioIndex.current === undefined &&
+        stream.audioTracks.length
+      ) {
+        const defaultTrack =
+          stream.audioTracks.find((track) => track.isDefault) ??
+          stream.audioTracks.find((track) =>
+            track.language?.toLowerCase().startsWith('en'),
+          ) ??
+          stream.audioTracks[0];
+
+        selectedAudioIndex.current = defaultTrack.index;
+      }
 
       const video = videoRef.current ?? new VideoPlayer();
       videoRef.current = video;
@@ -206,13 +239,12 @@ export const PlayerScreen = ({
         setStatusText('Playing with burned-in subtitles');
       }
 
-      if (surfaceHandle.current) {
-        video.setSurfaceHandle(surfaceHandle.current);
-      }
+      streamReady.current = true;
+      tryPlay();
 
       return stream;
     },
-    [accessToken, item.id, playbackRate, serverUrl, userId],
+    [accessToken, item.id, playbackRate, serverUrl, tryPlay, userId],
   );
 
   const reloadWithTrack = useCallback(
@@ -251,9 +283,6 @@ export const PlayerScreen = ({
         isPaused,
         positionTicks: currentPositionTicks(),
       });
-      videoRef.current?.play();
-      setPaused(false);
-      setStatusText('Playing');
     },
     [accessToken, currentPositionTicks, isPaused, loadStream, serverUrl],
   );
@@ -276,10 +305,6 @@ export const PlayerScreen = ({
           positionTicks: currentPositionTicks(),
         }),
       )
-      .then(() => {
-        videoRef.current?.play();
-        setPaused(false);
-      })
       .catch((error) => {
         setStatusText(
           error instanceof Error ? error.message : 'Playback retry failed.',
@@ -296,8 +321,10 @@ export const PlayerScreen = ({
       case 'back':
         if (settingsPanel) {
           setSettingsPanel(null);
+        } else if (showExitConfirm) {
+          setShowExitConfirm(false);
         } else {
-          handleBack();
+          setShowExitConfirm(true);
         }
         break;
       case 'menu':
@@ -322,17 +349,6 @@ export const PlayerScreen = ({
     }
   });
 
-  const setSurface = useCallback(() => {
-    if (!surfaceHandle.current || !videoRef.current) {
-      return;
-    }
-
-    videoRef.current.setSurfaceHandle(surfaceHandle.current);
-    videoRef.current.play();
-    setPaused(false);
-    setStatusText('Playing');
-  }, []);
-
   useEffect(() => {
     let mounted = true;
     const startTicks = item.resumePositionTicks ?? 0;
@@ -349,7 +365,6 @@ export const PlayerScreen = ({
 
         if (mounted) {
           setStatusText('Ready');
-          setSurface();
         }
       } catch (error) {
         if (mounted) {
@@ -367,6 +382,8 @@ export const PlayerScreen = ({
     return () => {
       mounted = false;
       reportStopped().finally(() => {
+        streamReady.current = false;
+        surfaceReady.current = false;
         if (surfaceHandle.current) {
           videoRef.current?.clearSurfaceHandle(surfaceHandle.current);
         }
@@ -380,7 +397,6 @@ export const PlayerScreen = ({
     loadStream,
     reportStopped,
     serverUrl,
-    setSurface,
     userId,
   ]);
 
@@ -409,13 +425,15 @@ export const PlayerScreen = ({
   const onSurfaceViewCreated = useCallback(
     (handle: string) => {
       surfaceHandle.current = handle;
-      setSurface();
+      surfaceReady.current = true;
+      tryPlay();
     },
-    [setSurface],
+    [tryPlay],
   );
 
   const onSurfaceViewDestroyed = useCallback((handle: string) => {
     videoRef.current?.clearSurfaceHandle(handle);
+    surfaceReady.current = false;
     surfaceHandle.current = null;
   }, []);
 
@@ -537,7 +555,7 @@ export const PlayerScreen = ({
           ) : null}
           <FocusableItem
             focusedStyle={styles.focusedButton}
-            onPress={handleBack}
+            onPress={() => setShowExitConfirm(true)}
             style={styles.button}
             testID="player-back">
             <Text style={styles.buttonText}>Back</Text>
@@ -561,6 +579,28 @@ export const PlayerScreen = ({
           playbackRate={playbackRate}
           streamInfo={currentStream}
         />
+      ) : null}
+      {showExitConfirm ? (
+        <View style={styles.exitOverlay} testID="player-exit-confirm">
+          <Text style={styles.exitTitle}>Stop Playback?</Text>
+          <View style={styles.exitButtons}>
+            <FocusableItem
+              focusedStyle={styles.focusedButton}
+              hasTVPreferredFocus={true}
+              onPress={() => setShowExitConfirm(false)}
+              style={styles.button}
+              testID="player-exit-stay">
+              <Text style={styles.buttonText}>Stay</Text>
+            </FocusableItem>
+            <FocusableItem
+              focusedStyle={styles.focusedButton}
+              onPress={handleBack}
+              style={styles.button}
+              testID="player-exit-leave">
+              <Text style={styles.buttonText}>Leave</Text>
+            </FocusableItem>
+          </View>
+        </View>
       ) : null}
     </View>
   );
@@ -748,6 +788,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(12,17,22,0.94)',
     padding: 24,
+  },
+  exitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'center',
+    padding: 64,
+  },
+  exitTitle: {
+    color: '#FFFFFF',
+    fontSize: 36,
+    fontWeight: '800',
+    marginBottom: 28,
+  },
+  exitButtons: {
+    flexDirection: 'row',
+    gap: 20,
   },
   settingsTitle: {
     color: '#FFFFFF',

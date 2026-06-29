@@ -141,6 +141,42 @@ const qualityCaps: JellyfinQualityOption[] = [
   {id: '2000000', label: '2 Mbps', bitrate: 2000000},
 ];
 
+const fireTVDeviceProfile = {
+  MaxStreamingBitrate: 80000000,
+  DirectPlayProfiles: [
+    {
+      Container: 'mp4,mkv,ts,m4v',
+      Type: 'Video',
+      VideoCodec: 'h264,hevc,vp9,av1',
+      AudioCodec: 'aac,ac3,eac3,mp3,flac,opus',
+    },
+    {Container: 'mp4,mkv,ts,m4v', Type: 'Audio'},
+  ],
+  TranscodingProfiles: [
+    {
+      Container: 'ts',
+      Type: 'Video',
+      VideoCodec: 'h264',
+      AudioCodec: 'aac',
+      Protocol: 'hls',
+      Context: 'Streaming',
+      MaxAudioChannels: '2',
+    },
+  ],
+  SubtitleProfiles: [
+    {Format: 'vtt', Method: 'External'},
+    {Format: 'ass', Method: 'External'},
+    {Format: 'ssa', Method: 'External'},
+    {Format: 'srt', Method: 'External'},
+    {Format: 'subrip', Method: 'External'},
+    {Format: 'sub', Method: 'Encode'},
+    {Format: 'pgssub', Method: 'Encode'},
+    {Format: 'dvdsub', Method: 'Encode'},
+  ],
+  ContainerProfiles: [],
+  CodecProfiles: [],
+};
+
 const subtitleMimeForCodec = (codec?: string) => {
   switch (codec?.toLowerCase()) {
     case 'webvtt':
@@ -452,13 +488,14 @@ export const getStreamUrl = async (
       'X-Emby-Token': accessToken,
     },
     body: JSON.stringify({
+      DeviceProfile: fireTVDeviceProfile,
       UserId: userId,
       StartTimeTicks: startPositionTicks,
       AudioStreamIndex: options.audioStreamIndex,
       SubtitleStreamIndex: options.subtitleStreamIndex,
       AlwaysBurnInSubtitleWhenTranscoding:
         options.alwaysBurnInSubtitleWhenTranscoding,
-      MaxStreamingBitrate: options.maxStreamingBitrate,
+      MaxStreamingBitrate: options.maxStreamingBitrate ?? 80000000,
       EnableDirectPlay: !options.forceTranscode,
       EnableDirectStream: true,
       AllowVideoStreamCopy: !options.forceTranscode,
