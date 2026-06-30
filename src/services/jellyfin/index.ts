@@ -111,7 +111,13 @@ const AUTH_HEADER =
   'MediaBrowser Client="Astra", Device="FireTV", DeviceId="astra-device-001", Version="0.1.0"';
 
 const normalizeServerUrl = (serverUrl: string) =>
-  serverUrl.trim().replace(/\/+$/, '');
+  serverUrl
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(
+      /^http:\/\/jelly2\.ambientflare\.art$/i,
+      'https://jelly2.ambientflare.art',
+    );
 
 const getAuthHeaders = (accessToken: string) => ({
   'X-Emby-Authorization': `${AUTH_HEADER}, Token="${accessToken}"`,
@@ -124,7 +130,7 @@ const buildUrl = (
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ) => {
-  const url = new URL(`${baseUrl}${path}`);
+  const url = new URL(path, `${baseUrl}/`);
 
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== '') {
@@ -133,6 +139,31 @@ const buildUrl = (
   });
 
   return url.toString();
+};
+
+const hasQueryParam = (url: string, paramName: string) =>
+  new RegExp(`[?&]${paramName}=`).test(url);
+
+const buildTranscodingUrl = (
+  baseUrl: string,
+  rawTranscodingUrl: string,
+  accessToken: string,
+) => {
+  const rawPath = String(rawTranscodingUrl);
+  const base = baseUrl.replace(/\/+$/, '');
+  let url = /^https?:\/\//i.test(rawPath)
+    ? rawPath
+    : `${base}${rawPath.startsWith('/') ? '' : '/'}${rawPath}`;
+
+  url = url.replace('?&', '?').replace(/&&+/g, '&');
+
+  if (!hasQueryParam(url, 'api_key')) {
+    url = `${url}${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(
+      accessToken,
+    )}`;
+  }
+
+  return url;
 };
 
 const itemFields =
@@ -148,13 +179,25 @@ const qualityCaps: JellyfinQualityOption[] = [
 ];
 
 const fireTVDeviceProfile = {
-  MaxStreamingBitrate: 80000000,
+  MaxStreamingBitrate: 40000000,
   DirectPlayProfiles: [
     {
-      Container: 'mp4,ts,m4v',
+      Container: 'mkv',
       Type: 'Video',
       VideoCodec: 'h264,hevc,vp9,av1',
-      AudioCodec: 'aac,ac3,eac3,mp3,flac,opus',
+      AudioCodec: 'aac,mp3,ac3,eac3,dts,truehd,flac,opus,vorbis',
+    },
+    {
+      Container: 'mp4,m4v,mov',
+      Type: 'Video',
+      VideoCodec: 'h264,hevc,vp9,av1',
+      AudioCodec: 'aac,mp3,ac3,eac3,dts,truehd,flac,opus,vorbis',
+    },
+    {
+      Container: 'webm',
+      Type: 'Video',
+      VideoCodec: 'vp9,av1',
+      AudioCodec: 'aac,mp3,ac3,eac3,dts,truehd,flac,opus,vorbis',
     },
   ],
   TranscodingProfiles: [
@@ -163,33 +206,16 @@ const fireTVDeviceProfile = {
       Type: 'Video',
       VideoCodec: 'h264',
       AudioCodec: 'aac',
+      Context: 'Streaming',
       Protocol: 'http',
-      Context: 'Streaming',
       MaxAudioChannels: '6',
-      CopyTimestamps: true,
-    },
-    {
-      Container: 'ts',
-      Type: 'Video',
-      VideoCodec: 'h264',
-      AudioCodec: 'aac',
-      Protocol: 'hls',
-      Context: 'Streaming',
-      MaxAudioChannels: '2',
     },
   ],
   SubtitleProfiles: [
     {Format: 'vtt', Method: 'External'},
-    {Format: 'ass', Method: 'External'},
-    {Format: 'ssa', Method: 'External'},
     {Format: 'srt', Method: 'External'},
-    {Format: 'subrip', Method: 'External'},
-    {Format: 'sub', Method: 'Encode'},
-    {Format: 'pgssub', Method: 'Encode'},
-    {Format: 'dvdsub', Method: 'Encode'},
+    {Format: 'ass', Method: 'External'},
   ],
-  ContainerProfiles: [],
-  CodecProfiles: [],
 };
 
 const subtitleMimeForCodec = (codec?: string) => {
@@ -465,6 +491,11 @@ export const getStreamUrl = async (
   } = {},
 ): Promise<JellyfinStreamInfo> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
+    api_key: accessToken,
+  });
+  console.log('[Astra] buildUrl PlaybackInfo output:', playbackInfoUrl);
+
   const response = await getJson<{
     PlaySessionId?: string;
     MediaSources?: Array<{
@@ -493,33 +524,36 @@ export const getStreamUrl = async (
         DeliveryMethod?: string;
       }>;
     }>;
-  }>(
-    buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {api_key: accessToken}),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(accessToken),
-      },
-      body: JSON.stringify({
-        DeviceProfile: fireTVDeviceProfile,
-        UserId: userId,
-        StartTimeTicks: startPositionTicks,
-        AudioStreamIndex: options.audioStreamIndex,
-        SubtitleStreamIndex: options.subtitleStreamIndex,
-        AlwaysBurnInSubtitleWhenTranscoding:
-          options.alwaysBurnInSubtitleWhenTranscoding,
-        MaxStreamingBitrate: options.maxStreamingBitrate ?? 80000000,
-        EnableDirectPlay: !options.forceTranscode,
-        EnableDirectStream: true,
-        AllowVideoStreamCopy: !options.forceTranscode,
-        AllowAudioStreamCopy: true,
-        AutoOpenLiveStream: true,
-      }),
+  }>(playbackInfoUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(accessToken),
     },
-  );
+    body: JSON.stringify({
+      DeviceProfile: fireTVDeviceProfile,
+      UserId: userId,
+      StartTimeTicks: startPositionTicks,
+      AudioStreamIndex: options.audioStreamIndex,
+      SubtitleStreamIndex: options.subtitleStreamIndex,
+      AlwaysBurnInSubtitleWhenTranscoding:
+        options.alwaysBurnInSubtitleWhenTranscoding,
+      MaxStreamingBitrate: options.maxStreamingBitrate ?? 40000000,
+      EnableDirectPlay: !options.forceTranscode,
+      EnableDirectStream: true,
+      AllowVideoStreamCopy: !options.forceTranscode,
+      AllowAudioStreamCopy: true,
+      AutoOpenLiveStream: true,
+    }),
+  });
   const mediaSource = response.MediaSources?.[0];
   const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
+  if (mediaSource?.TranscodingUrl) {
+    console.log(
+      '[Astra] Raw Jellyfin TranscodingUrl:',
+      mediaSource.TranscodingUrl,
+    );
+  }
   const playMethod: JellyfinStreamInfo['playMethod'] = shouldUseTranscode
     ? 'Transcode'
     : mediaSource?.SupportsDirectPlay
@@ -529,6 +563,7 @@ export const getStreamUrl = async (
     : 'Transcode';
 
   let url: string;
+  let resolvedTranscodeUrl: string | undefined;
   if (mediaSource?.SupportsDirectPlay && mediaSource?.Id) {
     url = buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
       static: true,
@@ -537,8 +572,15 @@ export const getStreamUrl = async (
       tag: mediaSource?.ETag,
       api_key: accessToken,
     });
+    console.log('[Astra] buildUrl DirectStream output:', url);
   } else if (mediaSource?.TranscodingUrl) {
-    url = buildUrl(baseUrl, mediaSource.TranscodingUrl, {api_key: accessToken});
+    resolvedTranscodeUrl = buildTranscodingUrl(
+      baseUrl,
+      mediaSource.TranscodingUrl,
+      accessToken,
+    );
+    console.log('[Astra] buildTranscodingUrl output:', resolvedTranscodeUrl);
+    url = resolvedTranscodeUrl;
   } else {
     throw new Error('No playable URL returned from Jellyfin.');
   }
@@ -614,7 +656,7 @@ export const getStreamUrl = async (
     subtitleTracks: streams
       .filter((track) => track.Type === 'Subtitle')
       .map((track) => mapTrack(track)),
-    transcodeUrl: shouldUseTranscode ? url : undefined,
+    transcodeUrl: resolvedTranscodeUrl,
     url,
   };
 };

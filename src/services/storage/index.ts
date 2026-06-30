@@ -38,7 +38,13 @@ const emptyAppState: AppStateConfig = {
   version: 1,
 };
 
-const normalizeServerUrl = (serverUrl: string) => serverUrl.trim();
+const normalizeServerUrl = (serverUrl: string) =>
+  serverUrl
+    .trim()
+    .replace(
+      /^http:\/\/jelly2\.ambientflare\.art\/?$/i,
+      'https://jelly2.ambientflare.art',
+    );
 
 const parseConfig = (rawConfig: string | null): ServerProfilesConfig => {
   if (!rawConfig) {

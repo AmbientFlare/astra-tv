@@ -202,7 +202,7 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-server-url-input"
         textContentType="URL"
-        value="http://jelly2.ambientflare.art"
+        value="https://jelly2.ambientflare.art"
       />
       <Text
         style={

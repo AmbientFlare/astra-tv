@@ -36,15 +36,16 @@ import {
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
+const LEGACY_DEV_SERVER_URLS = ['http://jelly2.ambientflare.art'];
 
 const refreshDevServerProfile = async (
   profile: ServerProfile | null,
 ): Promise<ServerProfile | null> => {
-  if (
-    !profile ||
-    profile.serverUrl !== DEV_SERVER_URL ||
-    profile.username !== DEV_USERNAME
-  ) {
+  const isDevServerProfile =
+    profile?.username === DEV_USERNAME &&
+    [DEV_SERVER_URL, ...LEGACY_DEV_SERVER_URLS].includes(profile.serverUrl);
+
+  if (!profile || !isDevServerProfile) {
     return profile;
   }
 
@@ -59,6 +60,7 @@ const refreshDevServerProfile = async (
       ...profile,
       id: serverInfo.id || profile.id,
       name: serverInfo.name || profile.name,
+      serverUrl: DEV_SERVER_URL,
       accessToken: authResult.accessToken,
       userId: authResult.userId,
       lastUsed: Date.now(),

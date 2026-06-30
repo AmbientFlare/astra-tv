@@ -32,6 +32,32 @@ interface PlayerScreenProps {
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
 
+const assertPlayableUrl = (url: string) => {
+  const parsed = new URL(url);
+  const seenKeys = new Set<string>();
+  const duplicateKeys = new Set<string>();
+
+  parsed.searchParams.forEach((_, key) => {
+    if (seenKeys.has(key)) {
+      duplicateKeys.add(key);
+    }
+    seenKeys.add(key);
+  });
+
+  const hasEmptyQueryAssignment = /[?&]=(?:&|$)/.test(url);
+
+  if (duplicateKeys.size || hasEmptyQueryAssignment) {
+    console.warn('[Astra] Malformed playback URL:', {
+      duplicateQueryKeys: Array.from(duplicateKeys),
+      hasEmptyQueryAssignment,
+      url,
+    });
+    throw new Error(
+      'Malformed playback URL before video load. Check stream URL logs.',
+    );
+  }
+};
+
 export const PlayerScreen = ({
   accessToken,
   item,
@@ -41,10 +67,7 @@ export const PlayerScreen = ({
 }: PlayerScreenProps) => {
   const videoRef = useRef<VideoPlayer | null>(null);
   const surfaceHandle = useRef<string | null>(null);
-  const streamReady = useRef(false);
-  const surfaceReady = useRef(false);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
-  const initialized = useRef(false);
   const stoppedReported = useRef(false);
   const selectedAudioIndex = useRef<number | undefined>();
   const selectedBitrate = useRef<number | undefined>();
@@ -136,25 +159,66 @@ export const PlayerScreen = ({
     }
   }, []);
 
-  const tryPlay = useCallback(() => {
-    if (
-      !streamReady.current ||
-      !surfaceReady.current ||
-      !videoRef.current ||
-      !surfaceHandle.current
-    ) {
+  const attachPlaybackEvents = useCallback((video: VideoPlayer) => {
+    if (playbackEventsAttached.current) {
       return;
     }
 
-    videoRef.current.setSurfaceHandle(surfaceHandle.current);
-    videoRef.current.play();
-    setPaused(false);
-    setStatusText('Starting video...');
+    video.addEventListener('playing', () => {
+      setPaused(false);
+      setStatusText(`Playing (${streamInfo.current?.playMethod ?? 'stream'})`);
+    });
+    video.addEventListener('pause', () => setPaused(true));
+    video.addEventListener('loadedmetadata', () => {
+      setStatusText('Stream loaded');
+    });
+    video.addEventListener('canplay', () => {
+      setStatusText('Ready to play');
+    });
+    video.addEventListener('waiting', () => {
+      setStatusText('Buffering...');
+    });
+    video.addEventListener('stalled', () => {
+      setStatusText('Playback stalled. Buffering...');
+    });
+    video.addEventListener('timeupdate', () => {
+      if (typeof video.currentTime === 'number') {
+        setPositionSeconds(video.currentTime);
+      }
+    });
+    video.addEventListener('error', () => playbackErrorHandler.current());
+    video.addEventListener('ended', () => setStatusText('Finished'));
+    playbackEventsAttached.current = true;
   }, []);
+
+  const addSelectedSubtitleTrack = useCallback(
+    (video: VideoPlayer, stream: JellyfinStreamInfo) => {
+      const selectedExternalSubtitle = stream.subtitleTracks.find(
+        (track) =>
+          track.index === selectedSubtitleIndex.current && track.deliveryUrl,
+      );
+
+      if (
+        selectedExternalSubtitle?.deliveryUrl &&
+        !selectedExternalSubtitle.burnInRequired
+      ) {
+        const textTrack = video.addTextTrack(
+          'subtitles',
+          selectedExternalSubtitle.title,
+          selectedExternalSubtitle.language,
+          selectedExternalSubtitle.deliveryUrl,
+          selectedExternalSubtitle.mimeType ?? 'text/vtt',
+        );
+        textTrack.mode = 'showing';
+      } else if (selectedSubtitleBurnIn.current) {
+        setStatusText('Playing with burned-in subtitles');
+      }
+    },
+    [],
+  );
 
   const loadStream = useCallback(
     async (startTicks = latestPositionTicks.current) => {
-      streamReady.current = false;
       const stream = await getStreamUrl(
         serverUrl,
         accessToken,
@@ -168,6 +232,13 @@ export const PlayerScreen = ({
           maxStreamingBitrate: selectedBitrate.current,
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
+      );
+      console.log(
+        '[Astra] Stream URL parts:',
+        'transcodeUrl:',
+        stream.transcodeUrl,
+        'url:',
+        stream.url,
       );
       console.log(
         '[Astra] Stream URL:',
@@ -190,54 +261,7 @@ export const PlayerScreen = ({
 
         selectedAudioIndex.current = defaultTrack.index;
       }
-
-      const video = videoRef.current ?? new VideoPlayer();
-      videoRef.current = video;
-
-      if (!videoRef.current) {
-        return stream;
-      }
-
-      if (!initialized.current) {
-        await video.initialize();
-        initialized.current = true;
-        if (!playbackEventsAttached.current) {
-          video.addEventListener('playing', () => {
-            setPaused(false);
-            setStatusText(
-              `Playing (${streamInfo.current?.playMethod ?? 'stream'})`,
-            );
-          });
-          video.addEventListener('pause', () => setPaused(true));
-          video.addEventListener('loadedmetadata', () => {
-            setStatusText('Stream loaded');
-          });
-          video.addEventListener('canplay', () => {
-            setStatusText('Ready to play');
-          });
-          video.addEventListener('waiting', () => {
-            setStatusText('Buffering...');
-          });
-          video.addEventListener('stalled', () => {
-            setStatusText('Playback stalled. Buffering...');
-          });
-          video.addEventListener('timeupdate', () => {
-            if (typeof video.currentTime === 'number') {
-              setPositionSeconds(video.currentTime);
-            }
-          });
-          video.addEventListener('error', () => playbackErrorHandler.current());
-          video.addEventListener('ended', () => setStatusText('Finished'));
-          playbackEventsAttached.current = true;
-        }
-      } else {
-        video.pause();
-      }
-
-      video.autoplay = false;
-      video.defaultSeekIntervalInSec = SEEK_SECONDS;
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
-      video.playbackRate = playbackRate;
       const isHLS =
         stream.url.includes('.m3u8') || stream.url.includes('master.m3u8');
 
@@ -249,44 +273,20 @@ export const PlayerScreen = ({
         setStatusText(
           'Stream format not supported (HLS). Try forcing a lower quality.',
         );
-        return stream;
+        throw new Error(
+          'Stream format not supported (HLS). Try forcing a lower quality.',
+        );
       }
-
-      video.src = stream.url;
-      video.load();
-      video.currentTime = startTicks / TICKS_PER_SECOND;
       setStatusText(
         stream.playMethod === 'Transcode'
           ? 'Loading transcoded MP4 stream...'
           : 'Loading direct stream...',
       );
-
-      const selectedExternalSubtitle = stream.subtitleTracks.find(
-        (track) =>
-          track.index === selectedSubtitleIndex.current && track.deliveryUrl,
-      );
-      if (
-        selectedExternalSubtitle?.deliveryUrl &&
-        !selectedExternalSubtitle.burnInRequired
-      ) {
-        const textTrack = video.addTextTrack(
-          'subtitles',
-          selectedExternalSubtitle.title,
-          selectedExternalSubtitle.language,
-          selectedExternalSubtitle.deliveryUrl,
-          selectedExternalSubtitle.mimeType ?? 'text/vtt',
-        );
-        textTrack.mode = 'showing';
-      } else if (selectedSubtitleBurnIn.current) {
-        setStatusText('Playing with burned-in subtitles');
-      }
-
-      streamReady.current = true;
-      tryPlay();
+      assertPlayableUrl(stream.url);
 
       return stream;
     },
-    [accessToken, item.id, playbackRate, serverUrl, tryPlay, userId],
+    [accessToken, item.id, serverUrl, userId],
   );
 
   const reloadWithTrack = useCallback(
@@ -319,14 +319,35 @@ export const PlayerScreen = ({
         selectedForceTranscode.current = true;
       }
       setStatusText('Switching stream...');
-      const stream = await loadStream(currentPositionTicks());
+      const positionTicks = currentPositionTicks();
+      const stream = await loadStream(positionTicks);
+      const video = videoRef.current;
+
+      if (video) {
+        video.pause();
+        video.src = stream.url;
+        video.load();
+        video.currentTime = positionTicks / TICKS_PER_SECOND;
+        addSelectedSubtitleTrack(video, stream);
+        video.play();
+        setPaused(false);
+        setStatusText('Starting video...');
+      }
+
       await reportPlaybackProgress(serverUrl, accessToken, {
         ...stream,
         isPaused,
-        positionTicks: currentPositionTicks(),
+        positionTicks,
       });
     },
-    [accessToken, currentPositionTicks, isPaused, loadStream, serverUrl],
+    [
+      accessToken,
+      addSelectedSubtitleTrack,
+      currentPositionTicks,
+      isPaused,
+      loadStream,
+      serverUrl,
+    ],
   );
 
   playbackErrorHandler.current = () => {
@@ -339,14 +360,28 @@ export const PlayerScreen = ({
     selectedForceTranscode.current = true;
     selectedBitrate.current = selectedBitrate.current ?? 8000000;
     setStatusText('Playback failed. Retrying with transcoding...');
-    loadStream(currentPositionTicks())
-      .then((stream) =>
-        reportPlaybackProgress(serverUrl, accessToken, {
+    const positionTicks = currentPositionTicks();
+    loadStream(positionTicks)
+      .then((stream) => {
+        const video = videoRef.current;
+
+        if (video) {
+          video.pause();
+          video.src = stream.url;
+          video.load();
+          video.currentTime = positionTicks / TICKS_PER_SECOND;
+          addSelectedSubtitleTrack(video, stream);
+          video.play();
+          setPaused(false);
+          setStatusText('Starting video...');
+        }
+
+        return reportPlaybackProgress(serverUrl, accessToken, {
           ...stream,
           isPaused: false,
-          positionTicks: currentPositionTicks(),
-        }),
-      )
+          positionTicks,
+        });
+      })
       .catch((error) => {
         setStatusText(
           error instanceof Error ? error.message : 'Playback retry failed.',
@@ -392,55 +427,17 @@ export const PlayerScreen = ({
   });
 
   useEffect(() => {
-    let mounted = true;
-    const startTicks = item.resumePositionTicks ?? 0;
-
-    const initialize = async () => {
-      try {
-        const stream = await loadStream(startTicks);
-
-        await reportPlaybackStart(serverUrl, accessToken, {
-          ...stream,
-          positionTicks: startTicks,
-          isPaused: false,
-        });
-
-        if (mounted) {
-          setStatusText('Ready');
-        }
-      } catch (error) {
-        if (mounted) {
-          setStatusText(
-            error instanceof Error
-              ? error.message
-              : 'Unable to start playback.',
-          );
-        }
-      }
-    };
-
-    initialize();
-
     return () => {
-      mounted = false;
+      const handle = surfaceHandle.current;
+
       reportStopped().finally(() => {
-        streamReady.current = false;
-        surfaceReady.current = false;
-        if (surfaceHandle.current) {
-          videoRef.current?.clearSurfaceHandle(surfaceHandle.current);
+        if (handle) {
+          videoRef.current?.clearSurfaceHandle(handle);
         }
         videoRef.current?.deinitialize();
       });
     };
-  }, [
-    accessToken,
-    item.id,
-    item.resumePositionTicks,
-    loadStream,
-    reportStopped,
-    serverUrl,
-    userId,
-  ]);
+  }, [reportStopped]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -465,19 +462,62 @@ export const PlayerScreen = ({
   }, [accessToken, currentPositionTicks, isPaused, serverUrl]);
 
   const onSurfaceViewCreated = useCallback(
-    (handle: string) => {
+    async (handle: string) => {
       surfaceHandle.current = handle;
-      surfaceReady.current = true;
-      tryPlay();
+      const startTicks = item.resumePositionTicks ?? 0;
+      const video = videoRef.current ?? new VideoPlayer();
+      videoRef.current = video;
+
+      try {
+        setStatusText('Preparing playback...');
+        await video.initialize();
+        attachPlaybackEvents(video);
+        video.setSurfaceHandle(handle);
+
+        const stream = await loadStream(startTicks);
+
+        video.autoplay = false;
+        video.defaultSeekIntervalInSec = SEEK_SECONDS;
+        video.playbackRate = playbackRate;
+        video.src = stream.url;
+        video.load();
+        video.currentTime = startTicks / TICKS_PER_SECOND;
+        addSelectedSubtitleTrack(video, stream);
+        video.play();
+        setPaused(false);
+        setStatusText('Starting video...');
+
+        await reportPlaybackStart(serverUrl, accessToken, {
+          ...stream,
+          positionTicks: startTicks,
+          isPaused: false,
+        });
+      } catch (error) {
+        setStatusText(
+          error instanceof Error ? error.message : 'Unable to start playback.',
+        );
+      }
     },
-    [tryPlay],
+    [
+      accessToken,
+      addSelectedSubtitleTrack,
+      attachPlaybackEvents,
+      item.resumePositionTicks,
+      loadStream,
+      playbackRate,
+      serverUrl,
+    ],
   );
 
-  const onSurfaceViewDestroyed = useCallback((handle: string) => {
-    videoRef.current?.clearSurfaceHandle(handle);
-    surfaceReady.current = false;
-    surfaceHandle.current = null;
-  }, []);
+  const onSurfaceViewDestroyed = useCallback(
+    (handle: string) => {
+      videoRef.current?.clearSurfaceHandle(handle);
+      videoRef.current?.deinitialize();
+      surfaceHandle.current = null;
+      reportStopped();
+    },
+    [reportStopped],
+  );
 
   const setSpeed = useCallback((rate: number) => {
     setPlaybackRate(rate);
