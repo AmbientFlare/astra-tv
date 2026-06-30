@@ -12,7 +12,12 @@ import {
   JellyfinLibrary,
   JellyfinMediaItem,
 } from '../../services/jellyfin';
-import {ServerProfile} from '../../services/storage';
+import {
+  defaultUserPreferences,
+  getUserPreferences,
+  ServerProfile,
+  UserPreferences,
+} from '../../services/storage';
 
 interface HomeScreenProps {
   onSearch?: () => void;
@@ -33,6 +38,9 @@ export const HomeScreen = ({
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences>(
+    defaultUserPreferences,
+  );
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -57,6 +65,20 @@ export const HomeScreen = ({
     },
     [],
   );
+
+  useEffect(() => {
+    let mounted = true;
+
+    getUserPreferences().then((result) => {
+      if (mounted) {
+        setPreferences(result);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const loadLibraries = useCallback(async () => {
     if (!serverProfile) {
@@ -135,7 +157,9 @@ export const HomeScreen = ({
 
   return (
     <View style={styles.screen} testID="home-screen">
-      <FocusedBackdrop imageUrl={backdropUrl} />
+      {preferences.focusedBackdropEnabled ? (
+        <FocusedBackdrop imageUrl={backdropUrl} />
+      ) : null}
       <ScrollView
         contentContainerStyle={styles.screenContent}
         style={styles.content}>
@@ -183,7 +207,7 @@ export const HomeScreen = ({
       {!isLoading && !errorText && libraries.length === 0 ? (
         <Text style={styles.status}>No libraries found.</Text>
       ) : null}
-      {libraries.length ? (
+      {preferences.homeSections.myMedia && libraries.length ? (
         <>
           <Text style={styles.featureTitle}>My Media</Text>
           <ScrollView horizontal={true} style={styles.libraryScroller}>
@@ -201,30 +225,38 @@ export const HomeScreen = ({
           </ScrollView>
         </>
       ) : null}
-      <HomeMediaRow
-        loadItems={rowLoaders.resume}
-        onFocusBackdrop={queueBackdrop}
-        onSelectItem={onSelectItem}
-        title="Continue Watching"
-      />
-      <HomeMediaRow
-        loadItems={rowLoaders.nextUp}
-        onFocusBackdrop={queueBackdrop}
-        onSelectItem={onSelectItem}
-        title="Next Up"
-      />
-      <HomeMediaRow
-        loadItems={rowLoaders.latestMovies}
-        onFocusBackdrop={queueBackdrop}
-        onSelectItem={onSelectItem}
-        title="Latest Movies"
-      />
-      <HomeMediaRow
-        loadItems={rowLoaders.latestShows}
-        onFocusBackdrop={queueBackdrop}
-        onSelectItem={onSelectItem}
-        title="Latest Shows"
-      />
+      {preferences.homeSections.continueWatching ? (
+        <HomeMediaRow
+          loadItems={rowLoaders.resume}
+          onFocusBackdrop={queueBackdrop}
+          onSelectItem={onSelectItem}
+          title="Continue Watching"
+        />
+      ) : null}
+      {preferences.homeSections.nextUp ? (
+        <HomeMediaRow
+          loadItems={rowLoaders.nextUp}
+          onFocusBackdrop={queueBackdrop}
+          onSelectItem={onSelectItem}
+          title="Next Up"
+        />
+      ) : null}
+      {preferences.homeSections.latestMovies ? (
+        <HomeMediaRow
+          loadItems={rowLoaders.latestMovies}
+          onFocusBackdrop={queueBackdrop}
+          onSelectItem={onSelectItem}
+          title="Latest Movies"
+        />
+      ) : null}
+      {preferences.homeSections.latestShows ? (
+        <HomeMediaRow
+          loadItems={rowLoaders.latestShows}
+          onFocusBackdrop={queueBackdrop}
+          onSelectItem={onSelectItem}
+          title="Latest Shows"
+        />
+      ) : null}
       </ScrollView>
     </View>
   );

@@ -7,6 +7,7 @@ import {
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
+import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
   getItems,
   JellyfinMediaItem,
@@ -287,32 +288,32 @@ export const LibraryScreen = ({
         <Panel
           onClose={() => onMenuVisibleChange(false)}
           title="Library options">
-          <RadioGroup
+          <PreferenceRadioGroup
             options={sortOptions}
             selectedValue={sortBy}
             title="Sort by"
             onSelect={setSortBy}
             preferredFocusValue={sortBy}
           />
-          <RadioGroup
+          <PreferenceRadioGroup
             options={sortOrderOptions}
             selectedValue={sortDescending}
             title="Sort order"
             onSelect={setSortDescending}
           />
-          <RadioGroup
+          <PreferenceRadioGroup
             options={filterOptions}
             selectedValue={filterUnwatched}
             title="Filter"
             onSelect={setFilterUnwatched}
           />
-          <RadioGroup
+          <PreferenceRadioGroup
             options={favoriteOptions}
             selectedValue={filterFavorites}
             title="Favorites"
             onSelect={setFilterFavorites}
           />
-          <RadioGroup
+          <PreferenceRadioGroup
             options={imageSizeOptions}
             selectedValue={displayPreferences.imageSize}
             title="Display: Image size"
@@ -320,7 +321,7 @@ export const LibraryScreen = ({
               saveDisplayPreferences({...displayPreferences, imageSize})
             }
           />
-          <RadioGroup
+          <PreferenceRadioGroup
             options={imageTypeOptions}
             selectedValue={displayPreferences.imageType}
             title="Display: Image type"
@@ -328,7 +329,7 @@ export const LibraryScreen = ({
               saveDisplayPreferences({...displayPreferences, imageType})
             }
           />
-          <RadioGroup
+          <PreferenceRadioGroup
             options={gridDirectionOptions}
             selectedValue={displayPreferences.gridDirection}
             title="Display: Grid direction"
@@ -359,44 +360,6 @@ const Panel = ({
         <Text style={styles.panelButtonText}>Close</Text>
       </FocusableItem>
     </View>
-  </View>
-);
-
-const RadioGroup = <Value extends string | boolean>({
-  onSelect,
-  options,
-  preferredFocusValue,
-  selectedValue,
-  title,
-}: {
-  onSelect: (value: Value) => void;
-  options: Array<{label: string; value: Value}>;
-  preferredFocusValue?: Value;
-  selectedValue: Value;
-  title: string;
-}) => (
-  <View style={styles.radioGroup}>
-    <Text style={styles.panelGroupTitle}>{title}</Text>
-    <TVFocusGuideView style={styles.radioRow}>
-      {options.map((option) => {
-        const selected = option.value === selectedValue;
-
-        return (
-          <FocusableItem
-            focusedStyle={styles.radioOptionFocused}
-            hasTVPreferredFocus={option.value === preferredFocusValue}
-            key={`${title}-${option.label}`}
-            onPress={() => onSelect(option.value)}
-            style={styles.radioOption}
-            testID={`library-option-${title}-${option.label}`}>
-            <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
-              {selected ? <View style={styles.radioDot} /> : null}
-            </View>
-            <Text style={styles.radioText}>{option.label}</Text>
-          </FocusableItem>
-        );
-      })}
-    </TVFocusGuideView>
   </View>
 );
 
@@ -484,50 +447,6 @@ const styles = StyleSheet.create({
   },
   panelActions: {
     gap: 2,
-  },
-  radioGroup: {
-    marginBottom: 14,
-  },
-  radioRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  radioOption: {
-    alignItems: 'center',
-    backgroundColor: '#24313A',
-    borderRadius: 8,
-    flexDirection: 'row',
-    minHeight: 50,
-    minWidth: 150,
-    paddingHorizontal: 14,
-  },
-  radioOptionFocused: {
-    backgroundColor: '#2E5A72',
-  },
-  radioCircle: {
-    alignItems: 'center',
-    borderColor: '#8CA1AA',
-    borderRadius: 9,
-    borderWidth: 2,
-    height: 18,
-    justifyContent: 'center',
-    marginRight: 10,
-    width: 18,
-  },
-  radioCircleSelected: {
-    borderColor: '#4CC9F0',
-  },
-  radioDot: {
-    backgroundColor: '#4CC9F0',
-    borderRadius: 5,
-    height: 10,
-    width: 10,
-  },
-  radioText: {
-    color: '#FFFFFF',
-    fontSize: 19,
-    fontWeight: '700',
   },
   panelGroupTitle: {
     color: '#9FB0BA',

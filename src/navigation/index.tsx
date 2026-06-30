@@ -29,6 +29,7 @@ import {
 } from '../config/devCredentials';
 import {
   getLastUsedServerProfile,
+  getUserPreferences,
   incrementLaunchCount,
   readServerProfiles,
   ServerProfile,
@@ -207,7 +208,11 @@ export const RootNavigator = () => {
 
     const bootstrap = async () => {
       const profiles = await readServerProfiles();
-      const lastUsedProfile = await getLastUsedServerProfile();
+      const preferences = await getUserPreferences();
+      const lastUsedProfile =
+        preferences.autoSignIn === 'mostRecent'
+          ? await getLastUsedServerProfile()
+          : null;
       const refreshedProfile = await refreshDevServerProfile(lastUsedProfile);
       const launchCount = await incrementLaunchCount();
       const isPro = await checkAstraProReceipt();
