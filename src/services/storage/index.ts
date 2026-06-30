@@ -30,9 +30,31 @@ export interface DisplayPreferences {
   imageType: 'Primary' | 'Thumb' | 'Banner';
 }
 
+export interface UserPreferences {
+  accountSortBy: 'lastUsed' | 'name';
+  autoSignIn: 'disabled' | 'mostRecent';
+  focusedBackdropEnabled: boolean;
+  homeSections: {
+    continueWatching: boolean;
+    latestMovies: boolean;
+    latestShows: boolean;
+    myMedia: boolean;
+    nextUp: boolean;
+  };
+  maxStreamingBitrate: 'auto' | '20000000' | '12000000' | '8000000' | '4000000' | '2000000';
+  nextEpisodeAutoplay: boolean;
+  nextEpisodeCountdownSeconds: 10 | 15 | 30;
+  preferredAudioLanguage: string;
+  preferredSubtitleLanguage: string;
+  seekDurationSeconds: 10 | 15 | 30 | 60;
+  skipIntroCredits: 'ask' | 'auto' | 'ignore';
+  subtitleMode: 'default' | 'alwaysOn' | 'alwaysOff' | 'forcedOnly';
+}
+
 const STORAGE_KEY = 'astra.serverProfiles.v1';
 const APP_STATE_KEY = 'astra.appState.v1';
 const DISPLAY_PREFERENCES_KEY = 'astra.displayPreferences.v1';
+const USER_PREFERENCES_KEY = 'astra.userPreferences.v1';
 
 const emptyConfig: ServerProfilesConfig = {
   version: 1,
@@ -49,6 +71,27 @@ const defaultDisplayPreferences: DisplayPreferences = {
   gridDirection: 'vertical',
   imageSize: 'medium',
   imageType: 'Primary',
+};
+
+export const defaultUserPreferences: UserPreferences = {
+  accountSortBy: 'lastUsed',
+  autoSignIn: 'mostRecent',
+  focusedBackdropEnabled: true,
+  homeSections: {
+    continueWatching: true,
+    latestMovies: true,
+    latestShows: true,
+    myMedia: true,
+    nextUp: true,
+  },
+  maxStreamingBitrate: 'auto',
+  nextEpisodeAutoplay: false,
+  nextEpisodeCountdownSeconds: 15,
+  preferredAudioLanguage: 'English',
+  preferredSubtitleLanguage: 'English',
+  seekDurationSeconds: 10,
+  skipIntroCredits: 'ask',
+  subtitleMode: 'default',
 };
 
 const normalizeServerUrl = (serverUrl: string) =>
@@ -123,7 +166,9 @@ export const getLastUsedServerProfile =
     const profiles = await readServerProfiles();
 
     return (
-      profiles.sort((left, right) => right.lastUsed - left.lastUsed)[0] ?? null
+      profiles
+        .filter((profile) => profile.accessToken)
+        .sort((left, right) => right.lastUsed - left.lastUsed)[0] ?? null
     );
   };
 
@@ -221,4 +266,73 @@ export const setDisplayPreferences = async (
     DISPLAY_PREFERENCES_KEY,
     JSON.stringify(preferences),
   );
+};
+
+const parseUserPreferences = (rawPreferences: string | null): UserPreferences => {
+  if (!rawPreferences) {
+    return defaultUserPreferences;
+  }
+
+  try {
+    const parsed = JSON.parse(rawPreferences);
+
+    return {
+      ...defaultUserPreferences,
+      ...parsed,
+      homeSections: {
+        ...defaultUserPreferences.homeSections,
+        ...(parsed.homeSections ?? {}),
+      },
+    };
+  } catch {
+    return defaultUserPreferences;
+  }
+};
+
+export const getUserPreferences = async (): Promise<UserPreferences> => {
+  const rawPreferences = await AsyncStorage.getItem(USER_PREFERENCES_KEY);
+  return parseUserPreferences(rawPreferences);
+};
+
+export const setUserPreferences = async (
+  preferences: UserPreferences,
+): Promise<void> => {
+  await AsyncStorage.setItem(
+    USER_PREFERENCES_KEY,
+    JSON.stringify(preferences),
+  );
+};
+
+export const updateUserPreferences = async (
+  patch: Partial<UserPreferences>,
+): Promise<UserPreferences> => {
+  const current = await getUserPreferences();
+  const next: UserPreferences = {
+    ...current,
+    ...patch,
+    homeSections: {
+      ...current.homeSections,
+      ...(patch.homeSections ?? {}),
+    },
+  };
+
+  await setUserPreferences(next);
+
+  return next;
+};
+
+export const signOutServerProfile = async (profileId: string): Promise<void> => {
+  const profiles = await readServerProfiles();
+
+  await writeServerProfiles(
+    profiles.map((profile) =>
+      profile.id === profileId ? {...profile, accessToken: ''} : profile,
+    ),
+  );
+};
+
+export const removeServerProfile = async (profileId: string): Promise<void> => {
+  const profiles = await readServerProfiles();
+
+  await writeServerProfiles(profiles.filter((profile) => profile.id !== profileId));
 };

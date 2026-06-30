@@ -1,6 +1,9 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
+import {
+  useKeplerAppStateManager,
+  useTVEventHandler,
+} from '@amazon-devices/react-native-kepler';
 import {
   KeplerVideoSurfaceView,
   VideoPlayer,
@@ -16,9 +19,14 @@ import {
   reportPlaybackStart,
   reportPlaybackStopped,
 } from '../../services/jellyfin';
+import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
+import {
+  defaultUserPreferences,
+  getUserPreferences,
+} from '../../services/storage';
 
 const TICKS_PER_SECOND = 10000000;
-const SEEK_SECONDS = 10;
+const CONTROL_HIDE_DELAY_MS = 5000;
 type PlaybackPanel = 'audio' | 'subtitles' | 'quality' | 'speed' | 'chapters';
 
 interface PlayerScreenProps {
@@ -32,16 +40,20 @@ interface PlayerScreenProps {
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
 
+const isAdaptiveStream = (url: string) =>
+  url.includes('.m3u8') || url.includes('.mpd');
+
 const assertPlayableUrl = (url: string) => {
   const parsed = new URL(url);
   const seenKeys = new Set<string>();
   const duplicateKeys = new Set<string>();
 
   parsed.searchParams.forEach((_, key) => {
-    if (seenKeys.has(key)) {
+    const normalizedKey = key.toLowerCase();
+    if (seenKeys.has(normalizedKey)) {
       duplicateKeys.add(key);
     }
-    seenKeys.add(key);
+    seenKeys.add(normalizedKey);
   });
 
   const hasEmptyQueryAssignment = /[?&]=(?:&|$)/.test(url);
@@ -66,6 +78,7 @@ export const PlayerScreen = ({
   userId,
 }: PlayerScreenProps) => {
   const videoRef = useRef<VideoPlayer | null>(null);
+  const shakaPlayerRef = useRef<ShakaPlayerInstance | null>(null);
   const surfaceHandle = useRef<string | null>(null);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
   const stoppedReported = useRef(false);
@@ -78,10 +91,13 @@ export const PlayerScreen = ({
   const playbackErrorHandler = useRef<() => void>(() => undefined);
   const retriedAfterPlaybackError = useRef(false);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
+  const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keplerAppStateManager = useKeplerAppStateManager();
   const [currentStream, setCurrentStream] = useState<JellyfinStreamInfo | null>(
     null,
   );
   const [statusText, setStatusText] = useState('Preparing playback...');
+  const [showControls, setShowControls] = useState(true);
   const [isPaused, setPaused] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
     null,
@@ -91,6 +107,33 @@ export const PlayerScreen = ({
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
   );
+  const [preferredSeekSeconds, setPreferredSeekSeconds] = useState(
+    defaultUserPreferences.seekDurationSeconds,
+  );
+  const [preferredMaxBitrate, setPreferredMaxBitrate] = useState<
+    number | undefined
+  >(undefined);
+
+  useEffect(() => {
+    let mounted = true;
+
+    getUserPreferences().then((preferences) => {
+      if (!mounted) {
+        return;
+      }
+
+      setPreferredSeekSeconds(preferences.seekDurationSeconds);
+      setPreferredMaxBitrate(
+        preferences.maxStreamingBitrate === 'auto'
+          ? undefined
+          : Number(preferences.maxStreamingBitrate),
+      );
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const currentPositionTicks = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
@@ -102,6 +145,34 @@ export const PlayerScreen = ({
 
     return latestPositionTicks.current;
   }, [item.resumePositionTicks]);
+
+  const clearControlsHideTimer = useCallback(() => {
+    if (controlsHideTimer.current) {
+      clearTimeout(controlsHideTimer.current);
+      controlsHideTimer.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimer();
+    controlsHideTimer.current = setTimeout(() => {
+      if (!videoRef.current?.paused) {
+        setShowControls(false);
+      }
+    }, CONTROL_HIDE_DELAY_MS);
+  }, [clearControlsHideTimer]);
+
+  const revealControls = useCallback(
+    (autoHide = true) => {
+      setShowControls(true);
+      if (autoHide) {
+        scheduleControlsHide();
+      } else {
+        clearControlsHideTimer();
+      }
+    },
+    [clearControlsHideTimer, scheduleControlsHide],
+  );
 
   const reportStopped = useCallback(async () => {
     if (stoppedReported.current || !streamInfo.current) {
@@ -159,37 +230,95 @@ export const PlayerScreen = ({
     }
   }, []);
 
-  const attachPlaybackEvents = useCallback((video: VideoPlayer) => {
-    if (playbackEventsAttached.current) {
-      return;
-    }
-
-    video.addEventListener('playing', () => {
-      setPaused(false);
-      setStatusText(`Playing (${streamInfo.current?.playMethod ?? 'stream'})`);
-    });
-    video.addEventListener('pause', () => setPaused(true));
-    video.addEventListener('loadedmetadata', () => {
-      setStatusText('Stream loaded');
-    });
-    video.addEventListener('canplay', () => {
-      setStatusText('Ready to play');
-    });
-    video.addEventListener('waiting', () => {
-      setStatusText('Buffering...');
-    });
-    video.addEventListener('stalled', () => {
-      setStatusText('Playback stalled. Buffering...');
-    });
-    video.addEventListener('timeupdate', () => {
-      if (typeof video.currentTime === 'number') {
-        setPositionSeconds(video.currentTime);
-      }
-    });
-    video.addEventListener('error', () => playbackErrorHandler.current());
-    video.addEventListener('ended', () => setStatusText('Finished'));
-    playbackEventsAttached.current = true;
+  const unloadAdaptivePlayer = useCallback(() => {
+    shakaPlayerRef.current?.unload();
+    shakaPlayerRef.current = null;
   }, []);
+
+  const loadVideoSource = useCallback(
+    async (video: VideoPlayer, stream: JellyfinStreamInfo) => {
+      if (!isAdaptiveStream(stream.url)) {
+        unloadAdaptivePlayer();
+        video.src = stream.url;
+        video.load();
+        return;
+      }
+
+      const {ShakaPlayer} = await import(
+        '../../w3cmedia/shakaplayer/ShakaPlayer'
+      );
+      const settings = {
+        secure: stream.url.startsWith('https://'),
+        abrEnabled: false,
+        abrMaxWidth: 3840,
+        abrMaxHeight: 2160,
+      };
+
+      unloadAdaptivePlayer();
+      const shakaPlayer = new ShakaPlayer(video, settings);
+      shakaPlayerRef.current = shakaPlayer;
+      await shakaPlayer.load(
+        {
+          uri: stream.url,
+          format: stream.url.includes('.mpd') ? 'DASH' : 'HLS',
+          secure: settings.secure,
+          drm_scheme: '',
+          drm_license_uri: '',
+        },
+        false,
+      );
+    },
+    [unloadAdaptivePlayer],
+  );
+
+  const attachPlaybackEvents = useCallback(
+    (video: VideoPlayer) => {
+      if (playbackEventsAttached.current) {
+        return;
+      }
+
+      video.addEventListener('playing', () => {
+        setPaused(false);
+        setStatusText(
+          `Playing (${streamInfo.current?.playMethod ?? 'stream'})`,
+        );
+        scheduleControlsHide();
+      });
+      video.addEventListener('pause', () => {
+        setPaused(true);
+        revealControls(false);
+      });
+      video.addEventListener('loadedmetadata', () => {
+        setStatusText('Stream loaded');
+      });
+      video.addEventListener('canplay', () => {
+        setStatusText('Ready to play');
+      });
+      video.addEventListener('waiting', () => {
+        revealControls(false);
+        setStatusText('Buffering...');
+      });
+      video.addEventListener('stalled', () => {
+        revealControls(false);
+        setStatusText('Playback stalled. Buffering...');
+      });
+      video.addEventListener('timeupdate', () => {
+        if (typeof video.currentTime === 'number') {
+          setPositionSeconds(video.currentTime);
+        }
+      });
+      video.addEventListener('error', () => {
+        revealControls(false);
+        playbackErrorHandler.current();
+      });
+      video.addEventListener('ended', () => {
+        revealControls(false);
+        setStatusText('Finished');
+      });
+      playbackEventsAttached.current = true;
+    },
+    [revealControls, scheduleControlsHide],
+  );
 
   const addSelectedSubtitleTrack = useCallback(
     (video: VideoPlayer, stream: JellyfinStreamInfo) => {
@@ -229,7 +358,7 @@ export const PlayerScreen = ({
           audioStreamIndex: selectedAudioIndex.current,
           alwaysBurnInSubtitleWhenTranscoding: selectedSubtitleBurnIn.current,
           forceTranscode: selectedForceTranscode.current,
-          maxStreamingBitrate: selectedBitrate.current,
+          maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
       );
@@ -262,31 +391,18 @@ export const PlayerScreen = ({
         selectedAudioIndex.current = defaultTrack.index;
       }
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
-      const isHLS =
-        stream.url.includes('.m3u8') || stream.url.includes('master.m3u8');
-
-      if (isHLS) {
-        console.warn(
-          '[Astra] HLS URL received - not yet supported:',
-          stream.url,
-        );
-        setStatusText(
-          'Stream format not supported (HLS). Try forcing a lower quality.',
-        );
-        throw new Error(
-          'Stream format not supported (HLS). Try forcing a lower quality.',
-        );
-      }
       setStatusText(
         stream.playMethod === 'Transcode'
-          ? 'Loading transcoded MP4 stream...'
+          ? isAdaptiveStream(stream.url)
+            ? 'Loading HLS transcode...'
+            : 'Loading transcoded MP4 stream...'
           : 'Loading direct stream...',
       );
       assertPlayableUrl(stream.url);
 
       return stream;
     },
-    [accessToken, item.id, serverUrl, userId],
+    [accessToken, item.id, preferredMaxBitrate, serverUrl, userId],
   );
 
   const reloadWithTrack = useCallback(
@@ -325,12 +441,12 @@ export const PlayerScreen = ({
 
       if (video) {
         video.pause();
-        video.src = stream.url;
-        video.load();
+        await loadVideoSource(video, stream);
         video.currentTime = positionTicks / TICKS_PER_SECOND;
         addSelectedSubtitleTrack(video, stream);
         video.play();
         setPaused(false);
+        scheduleControlsHide();
         setStatusText('Starting video...');
       }
 
@@ -345,7 +461,9 @@ export const PlayerScreen = ({
       addSelectedSubtitleTrack,
       currentPositionTicks,
       isPaused,
+      loadVideoSource,
       loadStream,
+      scheduleControlsHide,
       serverUrl,
     ],
   );
@@ -367,13 +485,19 @@ export const PlayerScreen = ({
 
         if (video) {
           video.pause();
-          video.src = stream.url;
-          video.load();
-          video.currentTime = positionTicks / TICKS_PER_SECOND;
-          addSelectedSubtitleTrack(video, stream);
-          video.play();
-          setPaused(false);
-          setStatusText('Starting video...');
+          return loadVideoSource(video, stream).then(() => {
+            video.currentTime = positionTicks / TICKS_PER_SECOND;
+            addSelectedSubtitleTrack(video, stream);
+            video.play();
+            setPaused(false);
+            scheduleControlsHide();
+            setStatusText('Starting video...');
+            return reportPlaybackProgress(serverUrl, accessToken, {
+              ...stream,
+              isPaused: false,
+              positionTicks,
+            });
+          });
         }
 
         return reportPlaybackProgress(serverUrl, accessToken, {
@@ -394,6 +518,8 @@ export const PlayerScreen = ({
       return;
     }
 
+    revealControls(!settingsPanel && !showExitConfirm);
+
     switch (event.eventType) {
       case 'back':
         if (settingsPanel) {
@@ -406,22 +532,29 @@ export const PlayerScreen = ({
         break;
       case 'menu':
       case 'context_menu':
+        revealControls(false);
         setSettingsPanel((panel) => (panel ? null : 'quality'));
         break;
       case 'playPause':
       case 'playpause':
+        togglePlayPause();
+        break;
       case 'select':
+        if (!showControls && !settingsPanel && !showExitConfirm) {
+          revealControls(true);
+          break;
+        }
         togglePlayPause();
         break;
       case 'right':
       case 'forward':
       case 'skip_forward':
-        seek(SEEK_SECONDS);
+        seek(preferredSeekSeconds);
         break;
       case 'left':
       case 'rewind':
       case 'skip_backward':
-        seek(-SEEK_SECONDS);
+        seek(-preferredSeekSeconds);
         break;
     }
   });
@@ -431,13 +564,15 @@ export const PlayerScreen = ({
       const handle = surfaceHandle.current;
 
       reportStopped().finally(() => {
+        clearControlsHideTimer();
+        unloadAdaptivePlayer();
         if (handle) {
           videoRef.current?.clearSurfaceHandle(handle);
         }
         videoRef.current?.deinitialize();
       });
     };
-  }, [reportStopped]);
+  }, [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -470,6 +605,16 @@ export const PlayerScreen = ({
 
       try {
         setStatusText('Preparing playback...');
+        try {
+          await video.setMediaControlFocus(
+            keplerAppStateManager.getComponentInstance(),
+          );
+        } catch (mediaControlError) {
+          console.warn(
+            '[Astra] Failed to enable Vega Media Controls:',
+            mediaControlError,
+          );
+        }
         await video.initialize();
         attachPlaybackEvents(video);
         video.setSurfaceHandle(handle);
@@ -477,14 +622,14 @@ export const PlayerScreen = ({
         const stream = await loadStream(startTicks);
 
         video.autoplay = false;
-        video.defaultSeekIntervalInSec = SEEK_SECONDS;
+        video.defaultSeekIntervalInSec = preferredSeekSeconds;
         video.playbackRate = playbackRate;
-        video.src = stream.url;
-        video.load();
+        await loadVideoSource(video, stream);
         video.currentTime = startTicks / TICKS_PER_SECOND;
         addSelectedSubtitleTrack(video, stream);
         video.play();
         setPaused(false);
+        scheduleControlsHide();
         setStatusText('Starting video...');
 
         await reportPlaybackStart(serverUrl, accessToken, {
@@ -503,8 +648,11 @@ export const PlayerScreen = ({
       addSelectedSubtitleTrack,
       attachPlaybackEvents,
       item.resumePositionTicks,
+      keplerAppStateManager,
+      loadVideoSource,
       loadStream,
       playbackRate,
+      scheduleControlsHide,
       serverUrl,
     ],
   );
@@ -512,11 +660,13 @@ export const PlayerScreen = ({
   const onSurfaceViewDestroyed = useCallback(
     (handle: string) => {
       videoRef.current?.clearSurfaceHandle(handle);
+      unloadAdaptivePlayer();
       videoRef.current?.deinitialize();
       surfaceHandle.current = null;
+      clearControlsHideTimer();
       reportStopped();
     },
-    [reportStopped],
+    [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer],
   );
 
   const setSpeed = useCallback((rate: number) => {
@@ -526,22 +676,26 @@ export const PlayerScreen = ({
     }
   }, []);
 
-  const seekToChapter = useCallback((startPositionTicks: number) => {
-    const video = videoRef.current;
+  const seekToChapter = useCallback(
+    (startPositionTicks: number) => {
+      const video = videoRef.current;
 
-    if (!video) {
-      return;
-    }
+      if (!video) {
+        return;
+      }
 
-    video.currentTime = startPositionTicks / TICKS_PER_SECOND;
-    latestPositionTicks.current = startPositionTicks;
-    if (video.paused) {
-      video.play();
-      setPaused(false);
-    }
-    setSettingsPanel(null);
-    setStatusText('Playing');
-  }, []);
+      video.currentTime = startPositionTicks / TICKS_PER_SECOND;
+      latestPositionTicks.current = startPositionTicks;
+      if (video.paused) {
+        video.play();
+        setPaused(false);
+      }
+      setSettingsPanel(null);
+      scheduleControlsHide();
+      setStatusText('Playing');
+    },
+    [scheduleControlsHide],
+  );
 
   const durationSeconds =
     typeof videoRef.current?.duration === 'number' &&
@@ -557,6 +711,8 @@ export const PlayerScreen = ({
         )}%`
       : '0%';
   const progressWidth = progressPercent as `${number}%`;
+  const controlsVisible =
+    showControls || Boolean(settingsPanel) || showExitConfirm;
 
   return (
     <View style={styles.screen} testID="player-screen">
@@ -567,83 +723,17 @@ export const PlayerScreen = ({
         style={styles.videoSurface}
         testID="player-video-surface"
       />
-      <View style={styles.overlay}>
-        <Text numberOfLines={1} style={styles.title}>
-          {item.name}
-        </Text>
-        <Text style={styles.status}>{statusText}</Text>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, {width: progressWidth}]} />
+      {controlsVisible ? (
+        <View style={styles.overlay}>
+          <Text numberOfLines={1} style={styles.title}>
+            {item.name}
+          </Text>
+          <Text style={styles.status}>{statusText}</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, {width: progressWidth}]} />
+          </View>
         </View>
-        <View style={styles.controls}>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => seek(-SEEK_SECONDS)}
-            style={styles.button}
-            testID="player-seek-back">
-            <Text style={styles.buttonText}>{'<< 10'}</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            hasTVPreferredFocus={true}
-            onPress={togglePlayPause}
-            style={styles.button}
-            testID="player-play-pause">
-            <Text style={styles.buttonText}>{isPaused ? 'Play' : 'Pause'}</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => seek(SEEK_SECONDS)}
-            style={styles.button}
-            testID="player-seek-forward">
-            <Text style={styles.buttonText}>{'10 >>'}</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => setSettingsPanel('audio')}
-            style={styles.button}
-            testID="player-audio">
-            <Text style={styles.buttonText}>Audio</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => setSettingsPanel('subtitles')}
-            style={styles.button}
-            testID="player-subtitles">
-            <Text style={styles.buttonText}>CC</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => setSettingsPanel('quality')}
-            style={styles.button}
-            testID="player-quality">
-            <Text style={styles.buttonText}>Quality</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => setSettingsPanel('speed')}
-            style={styles.button}
-            testID="player-speed">
-            <Text style={styles.buttonText}>Speed</Text>
-          </FocusableItem>
-          {item.chapters?.length ? (
-            <FocusableItem
-              focusedStyle={styles.focusedButton}
-              onPress={() => setSettingsPanel('chapters')}
-              style={styles.button}
-              testID="player-chapters">
-              <Text style={styles.buttonText}>Chapters</Text>
-            </FocusableItem>
-          ) : null}
-          <FocusableItem
-            focusedStyle={styles.focusedButton}
-            onPress={() => setShowExitConfirm(true)}
-            style={styles.button}
-            testID="player-back">
-            <Text style={styles.buttonText}>Back</Text>
-          </FocusableItem>
-        </View>
-      </View>
+      ) : null}
       {settingsPanel && currentStream ? (
         <PlaybackSettingsOverlay
           activePanel={settingsPanel}

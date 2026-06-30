@@ -11,7 +11,7 @@ icon = "@image/icon_512x512.png"
 id = "com.astra.tv.main"
 runtime-module = "/com.amazon.kepler.keplerscript.runtime.loader_2@IKeplerScript_2_0"
 launch-type = "singleton"
-categories = ["com.amazon.category.main"]
+categories = ["com.amazon.category.main", "com.amazon.category.kepler.media"]
 
 [[wants.service]]
 id = "com.amazon.w3cmedia.service"
@@ -54,3 +54,18 @@ id = "com.amazon.audio.system"
 
 [[wants.service]]
 id = "com.amazon.network.service"
+
+[[extras]]
+key = "interface.provider"
+component-id = "com.astra.tv.main"
+
+[extras.value.application]
+[[extras.value.application.interface]]
+interface_name = "com.amazon.kepler.media.IMediaPlaybackServer"
+command_options = [
+    "StartOver",
+    "SkipForward",
+    "SkipBackward",
+]
+attribute_options = ["AudioAdvanceMuted"]
+features = ["AdvancedSeek", "VariableSpeed", "AudioTracks", "TextTracks"]
