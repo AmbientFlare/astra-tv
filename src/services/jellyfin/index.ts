@@ -35,10 +35,17 @@ export interface JellyfinMediaItem {
   overview?: string;
   parentId?: string;
   parentIndexNumber?: number;
-  people?: Array<{id?: string; name: string; role?: string; type?: string}>;
+  people?: Array<{
+    id?: string;
+    imageUrl?: string;
+    name: string;
+    role?: string;
+    type?: string;
+  }>;
   productionYear?: number;
   runTimeTicks?: number;
   resumePositionTicks?: number;
+  remoteTrailers?: Array<{name?: string; url: string}>;
   seriesId?: string;
   seriesName?: string;
 }
@@ -168,7 +175,7 @@ const buildTranscodingUrl = (
 };
 
 const itemFields =
-  'MediaSources,MediaStreams,Chapters,Overview,PrimaryImageAspectRatio,ProductionYear,UserData,Genres,People,CommunityRating,CriticRating,OfficialRating';
+  'MediaSources,MediaStreams,Chapters,Overview,PrimaryImageAspectRatio,ProductionYear,UserData,Genres,People,CommunityRating,CriticRating,OfficialRating,RemoteTrailers';
 
 const qualityCaps: JellyfinQualityOption[] = [
   {id: 'auto', label: 'Auto'},
@@ -281,6 +288,7 @@ const mapItem = (
     ParentId?: string;
     IndexNumber?: number;
     ParentIndexNumber?: number;
+    RemoteTrailers?: Array<{Name?: string; Url?: string}>;
     SeriesId?: string;
     SeriesName?: string;
   },
@@ -319,10 +327,20 @@ const mapItem = (
   genres: item.Genres,
   people: item.People?.map((person) => ({
     id: person.Id,
+    imageUrl: person.Id
+      ? buildUrl(baseUrl, `/Items/${person.Id}/Images/Primary`, {
+          fillWidth: 260,
+          quality: 85,
+          api_key: accessToken,
+        })
+      : undefined,
     name: person.Name ?? 'Unknown',
     role: person.Role,
     type: person.Type,
   })),
+  remoteTrailers: item.RemoteTrailers?.flatMap((trailer) =>
+    trailer.Url ? [{name: trailer.Name, url: trailer.Url}] : [],
+  ),
   communityRating: item.CommunityRating,
   criticsRating: item.CriticRating,
   officialRating: item.OfficialRating,
@@ -748,6 +766,20 @@ export const getLatestItems = async (
 
   return response.map((item) => mapItem(baseUrl, accessToken, item));
 };
+
+export const getSimilarItems = (
+  serverUrl: string,
+  accessToken: string,
+  itemId: string,
+  userId: string,
+) =>
+  getItemCollection(serverUrl, accessToken, `/Items/${itemId}/Similar`, {
+    UserId: userId,
+    Fields: itemFields,
+    ImageTypeLimit: 1,
+    EnableImageTypes: 'Primary,Backdrop',
+    Limit: 24,
+  });
 
 export const searchItems = (
   serverUrl: string,

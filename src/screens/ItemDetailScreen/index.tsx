@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Image, Linking, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
@@ -7,6 +7,7 @@ import {
   getEpisodes,
   getItemDetails,
   getSeasons,
+  getSimilarItems,
   JellyfinMediaItem,
   setFavorite,
   setPlayed,
@@ -17,6 +18,9 @@ interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
   onBack?: () => void;
   onPlay?: (item: JellyfinMediaItem) => void;
+  onSelectEpisode?: (item: JellyfinMediaItem) => void;
+  onSelectItem?: (item: JellyfinMediaItem) => void;
+  onSelectPerson?: (personId: string) => void;
   serverProfile: ServerProfile;
 }
 
@@ -36,11 +40,15 @@ export const ItemDetailScreen = ({
   item,
   onBack,
   onPlay,
+  onSelectEpisode,
+  onSelectItem,
+  onSelectPerson,
   serverProfile,
 }: ItemDetailScreenProps) => {
   const [detail, setDetail] = useState(item);
   const [seasons, setSeasons] = useState<JellyfinMediaItem[]>([]);
   const [episodes, setEpisodes] = useState<JellyfinMediaItem[]>([]);
+  const [similarItems, setSimilarItems] = useState<JellyfinMediaItem[]>([]);
   const [selectedSeason, setSelectedSeason] =
     useState<JellyfinMediaItem | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -102,6 +110,35 @@ export const ItemDetailScreen = ({
   useEffect(() => {
     let mounted = true;
 
+    const loadSimilarItems = async () => {
+      try {
+        const results = await getSimilarItems(
+          serverProfile.serverUrl,
+          serverProfile.accessToken,
+          detail.id,
+          serverProfile.userId,
+        );
+
+        if (mounted) {
+          setSimilarItems(results);
+        }
+      } catch {
+        if (mounted) {
+          setSimilarItems([]);
+        }
+      }
+    };
+
+    loadSimilarItems();
+
+    return () => {
+      mounted = false;
+    };
+  }, [detail.id, serverProfile]);
+
+  useEffect(() => {
+    let mounted = true;
+
     const loadEpisodes = async () => {
       if (!selectedSeason || detail.type !== 'Series') {
         setEpisodes([]);
@@ -143,6 +180,11 @@ export const ItemDetailScreen = ({
     detail.officialRating,
     detail.communityRating ? `${detail.communityRating.toFixed(1)}/10` : null,
   ].filter(Boolean);
+  const actors =
+    detail.people?.filter((person) => person.type === 'Actor' && person.id) ??
+    [];
+  const director = detail.people?.find((person) => person.type === 'Director');
+  const firstTrailer = detail.remoteTrailers?.[0];
 
   const updateFavorite = async () => {
     const nextValue = !detail.isFavorite;
@@ -218,18 +260,53 @@ export const ItemDetailScreen = ({
               <Text style={styles.status}>Loading details...</Text>
             ) : null}
             <TVFocusGuideView style={styles.actions}>
-              {detail.type !== 'Series' ? (
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                hasTVPreferredFocus={true}
+                onPress={() =>
+                  detail.type === 'Series'
+                    ? episodes[0] && onPlay?.(episodes[0])
+                    : onPlay?.(detail)
+                }
+                style={styles.actionButton}
+                testID="detail-play-button">
+                <Text style={styles.actionText}>
+                  {detail.type === 'Series'
+                    ? 'Play All'
+                    : detail.resumePositionTicks
+                    ? 'Resume'
+                    : 'Play'}
+                </Text>
+              </FocusableItem>
+              {detail.type === 'Series' && episodes.length ? (
                 <FocusableItem
                   focusedStyle={styles.actionFocused}
-                  hasTVPreferredFocus={true}
-                  onPress={() => onPlay?.(detail)}
+                  onPress={() => {
+                    const unwatched =
+                      episodes.filter((episode) => !episode.isPlayed) ??
+                      episodes;
+                    const pool = unwatched.length ? unwatched : episodes;
+                    const randomEpisode =
+                      pool[Math.floor(Math.random() * pool.length)];
+                    if (randomEpisode) {
+                      onPlay?.(randomEpisode);
+                    }
+                  }}
                   style={styles.actionButton}
-                  testID="detail-play-button">
-                  <Text style={styles.actionText}>
-                    {detail.resumePositionTicks ? 'Resume' : 'Play'}
-                  </Text>
+                  testID="detail-shuffle-button">
+                  <Text style={styles.actionText}>Shuffle All</Text>
                 </FocusableItem>
               ) : null}
+              <FocusableItem
+                disabled={isUpdatingUserData}
+                focusedStyle={styles.actionFocused}
+                onPress={updatePlayed}
+                style={styles.actionButton}
+                testID="detail-watched-button">
+                <Text style={styles.actionText}>
+                  {detail.isPlayed ? 'Unwatched' : 'Watched'}
+                </Text>
+              </FocusableItem>
               <FocusableItem
                 disabled={isUpdatingUserData}
                 focusedStyle={styles.actionFocused}
@@ -240,16 +317,13 @@ export const ItemDetailScreen = ({
                   {detail.isFavorite ? 'Unfavorite' : 'Favorite'}
                 </Text>
               </FocusableItem>
-              {detail.type !== 'Series' ? (
+              {detail.type === 'Movie' && firstTrailer ? (
                 <FocusableItem
-                  disabled={isUpdatingUserData}
                   focusedStyle={styles.actionFocused}
-                  onPress={updatePlayed}
+                  onPress={() => Linking.openURL(firstTrailer.url)}
                   style={styles.actionButton}
-                  testID="detail-watched-button">
-                  <Text style={styles.actionText}>
-                    {detail.isPlayed ? 'Unwatched' : 'Watched'}
-                  </Text>
+                  testID="detail-trailer-button">
+                  <Text style={styles.actionText}>Trailer</Text>
                 </FocusableItem>
               ) : null}
               {errorText ? (
@@ -269,6 +343,9 @@ export const ItemDetailScreen = ({
                 <Text style={styles.actionText}>Back</Text>
               </FocusableItem>
             </TVFocusGuideView>
+            {director ? (
+              <Text style={styles.director}>Directed by {director.name}</Text>
+            ) : null}
           </View>
         </View>
       </View>
@@ -303,7 +380,7 @@ export const ItemDetailScreen = ({
                 <MediaCard
                   imageUrl={episode.imageUrl}
                   key={episode.id}
-                  onPress={() => onPlay?.(episode)}
+                  onPress={() => onSelectEpisode?.(episode)}
                   subtitle={
                     episode.indexNumber
                       ? `Episode ${episode.indexNumber}`
@@ -316,9 +393,77 @@ export const ItemDetailScreen = ({
           </ScrollView>
         </>
       ) : null}
+
+      {actors.length ? (
+        <>
+          <Text style={styles.sectionTitle}>Cast & Crew</Text>
+          <ScrollView horizontal={true} style={styles.rowScroller}>
+            <TVFocusGuideView style={styles.row}>
+              {actors.map((person) => (
+                <PersonCard
+                  key={person.id}
+                  imageUrl={person.imageUrl}
+                  name={person.name}
+                  onPress={() => person.id && onSelectPerson?.(person.id)}
+                  role={person.role}
+                />
+              ))}
+            </TVFocusGuideView>
+          </ScrollView>
+        </>
+      ) : null}
+
+      {similarItems.length ? (
+        <>
+          <Text style={styles.sectionTitle}>More Like This</Text>
+          <ScrollView horizontal={true} style={styles.rowScroller}>
+            <TVFocusGuideView style={styles.row}>
+              {similarItems.map((similarItem) => (
+                <MediaCard
+                  imageUrl={similarItem.imageUrl}
+                  key={similarItem.id}
+                  onPress={() => onSelectItem?.(similarItem)}
+                  subtitle={
+                    similarItem.productionYear
+                      ? String(similarItem.productionYear)
+                      : similarItem.type
+                  }
+                  title={similarItem.name}
+                />
+              ))}
+            </TVFocusGuideView>
+          </ScrollView>
+        </>
+      ) : null}
     </ScrollView>
   );
 };
+
+const PersonCard = ({
+  imageUrl,
+  name,
+  onPress,
+  role,
+}: {
+  imageUrl?: string;
+  name: string;
+  onPress?: () => void;
+  role?: string;
+}) => (
+  <FocusableItem
+    focusedStyle={styles.personFocused}
+    onPress={onPress}
+    style={styles.personCard}
+    testID={`person-${name}`}>
+    {imageUrl ? <Image source={{uri: imageUrl}} style={styles.personImage} /> : null}
+    <Text numberOfLines={1} style={styles.personName}>
+      {name}
+    </Text>
+    <Text numberOfLines={1} style={styles.personRole}>
+      {role ?? 'Actor'}
+    </Text>
+  </FocusableItem>
+);
 
 const styles = StyleSheet.create({
   screen: {
@@ -368,6 +513,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginTop: 18,
   },
+  director: {
+    color: '#B8C5CC',
+    fontSize: 20,
+    marginTop: 16,
+  },
   error: {
     color: '#FFB4A8',
     fontSize: 22,
@@ -414,5 +564,31 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 26,
+  },
+  personCard: {
+    width: 170,
+    borderRadius: 8,
+    backgroundColor: '#182027',
+    padding: 12,
+  },
+  personFocused: {
+    backgroundColor: '#2E5A72',
+  },
+  personImage: {
+    width: 146,
+    height: 146,
+    borderRadius: 8,
+    backgroundColor: '#25313A',
+    marginBottom: 10,
+  },
+  personName: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  personRole: {
+    color: '#B8C5CC',
+    fontSize: 17,
+    marginTop: 4,
   },
 });
