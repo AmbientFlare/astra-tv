@@ -2,6 +2,8 @@ import React, {PropsWithChildren, useState} from 'react';
 import {StyleProp, StyleSheet, TouchableOpacity, ViewStyle} from 'react-native';
 
 interface FocusableItemProps {
+  onBlur?: () => void;
+  onFocus?: () => void;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   focusedStyle?: StyleProp<ViewStyle>;
@@ -17,6 +19,8 @@ export const FocusableItem = ({
   disabled,
   focusedStyle,
   hasTVPreferredFocus,
+  onBlur,
+  onFocus,
   onPress,
   style,
   testID,
@@ -30,8 +34,14 @@ export const FocusableItem = ({
       activeOpacity={1}
       disabled={disabled}
       hasTVPreferredFocus={hasTVPreferredFocus}
-      onBlur={() => setFocused(false)}
-      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        onBlur?.();
+      }}
+      onFocus={() => {
+        setFocused(true);
+        onFocus?.();
+      }}
       onPress={onPress}
       style={[
         styles.base,

@@ -7,12 +7,16 @@ interface MediaCardProps {
   title: string;
   subtitle?: string;
   hasTVPreferredFocus?: boolean;
+  imageScale?: number;
+  onFocus?: () => void;
   onPress?: () => void;
 }
 
 export const MediaCard = ({
   hasTVPreferredFocus,
   imageUrl,
+  imageScale = 1,
+  onFocus,
   onPress,
   subtitle,
   title,
@@ -21,13 +25,28 @@ export const MediaCard = ({
     accessibilityLabel={title}
     focusedStyle={styles.focused}
     hasTVPreferredFocus={hasTVPreferredFocus}
+    onFocus={onFocus}
     onPress={onPress}
-    style={styles.card}
+    style={[
+      styles.card,
+      {
+        width: Math.round(248 * imageScale),
+        height: Math.round(412 * imageScale),
+      },
+    ]}
     testID={`media-card-${title}`}>
     {imageUrl ? (
-      <Image resizeMode="cover" source={{uri: imageUrl}} style={styles.image} />
+      <Image
+        resizeMode="cover"
+        source={{uri: imageUrl}}
+        style={[styles.image, {height: Math.round(330 * imageScale)}]}
+      />
     ) : (
-      <View style={styles.imagePlaceholder}>
+      <View
+        style={[
+          styles.imagePlaceholder,
+          {height: Math.round(330 * imageScale)},
+        ]}>
         <Text numberOfLines={2} style={styles.placeholderText}>
           {title}
         </Text>

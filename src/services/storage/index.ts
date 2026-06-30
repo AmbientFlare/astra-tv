@@ -24,8 +24,15 @@ interface AppStateConfig {
   version: 1;
 }
 
+export interface DisplayPreferences {
+  gridDirection: 'horizontal' | 'vertical';
+  imageSize: 'small' | 'medium' | 'large';
+  imageType: 'Primary' | 'Thumb' | 'Banner';
+}
+
 const STORAGE_KEY = 'astra.serverProfiles.v1';
 const APP_STATE_KEY = 'astra.appState.v1';
+const DISPLAY_PREFERENCES_KEY = 'astra.displayPreferences.v1';
 
 const emptyConfig: ServerProfilesConfig = {
   version: 1,
@@ -36,6 +43,12 @@ const emptyAppState: AppStateConfig = {
   isPro: false,
   launchCount: 0,
   version: 1,
+};
+
+const defaultDisplayPreferences: DisplayPreferences = {
+  gridDirection: 'vertical',
+  imageSize: 'medium',
+  imageType: 'Primary',
 };
 
 const normalizeServerUrl = (serverUrl: string) =>
@@ -173,4 +186,39 @@ export const incrementLaunchCount = async (): Promise<number> => {
 
 export const setProStatus = async (isPro: boolean): Promise<void> => {
   await writeAppState({isPro});
+};
+
+export const getDisplayPreferences =
+  async (): Promise<DisplayPreferences> => {
+    const rawPreferences = await AsyncStorage.getItem(DISPLAY_PREFERENCES_KEY);
+
+    if (!rawPreferences) {
+      return defaultDisplayPreferences;
+    }
+
+    try {
+      const parsed = JSON.parse(rawPreferences);
+
+      return {
+        gridDirection:
+          parsed.gridDirection === 'horizontal' ? 'horizontal' : 'vertical',
+        imageSize: ['small', 'medium', 'large'].includes(parsed.imageSize)
+          ? parsed.imageSize
+          : defaultDisplayPreferences.imageSize,
+        imageType: ['Primary', 'Thumb', 'Banner'].includes(parsed.imageType)
+          ? parsed.imageType
+          : defaultDisplayPreferences.imageType,
+      };
+    } catch {
+      return defaultDisplayPreferences;
+    }
+  };
+
+export const setDisplayPreferences = async (
+  preferences: DisplayPreferences,
+): Promise<void> => {
+  await AsyncStorage.setItem(
+    DISPLAY_PREFERENCES_KEY,
+    JSON.stringify(preferences),
+  );
 };

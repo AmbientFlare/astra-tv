@@ -115,6 +115,16 @@ export interface JellyfinStreamInfo {
   url: string;
 }
 
+export type JellyfinSortBy = 'name' | 'dateAdded' | 'releaseDate' | 'rating';
+export type JellyfinImageType = 'Primary' | 'Thumb' | 'Banner';
+
+export interface GetItemsOptions {
+  filters?: Array<'IsFavorite' | 'IsUnplayed'>;
+  imageType?: JellyfinImageType;
+  sortBy?: JellyfinSortBy;
+  sortDescending?: boolean;
+}
+
 export interface PlaybackReportInput {
   itemId: string;
   mediaSourceId?: string;
@@ -302,7 +312,7 @@ const mapItem = (
     }>;
     ProductionYear?: number;
     PremiereDate?: string;
-    ImageTags?: {Primary?: string};
+    ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
     BackdropImageTags?: string[];
     Chapters?: Array<{Name?: string; StartPositionTicks?: number}>;
     RunTimeTicks?: number;
@@ -325,6 +335,7 @@ const mapItem = (
     SeriesId?: string;
     SeriesName?: string;
   },
+  imageType: 'Primary' | 'Thumb' | 'Banner' = 'Primary',
 ): JellyfinMediaItem => ({
   id: item.Id ?? item.Name ?? '',
   name: item.Name ?? 'Untitled',
@@ -346,10 +357,10 @@ const mapItem = (
     startPositionTicks: chapter.StartPositionTicks ?? 0,
   })),
   imageUrl: item.Id
-    ? buildUrl(baseUrl, `/Items/${item.Id}/Images/Primary`, {
+    ? buildUrl(baseUrl, `/Items/${item.Id}/Images/${imageType}`, {
         fillWidth: 360,
         quality: 90,
-        tag: item.ImageTags?.Primary,
+        tag: item.ImageTags?.[imageType],
         api_key: accessToken,
       })
     : undefined,
@@ -504,11 +515,19 @@ export const getLibraries = async (
   }));
 };
 
+const sortByMap: Record<JellyfinSortBy, string> = {
+  dateAdded: 'DateCreated',
+  name: 'SortName',
+  rating: 'CommunityRating',
+  releaseDate: 'PremiereDate',
+};
+
 export const getItems = async (
   serverUrl: string,
   accessToken: string,
   libraryId: string,
   userId?: string,
+  options: GetItemsOptions = {},
 ): Promise<JellyfinMediaItem[]> => {
   const baseUrl = normalizeServerUrl(serverUrl);
   const itemsPath = userId ? `/Users/${userId}/Items` : '/Items';
@@ -519,7 +538,7 @@ export const getItems = async (
       Type?: string;
       MediaType?: string;
       ProductionYear?: number;
-      ImageTags?: {Primary?: string};
+      ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
       RunTimeTicks?: number;
       UserData?: {PlaybackPositionTicks?: number};
       Overview?: string;
@@ -541,9 +560,10 @@ export const getItems = async (
       IncludeItemTypes: 'Movie,Series,Episode,Video',
       Fields: itemFields,
       ImageTypeLimit: 1,
-      EnableImageTypes: 'Primary,Backdrop',
-      SortBy: 'SortName',
-      SortOrder: 'Ascending',
+      EnableImageTypes: `${options.imageType ?? 'Primary'},Backdrop`,
+      Filters: options.filters?.join(','),
+      SortBy: sortByMap[options.sortBy ?? 'name'],
+      SortOrder: options.sortDescending ? 'Descending' : 'Ascending',
       api_key: accessToken,
     }),
     {
@@ -552,7 +572,7 @@ export const getItems = async (
   );
 
   return (response.Items ?? []).map((item) =>
-    mapItem(baseUrl, accessToken, item),
+    mapItem(baseUrl, accessToken, item, options.imageType ?? 'Primary'),
   );
 };
 
