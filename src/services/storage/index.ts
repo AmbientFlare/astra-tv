@@ -30,6 +30,14 @@ export interface DisplayPreferences {
   imageType: 'Primary' | 'Thumb' | 'Banner';
 }
 
+export interface PlaybackPreferences {
+  version: 1;
+  maxBitrateBps: number;
+  maxAudioChannels: 2 | 6 | 8;
+  preferredAudioLanguage: string;
+  seekDurationSeconds: number;
+}
+
 export interface UserPreferences {
   accountSortBy: 'lastUsed' | 'name';
   autoSignIn: 'disabled' | 'mostRecent';
@@ -55,6 +63,7 @@ const STORAGE_KEY = 'astra.serverProfiles.v1';
 const APP_STATE_KEY = 'astra.appState.v1';
 const DISPLAY_PREFERENCES_KEY = 'astra.displayPreferences.v1';
 const USER_PREFERENCES_KEY = 'astra.userPreferences.v1';
+const PLAYBACK_PREFS_KEY = 'astra.playbackPrefs.v1';
 
 const emptyConfig: ServerProfilesConfig = {
   version: 1,
@@ -92,6 +101,14 @@ export const defaultUserPreferences: UserPreferences = {
   seekDurationSeconds: 10,
   skipIntroCredits: 'ask',
   subtitleMode: 'default',
+};
+
+export const defaultPlaybackPrefs: PlaybackPreferences = {
+  version: 1,
+  maxBitrateBps: 80000000,
+  maxAudioChannels: 6,
+  preferredAudioLanguage: 'en',
+  seekDurationSeconds: 10,
 };
 
 const normalizeServerUrl = (serverUrl: string) =>
@@ -317,6 +334,92 @@ export const updateUserPreferences = async (
   };
 
   await setUserPreferences(next);
+
+  return next;
+};
+
+const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
+  const maxBitrateBps = Number(parsed.maxBitrateBps);
+  const maxAudioChannels = Number(parsed.maxAudioChannels);
+  const seekDurationSeconds = Number(parsed.seekDurationSeconds);
+
+  const preferences: PlaybackPreferences = {
+    version: 1,
+    maxBitrateBps: [40000000, 80000000, 120000000, 200000000].includes(
+      maxBitrateBps,
+    )
+      ? maxBitrateBps
+      : defaultPlaybackPrefs.maxBitrateBps,
+    maxAudioChannels: [2, 6, 8].includes(maxAudioChannels)
+      ? (maxAudioChannels as PlaybackPreferences['maxAudioChannels'])
+      : defaultPlaybackPrefs.maxAudioChannels,
+    preferredAudioLanguage:
+      typeof parsed.preferredAudioLanguage === 'string'
+        ? parsed.preferredAudioLanguage
+        : defaultPlaybackPrefs.preferredAudioLanguage,
+    seekDurationSeconds: [10, 15, 30, 60].includes(seekDurationSeconds)
+      ? seekDurationSeconds
+      : defaultPlaybackPrefs.seekDurationSeconds,
+  };
+
+  return preferences;
+};
+
+const parsePlaybackPreferences = (
+  rawPreferences: string | null,
+): PlaybackPreferences | null => {
+  if (!rawPreferences) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawPreferences);
+
+    if (parsed?.version !== 1) {
+      return defaultPlaybackPrefs;
+    }
+
+    return coercePlaybackPrefs(parsed);
+  } catch {
+    return defaultPlaybackPrefs;
+  }
+};
+
+const migrateLegacyPlaybackPreferences =
+  async (): Promise<PlaybackPreferences> => {
+    const legacy = await getUserPreferences();
+    const migrated = coercePlaybackPrefs({
+      maxBitrateBps:
+        legacy.maxStreamingBitrate === 'auto'
+          ? defaultPlaybackPrefs.maxBitrateBps
+          : Number(legacy.maxStreamingBitrate),
+      preferredAudioLanguage:
+        legacy.preferredAudioLanguage === 'English'
+          ? 'en'
+          : legacy.preferredAudioLanguage,
+      seekDurationSeconds: legacy.seekDurationSeconds,
+    });
+
+    await AsyncStorage.setItem(PLAYBACK_PREFS_KEY, JSON.stringify(migrated));
+
+    return migrated;
+  };
+
+export const readPlaybackPreferences =
+  async (): Promise<PlaybackPreferences> => {
+    const rawPreferences = await AsyncStorage.getItem(PLAYBACK_PREFS_KEY);
+    const parsed = parsePlaybackPreferences(rawPreferences);
+
+    return parsed ?? migrateLegacyPlaybackPreferences();
+  };
+
+export const writePlaybackPreferences = async (
+  prefs: Partial<PlaybackPreferences>,
+): Promise<PlaybackPreferences> => {
+  const current = await readPlaybackPreferences();
+  const next = coercePlaybackPrefs({...current, ...prefs, version: 1});
+
+  await AsyncStorage.setItem(PLAYBACK_PREFS_KEY, JSON.stringify(next));
 
   return next;
 };

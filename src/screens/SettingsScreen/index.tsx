@@ -6,9 +6,12 @@ import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {APP_VERSION, BUILD_DATE} from '../../config/app';
 import {
   defaultUserPreferences,
+  defaultPlaybackPrefs,
   DisplayPreferences,
   getDisplayPreferences,
   getUserPreferences,
+  PlaybackPreferences,
+  readPlaybackPreferences,
   readServerProfiles,
   removeServerProfile,
   ServerProfile,
@@ -16,6 +19,7 @@ import {
   signOutServerProfile,
   updateUserPreferences,
   UserPreferences,
+  writePlaybackPreferences,
 } from '../../services/storage';
 
 const EASTER_EGG_TEXT =
@@ -35,6 +39,7 @@ type SettingsRoute =
   | {route: 'homeSections'}
   | {route: 'displayPreferences'}
   | {route: 'maxBitrate'}
+  | {route: 'audioChannels'}
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
   | {route: 'subtitleMode'}
@@ -50,17 +55,33 @@ interface SettingsScreenProps {
 
 const bitrateOptions: Array<{
   label: string;
-  value: UserPreferences['maxStreamingBitrate'];
+  value: PlaybackPreferences['maxBitrateBps'];
 }> = [
-  {label: 'Auto', value: 'auto'},
-  {label: '20 Mbps', value: '20000000'},
-  {label: '12 Mbps', value: '12000000'},
-  {label: '8 Mbps', value: '8000000'},
-  {label: '4 Mbps', value: '4000000'},
-  {label: '2 Mbps', value: '2000000'},
+  {label: '40 Mbps', value: 40000000},
+  {label: '80 Mbps', value: 80000000},
+  {label: '120 Mbps', value: 120000000},
+  {label: 'Unlimited', value: 200000000},
 ];
 
-const languageOptions = ['English', 'Spanish', 'French', 'German', 'Japanese'];
+const audioChannelOptions: Array<{
+  label: string;
+  value: PlaybackPreferences['maxAudioChannels'];
+}> = [
+  {label: 'Stereo (2.0)', value: 2},
+  {label: '5.1 Surround', value: 6},
+  {label: '7.1 Surround', value: 8},
+];
+
+const languageOptions: Array<{label: string; value: string}> = [
+  {label: 'English', value: 'en'},
+  {label: 'Spanish', value: 'es'},
+  {label: 'French', value: 'fr'},
+  {label: 'German', value: 'de'},
+  {label: 'Japanese', value: 'ja'},
+  {label: 'Portuguese', value: 'pt'},
+  {label: 'Italian', value: 'it'},
+  {label: 'Korean', value: 'ko'},
+];
 
 export const SettingsScreen = ({
   onBack,
@@ -71,6 +92,8 @@ export const SettingsScreen = ({
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
   );
+  const [playbackPrefs, setPlaybackPrefs] =
+    useState<PlaybackPreferences>(defaultPlaybackPrefs);
   const [displayPreferencesState, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
       gridDirection: 'vertical',
@@ -100,6 +123,7 @@ export const SettingsScreen = ({
   useEffect(() => {
     refreshProfiles();
     getUserPreferences().then(setPreferences);
+    readPlaybackPreferences().then(setPlaybackPrefs);
     getDisplayPreferences().then(setDisplayPreferenceState);
   }, [refreshProfiles]);
 
@@ -123,6 +147,11 @@ export const SettingsScreen = ({
   const saveDisplayPrefs = async (next: DisplayPreferences) => {
     setDisplayPreferenceState(next);
     await setDisplayPreferences(next);
+  };
+
+  const savePlaybackPrefs = async (patch: Partial<PlaybackPreferences>) => {
+    const next = await writePlaybackPreferences(patch);
+    setPlaybackPrefs(next);
   };
 
   const page = (() => {
@@ -371,10 +400,29 @@ export const SettingsScreen = ({
             <MenuRow
               icon="↯"
               title="Max streaming bitrate"
-              subtitle={bitrateOptions.find((o) => o.value === preferences.maxStreamingBitrate)?.label}
+              subtitle={
+                bitrateOptions.find(
+                  (o) => o.value === playbackPrefs.maxBitrateBps,
+                )?.label
+              }
               onPress={() => push({route: 'maxBitrate'})}
             />
-            <MenuRow icon="♫" title="Preferred audio language" subtitle={preferences.preferredAudioLanguage} onPress={() => push({route: 'audioLanguage'})} />
+            <MenuRow
+              icon="◎"
+              title="Audio output"
+              subtitle="Match your TV or receiver's channel capability"
+              onPress={() => push({route: 'audioChannels'})}
+            />
+            <MenuRow
+              icon="♫"
+              title="Preferred audio language"
+              subtitle={
+                languageOptions.find(
+                  (o) => o.value === playbackPrefs.preferredAudioLanguage,
+                )?.label ?? 'English'
+              }
+              onPress={() => push({route: 'audioLanguage'})}
+            />
             <MenuRow icon="▱" title="Preferred subtitle language" subtitle={preferences.preferredSubtitleLanguage} onPress={() => push({route: 'subtitleLanguage'})} />
             <MenuRow icon="▰" title="Subtitle mode" subtitle={labelForSubtitleMode(preferences.subtitleMode)} onPress={() => push({route: 'subtitleMode'})} />
             <ToggleRow
@@ -390,16 +438,48 @@ export const SettingsScreen = ({
             {preferences.nextEpisodeAutoplay ? (
               <MenuRow icon="◷" title="Countdown duration" subtitle={`${preferences.nextEpisodeCountdownSeconds}s`} onPress={() => push({route: 'autoplayCountdown'})} />
             ) : null}
-            <MenuRow icon="»" title="Seek duration" subtitle={`${preferences.seekDurationSeconds}s`} onPress={() => push({route: 'seekDuration'})} />
+            <MenuRow icon="»" title="Seek duration" subtitle={`${playbackPrefs.seekDurationSeconds}s`} onPress={() => push({route: 'seekDuration'})} />
             <MenuRow icon="⊘" title="Skip intro/credits" subtitle={labelForSkip(preferences.skipIntroCredits)} onPress={() => push({route: 'skipIntro'})} />
           </Page>
         );
       case 'maxBitrate':
-        return <RadioPage title="Max streaming bitrate" onBack={pop} options={bitrateOptions} selectedValue={preferences.maxStreamingBitrate} onSelect={(maxStreamingBitrate) => savePreferences({maxStreamingBitrate})} />;
+        return <RadioPage title="Max streaming bitrate" onBack={pop} options={bitrateOptions} selectedValue={playbackPrefs.maxBitrateBps} onSelect={(maxBitrateBps) => savePlaybackPrefs({maxBitrateBps})} />;
+      case 'audioChannels':
+        return (
+          <Page title="Audio output" onBack={pop}>
+            <Text style={styles.description}>
+              Match your TV or receiver's channel capability
+            </Text>
+            <PreferenceRadioGroup
+              options={audioChannelOptions}
+              selectedValue={playbackPrefs.maxAudioChannels}
+              onSelect={(maxAudioChannels) =>
+                savePlaybackPrefs({maxAudioChannels})
+              }
+            />
+            <Text style={styles.infoText}>
+              7.1 requires direct play. Transcoded audio is 5.1 maximum.
+            </Text>
+          </Page>
+        );
       case 'audioLanguage':
-        return <RadioPage title="Preferred audio language" onBack={pop} options={languageOptions.map((value) => ({label: value, value}))} selectedValue={preferences.preferredAudioLanguage} onSelect={(preferredAudioLanguage) => savePreferences({preferredAudioLanguage})} />;
+        return (
+          <Page title="Preferred audio language" onBack={pop}>
+            <Text style={styles.description}>
+              Astra will select this language track when available
+            </Text>
+            {/* Fixed v1 list; later this can expand from Jellyfin item language data. */}
+            <PreferenceRadioGroup
+              options={languageOptions}
+              selectedValue={playbackPrefs.preferredAudioLanguage}
+              onSelect={(preferredAudioLanguage) =>
+                savePlaybackPrefs({preferredAudioLanguage})
+              }
+            />
+          </Page>
+        );
       case 'subtitleLanguage':
-        return <RadioPage title="Preferred subtitle language" onBack={pop} options={languageOptions.map((value) => ({label: value, value}))} selectedValue={preferences.preferredSubtitleLanguage} onSelect={(preferredSubtitleLanguage) => savePreferences({preferredSubtitleLanguage})} />;
+        return <RadioPage title="Preferred subtitle language" onBack={pop} options={languageOptions} selectedValue={preferences.preferredSubtitleLanguage} onSelect={(preferredSubtitleLanguage) => savePreferences({preferredSubtitleLanguage})} />;
       case 'subtitleMode':
         return <RadioPage title="Subtitle mode" onBack={pop} options={[
           {label: 'Default', value: 'default'},
@@ -410,7 +490,7 @@ export const SettingsScreen = ({
       case 'autoplayCountdown':
         return <RadioPage title="Countdown duration" onBack={pop} options={[10, 15, 30].map((value) => ({label: `${value}s`, value: value as 10 | 15 | 30}))} selectedValue={preferences.nextEpisodeCountdownSeconds} onSelect={(nextEpisodeCountdownSeconds) => savePreferences({nextEpisodeCountdownSeconds})} />;
       case 'seekDuration':
-        return <RadioPage title="Seek duration" onBack={pop} options={[10, 15, 30, 60].map((value) => ({label: `${value}s`, value: value as 10 | 15 | 30 | 60}))} selectedValue={preferences.seekDurationSeconds} onSelect={(seekDurationSeconds) => savePreferences({seekDurationSeconds})} />;
+        return <RadioPage title="Seek duration" onBack={pop} options={[10, 15, 30, 60].map((value) => ({label: `${value}s`, value}))} selectedValue={playbackPrefs.seekDurationSeconds} onSelect={(seekDurationSeconds) => savePlaybackPrefs({seekDurationSeconds})} />;
       case 'skipIntro':
         return <RadioPage title="Skip intro/credits" onBack={pop} options={[
           {label: 'Ask', value: 'ask'},
@@ -650,6 +730,18 @@ const styles = StyleSheet.create({
     color: '#B8C5CC',
     fontSize: 20,
     marginTop: 4,
+  },
+  description: {
+    color: '#B8C5CC',
+    fontSize: 22,
+    marginBottom: 18,
+  },
+  infoText: {
+    color: '#9FB0BA',
+    fontSize: 19,
+    fontStyle: 'italic',
+    marginTop: -6,
+    opacity: 0.76,
   },
   backButton: {
     width: 120,
