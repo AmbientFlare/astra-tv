@@ -307,6 +307,9 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         onPlay={(item) => push({route: 'player', item})}
+        onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
+        onSelectItem={(item) => push({route: 'detail', item})}
+        onSelectPerson={(personId) => push({route: 'personDetail', personId})}
         serverProfile={serverProfile}
       />,
     );
