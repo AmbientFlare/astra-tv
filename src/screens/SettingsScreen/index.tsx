@@ -4,6 +4,9 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {APP_VERSION, BUILD_DATE} from '../../config/app';
 import {ServerProfile} from '../../services/storage';
 
+const EASTER_EGG_TEXT =
+  'For Kimberly — whose love of Star Trek started all of this.';
+
 interface SettingsScreenProps {
   onBack?: () => void;
   serverProfile: ServerProfile;
@@ -83,14 +86,12 @@ export const SettingsScreen = ({
         <Text style={styles.aboutText}>
           Backends: Jellyfin now, Kodi and Emby planned
         </Text>
-        <Text style={styles.aboutText}>
-          For Kimberly - whose love of Star Trek started all of this.
-        </Text>
         <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
         <Image
           source={require('../../assets/kofi-qr.png')}
           style={styles.qrImage}
         />
+        <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
       </View>
     </View>
   </ScrollView>
@@ -178,6 +179,13 @@ const styles = StyleSheet.create({
     color: '#DDE7EB',
     fontSize: 22,
     marginBottom: 10,
+  },
+  easterEgg: {
+    color: '#9FB0BA',
+    fontSize: 19,
+    fontStyle: 'italic',
+    marginTop: 16,
+    opacity: 0.58,
   },
   qrImage: {
     width: 132,
