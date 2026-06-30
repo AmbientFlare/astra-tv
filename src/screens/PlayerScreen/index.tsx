@@ -21,8 +21,8 @@ import {
 } from '../../services/jellyfin';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
-  defaultUserPreferences,
-  getUserPreferences,
+  defaultPlaybackPrefs,
+  readPlaybackPreferences,
 } from '../../services/storage';
 
 const TICKS_PER_SECOND = 10000000;
@@ -108,7 +108,7 @@ export const PlayerScreen = ({
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
   );
   const [preferredSeekSeconds, setPreferredSeekSeconds] = useState(
-    defaultUserPreferences.seekDurationSeconds,
+    defaultPlaybackPrefs.seekDurationSeconds,
   );
   const [preferredMaxBitrate, setPreferredMaxBitrate] = useState<
     number | undefined
@@ -117,17 +117,13 @@ export const PlayerScreen = ({
   useEffect(() => {
     let mounted = true;
 
-    getUserPreferences().then((preferences) => {
+    readPlaybackPreferences().then((preferences) => {
       if (!mounted) {
         return;
       }
 
       setPreferredSeekSeconds(preferences.seekDurationSeconds);
-      setPreferredMaxBitrate(
-        preferences.maxStreamingBitrate === 'auto'
-          ? undefined
-          : Number(preferences.maxStreamingBitrate),
-      );
+      setPreferredMaxBitrate(preferences.maxBitrateBps);
     });
 
     return () => {

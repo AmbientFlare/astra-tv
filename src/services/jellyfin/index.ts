@@ -1,3 +1,6 @@
+import {buildDeviceProfile} from './deviceProfile';
+import {readPlaybackPreferences} from '../storage';
+
 export interface JellyfinServerInfo {
   id: string;
   name: string;
@@ -67,6 +70,8 @@ export interface JellyfinMediaStream {
   displayTitle?: string;
   height?: number;
   index?: number;
+  isDefault?: boolean;
+  language?: string;
   type?: string;
   width?: number;
 }
@@ -80,6 +85,7 @@ export interface JellyfinMediaTrack {
   id: string;
   index?: number;
   title: string;
+  channels?: number;
   language?: string;
   codec?: string;
   displayTitle?: string;
@@ -217,57 +223,6 @@ const qualityCaps: JellyfinQualityOption[] = [
   {id: '2000000', label: '2 Mbps', bitrate: 2000000},
 ];
 
-const fireTVDeviceProfile = {
-  MaxStreamingBitrate: 40000000,
-  DirectPlayProfiles: [
-    {
-      Container: 'mkv',
-      Type: 'Video',
-      VideoCodec: 'h264,hevc,vp9,av1',
-      AudioCodec: 'aac,mp3,ac3,eac3,dts,truehd,flac,opus,vorbis',
-    },
-    {
-      Container: 'mp4,m4v,mov',
-      Type: 'Video',
-      VideoCodec: 'h264,hevc,vp9,av1',
-      AudioCodec: 'aac,mp3,ac3,eac3,dts,truehd,flac,opus,vorbis',
-    },
-    {
-      Container: 'webm',
-      Type: 'Video',
-      VideoCodec: 'vp9,av1',
-      AudioCodec: 'aac,mp3,ac3,eac3,dts,truehd,flac,opus,vorbis',
-    },
-  ],
-  TranscodingProfiles: [
-    {
-      Container: 'ts',
-      Type: 'Video',
-      VideoCodec: 'h264',
-      AudioCodec: 'aac',
-      Context: 'Streaming',
-      Protocol: 'hls',
-      MaxAudioChannels: '6',
-      MinSegments: 1,
-      BreakOnNonKeyFrames: true,
-    },
-    {
-      Container: 'mp4',
-      Type: 'Video',
-      VideoCodec: 'h264',
-      AudioCodec: 'aac',
-      Context: 'Streaming',
-      Protocol: 'http',
-      MaxAudioChannels: '6',
-    },
-  ],
-  SubtitleProfiles: [
-    {Format: 'vtt', Method: 'External'},
-    {Format: 'srt', Method: 'External'},
-    {Format: 'ass', Method: 'External'},
-  ],
-};
-
 const subtitleMimeForCodec = (codec?: string) => {
   switch (codec?.toLowerCase()) {
     case 'webvtt':
@@ -291,6 +246,64 @@ const supportsTextTrack = (codec?: string) =>
     codec?.toLowerCase() ?? '',
   );
 
+const selectAudioStreamIndex = (
+  mediaStreams: JellyfinMediaStream[],
+  preferredLanguage: string,
+  preferredChannels: number,
+): number | null => {
+  const audioStreams = mediaStreams.filter((stream) => stream.type === 'Audio');
+
+  if (!audioStreams.length) {
+    return null;
+  }
+
+  if (audioStreams.length === 1) {
+    return audioStreams[0].index ?? null;
+  }
+
+  const normalizedLanguage = preferredLanguage.toLowerCase();
+  const languageAliases: Record<string, string[]> = {
+    de: ['de', 'deu', 'ger'],
+    en: ['en', 'eng'],
+    es: ['es', 'spa'],
+    fr: ['fr', 'fra', 'fre'],
+    it: ['it', 'ita'],
+    ja: ['ja', 'jpn'],
+    ko: ['ko', 'kor'],
+    pt: ['pt', 'por'],
+  };
+  const preferredLanguageCodes = languageAliases[normalizedLanguage] ?? [
+    normalizedLanguage,
+  ];
+  const matchesLanguage = (language?: string) =>
+    Boolean(language && preferredLanguageCodes.includes(language.toLowerCase()));
+  const byLangAndChannels = audioStreams.find(
+    (stream) =>
+      matchesLanguage(stream.language) &&
+      (stream.channels ?? 0) <= preferredChannels,
+  );
+
+  if (byLangAndChannels?.index !== undefined) {
+    return byLangAndChannels.index;
+  }
+
+  const byLang = audioStreams.find((stream) =>
+    matchesLanguage(stream.language),
+  );
+
+  if (byLang?.index !== undefined) {
+    return byLang.index;
+  }
+
+  const defaultTrack = audioStreams.find((stream) => stream.isDefault);
+
+  if (defaultTrack?.index !== undefined) {
+    return defaultTrack.index;
+  }
+
+  return audioStreams[0].index ?? null;
+};
+
 const mapItem = (
   baseUrl: string,
   accessToken: string,
@@ -306,6 +319,8 @@ const mapItem = (
         DisplayTitle?: string;
         Height?: number;
         Index?: number;
+        IsDefault?: boolean;
+        Language?: string;
         Type?: string;
         Width?: number;
       }>;
@@ -347,6 +362,8 @@ const mapItem = (
     displayTitle: stream.DisplayTitle,
     height: stream.Height,
     index: stream.Index,
+    isDefault: stream.IsDefault,
+    language: stream.Language,
     type: stream.Type,
     width: stream.Width,
   })),
@@ -591,12 +608,13 @@ export const getStreamUrl = async (
   } = {},
 ): Promise<JellyfinStreamInfo> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  const prefs = await readPlaybackPreferences();
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
     api_key: accessToken,
   });
   console.log('[Astra] buildUrl PlaybackInfo output:', playbackInfoUrl);
 
-  const response = await getJson<{
+  type PlaybackInfoResponse = {
     PlaySessionId?: string;
     MediaSources?: Array<{
       Id?: string;
@@ -612,6 +630,7 @@ export const getStreamUrl = async (
       SupportsDirectStream?: boolean;
       SupportsTranscoding?: boolean;
       MediaStreams?: Array<{
+        Channels?: number;
         Index?: number;
         Type?: string;
         Title?: string;
@@ -624,28 +643,58 @@ export const getStreamUrl = async (
         DeliveryMethod?: string;
       }>;
     }>;
-  }>(playbackInfoUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(accessToken),
-    },
-    body: JSON.stringify({
-      DeviceProfile: fireTVDeviceProfile,
-      UserId: userId,
-      StartTimeTicks: startPositionTicks,
-      AudioStreamIndex: options.audioStreamIndex,
-      SubtitleStreamIndex: options.subtitleStreamIndex,
-      AlwaysBurnInSubtitleWhenTranscoding:
-        options.alwaysBurnInSubtitleWhenTranscoding,
-      MaxStreamingBitrate: options.maxStreamingBitrate ?? 40000000,
-      EnableDirectPlay: !options.forceTranscode,
-      EnableDirectStream: true,
-      AllowVideoStreamCopy: !options.forceTranscode,
-      AllowAudioStreamCopy: true,
-      AutoOpenLiveStream: true,
+  };
+  const postPlaybackInfo = (audioStreamIndex?: number) =>
+    getJson<PlaybackInfoResponse>(playbackInfoUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(accessToken),
+      },
+      body: JSON.stringify({
+        DeviceProfile: buildDeviceProfile(prefs),
+        UserId: userId,
+        StartTimeTicks: startPositionTicks,
+        AudioStreamIndex: audioStreamIndex,
+        SubtitleStreamIndex: options.subtitleStreamIndex,
+        AlwaysBurnInSubtitleWhenTranscoding:
+          options.alwaysBurnInSubtitleWhenTranscoding,
+        MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
+        MaxAudioChannels: prefs.maxAudioChannels,
+        EnableDirectPlay: !options.forceTranscode,
+        EnableDirectStream: true,
+        AllowVideoStreamCopy: !options.forceTranscode,
+        AllowAudioStreamCopy: true,
+        AutoOpenLiveStream: true,
+      }),
+    });
+
+  let response = await postPlaybackInfo(options.audioStreamIndex);
+  const firstMediaStreams = response.MediaSources?.[0]?.MediaStreams?.map(
+    (stream): JellyfinMediaStream => ({
+      channels: stream.Channels,
+      codec: stream.Codec,
+      displayTitle: stream.DisplayTitle,
+      index: stream.Index,
+      isDefault: stream.IsDefault,
+      language: stream.Language,
+      type: stream.Type,
     }),
-  });
+  );
+  const selectedAudioStreamIndex =
+    options.audioStreamIndex ??
+    selectAudioStreamIndex(
+      firstMediaStreams ?? [],
+      prefs.preferredAudioLanguage,
+      prefs.maxAudioChannels,
+    );
+
+  if (
+    options.audioStreamIndex === undefined &&
+    selectedAudioStreamIndex !== null
+  ) {
+    response = await postPlaybackInfo(selectedAudioStreamIndex);
+  }
   const mediaSource = response.MediaSources?.[0];
   const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
   if (mediaSource?.TranscodingUrl) {
@@ -669,6 +718,7 @@ export const getStreamUrl = async (
       static: true,
       MediaSourceId: mediaSource?.Id,
       PlaySessionId: response.PlaySessionId,
+      AudioStreamIndex: selectedAudioStreamIndex ?? undefined,
       tag: mediaSource?.ETag,
       api_key: accessToken,
     });
@@ -698,14 +748,15 @@ export const getStreamUrl = async (
         )
       : undefined;
 
-    return {
-      id: String(
+      return {
+        id: String(
         track.Index ?? track.DisplayTitle ?? track.Title ?? track.Type,
       ),
       index: track.Index,
       title: track.DisplayTitle ?? track.Title ?? track.Language ?? 'Unknown',
       language: track.Language,
       codec: track.Codec,
+      channels: track.Channels,
       displayTitle: track.DisplayTitle,
       deliveryMethod: track.DeliveryMethod,
       isDefault: track.IsDefault,
