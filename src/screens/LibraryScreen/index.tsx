@@ -1,12 +1,14 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
-import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {
+  TVFocusGuideView,
+  useTVEventHandler,
+} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
 import {
   getItems,
-  JellyfinImageType,
   JellyfinMediaItem,
   JellyfinSortBy,
 } from '../../services/jellyfin';
@@ -20,6 +22,8 @@ import {
 interface LibraryScreenProps {
   libraryId: string;
   libraryName: string;
+  menuVisible: boolean;
+  onMenuVisibleChange: (visible: boolean) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
   serverProfile: ServerProfile;
 }
@@ -31,6 +35,47 @@ const sortOptions: Array<{label: string; value: JellyfinSortBy}> = [
   {label: 'Rating', value: 'rating'},
 ];
 
+const sortOrderOptions = [
+  {label: 'Ascending', value: false},
+  {label: 'Descending', value: true},
+];
+
+const filterOptions = [
+  {label: 'All', value: false},
+  {label: 'Unwatched Only', value: true},
+];
+
+const favoriteOptions = [
+  {label: 'All', value: false},
+  {label: 'Favorites Only', value: true},
+];
+
+const imageSizeOptions: Array<{
+  label: string;
+  value: DisplayPreferences['imageSize'];
+}> = [
+  {label: 'Small', value: 'small'},
+  {label: 'Medium', value: 'medium'},
+  {label: 'Large', value: 'large'},
+];
+
+const imageTypeOptions: Array<{
+  label: string;
+  value: DisplayPreferences['imageType'];
+}> = [
+  {label: 'Poster', value: 'Primary'},
+  {label: 'Thumb', value: 'Thumb'},
+  {label: 'Banner', value: 'Banner'},
+];
+
+const gridDirectionOptions: Array<{
+  label: string;
+  value: DisplayPreferences['gridDirection'];
+}> = [
+  {label: 'Vertical', value: 'vertical'},
+  {label: 'Horizontal', value: 'horizontal'},
+];
+
 const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
   large: 1.25,
   medium: 1,
@@ -40,6 +85,8 @@ const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
 export const LibraryScreen = ({
   libraryId,
   libraryName,
+  menuVisible,
+  onMenuVisibleChange,
   onSelectItem,
   serverProfile,
 }: LibraryScreenProps) => {
@@ -51,8 +98,6 @@ export const LibraryScreen = ({
   const [filterUnwatched, setFilterUnwatched] = useState(false);
   const [filterFavorites, setFilterFavorites] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(0);
-  const [sortPanelVisible, setSortPanelVisible] = useState(false);
-  const [displayPanelVisible, setDisplayPanelVisible] = useState(false);
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
@@ -166,38 +211,32 @@ export const LibraryScreen = ({
 
   const cardScale = imageSizeScale[displayPreferences.imageSize];
 
+  useTVEventHandler((event) => {
+    if (event.eventKeyAction === 1) {
+      return;
+    }
+
+    switch (event.eventType) {
+      case 'menu':
+      case 'context_menu':
+        onMenuVisibleChange(!menuVisible);
+        break;
+      case 'back':
+        if (menuVisible) {
+          onMenuVisibleChange(false);
+        }
+        break;
+    }
+  });
+
   return (
     <View style={styles.screen} testID="library-screen">
       <FocusedBackdrop imageUrl={backdropUrl} />
       <View style={styles.header}>
         <Text style={styles.title}>{libraryName}</Text>
-        <TVFocusGuideView style={styles.toolbar}>
-          <ToolbarButton
-            label={sortDescending ? 'Z-A' : 'A-Z'}
-            onPress={() => setSortPanelVisible(true)}
-            testID="library-sort-button"
-          />
-          <ToolbarButton
-            active={filterUnwatched}
-            label="F"
-            onPress={() => setFilterUnwatched((value) => !value)}
-            testID="library-filter-button"
-          />
-          <ToolbarButton
-            active={filterFavorites}
-            label="★"
-            onPress={() => setFilterFavorites((value) => !value)}
-            testID="library-favorites-button"
-          />
-          <Text style={styles.countText}>
-            {items.length ? `${focusedIndex + 1} | ${items.length}` : '0 | 0'}
-          </Text>
-          <ToolbarButton
-            label="⚙"
-            onPress={() => setDisplayPanelVisible(true)}
-            testID="library-display-button"
-          />
-        </TVFocusGuideView>
+        <Text style={styles.countText}>
+          {items.length ? `${focusedIndex + 1} | ${items.length}` : '0 | 0'}
+        </Text>
       </View>
       {isLoading ? <Text style={styles.status}>Loading items...</Text> : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
@@ -244,91 +283,64 @@ export const LibraryScreen = ({
           )}
         />
       </TVFocusGuideView>
-      {sortPanelVisible ? (
-        <Panel onClose={() => setSortPanelVisible(false)} title="Sort">
-          {sortOptions.map((option) => (
-            <PanelButton
-              key={option.value}
-              label={`${sortBy === option.value ? '✓ ' : ''}${option.label}`}
-              onPress={() => {
-                setSortBy(option.value);
-                setSortPanelVisible(false);
-              }}
-            />
-          ))}
-          <PanelButton
-            label={sortDescending ? 'Descending' : 'Ascending'}
-            onPress={() => setSortDescending((value) => !value)}
-          />
-        </Panel>
-      ) : null}
-      {displayPanelVisible ? (
+      {menuVisible ? (
         <Panel
-          onClose={() => setDisplayPanelVisible(false)}
-          title="Display preferences">
-          <Text style={styles.panelGroupTitle}>Image size</Text>
-          {(['small', 'medium', 'large'] as const).map((imageSize) => (
-            <PanelButton
-              key={imageSize}
-              label={`${
-                displayPreferences.imageSize === imageSize ? '✓ ' : ''
-              }${imageSize[0].toUpperCase()}${imageSize.slice(1)}`}
-              onPress={() =>
-                saveDisplayPreferences({...displayPreferences, imageSize})
-              }
-            />
-          ))}
-          <Text style={styles.panelGroupTitle}>Image type</Text>
-          {(['Primary', 'Thumb', 'Banner'] as JellyfinImageType[]).map(
-            (imageType) => (
-              <PanelButton
-                key={imageType}
-                label={`${
-                  displayPreferences.imageType === imageType ? '✓ ' : ''
-                }${imageType === 'Primary' ? 'Poster' : imageType}`}
-                onPress={() =>
-                  saveDisplayPreferences({...displayPreferences, imageType})
-                }
-              />
-            ),
-          )}
-          <Text style={styles.panelGroupTitle}>Grid direction</Text>
-          {(['vertical', 'horizontal'] as const).map((gridDirection) => (
-            <PanelButton
-              key={gridDirection}
-              label={`${
-                displayPreferences.gridDirection === gridDirection ? '✓ ' : ''
-              }${gridDirection[0].toUpperCase()}${gridDirection.slice(1)}`}
-              onPress={() =>
-                saveDisplayPreferences({...displayPreferences, gridDirection})
-              }
-            />
-          ))}
+          onClose={() => onMenuVisibleChange(false)}
+          title="Library options">
+          <RadioGroup
+            options={sortOptions}
+            selectedValue={sortBy}
+            title="Sort by"
+            onSelect={setSortBy}
+            preferredFocusValue={sortBy}
+          />
+          <RadioGroup
+            options={sortOrderOptions}
+            selectedValue={sortDescending}
+            title="Sort order"
+            onSelect={setSortDescending}
+          />
+          <RadioGroup
+            options={filterOptions}
+            selectedValue={filterUnwatched}
+            title="Filter"
+            onSelect={setFilterUnwatched}
+          />
+          <RadioGroup
+            options={favoriteOptions}
+            selectedValue={filterFavorites}
+            title="Favorites"
+            onSelect={setFilterFavorites}
+          />
+          <RadioGroup
+            options={imageSizeOptions}
+            selectedValue={displayPreferences.imageSize}
+            title="Display: Image size"
+            onSelect={(imageSize) =>
+              saveDisplayPreferences({...displayPreferences, imageSize})
+            }
+          />
+          <RadioGroup
+            options={imageTypeOptions}
+            selectedValue={displayPreferences.imageType}
+            title="Display: Image type"
+            onSelect={(imageType) =>
+              saveDisplayPreferences({...displayPreferences, imageType})
+            }
+          />
+          <RadioGroup
+            options={gridDirectionOptions}
+            selectedValue={displayPreferences.gridDirection}
+            title="Display: Grid direction"
+            onSelect={(gridDirection) =>
+              saveDisplayPreferences({...displayPreferences, gridDirection})
+            }
+          />
         </Panel>
       ) : null}
     </View>
   );
 };
-
-const ToolbarButton = ({
-  active,
-  label,
-  onPress,
-  testID,
-}: {
-  active?: boolean;
-  label: string;
-  onPress?: () => void;
-  testID: string;
-}) => (
-  <FocusableItem
-    focusedStyle={styles.toolbarButtonFocused}
-    onPress={onPress}
-    style={[styles.toolbarButton, active && styles.toolbarButtonActive]}
-    testID={testID}>
-    <Text style={styles.toolbarButtonText}>{label}</Text>
-  </FocusableItem>
-);
 
 const Panel = ({
   children,
@@ -350,14 +362,42 @@ const Panel = ({
   </View>
 );
 
-const PanelButton = ({label, onPress}: {label: string; onPress?: () => void}) => (
-  <FocusableItem
-    focusedStyle={styles.panelButtonFocused}
-    onPress={onPress}
-    style={styles.panelButton}
-    testID={`library-panel-${label}`}>
-    <Text style={styles.panelButtonText}>{label}</Text>
-  </FocusableItem>
+const RadioGroup = <Value extends string | boolean>({
+  onSelect,
+  options,
+  preferredFocusValue,
+  selectedValue,
+  title,
+}: {
+  onSelect: (value: Value) => void;
+  options: Array<{label: string; value: Value}>;
+  preferredFocusValue?: Value;
+  selectedValue: Value;
+  title: string;
+}) => (
+  <View style={styles.radioGroup}>
+    <Text style={styles.panelGroupTitle}>{title}</Text>
+    <TVFocusGuideView style={styles.radioRow}>
+      {options.map((option) => {
+        const selected = option.value === selectedValue;
+
+        return (
+          <FocusableItem
+            focusedStyle={styles.radioOptionFocused}
+            hasTVPreferredFocus={option.value === preferredFocusValue}
+            key={`${title}-${option.label}`}
+            onPress={() => onSelect(option.value)}
+            style={styles.radioOption}
+            testID={`library-option-${title}-${option.label}`}>
+            <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
+              {selected ? <View style={styles.radioDot} /> : null}
+            </View>
+            <Text style={styles.radioText}>{option.label}</Text>
+          </FocusableItem>
+        );
+      })}
+    </TVFocusGuideView>
+  </View>
 );
 
 const styles = StyleSheet.create({
@@ -378,31 +418,6 @@ const styles = StyleSheet.create({
     fontSize: 58,
     fontWeight: '800',
     flex: 1,
-  },
-  toolbar: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-  },
-  toolbarButton: {
-    alignItems: 'center',
-    backgroundColor: '#24313A',
-    borderRadius: 8,
-    height: 50,
-    justifyContent: 'center',
-    minWidth: 58,
-    paddingHorizontal: 12,
-  },
-  toolbarButtonActive: {
-    backgroundColor: '#315066',
-  },
-  toolbarButtonFocused: {
-    backgroundColor: '#2E5A72',
-  },
-  toolbarButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
   },
   countText: {
     color: '#B8C5CC',
@@ -454,7 +469,7 @@ const styles = StyleSheet.create({
     paddingTop: 122,
   },
   panel: {
-    width: 410,
+    width: 780,
     borderRadius: 8,
     backgroundColor: '#111A21',
     borderColor: '#324555',
@@ -468,7 +483,51 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   panelActions: {
+    gap: 2,
+  },
+  radioGroup: {
+    marginBottom: 14,
+  },
+  radioRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
+  },
+  radioOption: {
+    alignItems: 'center',
+    backgroundColor: '#24313A',
+    borderRadius: 8,
+    flexDirection: 'row',
+    minHeight: 50,
+    minWidth: 150,
+    paddingHorizontal: 14,
+  },
+  radioOptionFocused: {
+    backgroundColor: '#2E5A72',
+  },
+  radioCircle: {
+    alignItems: 'center',
+    borderColor: '#8CA1AA',
+    borderRadius: 9,
+    borderWidth: 2,
+    height: 18,
+    justifyContent: 'center',
+    marginRight: 10,
+    width: 18,
+  },
+  radioCircleSelected: {
+    borderColor: '#4CC9F0',
+  },
+  radioDot: {
+    backgroundColor: '#4CC9F0',
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  radioText: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '700',
   },
   panelGroupTitle: {
     color: '#9FB0BA',

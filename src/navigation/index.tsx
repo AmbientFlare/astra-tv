@@ -99,6 +99,7 @@ export const RootNavigator = () => {
     null,
   );
   const [stack, setStack] = useState<RouteEntry[]>([{route: 'home'}]);
+  const [libraryMenuVisible, setLibraryMenuVisible] = useState(false);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
 
@@ -164,6 +165,12 @@ export const RootNavigator = () => {
       return true;
     }
 
+    if (current.route === 'library' && libraryMenuVisible) {
+      resetExitPresses();
+      setLibraryMenuVisible(false);
+      return true;
+    }
+
     if (current.route === 'home') {
       requestExitConfirmation();
     } else {
@@ -179,6 +186,7 @@ export const RootNavigator = () => {
     resetStack,
     route,
     current.route,
+    libraryMenuVisible,
     pop,
     serverProfile,
   ]);
@@ -295,7 +303,10 @@ export const RootNavigator = () => {
       <LibraryScreen
         libraryId={current.library.id}
         libraryName={current.library.name}
+        menuVisible={libraryMenuVisible}
+        onMenuVisibleChange={setLibraryMenuVisible}
         onSelectItem={(item) => {
+          setLibraryMenuVisible(false);
           push({route: 'detail', item});
         }}
         serverProfile={serverProfile}
