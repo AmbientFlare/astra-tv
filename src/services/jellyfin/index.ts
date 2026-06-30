@@ -31,6 +31,7 @@ export interface JellyfinMediaItem {
   isFavorite?: boolean;
   isPlayed?: boolean;
   mediaType?: string;
+  mediaStreams?: JellyfinMediaStream[];
   officialRating?: string;
   overview?: string;
   parentId?: string;
@@ -43,11 +44,22 @@ export interface JellyfinMediaItem {
     type?: string;
   }>;
   productionYear?: number;
+  premiereDate?: string;
   runTimeTicks?: number;
   resumePositionTicks?: number;
   remoteTrailers?: Array<{name?: string; url: string}>;
   seriesId?: string;
   seriesName?: string;
+}
+
+export interface JellyfinMediaStream {
+  channels?: number;
+  codec?: string;
+  displayTitle?: string;
+  height?: number;
+  index?: number;
+  type?: string;
+  width?: number;
 }
 
 export interface JellyfinChapter {
@@ -268,7 +280,19 @@ const mapItem = (
     Name?: string;
     Type?: string;
     MediaType?: string;
+    MediaSources?: Array<{
+      MediaStreams?: Array<{
+        Channels?: number;
+        Codec?: string;
+        DisplayTitle?: string;
+        Height?: number;
+        Index?: number;
+        Type?: string;
+        Width?: number;
+      }>;
+    }>;
     ProductionYear?: number;
+    PremiereDate?: string;
     ImageTags?: {Primary?: string};
     BackdropImageTags?: string[];
     Chapters?: Array<{Name?: string; StartPositionTicks?: number}>;
@@ -297,7 +321,17 @@ const mapItem = (
   name: item.Name ?? 'Untitled',
   type: item.Type ?? 'Media',
   mediaType: item.MediaType,
+  mediaStreams: item.MediaSources?.[0]?.MediaStreams?.map((stream) => ({
+    channels: stream.Channels,
+    codec: stream.Codec,
+    displayTitle: stream.DisplayTitle,
+    height: stream.Height,
+    index: stream.Index,
+    type: stream.Type,
+    width: stream.Width,
+  })),
   productionYear: item.ProductionYear,
+  premiereDate: item.PremiereDate,
   chapters: item.Chapters?.map((chapter, index) => ({
     name: chapter.Name ?? `Chapter ${index + 1}`,
     startPositionTicks: chapter.StartPositionTicks ?? 0,
