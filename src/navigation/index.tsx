@@ -77,13 +77,17 @@ const refreshDevServerProfile = async (
 type LaunchRoute =
   | 'loading'
   | 'setup'
-  | 'home'
-  | 'library'
-  | 'detail'
-  | 'player'
-  | 'search'
-  | 'settings'
   | 'support';
+
+type RouteEntry =
+  | {route: 'home'}
+  | {route: 'library'; library: JellyfinLibrary}
+  | {route: 'detail'; item: JellyfinMediaItem}
+  | {route: 'episodeDetail'; item: JellyfinMediaItem}
+  | {route: 'player'; item: JellyfinMediaItem}
+  | {route: 'search'}
+  | {route: 'settings'}
+  | {route: 'personDetail'; personId: string};
 
 export const RootNavigator = () => {
   const keplerBackHandler = useKeplerBackHandler();
@@ -92,12 +96,27 @@ export const RootNavigator = () => {
   const [serverProfile, setServerProfile] = useState<ServerProfile | null>(
     null,
   );
-  const [selectedLibrary, setSelectedLibrary] =
-    useState<JellyfinLibrary | null>(null);
-  const [selectedItem, setSelectedItem] = useState<JellyfinMediaItem | null>(
-    null,
-  );
+  const [stack, setStack] = useState<RouteEntry[]>([{route: 'home'}]);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
+  const current = stack[stack.length - 1] ?? {route: 'home'};
+
+  const push = useCallback(
+    (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
+    [],
+  );
+
+  const pop = useCallback(
+    () =>
+      setStack((entries) =>
+        entries.length > 1 ? entries.slice(0, -1) : entries,
+      ),
+    [],
+  );
+
+  const resetStack = useCallback(
+    (entry: RouteEntry = {route: 'home'}) => setStack([entry]),
+    [],
+  );
 
   const resetExitPresses = useCallback(() => {
     exitBackPressState.current = {count: 0, lastPressedAt: 0};
@@ -126,33 +145,28 @@ export const RootNavigator = () => {
       return true;
     }
 
-    switch (route) {
-      case 'setup':
-        if (serverProfile) {
-          resetExitPresses();
-          setRoute('home');
-        } else {
-          requestExitConfirmation();
-        }
-        break;
-      case 'library':
-      case 'search':
-      case 'settings':
-      case 'support':
-        resetExitPresses();
-        setRoute('home');
-        break;
-      case 'detail':
-        resetExitPresses();
-        setRoute(selectedLibrary ? 'library' : 'home');
-        break;
-      case 'player':
-        resetExitPresses();
-        break;
-      case 'home':
-      case 'loading':
-        requestExitConfirmation();
-        break;
+    if (route === 'loading') {
+      requestExitConfirmation();
+      return true;
+    }
+
+    if (route === 'setup' && !serverProfile) {
+      requestExitConfirmation();
+      return true;
+    }
+
+    if (route === 'support') {
+      resetExitPresses();
+      resetStack();
+      setRoute('setup');
+      return true;
+    }
+
+    if (current.route === 'home') {
+      requestExitConfirmation();
+    } else {
+      resetExitPresses();
+      pop();
     }
 
     return true;
@@ -160,8 +174,10 @@ export const RootNavigator = () => {
     exitPromptVisible,
     requestExitConfirmation,
     resetExitPresses,
+    resetStack,
     route,
-    selectedLibrary,
+    current.route,
+    pop,
     serverProfile,
   ]);
 
@@ -194,7 +210,10 @@ export const RootNavigator = () => {
       if (!isPro && launchCount > 0 && launchCount % 10 === 0) {
         setRoute('support');
       } else {
-        setRoute(profiles.length > 0 ? 'home' : 'setup');
+        setRoute(profiles.length > 0 ? 'setup' : 'setup');
+        if (profiles.length > 0) {
+          resetStack();
+        }
       }
     };
 
@@ -228,82 +247,14 @@ export const RootNavigator = () => {
     );
   }
 
-  if (route === 'home') {
+  if (route === 'setup' && !serverProfile) {
     return withExitPrompt(
-      <HomeScreen
-        onSearch={() => setRoute('search')}
-        onSelectLibrary={(library) => {
-          setSelectedLibrary(library);
-          setRoute('library');
+      <SetupScreen
+        onConnected={(profile) => {
+          setServerProfile(profile);
+          resetStack();
+          setRoute('setup');
         }}
-        onSelectItem={(item) => {
-          setSelectedItem(item);
-          setRoute('detail');
-        }}
-        onSettings={() => setRoute('settings')}
-        serverProfile={serverProfile}
-      />,
-    );
-  }
-
-  if (route === 'library' && selectedLibrary && serverProfile) {
-    return withExitPrompt(
-      <LibraryScreen
-        libraryId={selectedLibrary.id}
-        libraryName={selectedLibrary.name}
-        onSelectItem={(item) => {
-          setSelectedItem(item);
-          setRoute('detail');
-        }}
-        serverProfile={serverProfile}
-      />,
-    );
-  }
-
-  if (route === 'detail' && selectedItem && serverProfile) {
-    return withExitPrompt(
-      <ItemDetailScreen
-        item={selectedItem}
-        onBack={() => setRoute(selectedLibrary ? 'library' : 'home')}
-        onPlay={(item) => {
-          setSelectedItem(item);
-          setRoute('player');
-        }}
-        serverProfile={serverProfile}
-      />,
-    );
-  }
-
-  if (route === 'player' && selectedItem && serverProfile) {
-    return withExitPrompt(
-      <PlayerScreen
-        accessToken={serverProfile.accessToken}
-        item={selectedItem}
-        onBack={() => setRoute('detail')}
-        serverUrl={serverProfile.serverUrl}
-        userId={serverProfile.userId}
-      />,
-    );
-  }
-
-  if (route === 'search' && serverProfile) {
-    return withExitPrompt(
-      <SearchScreen
-        onBack={() => setRoute('home')}
-        onSelectItem={(item) => {
-          setSelectedItem(item);
-          setRoute('detail');
-        }}
-        serverProfile={serverProfile}
-      />,
-    );
-  }
-
-  if (route === 'settings' && serverProfile) {
-    return withExitPrompt(
-      <SettingsScreen
-        onBack={() => setRoute('home')}
-        serverProfile={serverProfile}
       />,
     );
   }
@@ -311,12 +262,83 @@ export const RootNavigator = () => {
   if (route === 'support') {
     return withExitPrompt(
       <SupportScreen
-        onDismiss={() => setRoute(serverProfile ? 'home' : 'setup')}
-        onProPurchased={() => {
-          setProStatus(true).finally(() =>
-            setRoute(serverProfile ? 'home' : 'setup'),
-          );
+        onDismiss={() => {
+          resetStack();
+          setRoute('setup');
         }}
+        onProPurchased={() => {
+          setProStatus(true).finally(() => {
+            resetStack();
+            setRoute('setup');
+          });
+        }}
+      />,
+    );
+  }
+
+  if (current.route === 'home') {
+    return withExitPrompt(
+      <HomeScreen
+        onSearch={() => push({route: 'search'})}
+        onSelectLibrary={(library) => push({route: 'library', library})}
+        onSelectItem={(item) => push({route: 'detail', item})}
+        onSettings={() => push({route: 'settings'})}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'library' && serverProfile) {
+    return withExitPrompt(
+      <LibraryScreen
+        libraryId={current.library.id}
+        libraryName={current.library.name}
+        onSelectItem={(item) => {
+          push({route: 'detail', item});
+        }}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'detail' && serverProfile) {
+    return withExitPrompt(
+      <ItemDetailScreen
+        item={current.item}
+        onBack={pop}
+        onPlay={(item) => push({route: 'player', item})}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'player' && serverProfile) {
+    return withExitPrompt(
+      <PlayerScreen
+        accessToken={serverProfile.accessToken}
+        item={current.item}
+        onBack={pop}
+        serverUrl={serverProfile.serverUrl}
+        userId={serverProfile.userId}
+      />,
+    );
+  }
+
+  if (current.route === 'search' && serverProfile) {
+    return withExitPrompt(
+      <SearchScreen
+        onBack={pop}
+        onSelectItem={(item) => push({route: 'detail', item})}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'settings' && serverProfile) {
+    return withExitPrompt(
+      <SettingsScreen
+        onBack={pop}
+        serverProfile={serverProfile}
       />,
     );
   }
@@ -326,7 +348,8 @@ export const RootNavigator = () => {
       <SetupScreen
         onConnected={(profile) => {
           setServerProfile(profile);
-          setRoute('home');
+          resetStack();
+          setRoute('setup');
         }}
       />,
     );
@@ -334,16 +357,10 @@ export const RootNavigator = () => {
 
   return withExitPrompt(
     <HomeScreen
-      onSearch={() => setRoute('search')}
-      onSelectLibrary={(library) => {
-        setSelectedLibrary(library);
-        setRoute('library');
-      }}
-      onSelectItem={(item) => {
-        setSelectedItem(item);
-        setRoute('detail');
-      }}
-      onSettings={() => setRoute('settings')}
+      onSearch={() => push({route: 'search'})}
+      onSelectLibrary={(library) => push({route: 'library', library})}
+      onSelectItem={(item) => push({route: 'detail', item})}
+      onSettings={() => push({route: 'settings'})}
       serverProfile={serverProfile}
     />,
   );
