@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
 import {
   getItems,
@@ -52,12 +53,28 @@ export const LibraryScreen = ({
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [sortPanelVisible, setSortPanelVisible] = useState(false);
   const [displayPanelVisible, setDisplayPanelVisible] = useState(false);
+  const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
       gridDirection: 'vertical',
       imageSize: 'medium',
       imageType: 'Primary',
     });
+  const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const queueBackdrop = useCallback((url?: string) => {
+    if (!url) {
+      return;
+    }
+
+    if (backdropTimer.current) {
+      clearTimeout(backdropTimer.current);
+    }
+
+    backdropTimer.current = setTimeout(() => setBackdropUrl(url), 150);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -72,6 +89,15 @@ export const LibraryScreen = ({
       mounted = false;
     };
   }, []);
+
+  useEffect(
+    () => () => {
+      if (backdropTimer.current) {
+        clearTimeout(backdropTimer.current);
+      }
+    },
+    [],
+  );
 
   const filters = useMemo(
     () =>
@@ -142,6 +168,7 @@ export const LibraryScreen = ({
 
   return (
     <View style={styles.screen} testID="library-screen">
+      <FocusedBackdrop imageUrl={backdropUrl} />
       <View style={styles.header}>
         <Text style={styles.title}>{libraryName}</Text>
         <TVFocusGuideView style={styles.toolbar}>
@@ -202,7 +229,10 @@ export const LibraryScreen = ({
               hasTVPreferredFocus={index === 0}
               imageUrl={item.imageUrl}
               imageScale={cardScale}
-              onFocus={() => setFocusedIndex(index)}
+              onFocus={() => {
+                setFocusedIndex(index);
+                queueBackdrop(item.backdropUrl ?? item.imageUrl);
+              }}
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.productionYear

@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
 import {
   getLibraries,
@@ -31,6 +32,31 @@ export const HomeScreen = ({
   const [libraries, setLibraries] = useState<JellyfinLibrary[]>([]);
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
+  const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const queueBackdrop = useCallback((url?: string) => {
+    if (!url) {
+      return;
+    }
+
+    if (backdropTimer.current) {
+      clearTimeout(backdropTimer.current);
+    }
+
+    backdropTimer.current = setTimeout(() => setBackdropUrl(url), 150);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (backdropTimer.current) {
+        clearTimeout(backdropTimer.current);
+      }
+    },
+    [],
+  );
 
   const loadLibraries = useCallback(async () => {
     if (!serverProfile) {
@@ -108,10 +134,11 @@ export const HomeScreen = ({
   );
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.screenContent}
-      style={styles.screen}
-      testID="home-screen">
+    <View style={styles.screen} testID="home-screen">
+      <FocusedBackdrop imageUrl={backdropUrl} />
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        style={styles.content}>
       <View style={styles.topBar}>
         <FocusableItem
           focusedStyle={styles.profileFocused}
@@ -166,6 +193,7 @@ export const HomeScreen = ({
                   hasTVPreferredFocus={index === 0}
                   key={library.id}
                   library={library}
+                  onFocus={() => queueBackdrop(library.imageUrl)}
                   onPress={() => onSelectLibrary?.(library)}
                 />
               ))}
@@ -175,40 +203,48 @@ export const HomeScreen = ({
       ) : null}
       <HomeMediaRow
         loadItems={rowLoaders.resume}
+        onFocusBackdrop={queueBackdrop}
         onSelectItem={onSelectItem}
         title="Continue Watching"
       />
       <HomeMediaRow
         loadItems={rowLoaders.nextUp}
+        onFocusBackdrop={queueBackdrop}
         onSelectItem={onSelectItem}
         title="Next Up"
       />
       <HomeMediaRow
         loadItems={rowLoaders.latestMovies}
+        onFocusBackdrop={queueBackdrop}
         onSelectItem={onSelectItem}
         title="Latest Movies"
       />
       <HomeMediaRow
         loadItems={rowLoaders.latestShows}
+        onFocusBackdrop={queueBackdrop}
         onSelectItem={onSelectItem}
         title="Latest Shows"
       />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
 const LibraryTile = ({
   hasTVPreferredFocus,
   library,
+  onFocus,
   onPress,
 }: {
   hasTVPreferredFocus?: boolean;
   library: JellyfinLibrary;
+  onFocus?: () => void;
   onPress?: () => void;
 }) => (
   <FocusableItem
     focusedStyle={styles.libraryTileFocused}
     hasTVPreferredFocus={hasTVPreferredFocus}
+    onFocus={onFocus}
     onPress={onPress}
     style={styles.libraryTile}
     testID={`home-library-${library.id}`}>
@@ -224,10 +260,12 @@ const LibraryTile = ({
 
 const HomeMediaRow = ({
   loadItems,
+  onFocusBackdrop,
   onSelectItem,
   title,
 }: {
   loadItems: () => Promise<JellyfinMediaItem[]>;
+  onFocusBackdrop?: (url?: string) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
   title: string;
 }) => {
@@ -282,6 +320,7 @@ const HomeMediaRow = ({
             <MediaCard
               imageUrl={item.imageUrl}
               key={item.id}
+              onFocus={() => onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl)}
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.seriesName ??
@@ -300,6 +339,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#0C1116',
+  },
+  content: {
+    flex: 1,
   },
   screenContent: {
     paddingHorizontal: 84,
