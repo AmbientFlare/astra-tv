@@ -12,6 +12,7 @@ export interface JellyfinAuthResult {
 
 export interface JellyfinLibrary {
   id: string;
+  imageUrl?: string;
   name: string;
   type?: string;
 }
@@ -142,7 +143,7 @@ const buildUrl = (
 };
 
 const hasQueryParam = (url: string, paramName: string) =>
-  new RegExp(`[?&]${paramName}=`).test(url);
+  new RegExp(`[?&]${paramName}=`, 'i').test(url);
 
 const buildTranscodingUrl = (
   baseUrl: string,
@@ -201,6 +202,17 @@ const fireTVDeviceProfile = {
     },
   ],
   TranscodingProfiles: [
+    {
+      Container: 'ts',
+      Type: 'Video',
+      VideoCodec: 'h264',
+      AudioCodec: 'aac',
+      Context: 'Streaming',
+      Protocol: 'hls',
+      MaxAudioChannels: '6',
+      MinSegments: 1,
+      BreakOnNonKeyFrames: true,
+    },
     {
       Container: 'mp4',
       Type: 'Video',
@@ -419,6 +431,13 @@ export const getLibraries = async (
 
   return (response.Items ?? []).map((library) => ({
     id: library.Id ?? library.Name ?? '',
+    imageUrl: library.Id
+      ? buildUrl(baseUrl, `/Items/${library.Id}/Images/Primary`, {
+          fillWidth: 520,
+          quality: 90,
+          api_key: accessToken,
+        })
+      : undefined,
     name: library.Name ?? 'Library',
     type: library.CollectionType ?? library.Type,
   }));

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
@@ -112,25 +112,33 @@ export const HomeScreen = ({
       contentContainerStyle={styles.screenContent}
       style={styles.screen}
       testID="home-screen">
-      <Text style={styles.title}>Astra</Text>
-      <Text style={styles.subtitle}>
-        {serverProfile ? serverProfile.name : 'Home'}
-      </Text>
-      <View style={styles.actions}>
+      <View style={styles.topBar}>
         <FocusableItem
-          focusedStyle={styles.actionFocused}
-          onPress={onSearch}
-          style={styles.actionButton}
-          testID="home-search-button">
-          <Text style={styles.actionText}>Search</Text>
-        </FocusableItem>
-        <FocusableItem
-          focusedStyle={styles.actionFocused}
+          focusedStyle={styles.profileFocused}
           onPress={onSettings}
-          style={styles.actionButton}
-          testID="home-settings-button">
-          <Text style={styles.actionText}>Settings</Text>
+          style={styles.profileButton}
+          testID="home-profile-button">
+          <Text style={styles.profileIcon}>
+            {(serverProfile?.username ?? serverProfile?.name ?? 'A')
+              .slice(0, 1)
+              .toUpperCase()}
+          </Text>
         </FocusableItem>
+        <TVFocusGuideView style={styles.actions}>
+          <FocusableItem
+            focusedStyle={styles.pillFocused}
+            style={[styles.pillButton, styles.pillSelected]}
+            testID="home-pill-button">
+            <Text style={styles.pillText}>Home</Text>
+          </FocusableItem>
+          <FocusableItem
+            focusedStyle={styles.pillFocused}
+            onPress={onSearch}
+            style={styles.pillButton}
+            testID="home-search-button">
+            <Text style={styles.pillText}>Search</Text>
+          </FocusableItem>
+        </TVFocusGuideView>
       </View>
       {isLoading ? (
         <Text style={styles.status}>Loading libraries...</Text>
@@ -147,6 +155,23 @@ export const HomeScreen = ({
       ) : null}
       {!isLoading && !errorText && libraries.length === 0 ? (
         <Text style={styles.status}>No libraries found.</Text>
+      ) : null}
+      {libraries.length ? (
+        <>
+          <Text style={styles.featureTitle}>My Media</Text>
+          <ScrollView horizontal={true} style={styles.libraryScroller}>
+            <TVFocusGuideView style={styles.libraryRow}>
+              {libraries.map((library, index) => (
+                <LibraryTile
+                  hasTVPreferredFocus={index === 0}
+                  key={library.id}
+                  library={library}
+                  onPress={() => onSelectLibrary?.(library)}
+                />
+              ))}
+            </TVFocusGuideView>
+          </ScrollView>
+        </>
       ) : null}
       <HomeMediaRow
         loadItems={rowLoaders.resume}
@@ -168,22 +193,34 @@ export const HomeScreen = ({
         onSelectItem={onSelectItem}
         title="Latest Shows"
       />
-      <Text style={styles.rowTitle}>Libraries</Text>
-      <ScrollView horizontal={true} style={styles.libraryScroller}>
-        <TVFocusGuideView style={styles.libraryRow}>
-          {libraries.map((library) => (
-            <MediaCard
-              key={library.id}
-              onPress={() => onSelectLibrary?.(library)}
-              subtitle={library.type ?? 'media'}
-              title={library.name}
-            />
-          ))}
-        </TVFocusGuideView>
-      </ScrollView>
     </ScrollView>
   );
 };
+
+const LibraryTile = ({
+  hasTVPreferredFocus,
+  library,
+  onPress,
+}: {
+  hasTVPreferredFocus?: boolean;
+  library: JellyfinLibrary;
+  onPress?: () => void;
+}) => (
+  <FocusableItem
+    focusedStyle={styles.libraryTileFocused}
+    hasTVPreferredFocus={hasTVPreferredFocus}
+    onPress={onPress}
+    style={styles.libraryTile}
+    testID={`home-library-${library.id}`}>
+    {library.imageUrl ? (
+      <Image source={{uri: library.imageUrl}} style={styles.libraryImage} />
+    ) : null}
+    <View style={styles.libraryShade} />
+    <Text numberOfLines={1} style={styles.libraryTitle}>
+      {library.name}
+    </Text>
+  </FocusableItem>
+);
 
 const HomeMediaRow = ({
   loadItems,
@@ -266,35 +303,57 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     paddingHorizontal: 84,
-    paddingTop: 56,
+    paddingTop: 42,
     paddingBottom: 90,
   },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 84,
-    fontWeight: '800',
+  topBar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 30,
   },
-  subtitle: {
-    color: '#9FB0BA',
-    fontSize: 34,
-    marginTop: 8,
+  profileButton: {
+    alignItems: 'center',
+    backgroundColor: '#1B2832',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    width: 56,
+  },
+  profileFocused: {
+    backgroundColor: '#2E5A72',
+  },
+  profileIcon: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '800',
   },
   actions: {
     flexDirection: 'row',
-    gap: 18,
-    marginBottom: 34,
-    marginTop: 26,
-  },
-  actionButton: {
-    minWidth: 150,
-    height: 56,
-    borderRadius: 8,
-    backgroundColor: '#24313A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 14,
   },
   actionFocused: {
     backgroundColor: '#315066',
+  },
+  pillButton: {
+    alignItems: 'center',
+    backgroundColor: '#1A252E',
+    borderRadius: 28,
+    height: 54,
+    justifyContent: 'center',
+    minWidth: 128,
+    paddingHorizontal: 26,
+  },
+  pillSelected: {
+    backgroundColor: '#2B4150',
+  },
+  pillFocused: {
+    backgroundColor: '#3D6E88',
+  },
+  pillText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
   },
   actionText: {
     color: '#FFFFFF',
@@ -320,6 +379,7 @@ const styles = StyleSheet.create({
   },
   libraryScroller: {
     flexGrow: 0,
+    marginBottom: 30,
   },
   mediaScroller: {
     flexGrow: 0,
@@ -328,6 +388,38 @@ const styles = StyleSheet.create({
   libraryRow: {
     flexDirection: 'row',
     gap: 28,
+  },
+  featureTitle: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  libraryTile: {
+    width: 330,
+    height: 186,
+    borderRadius: 8,
+    backgroundColor: '#182027',
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  libraryTileFocused: {
+    borderColor: '#4CC9F0',
+    borderWidth: 4,
+  },
+  libraryImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.82,
+  },
+  libraryShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+  },
+  libraryTitle: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '800',
+    padding: 18,
   },
   rowTitle: {
     color: '#FFFFFF',
