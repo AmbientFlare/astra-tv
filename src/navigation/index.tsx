@@ -11,6 +11,7 @@ import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
 import {LibraryScreen} from '../screens/LibraryScreen';
 import {SetupScreen} from '../screens/SetupScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
+import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {SupportScreen} from '../screens/SupportScreen';
@@ -347,6 +348,18 @@ export const RootNavigator = () => {
       <SearchScreen
         onBack={pop}
         onSelectItem={(item) => push({route: 'detail', item})}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'personDetail' && serverProfile) {
+    return withExitPrompt(
+      <PersonDetailScreen
+        onBack={pop}
+        onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
+        onSelectItem={(item) => push({route: 'detail', item})}
+        personId={current.personId}
         serverProfile={serverProfile}
       />,
     );

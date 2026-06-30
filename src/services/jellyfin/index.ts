@@ -17,6 +17,15 @@ export interface JellyfinLibrary {
   type?: string;
 }
 
+export interface JellyfinPerson {
+  birthDate?: string;
+  id: string;
+  imageUrl?: string;
+  isFavorite?: boolean;
+  name: string;
+  overview?: string;
+}
+
 export interface JellyfinMediaItem {
   id: string;
   name: string;
@@ -813,6 +822,53 @@ export const getSimilarItems = (
     ImageTypeLimit: 1,
     EnableImageTypes: 'Primary,Backdrop',
     Limit: 24,
+  });
+
+export const getPerson = async (
+  serverUrl: string,
+  accessToken: string,
+  personId: string,
+): Promise<JellyfinPerson> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const person = await getJson<{
+    DateCreated?: string;
+    Id?: string;
+    Name?: string;
+    Overview?: string;
+    PremiereDate?: string;
+    UserData?: {IsFavorite?: boolean};
+  }>(buildUrl(baseUrl, `/Persons/${personId}`, {api_key: accessToken}), {
+    headers: getAuthHeaders(accessToken),
+  });
+
+  return {
+    birthDate: person.PremiereDate ?? person.DateCreated,
+    id: person.Id ?? personId,
+    imageUrl: buildUrl(baseUrl, `/Items/${person.Id ?? personId}/Images/Primary`, {
+      fillWidth: 420,
+      quality: 90,
+      api_key: accessToken,
+    }),
+    isFavorite: person.UserData?.IsFavorite,
+    name: person.Name ?? 'Unknown',
+    overview: person.Overview,
+  };
+};
+
+export const getItemsByPerson = (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  personId: string,
+) =>
+  getItemCollection(serverUrl, accessToken, `/Users/${userId}/Items`, {
+    PersonIds: personId,
+    Recursive: true,
+    IncludeItemTypes: 'Movie,Series,Episode',
+    Fields: itemFields,
+    ImageTypeLimit: 1,
+    EnableImageTypes: 'Primary,Backdrop',
+    Limit: 80,
   });
 
 export const searchItems = (
