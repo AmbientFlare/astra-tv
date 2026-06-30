@@ -7,6 +7,7 @@ import {
 import {FocusableItem} from '../components/FocusableItem';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
+import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
 import {LibraryScreen} from '../screens/LibraryScreen';
 import {SetupScreen} from '../screens/SetupScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
@@ -323,6 +324,20 @@ export const RootNavigator = () => {
         onBack={pop}
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
+      />,
+    );
+  }
+
+  if (current.route === 'episodeDetail' && serverProfile) {
+    return withExitPrompt(
+      <EpisodeDetailScreen
+        item={current.item}
+        onBack={pop}
+        onGoToSeries={(item) => push({route: 'detail', item})}
+        onPlay={(item) => push({route: 'player', item})}
+        onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
+        onSelectPerson={(personId) => push({route: 'personDetail', personId})}
+        serverProfile={serverProfile}
       />,
     );
   }
