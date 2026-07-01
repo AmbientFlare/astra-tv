@@ -33,22 +33,29 @@ export interface JellyfinMediaItem {
   id: string;
   name: string;
   type: string;
+  backdropImageTags?: string[];
   chapters?: JellyfinChapter[];
+  childCount?: number | null;
   imageUrl?: string;
   backdropUrl?: string;
-  communityRating?: number;
+  communityRating?: number | null;
   criticsRating?: number;
   genres?: string[];
   indexNumber?: number;
   isFavorite?: boolean;
   isPlayed?: boolean;
+  mediaSources?: JellyfinMediaSource[];
   mediaType?: string;
   mediaStreams?: JellyfinMediaStream[];
-  officialRating?: string;
-  overview?: string;
+  officialRating?: string | null;
+  overview?: string | null;
   parentId?: string;
   parentIndexNumber?: number;
   people?: Array<{
+    Id?: string;
+    Name?: string;
+    Role?: string;
+    Type?: string;
     id?: string;
     imageUrl?: string;
     name: string;
@@ -57,11 +64,24 @@ export interface JellyfinMediaItem {
   }>;
   productionYear?: number;
   premiereDate?: string;
+  recursiveItemCount?: number | null;
   runTimeTicks?: number;
   resumePositionTicks?: number;
   remoteTrailers?: Array<{name?: string; url: string}>;
   seriesId?: string;
   seriesName?: string;
+}
+
+export interface JellyfinMediaSource {
+  Bitrate?: number;
+  Container?: string;
+  MediaStreams?: Array<{
+    Channels?: number;
+    Codec?: string;
+    Height?: number;
+    Type?: string;
+  }>;
+  Size?: number;
 }
 
 export interface JellyfinMediaStream {
@@ -216,7 +236,7 @@ const buildTranscodingUrl = (
 };
 
 const itemFields =
-  'MediaSources,MediaStreams,Chapters,Overview,PrimaryImageAspectRatio,ProductionYear,UserData,Genres,People,CommunityRating,CriticRating,OfficialRating,RemoteTrailers';
+  'Overview,Genres,People,MediaSources,OfficialRating,CommunityRating,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,ProductionYear,UserData,CriticRating,RemoteTrailers';
 
 const qualityCaps: JellyfinQualityOption[] = [
   {id: 'auto', label: 'Auto'},
@@ -280,7 +300,9 @@ const selectAudioStreamIndex = (
     normalizedLanguage,
   ];
   const matchesLanguage = (language?: string) =>
-    Boolean(language && preferredLanguageCodes.includes(language.toLowerCase()));
+    Boolean(
+      language && preferredLanguageCodes.includes(language.toLowerCase()),
+    );
   const byLangAndChannels = audioStreams.find(
     (stream) =>
       matchesLanguage(stream.language) &&
@@ -333,6 +355,7 @@ const mapItem = (
     PremiereDate?: string;
     ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
     BackdropImageTags?: string[];
+    ChildCount?: number;
     Chapters?: Array<{Name?: string; StartPositionTicks?: number}>;
     RunTimeTicks?: number;
     UserData?: {
@@ -350,6 +373,7 @@ const mapItem = (
     ParentId?: string;
     IndexNumber?: number;
     ParentIndexNumber?: number;
+    RecursiveItemCount?: number;
     RemoteTrailers?: Array<{Name?: string; Url?: string}>;
     SeriesId?: string;
     SeriesName?: string;
@@ -359,6 +383,9 @@ const mapItem = (
   id: item.Id ?? item.Name ?? '',
   name: item.Name ?? 'Untitled',
   type: item.Type ?? 'Media',
+  backdropImageTags: item.BackdropImageTags ?? [],
+  childCount: item.ChildCount ?? null,
+  mediaSources: item.MediaSources ?? [],
   mediaType: item.MediaType,
   mediaStreams: item.MediaSources?.[0]?.MediaStreams?.map((stream) => ({
     channels: stream.Channels,
@@ -398,9 +425,13 @@ const mapItem = (
   resumePositionTicks: item.UserData?.PlaybackPositionTicks,
   isFavorite: item.UserData?.IsFavorite,
   isPlayed: item.UserData?.Played,
-  overview: item.Overview,
-  genres: item.Genres,
-  people: item.People?.map((person) => ({
+  overview: item.Overview ?? null,
+  genres: item.Genres ?? [],
+  people: (item.People ?? []).map((person) => ({
+    Id: person.Id,
+    Name: person.Name ?? 'Unknown',
+    Role: person.Role,
+    Type: person.Type,
     id: person.Id,
     imageUrl: person.Id
       ? buildUrl(baseUrl, `/Items/${person.Id}/Images/Primary`, {
@@ -416,12 +447,13 @@ const mapItem = (
   remoteTrailers: item.RemoteTrailers?.flatMap((trailer) =>
     trailer.Url ? [{name: trailer.Name, url: trailer.Url}] : [],
   ),
-  communityRating: item.CommunityRating,
+  communityRating: item.CommunityRating ?? null,
   criticsRating: item.CriticRating,
-  officialRating: item.OfficialRating,
+  officialRating: item.OfficialRating ?? null,
   parentId: item.ParentId,
   indexNumber: item.IndexNumber,
   parentIndexNumber: item.ParentIndexNumber,
+  recursiveItemCount: item.RecursiveItemCount ?? null,
   seriesId: item.SeriesId,
   seriesName: item.SeriesName,
 });
@@ -566,17 +598,26 @@ export const getItems = async (
       MediaType?: string;
       ProductionYear?: number;
       ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
+      BackdropImageTags?: string[];
+      ChildCount?: number;
+      MediaSources?: JellyfinMediaSource[];
       RunTimeTicks?: number;
       UserData?: {PlaybackPositionTicks?: number};
       Overview?: string;
       Genres?: string[];
-      BackdropImageTags?: string[];
+      People?: Array<{
+        Id?: string;
+        Name?: string;
+        Role?: string;
+        Type?: string;
+      }>;
       CommunityRating?: number;
       CriticRating?: number;
       OfficialRating?: string;
       ParentId?: string;
       IndexNumber?: number;
       ParentIndexNumber?: number;
+      RecursiveItemCount?: number;
       SeriesId?: string;
       SeriesName?: string;
     }>;
@@ -584,7 +625,8 @@ export const getItems = async (
     buildUrl(baseUrl, itemsPath, {
       ParentId: libraryId,
       Recursive: options.recursive ?? true,
-      IncludeItemTypes: options.includeItemTypes ?? 'Movie,Series,Episode,Video',
+      IncludeItemTypes:
+        options.includeItemTypes ?? 'Movie,Series,Episode,Video',
       Fields: itemFields,
       ImageTypeLimit: 1,
       EnableImageTypes: `${options.imageType ?? 'Primary'},Backdrop`,
@@ -758,8 +800,8 @@ export const getStreamUrl = async (
         )
       : undefined;
 
-      return {
-        id: String(
+    return {
+      id: String(
         track.Index ?? track.DisplayTitle ?? track.Title ?? track.Type,
       ),
       index: track.Index,

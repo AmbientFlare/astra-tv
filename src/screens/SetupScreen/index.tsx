@@ -20,7 +20,7 @@ import {
   upsertServerProfile,
 } from '../../services/storage';
 
-const serverTypes: ServerType[] = ['jellyfin', 'kodi', 'emby'];
+const serverTypes: ServerType[] = ['jellyfin', 'emby'];
 
 interface SetupScreenProps {
   onConnected?: (profile: ServerProfile) => void;
@@ -93,11 +93,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   };
 
   const handleConnect = async () => {
-    if (serverType !== 'jellyfin') {
-      setErrorText('Only Jellyfin connections are available right now.');
-      return;
-    }
-
     setConnecting(true);
     setErrorText(null);
 
@@ -164,6 +159,29 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               {isScanning ? 'Scanning' : 'Scan again'}
             </Text>
           </FocusableItem>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Server Type</Text>
+          <View style={styles.segmentedControl}>
+            {serverTypes.map((type) => (
+              <FocusableItem
+                accessibilityLabel={type}
+                focusedStyle={styles.segmentFocused}
+                key={type}
+                onPress={() => setServerType(type)}
+                style={[
+                  styles.segment,
+                  styles.segmentBorder,
+                  serverType === type && styles.segmentSelected,
+                ]}
+                testID={`setup-server-type-${type}`}>
+                <Text style={styles.segmentText}>
+                  {type === 'jellyfin' ? 'Jellyfin' : 'Emby'}
+                </Text>
+              </FocusableItem>
+            ))}
+          </View>
         </View>
 
         <View style={styles.field}>
@@ -236,26 +254,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             testID="setup-password-input"
             value={password}
           />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Server Type</Text>
-          <View style={styles.segmentedControl}>
-            {serverTypes.map((type) => (
-              <FocusableItem
-                accessibilityLabel={type}
-                focusedStyle={styles.segmentFocused}
-                key={type}
-                onPress={() => setServerType(type)}
-                style={[
-                  styles.segment,
-                  serverType === type && styles.segmentSelected,
-                ]}
-                testID={`setup-server-type-${type}`}>
-                <Text style={styles.segmentText}>{type}</Text>
-              </FocusableItem>
-            ))}
-          </View>
         </View>
 
         <FocusableItem
@@ -387,8 +385,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  segmentBorder: {
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+  },
   segmentSelected: {
-    backgroundColor: '#1F6F5A',
+    backgroundColor: '#1B2630',
+    borderColor: '#7B5EA7',
+    borderWidth: 2,
   },
   segmentFocused: {
     backgroundColor: '#285168',
@@ -397,7 +401,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '700',
-    textTransform: 'uppercase',
   },
   connectButton: {
     width: 280,

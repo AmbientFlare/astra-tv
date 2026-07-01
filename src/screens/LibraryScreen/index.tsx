@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
 import {
   TVFocusGuideView,
@@ -6,6 +6,7 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
+import {LibraryInfoPanel} from '../../components/LibraryInfoPanel';
 import {MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
@@ -92,6 +93,9 @@ export const LibraryScreen = ({
   const [sortDescending, setSortDescending] = useState(false);
   const [filterUnwatched, setFilterUnwatched] = useState(false);
   const [filterFavorites, setFilterFavorites] = useState(false);
+  const [focusedItem, setFocusedItem] = useState<JellyfinMediaItem | null>(
+    null,
+  );
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
@@ -102,6 +106,7 @@ export const LibraryScreen = ({
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const focusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const queueBackdrop = useCallback((url?: string) => {
     if (!url) {
@@ -120,6 +125,17 @@ export const LibraryScreen = ({
 
     getDisplayPreferences().then((preferences) => {
       if (mounted) {
+        const legacyPreferences = preferences as DisplayPreferences & {
+          displayMode?: string;
+        };
+        if (legacyPreferences.displayMode === 'horizontal') {
+          const nextPreferences = {...legacyPreferences};
+          delete nextPreferences.displayMode;
+          setDisplayPreferenceState(nextPreferences);
+          setDisplayPreferences(nextPreferences).catch(() => undefined);
+          return;
+        }
+
         setDisplayPreferenceState(preferences);
       }
     });
@@ -134,9 +150,18 @@ export const LibraryScreen = ({
       if (backdropTimer.current) {
         clearTimeout(backdropTimer.current);
       }
+      if (focusDebounceRef.current) {
+        clearTimeout(focusDebounceRef.current);
+      }
     },
     [],
   );
+
+  useEffect(() => {
+    if (!focusedItem && items.length > 0) {
+      setFocusedItem(items[0]);
+    }
+  }, [focusedItem, items]);
 
   const filters = useMemo(
     () =>
@@ -179,6 +204,7 @@ export const LibraryScreen = ({
         if (mounted) {
           setItems(results);
           setFocusedIndex(0);
+          setFocusedItem(results[0] ?? null);
         }
       } catch (error) {
         if (mounted) {
@@ -216,6 +242,13 @@ export const LibraryScreen = ({
 
   const cardScale = imageSizeScale[displayPreferences.imageSize];
 
+  const handleCardFocus = (item: JellyfinMediaItem) => {
+    if (focusDebounceRef.current) {
+      clearTimeout(focusDebounceRef.current);
+    }
+    focusDebounceRef.current = setTimeout(() => setFocusedItem(item), 150);
+  };
+
   useTVEventHandler((event) => {
     if (event.eventKeyAction === 1) {
       return;
@@ -237,55 +270,69 @@ export const LibraryScreen = ({
   return (
     <View style={styles.screen} testID="library-screen">
       <FocusedBackdrop imageUrl={backdropUrl} />
-      <View style={styles.header}>
-        <Text style={styles.title}>{libraryName}</Text>
-        <Text style={styles.countText}>
-          {items.length ? `${focusedIndex + 1} | ${items.length}` : '0 | 0'}
-        </Text>
-      </View>
-      {isLoading ? <Text style={styles.status}>Loading items...</Text> : null}
-      {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-      {errorText ? (
-        <FocusableItem
-          focusedStyle={styles.retryFocused}
-          onPress={() => loadItems()}
-          style={styles.retryButton}
-          testID="library-retry-button">
-          <Text style={styles.retryText}>Retry</Text>
-        </FocusableItem>
-      ) : null}
-      {!isLoading && !errorText && items.length === 0 ? (
-        <Text style={styles.status}>No playable items found.</Text>
-      ) : null}
-      <TVFocusGuideView style={styles.gridGuide}>
-        <FlatList
-          columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.grid}
-          data={items}
-          horizontal={false}
-          keyExtractor={(item) => item.id}
-          key="vertical"
-          numColumns={4}
-          renderItem={({index, item}) => (
-            <MediaCard
-              hasTVPreferredFocus={index === 0}
-              imageUrl={item.imageUrl}
-              imageScale={cardScale}
-              onFocus={() => {
-                setFocusedIndex(index);
-                queueBackdrop(item.backdropUrl ?? item.imageUrl);
-              }}
-              onPress={() => onSelectItem?.(item)}
-              subtitle={
-                item.productionYear
-                  ? String(item.productionYear)
-                  : item.type.toLowerCase()
-              }
-              title={item.name}
+      <View style={styles.contentRow}>
+        <View style={styles.leftPane}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{libraryName}</Text>
+            <Text style={styles.countText}>
+              {items.length ? `${focusedIndex + 1} | ${items.length}` : '0 | 0'}
+            </Text>
+          </View>
+          {isLoading ? (
+            <Text style={styles.status}>Loading items...</Text>
+          ) : null}
+          {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+          {errorText ? (
+            <FocusableItem
+              focusedStyle={styles.retryFocused}
+              onPress={() => loadItems()}
+              style={styles.retryButton}
+              testID="library-retry-button">
+              <Text style={styles.retryText}>Retry</Text>
+            </FocusableItem>
+          ) : null}
+          {!isLoading && !errorText && items.length === 0 ? (
+            <Text style={styles.status}>No playable items found.</Text>
+          ) : null}
+          <TVFocusGuideView style={styles.gridGuide}>
+            <FlatList
+              columnWrapperStyle={styles.gridRow}
+              contentContainerStyle={styles.grid}
+              data={items}
+              horizontal={false}
+              keyExtractor={(item) => item.id}
+              key="vertical"
+              numColumns={3}
+              renderItem={({index, item}) => (
+                <MediaCard
+                  hasTVPreferredFocus={index === 0}
+                  imageUrl={item.imageUrl}
+                  imageScale={cardScale}
+                  onFocus={() => {
+                    setFocusedIndex(index);
+                    handleCardFocus(item);
+                    queueBackdrop(item.backdropUrl ?? item.imageUrl);
+                  }}
+                  onPress={() => onSelectItem?.(item)}
+                  subtitle={
+                    item.productionYear
+                      ? String(item.productionYear)
+                      : item.type.toLowerCase()
+                  }
+                  title={item.name}
+                />
+              )}
             />
-          )}
-        />
-      </TVFocusGuideView>
+          </TVFocusGuideView>
+        </View>
+        <View style={styles.rightPane}>
+          <LibraryInfoPanel
+            accessToken={serverProfile.accessToken}
+            item={focusedItem}
+            serverUrl={serverProfile.serverUrl}
+          />
+        </View>
+      </View>
       {menuVisible ? (
         <Panel
           onClose={() => onMenuVisibleChange(false)}
@@ -345,7 +392,9 @@ const Panel = ({
   <View style={styles.overlay}>
     <View style={styles.panel}>
       <Text style={styles.panelTitle}>{title}</Text>
-      <TVFocusGuideView style={styles.panelActions}>{children}</TVFocusGuideView>
+      <TVFocusGuideView style={styles.panelActions}>
+        {children}
+      </TVFocusGuideView>
       <FocusableItem
         focusedStyle={styles.panelButtonFocused}
         onPress={onClose}
@@ -361,8 +410,20 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#0C1116',
-    paddingHorizontal: 84,
+    paddingLeft: 84,
+    paddingRight: 64,
     paddingTop: 64,
+  },
+  contentRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  leftPane: {
+    flex: 1,
+    width: '58%',
+  },
+  rightPane: {
+    width: '42%',
   },
   header: {
     alignItems: 'center',

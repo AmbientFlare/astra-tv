@@ -1,6 +1,6 @@
 import {AsyncStorage} from '@amazon-devices/react-native-kepler';
 
-export type ServerType = 'jellyfin' | 'kodi' | 'emby';
+export type ServerType = 'jellyfin' | 'emby';
 
 export interface ServerProfile {
   id: string;
@@ -48,7 +48,13 @@ export interface UserPreferences {
     myMedia: boolean;
     nextUp: boolean;
   };
-  maxStreamingBitrate: 'auto' | '20000000' | '12000000' | '8000000' | '4000000' | '2000000';
+  maxStreamingBitrate:
+    | 'auto'
+    | '20000000'
+    | '12000000'
+    | '8000000'
+    | '4000000'
+    | '2000000';
   nextEpisodeAutoplay: boolean;
   nextEpisodeCountdownSeconds: 10 | 15 | 30;
   preferredAudioLanguage: string;
@@ -248,29 +254,28 @@ export const setProStatus = async (isPro: boolean): Promise<void> => {
   await writeAppState({isPro});
 };
 
-export const getDisplayPreferences =
-  async (): Promise<DisplayPreferences> => {
-    const rawPreferences = await AsyncStorage.getItem(DISPLAY_PREFERENCES_KEY);
+export const getDisplayPreferences = async (): Promise<DisplayPreferences> => {
+  const rawPreferences = await AsyncStorage.getItem(DISPLAY_PREFERENCES_KEY);
 
-    if (!rawPreferences) {
-      return defaultDisplayPreferences;
-    }
+  if (!rawPreferences) {
+    return defaultDisplayPreferences;
+  }
 
-    try {
-      const parsed = JSON.parse(rawPreferences);
+  try {
+    const parsed = JSON.parse(rawPreferences);
 
-      return {
-        imageSize: ['small', 'medium', 'large'].includes(parsed.imageSize)
-          ? parsed.imageSize
-          : defaultDisplayPreferences.imageSize,
-        imageType: ['Primary', 'Thumb', 'Banner'].includes(parsed.imageType)
-          ? parsed.imageType
-          : defaultDisplayPreferences.imageType,
-      };
-    } catch {
-      return defaultDisplayPreferences;
-    }
-  };
+    return {
+      imageSize: ['small', 'medium', 'large'].includes(parsed.imageSize)
+        ? parsed.imageSize
+        : defaultDisplayPreferences.imageSize,
+      imageType: ['Primary', 'Thumb', 'Banner'].includes(parsed.imageType)
+        ? parsed.imageType
+        : defaultDisplayPreferences.imageType,
+    };
+  } catch {
+    return defaultDisplayPreferences;
+  }
+};
 
 export const setDisplayPreferences = async (
   preferences: DisplayPreferences,
@@ -284,7 +289,9 @@ export const setDisplayPreferences = async (
   );
 };
 
-const parseUserPreferences = (rawPreferences: string | null): UserPreferences => {
+const parseUserPreferences = (
+  rawPreferences: string | null,
+): UserPreferences => {
   if (!rawPreferences) {
     return defaultUserPreferences;
   }
@@ -313,10 +320,7 @@ export const getUserPreferences = async (): Promise<UserPreferences> => {
 export const setUserPreferences = async (
   preferences: UserPreferences,
 ): Promise<void> => {
-  await AsyncStorage.setItem(
-    USER_PREFERENCES_KEY,
-    JSON.stringify(preferences),
-  );
+  await AsyncStorage.setItem(USER_PREFERENCES_KEY, JSON.stringify(preferences));
 };
 
 export const updateUserPreferences = async (
@@ -423,7 +427,9 @@ export const writePlaybackPreferences = async (
   return next;
 };
 
-export const signOutServerProfile = async (profileId: string): Promise<void> => {
+export const signOutServerProfile = async (
+  profileId: string,
+): Promise<void> => {
   const profiles = await readServerProfiles();
 
   await writeServerProfiles(
@@ -436,5 +442,7 @@ export const signOutServerProfile = async (profileId: string): Promise<void> => 
 export const removeServerProfile = async (profileId: string): Promise<void> => {
   const profiles = await readServerProfiles();
 
-  await writeServerProfiles(profiles.filter((profile) => profile.id !== profileId));
+  await writeServerProfiles(
+    profiles.filter((profile) => profile.id !== profileId),
+  );
 };
