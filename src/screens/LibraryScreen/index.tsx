@@ -176,6 +176,10 @@ export const LibraryScreen = ({
                 : libraryType === 'movies'
                 ? 'Movie'
                 : 'Movie,Series,Episode,Video',
+            recursive:
+              libraryType === 'tvshows' || libraryType === 'movies'
+                ? false
+                : true,
             sortBy,
             sortDescending,
           },

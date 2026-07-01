@@ -128,6 +128,7 @@ export interface GetItemsOptions {
   filters?: Array<'IsFavorite' | 'IsUnplayed'>;
   imageType?: JellyfinImageType;
   includeItemTypes?: string;
+  recursive?: boolean;
   sortBy?: JellyfinSortBy;
   sortDescending?: boolean;
 }
@@ -432,7 +433,7 @@ const getJson = async <ResponseBody>(
     headers?: Record<string, string>;
     method?: string;
   } = {},
-  timeoutMs = 15000,
+  timeoutMs = 45000,
 ): Promise<ResponseBody> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -580,7 +581,7 @@ export const getItems = async (
   }>(
     buildUrl(baseUrl, itemsPath, {
       ParentId: libraryId,
-      Recursive: true,
+      Recursive: options.recursive ?? true,
       IncludeItemTypes: options.includeItemTypes ?? 'Movie,Series,Episode,Video',
       Fields: itemFields,
       ImageTypeLimit: 1,
