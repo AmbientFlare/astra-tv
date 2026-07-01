@@ -241,16 +241,16 @@ const styles = StyleSheet.create({
   },
   overview: {
     color: '#DDDDDD',
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 22,
     marginTop: 10,
   },
   personRow: {
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 10,
   },
   castRow: {
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 6,
   },
   personLabel: {
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   seriesSummary: {
     color: '#AAAAAA',
-    fontSize: 13,
+    fontSize: 15,
     marginTop: 10,
   },
   divider: {
@@ -280,10 +280,10 @@ const styles = StyleSheet.create({
   },
   fileLabel: {
     color: '#888888',
-    fontSize: 11,
+    fontSize: 13,
   },
   fileValue: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
   },
 });
