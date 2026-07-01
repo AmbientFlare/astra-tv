@@ -189,6 +189,13 @@ export const HomeScreen = ({
             testID="home-search-button">
             <Text style={styles.pillText}>Search</Text>
           </FocusableItem>
+          <FocusableItem
+            focusedStyle={styles.pillFocused}
+            onPress={onSettings}
+            style={styles.pillButton}
+            testID="home-settings-button">
+            <Text style={styles.pillText}>Settings</Text>
+          </FocusableItem>
         </TVFocusGuideView>
       </View>
       {isLoading ? (

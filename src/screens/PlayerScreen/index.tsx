@@ -102,6 +102,13 @@ export const PlayerScreen = ({
   const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
     null,
   );
+  const [selectedAudioTrackIndex, setSelectedAudioTrackIndex] = useState<
+    number | undefined
+  >(undefined);
+  const [selectedSubtitleTrackIndex, setSelectedSubtitleTrackIndex] = useState<
+    number | undefined
+  >(undefined);
+  const [selectedQualityId, setSelectedQualityId] = useState('auto');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [positionSeconds, setPositionSeconds] = useState(
@@ -178,7 +185,9 @@ export const PlayerScreen = ({
     stoppedReported.current = true;
     await reportPlaybackStopped(serverUrl, accessToken, {
       ...streamInfo.current,
+      audioStreamIndex: selectedAudioIndex.current,
       positionTicks: currentPositionTicks(),
+      subtitleStreamIndex: selectedSubtitleIndex.current,
     });
   }, [accessToken, currentPositionTicks, serverUrl]);
 
@@ -385,6 +394,7 @@ export const PlayerScreen = ({
           stream.audioTracks[0];
 
         selectedAudioIndex.current = defaultTrack.index;
+        setSelectedAudioTrackIndex(defaultTrack.index);
       }
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
       setStatusText(
@@ -415,8 +425,14 @@ export const PlayerScreen = ({
     }) => {
       selectedAudioIndex.current =
         audioTrack?.index ?? selectedAudioIndex.current;
+      if (audioTrack?.index !== undefined) {
+        setSelectedAudioTrackIndex(audioTrack.index);
+      }
       if (bitrate !== undefined) {
         selectedBitrate.current = bitrate ?? undefined;
+        setSelectedQualityId(
+          bitrate === null ? 'auto' : String(bitrate ?? 'auto'),
+        );
       }
       if (forceTranscode !== undefined) {
         selectedForceTranscode.current = forceTranscode;
@@ -425,6 +441,9 @@ export const PlayerScreen = ({
         subtitleTrack === null
           ? undefined
           : subtitleTrack?.index ?? selectedSubtitleIndex.current;
+      if (subtitleTrack === null || subtitleTrack?.index !== undefined) {
+        setSelectedSubtitleTrackIndex(subtitleTrack?.index);
+      }
       selectedSubtitleBurnIn.current =
         subtitleTrack === null ? false : Boolean(subtitleTrack?.burnInRequired);
       if (selectedSubtitleBurnIn.current) {
@@ -448,8 +467,10 @@ export const PlayerScreen = ({
 
       await reportPlaybackProgress(serverUrl, accessToken, {
         ...stream,
+        audioStreamIndex: selectedAudioIndex.current,
         isPaused,
         positionTicks,
+        subtitleStreamIndex: selectedSubtitleIndex.current,
       });
     },
     [
@@ -490,16 +511,20 @@ export const PlayerScreen = ({
             setStatusText('Starting video...');
             return reportPlaybackProgress(serverUrl, accessToken, {
               ...stream,
+              audioStreamIndex: selectedAudioIndex.current,
               isPaused: false,
               positionTicks,
+              subtitleStreamIndex: selectedSubtitleIndex.current,
             });
           });
         }
 
         return reportPlaybackProgress(serverUrl, accessToken, {
           ...stream,
+          audioStreamIndex: selectedAudioIndex.current,
           isPaused: false,
           positionTicks,
+          subtitleStreamIndex: selectedSubtitleIndex.current,
         });
       })
       .catch((error) => {
@@ -529,7 +554,7 @@ export const PlayerScreen = ({
       case 'menu':
       case 'context_menu':
         revealControls(false);
-        setSettingsPanel((panel) => (panel ? null : 'quality'));
+        setSettingsPanel((panel) => (panel ? null : 'audio'));
         break;
       case 'playPause':
       case 'playpause':
@@ -582,12 +607,14 @@ export const PlayerScreen = ({
 
       reportPlaybackProgress(serverUrl, accessToken, {
         ...streamInfo.current,
+        audioStreamIndex: selectedAudioIndex.current,
         isPaused,
         positionTicks: currentPositionTicks(),
+        subtitleStreamIndex: selectedSubtitleIndex.current,
       }).catch((error) => {
         console.warn('Failed to report playback progress', error);
       });
-    }, 30000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [accessToken, currentPositionTicks, isPaused, serverUrl]);
@@ -630,8 +657,10 @@ export const PlayerScreen = ({
 
         await reportPlaybackStart(serverUrl, accessToken, {
           ...stream,
+          audioStreamIndex: selectedAudioIndex.current,
           positionTicks: startTicks,
           isPaused: false,
+          subtitleStreamIndex: selectedSubtitleIndex.current,
         });
       } catch (error) {
         setStatusText(
@@ -753,6 +782,9 @@ export const PlayerScreen = ({
           onSelectChapter={seekToChapter}
           item={item}
           playbackRate={playbackRate}
+          selectedAudioIndex={selectedAudioTrackIndex}
+          selectedQualityId={selectedQualityId}
+          selectedSubtitleIndex={selectedSubtitleTrackIndex}
           streamInfo={currentStream}
         />
       ) : null}
@@ -783,7 +815,6 @@ export const PlayerScreen = ({
 };
 
 const PlaybackSettingsOverlay = ({
-  activePanel,
   item,
   onSelectChapter,
   onSelectAudio,
@@ -791,6 +822,9 @@ const PlaybackSettingsOverlay = ({
   onSelectSubtitle,
   onSetSpeed,
   playbackRate,
+  selectedAudioIndex,
+  selectedQualityId,
+  selectedSubtitleIndex,
   streamInfo,
 }: {
   activePanel: PlaybackPanel;
@@ -801,10 +835,14 @@ const PlaybackSettingsOverlay = ({
   onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
   onSetSpeed: (rate: number) => void;
   playbackRate: number;
+  selectedAudioIndex?: number;
+  selectedQualityId: string;
+  selectedSubtitleIndex?: number;
   streamInfo: JellyfinStreamInfo;
 }) => (
   <View style={styles.settingsOverlay} testID="player-settings-overlay">
-    {activePanel === 'audio' ? (
+    <Text style={styles.settingsTitle}>Playback Options</Text>
+    <View style={styles.settingsGrid}>
       <SettingsColumn title="Audio">
         {streamInfo.audioTracks.length ? (
           streamInfo.audioTracks.map((track) => (
@@ -812,58 +850,63 @@ const PlaybackSettingsOverlay = ({
               key={track.id}
               label={track.title}
               onPress={() => onSelectAudio(track)}
+              selected={track.index === selectedAudioIndex}
             />
           ))
         ) : (
           <Text style={styles.settingsEmpty}>Default audio</Text>
         )}
       </SettingsColumn>
-    ) : null}
-    {activePanel === 'subtitles' ? (
       <SettingsColumn title="Subtitles">
-        <SettingsButton label="Off" onPress={() => onSelectSubtitle(null)} />
+        <SettingsButton
+          label="Off"
+          onPress={() => onSelectSubtitle(null)}
+          selected={selectedSubtitleIndex === undefined}
+        />
         {streamInfo.subtitleTracks.map((track) => (
           <SettingsButton
             key={track.id}
             label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
             onPress={() => onSelectSubtitle(track)}
+            selected={track.index === selectedSubtitleIndex}
           />
         ))}
       </SettingsColumn>
-    ) : null}
-    {activePanel === 'quality' ? (
       <SettingsColumn title="Quality">
         {streamInfo.qualityOptions.map((quality) => (
           <SettingsButton
             key={quality.id}
             label={quality.label || 'Auto'}
             onPress={() => onSelectQuality(quality)}
+            selected={
+              quality.id === selectedQualityId ||
+              (quality.id === 'auto' && selectedQualityId === 'auto')
+            }
           />
         ))}
       </SettingsColumn>
-    ) : null}
-    {activePanel === 'speed' ? (
       <SettingsColumn title="Speed">
         {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
           <SettingsButton
             key={rate}
-            label={`${rate}x${rate === playbackRate ? ' selected' : ''}`}
+            label={`${rate}x`}
             onPress={() => onSetSpeed(rate)}
+            selected={rate === playbackRate}
           />
         ))}
       </SettingsColumn>
-    ) : null}
-    {activePanel === 'chapters' && item.chapters?.length ? (
-      <SettingsColumn title="Chapters">
-        {item.chapters.map((chapter) => (
-          <SettingsButton
-            key={`${chapter.startPositionTicks}-${chapter.name}`}
-            label={chapter.name}
-            onPress={() => onSelectChapter(chapter.startPositionTicks)}
-          />
-        ))}
-      </SettingsColumn>
-    ) : null}
+      {item.chapters?.length ? (
+        <SettingsColumn title="Chapters">
+          {item.chapters.map((chapter) => (
+            <SettingsButton
+              key={`${chapter.startPositionTicks}-${chapter.name}`}
+              label={chapter.name}
+              onPress={() => onSelectChapter(chapter.startPositionTicks)}
+            />
+          ))}
+        </SettingsColumn>
+      ) : null}
+    </View>
   </View>
 );
 
@@ -880,14 +923,19 @@ const SettingsColumn = ({
 const SettingsButton = ({
   label,
   onPress,
+  selected = false,
 }: {
   label: string;
   onPress: () => void;
+  selected?: boolean;
 }) => (
   <FocusableItem
     focusedStyle={styles.settingsButtonFocused}
     onPress={onPress}
-    style={styles.settingsButton}>
+    style={[styles.settingsButton, selected && styles.settingsButtonSelected]}>
+    <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
+      {selected ? <View style={styles.radioDot} /> : null}
+    </View>
     <Text numberOfLines={1} style={styles.settingsButtonText}>
       {label}
     </Text>
@@ -958,9 +1006,9 @@ const styles = StyleSheet.create({
   settingsOverlay: {
     position: 'absolute',
     top: 44,
-    right: 44,
-    width: 520,
-    maxHeight: 640,
+    left: 52,
+    right: 52,
+    maxHeight: 670,
     borderRadius: 8,
     backgroundColor: 'rgba(12,17,22,0.94)',
     padding: 24,
@@ -988,7 +1036,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 16,
   },
+  settingsGrid: {
+    flexDirection: 'row',
+    gap: 18,
+  },
   settingsColumn: {
+    flex: 1,
     marginBottom: 18,
   },
   settingsHeading: {
@@ -998,12 +1051,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   settingsButton: {
-    height: 42,
+    alignItems: 'center',
     borderRadius: 8,
     backgroundColor: '#25313A',
-    justifyContent: 'center',
+    flexDirection: 'row',
+    minHeight: 44,
     marginBottom: 8,
     paddingHorizontal: 12,
+  },
+  settingsButtonSelected: {
+    backgroundColor: '#1F3746',
   },
   settingsButtonFocused: {
     backgroundColor: '#2E5A72',
@@ -1012,6 +1069,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+  },
+  radioCircle: {
+    alignItems: 'center',
+    borderColor: '#8CA1AA',
+    borderRadius: 9,
+    borderWidth: 2,
+    height: 18,
+    justifyContent: 'center',
+    marginRight: 9,
+    width: 18,
+  },
+  radioCircleSelected: {
+    borderColor: '#4CC9F0',
+  },
+  radioDot: {
+    backgroundColor: '#4CC9F0',
+    borderRadius: 4,
+    height: 8,
+    width: 8,
   },
   settingsEmpty: {
     color: '#B8C5CC',
