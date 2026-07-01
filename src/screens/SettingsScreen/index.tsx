@@ -96,7 +96,6 @@ export const SettingsScreen = ({
     useState<PlaybackPreferences>(defaultPlaybackPrefs);
   const [displayPreferencesState, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
-      gridDirection: 'vertical',
       imageSize: 'medium',
       imageType: 'Primary',
     });
