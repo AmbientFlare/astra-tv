@@ -127,6 +127,7 @@ export type JellyfinImageType = 'Primary' | 'Thumb' | 'Banner';
 export interface GetItemsOptions {
   filters?: Array<'IsFavorite' | 'IsUnplayed'>;
   imageType?: JellyfinImageType;
+  includeItemTypes?: string;
   sortBy?: JellyfinSortBy;
   sortDescending?: boolean;
 }
@@ -431,7 +432,7 @@ const getJson = async <ResponseBody>(
     headers?: Record<string, string>;
     method?: string;
   } = {},
-  timeoutMs = 5000,
+  timeoutMs = 15000,
 ): Promise<ResponseBody> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -443,7 +444,11 @@ const getJson = async <ResponseBody>(
     });
 
     if (!response.ok) {
-      throw new Error(`Jellyfin request failed ${response.status}`);
+      const failedUrl = new URL(url);
+      failedUrl.searchParams.delete('api_key');
+      throw new Error(
+        `Jellyfin request failed ${response.status}: ${failedUrl.pathname}`,
+      );
     }
 
     const text = await response.text();
@@ -576,7 +581,7 @@ export const getItems = async (
     buildUrl(baseUrl, itemsPath, {
       ParentId: libraryId,
       Recursive: true,
-      IncludeItemTypes: 'Movie,Series,Episode,Video',
+      IncludeItemTypes: options.includeItemTypes ?? 'Movie,Series,Episode,Video',
       Fields: itemFields,
       ImageTypeLimit: 1,
       EnableImageTypes: `${options.imageType ?? 'Primary'},Backdrop`,

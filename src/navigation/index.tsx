@@ -308,6 +308,7 @@ export const RootNavigator = () => {
       <LibraryScreen
         libraryId={current.library.id}
         libraryName={current.library.name}
+        libraryType={current.library.type}
         menuVisible={libraryMenuVisible}
         onMenuVisibleChange={setLibraryMenuVisible}
         onSelectItem={(item) => {

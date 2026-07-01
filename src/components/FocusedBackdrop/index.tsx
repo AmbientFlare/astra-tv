@@ -42,7 +42,7 @@ export const FocusedBackdrop = ({imageUrl}: FocusedBackdropProps) => {
     <View pointerEvents="none" style={styles.container}>
       {currentUrl ? (
         <Animated.Image
-          blurRadius={18}
+          blurRadius={6}
           resizeMode="cover"
           source={{uri: currentUrl}}
           style={[styles.image, {opacity: currentOpacity}] as ImageStyle[]}
@@ -50,7 +50,7 @@ export const FocusedBackdrop = ({imageUrl}: FocusedBackdropProps) => {
       ) : null}
       {nextUrl ? (
         <Animated.Image
-          blurRadius={18}
+          blurRadius={6}
           resizeMode="cover"
           source={{uri: nextUrl}}
           style={[styles.image, {opacity: nextOpacity}] as ImageStyle[]}
@@ -70,6 +70,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,17,22,0.78)',
+    backgroundColor: 'rgba(12,17,22,0.52)',
   },
 });

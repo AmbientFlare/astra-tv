@@ -23,6 +23,7 @@ import {
 interface LibraryScreenProps {
   libraryId: string;
   libraryName: string;
+  libraryType?: string;
   menuVisible: boolean;
   onMenuVisibleChange: (visible: boolean) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
@@ -86,6 +87,7 @@ const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
 export const LibraryScreen = ({
   libraryId,
   libraryName,
+  libraryType,
   menuVisible,
   onMenuVisibleChange,
   onSelectItem,
@@ -168,6 +170,12 @@ export const LibraryScreen = ({
           {
             filters,
             imageType: displayPreferences.imageType,
+            includeItemTypes:
+              libraryType === 'tvshows'
+                ? 'Series'
+                : libraryType === 'movies'
+                ? 'Movie'
+                : 'Movie,Series,Episode,Video',
             sortBy,
             sortDescending,
           },
@@ -193,6 +201,7 @@ export const LibraryScreen = ({
       displayPreferences.imageType,
       filters,
       libraryId,
+      libraryType,
       serverProfile,
       sortBy,
       sortDescending,
