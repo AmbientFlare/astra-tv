@@ -172,10 +172,8 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             autoCapitalize="none"
             autoComplete="url"
             autoCorrect={false}
-            autoFocus={true}
             auxOptions="title:Server URL"
             focusStrategy="native"
-            hasTVPreferredFocus={true}
             inputStyle={styles.inputText}
             inputMode="url"
             keyboardType="url"
@@ -263,6 +261,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         <FocusableItem
           accessibilityLabel="Connect"
           focusedStyle={styles.connectFocused}
+          hasTVPreferredFocus={true}
           onPress={handleConnect}
           style={styles.connectButton}
           testID="setup-connect-button">
