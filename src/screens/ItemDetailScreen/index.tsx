@@ -20,7 +20,7 @@ interface ItemDetailScreenProps {
   onPlay?: (item: JellyfinMediaItem) => void;
   onSelectEpisode?: (item: JellyfinMediaItem) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
-  onSelectPerson?: (personId: string) => void;
+  onSelectPerson?: (personId: string, personName?: string) => void;
   serverProfile: ServerProfile;
 }
 
@@ -404,7 +404,9 @@ export const ItemDetailScreen = ({
                   key={person.id}
                   imageUrl={person.imageUrl}
                   name={person.name}
-                  onPress={() => person.id && onSelectPerson?.(person.id)}
+                  onPress={() =>
+                    person.id && onSelectPerson?.(person.id, person.name)
+                  }
                   role={person.role}
                 />
               ))}

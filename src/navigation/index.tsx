@@ -90,7 +90,7 @@ type RouteEntry =
   | {route: 'player'; item: JellyfinMediaItem}
   | {route: 'search'}
   | {route: 'settings'}
-  | {route: 'personDetail'; personId: string};
+  | {route: 'personDetail'; personId: string; personName?: string};
 
 export const RootNavigator = () => {
   const keplerBackHandler = useKeplerBackHandler();
@@ -328,7 +328,9 @@ export const RootNavigator = () => {
         onPlay={(item) => push({route: 'player', item})}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectItem={(item) => push({route: 'detail', item})}
-        onSelectPerson={(personId) => push({route: 'personDetail', personId})}
+        onSelectPerson={(personId, personName) =>
+          push({route: 'personDetail', personId, personName})
+        }
         serverProfile={serverProfile}
       />,
     );
@@ -354,7 +356,9 @@ export const RootNavigator = () => {
         onGoToSeries={(item) => push({route: 'detail', item})}
         onPlay={(item) => push({route: 'player', item})}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
-        onSelectPerson={(personId) => push({route: 'personDetail', personId})}
+        onSelectPerson={(personId, personName) =>
+          push({route: 'personDetail', personId, personName})
+        }
         serverProfile={serverProfile}
       />,
     );
@@ -377,6 +381,7 @@ export const RootNavigator = () => {
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectItem={(item) => push({route: 'detail', item})}
         personId={current.personId}
+        personName={current.personName}
         serverProfile={serverProfile}
       />,
     );

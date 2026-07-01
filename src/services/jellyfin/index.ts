@@ -909,8 +909,10 @@ export const getPerson = async (
   serverUrl: string,
   accessToken: string,
   personId: string,
+  personName?: string,
 ): Promise<JellyfinPerson> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  const personKey = personName || personId;
   const person = await getJson<{
     DateCreated?: string;
     Id?: string;
@@ -918,20 +920,21 @@ export const getPerson = async (
     Overview?: string;
     PremiereDate?: string;
     UserData?: {IsFavorite?: boolean};
-  }>(buildUrl(baseUrl, `/Persons/${personId}`, {api_key: accessToken}), {
+  }>(buildUrl(baseUrl, `/Persons/${personKey}`, {api_key: accessToken}), {
     headers: getAuthHeaders(accessToken),
   });
+  const resolvedId = person.Id ?? personId;
 
   return {
     birthDate: person.PremiereDate ?? person.DateCreated,
-    id: person.Id ?? personId,
-    imageUrl: buildUrl(baseUrl, `/Items/${person.Id ?? personId}/Images/Primary`, {
+    id: resolvedId,
+    imageUrl: buildUrl(baseUrl, `/Items/${resolvedId}/Images/Primary`, {
       fillWidth: 420,
       quality: 90,
       api_key: accessToken,
     }),
     isFavorite: person.UserData?.IsFavorite,
-    name: person.Name ?? 'Unknown',
+    name: person.Name ?? personName ?? 'Unknown',
     overview: person.Overview,
   };
 };

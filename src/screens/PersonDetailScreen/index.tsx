@@ -17,6 +17,7 @@ interface PersonDetailScreenProps {
   onSelectEpisode?: (item: JellyfinMediaItem) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
   personId: string;
+  personName?: string;
   serverProfile: ServerProfile;
 }
 
@@ -49,6 +50,7 @@ export const PersonDetailScreen = ({
   onSelectEpisode,
   onSelectItem,
   personId,
+  personName,
   serverProfile,
 }: PersonDetailScreenProps) => {
   const [person, setPerson] = useState<JellyfinPerson | null>(null);
@@ -66,6 +68,7 @@ export const PersonDetailScreen = ({
             serverProfile.serverUrl,
             serverProfile.accessToken,
             personId,
+            personName,
           ),
           getItemsByPerson(
             serverProfile.serverUrl,
@@ -89,7 +92,7 @@ export const PersonDetailScreen = ({
         }
       }
     },
-    [personId, serverProfile],
+    [personId, personName, serverProfile],
   );
 
   useEffect(() => {
