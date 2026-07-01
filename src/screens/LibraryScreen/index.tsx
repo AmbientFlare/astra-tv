@@ -70,14 +70,6 @@ const imageTypeOptions: Array<{
   {label: 'Banner', value: 'Banner'},
 ];
 
-const gridDirectionOptions: Array<{
-  label: string;
-  value: DisplayPreferences['gridDirection'];
-}> = [
-  {label: 'Vertical', value: 'vertical'},
-  {label: 'Horizontal', value: 'horizontal'},
-];
-
 const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
   large: 1.25,
   medium: 1,
@@ -267,16 +259,14 @@ export const LibraryScreen = ({
         <Text style={styles.status}>No playable items found.</Text>
       ) : null}
       <TVFocusGuideView style={styles.gridGuide}>
-        <FlatList
-          columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.grid}
-          data={items}
-          horizontal={displayPreferences.gridDirection === 'horizontal'}
-          keyExtractor={(item) => item.id}
-          key={displayPreferences.gridDirection}
-          numColumns={
-            displayPreferences.gridDirection === 'vertical' ? 4 : undefined
-          }
+          <FlatList
+            columnWrapperStyle={styles.gridRow}
+            contentContainerStyle={styles.grid}
+            data={items}
+          horizontal={false}
+            keyExtractor={(item) => item.id}
+            key="vertical"
+            numColumns={4}
           renderItem={({index, item}) => (
             <MediaCard
               hasTVPreferredFocus={index === 0}
@@ -340,14 +330,6 @@ export const LibraryScreen = ({
             title="Display: Image type"
             onSelect={(imageType) =>
               saveDisplayPreferences({...displayPreferences, imageType})
-            }
-          />
-          <PreferenceRadioGroup
-            options={gridDirectionOptions}
-            selectedValue={displayPreferences.gridDirection}
-            title="Display: Grid direction"
-            onSelect={(gridDirection) =>
-              saveDisplayPreferences({...displayPreferences, gridDirection})
             }
           />
         </Panel>
