@@ -25,7 +25,6 @@ interface AppStateConfig {
 }
 
 export interface DisplayPreferences {
-  gridDirection: 'horizontal' | 'vertical';
   imageSize: 'small' | 'medium' | 'large';
   imageType: 'Primary' | 'Thumb' | 'Banner';
 }
@@ -77,7 +76,6 @@ const emptyAppState: AppStateConfig = {
 };
 
 const defaultDisplayPreferences: DisplayPreferences = {
-  gridDirection: 'vertical',
   imageSize: 'medium',
   imageType: 'Primary',
 };
@@ -262,9 +260,6 @@ export const getDisplayPreferences =
       const parsed = JSON.parse(rawPreferences);
 
       return {
-        // Horizontal library grids crash on the current Vega FlatList runtime.
-        // Coerce older saved horizontal prefs back to the stable vertical grid.
-        gridDirection: 'vertical',
         imageSize: ['small', 'medium', 'large'].includes(parsed.imageSize)
           ? parsed.imageSize
           : defaultDisplayPreferences.imageSize,
@@ -282,7 +277,10 @@ export const setDisplayPreferences = async (
 ): Promise<void> => {
   await AsyncStorage.setItem(
     DISPLAY_PREFERENCES_KEY,
-    JSON.stringify({...preferences, gridDirection: 'vertical'}),
+    JSON.stringify({
+      imageSize: preferences.imageSize,
+      imageType: preferences.imageType,
+    }),
   );
 };
 

@@ -526,18 +526,20 @@ export const getLibraries = async (
     headers: getAuthHeaders(accessToken),
   });
 
-  return (response.Items ?? []).map((library) => ({
-    id: library.Id ?? library.Name ?? '',
-    imageUrl: library.Id
-      ? buildUrl(baseUrl, `/Items/${library.Id}/Images/Primary`, {
-          fillWidth: 520,
-          quality: 90,
-          api_key: accessToken,
-        })
-      : undefined,
-    name: library.Name ?? 'Library',
-    type: library.CollectionType ?? library.Type,
-  }));
+  return (response.Items ?? [])
+    .filter((library) => library.CollectionType !== 'playlists')
+    .map((library) => ({
+      id: library.Id ?? library.Name ?? '',
+      imageUrl: library.Id
+        ? buildUrl(baseUrl, `/Items/${library.Id}/Images/Primary`, {
+            fillWidth: 520,
+            quality: 90,
+            api_key: accessToken,
+          })
+        : undefined,
+      name: library.Name ?? 'Library',
+      type: library.CollectionType ?? library.Type,
+    }));
 };
 
 const sortByMap: Record<JellyfinSortBy, string> = {

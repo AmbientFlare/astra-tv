@@ -96,7 +96,6 @@ export const LibraryScreen = ({
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
-      gridDirection: 'vertical',
       imageSize: 'medium',
       imageType: 'Primary',
     });
@@ -259,14 +258,14 @@ export const LibraryScreen = ({
         <Text style={styles.status}>No playable items found.</Text>
       ) : null}
       <TVFocusGuideView style={styles.gridGuide}>
-          <FlatList
-            columnWrapperStyle={styles.gridRow}
-            contentContainerStyle={styles.grid}
-            data={items}
+        <FlatList
+          columnWrapperStyle={styles.gridRow}
+          contentContainerStyle={styles.grid}
+          data={items}
           horizontal={false}
-            keyExtractor={(item) => item.id}
-            key="vertical"
-            numColumns={4}
+          keyExtractor={(item) => item.id}
+          key="vertical"
+          numColumns={4}
           renderItem={({index, item}) => (
             <MediaCard
               hasTVPreferredFocus={index === 0}
