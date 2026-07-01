@@ -596,6 +596,37 @@ export const PlayerScreen = ({
   }, [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer]);
 
   useEffect(() => {
+    const subscription = keplerAppStateManager.addAppStateListener(
+      'change',
+      (nextState) => {
+        console.log('[Astra] Player app state changed:', nextState);
+
+        if (nextState === 'background' || nextState === 'inactive') {
+          const video = videoRef.current;
+          if (video && !video.paused) {
+            video.pause();
+            setPaused(true);
+          }
+
+          if (streamInfo.current) {
+            reportPlaybackProgress(serverUrl, accessToken, {
+              ...streamInfo.current,
+              audioStreamIndex: selectedAudioIndex.current,
+              isPaused: true,
+              positionTicks: currentPositionTicks(),
+              subtitleStreamIndex: selectedSubtitleIndex.current,
+            }).catch((error) => {
+              console.warn('Failed to report background playback progress', error);
+            });
+          }
+        }
+      },
+    );
+
+    return () => subscription.remove();
+  }, [accessToken, currentPositionTicks, keplerAppStateManager, serverUrl]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       if (typeof videoRef.current?.currentTime === 'number') {
         setPositionSeconds(videoRef.current.currentTime);

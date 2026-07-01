@@ -379,17 +379,6 @@ export const SettingsScreen = ({
                 saveDisplayPrefs({...displayPreferencesState, imageType})
               }
             />
-            <PreferenceRadioGroup
-              title="Grid direction"
-              options={[
-                {label: 'Vertical', value: 'vertical'},
-                {label: 'Horizontal', value: 'horizontal'},
-              ]}
-              selectedValue={displayPreferencesState.gridDirection}
-              onSelect={(gridDirection) =>
-                saveDisplayPrefs({...displayPreferencesState, gridDirection})
-              }
-            />
           </Page>
         );
       case 'playback':
