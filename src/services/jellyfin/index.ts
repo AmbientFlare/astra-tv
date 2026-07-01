@@ -133,12 +133,14 @@ export interface GetItemsOptions {
 
 export interface PlaybackReportInput {
   itemId: string;
+  audioStreamIndex?: number;
   mediaSourceId?: string;
   playSessionId?: string;
   playMethod?: JellyfinStreamInfo['playMethod'];
   positionTicks?: number;
   runTimeTicks?: number;
   isPaused?: boolean;
+  subtitleStreamIndex?: number;
 }
 
 export interface DiscoveredServer {
@@ -713,7 +715,15 @@ export const getStreamUrl = async (
 
   let url: string;
   let resolvedTranscodeUrl: string | undefined;
-  if (mediaSource?.SupportsDirectPlay && mediaSource?.Id) {
+  if (shouldUseTranscode && mediaSource?.TranscodingUrl) {
+    resolvedTranscodeUrl = buildTranscodingUrl(
+      baseUrl,
+      mediaSource.TranscodingUrl,
+      accessToken,
+    );
+    console.log('[Astra] buildTranscodingUrl output:', resolvedTranscodeUrl);
+    url = resolvedTranscodeUrl;
+  } else if (mediaSource?.SupportsDirectPlay && mediaSource?.Id) {
     url = buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
       static: true,
       MediaSourceId: mediaSource?.Id,
@@ -723,14 +733,6 @@ export const getStreamUrl = async (
       api_key: accessToken,
     });
     console.log('[Astra] buildUrl DirectStream output:', url);
-  } else if (mediaSource?.TranscodingUrl) {
-    resolvedTranscodeUrl = buildTranscodingUrl(
-      baseUrl,
-      mediaSource.TranscodingUrl,
-      accessToken,
-    );
-    console.log('[Astra] buildTranscodingUrl output:', resolvedTranscodeUrl);
-    url = resolvedTranscodeUrl;
   } else {
     throw new Error('No playable URL returned from Jellyfin.');
   }
@@ -1020,13 +1022,17 @@ const reportPlayback = async (
           MediaSourceId: input.mediaSourceId,
           PlaySessionId: input.playSessionId,
           PositionTicks: input.positionTicks,
+          AudioStreamIndex: input.audioStreamIndex,
+          SubtitleStreamIndex: input.subtitleStreamIndex,
           Failed: false,
         }
       : {
           ItemId: input.itemId,
+          AudioStreamIndex: input.audioStreamIndex,
           MediaSourceId: input.mediaSourceId,
           PlaySessionId: input.playSessionId,
           PositionTicks: input.positionTicks,
+          SubtitleStreamIndex: input.subtitleStreamIndex,
           CanSeek: (input.runTimeTicks ?? 0) > 0,
           IsPaused: input.isPaused ?? false,
           IsMuted: false,
