@@ -278,6 +278,15 @@ export const ItemDetailScreen = ({
                     : 'Play'}
                 </Text>
               </FocusableItem>
+              {detail.type === 'Movie' && detail.resumePositionTicks ? (
+                <FocusableItem
+                  focusedStyle={styles.actionFocused}
+                  onPress={() => onPlay?.({...detail, resumePositionTicks: 0})}
+                  style={styles.actionButton}
+                  testID="detail-play-from-start-button">
+                  <Text style={styles.actionText}>Play from Start</Text>
+                </FocusableItem>
+              ) : null}
               {detail.type === 'Series' && episodes.length ? (
                 <FocusableItem
                   focusedStyle={styles.actionFocused}

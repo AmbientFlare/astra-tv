@@ -358,6 +358,7 @@ export const PlayerScreen = ({
       });
       video.addEventListener('timeupdate', () => {
         if (typeof video.currentTime === 'number') {
+          latestPositionTicks.current = toTicks(video.currentTime);
           setPositionSeconds(video.currentTime);
         }
       });
@@ -584,7 +585,7 @@ export const PlayerScreen = ({
   };
 
   useTVEventHandler((event) => {
-    if (event.eventKeyAction === 1) {
+    if (event.eventKeyAction === 0 || event.eventKeyAction === -1) {
       return;
     }
 
@@ -617,11 +618,13 @@ export const PlayerScreen = ({
         togglePlayPause();
         break;
       case 'right':
+      case 'right_up':
       case 'forward':
       case 'skip_forward':
         seek(preferredSeekSeconds);
         break;
       case 'left':
+      case 'left_up':
       case 'rewind':
       case 'skip_backward':
         seek(-preferredSeekSeconds);
