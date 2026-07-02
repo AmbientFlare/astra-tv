@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -142,12 +142,14 @@ export const PlayerScreen = ({
     const currentTime = videoRef.current?.currentTime;
 
     latestPositionTicks.current = toTicks(
-      typeof currentTime === 'number' ? currentTime : undefined,
-      (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
+      typeof currentTime === 'number' && Number.isFinite(currentTime)
+        ? currentTime
+        : undefined,
+      latestPositionTicks.current / TICKS_PER_SECOND,
     );
 
     return latestPositionTicks.current;
-  }, [item.resumePositionTicks]);
+  }, []);
 
   const clearControlsHideTimer = useCallback(() => {
     if (controlsHideTimer.current) {
@@ -197,27 +199,74 @@ export const PlayerScreen = ({
     });
   }, [onBack, reportStopped]);
 
-  const seek = useCallback((seconds: number) => {
-    const video = videoRef.current;
+  const seekToSeconds = useCallback(
+    (targetSeconds: number, closeSettings = false) => {
+      const video = videoRef.current;
 
-    if (!video || typeof video.currentTime !== 'number') {
-      return;
-    }
+      if (!video) {
+        return;
+      }
 
-    const duration = typeof video.duration === 'number' ? video.duration : 0;
-    const target = Math.max(
-      0,
-      duration > 0
-        ? Math.min(duration, video.currentTime + seconds)
-        : video.currentTime + seconds,
-    );
+      const duration =
+        typeof video.duration === 'number' && Number.isFinite(video.duration)
+          ? video.duration
+          : 0;
+      const target = Math.max(
+        0,
+        duration > 0 ? Math.min(duration, targetSeconds) : targetSeconds,
+      );
+      const seekableVideo = video as VideoPlayer & {
+        fastSeek?: (time: number) => void;
+      };
 
-    video.currentTime = target;
-    if (video.paused) {
-      video.play();
-      setPaused(false);
-    }
-  }, []);
+      if (typeof seekableVideo.fastSeek === 'function') {
+        seekableVideo.fastSeek(target);
+      } else {
+        video.currentTime = target;
+      }
+
+      const positionTicks = toTicks(target);
+      latestPositionTicks.current = positionTicks;
+      setPositionSeconds(target);
+
+      if (video.paused) {
+        video.play();
+        setPaused(false);
+      }
+
+      if (closeSettings) {
+        setSettingsPanel(null);
+      }
+      scheduleControlsHide();
+      setStatusText('Playing');
+
+      if (streamInfo.current) {
+        reportPlaybackProgress(serverUrl, accessToken, {
+          ...streamInfo.current,
+          audioStreamIndex: selectedAudioIndex.current,
+          isPaused: false,
+          positionTicks,
+          subtitleStreamIndex: selectedSubtitleIndex.current,
+        }).catch((error) => {
+          console.warn('Failed to report seek position', error);
+        });
+      }
+    },
+    [accessToken, scheduleControlsHide, serverUrl],
+  );
+
+  const seek = useCallback(
+    (seconds: number) => {
+      const video = videoRef.current;
+
+      if (!video || typeof video.currentTime !== 'number') {
+        return;
+      }
+
+      seekToSeconds(video.currentTime + seconds);
+    },
+    [seekToSeconds],
+  );
 
   const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
@@ -449,7 +498,7 @@ export const PlayerScreen = ({
       if (selectedSubtitleBurnIn.current) {
         selectedForceTranscode.current = true;
       }
-      setStatusText('Switching stream...');
+      setStatusText('Buffering stream...');
       const positionTicks = currentPositionTicks();
       const stream = await loadStream(positionTicks);
       const video = videoRef.current;
@@ -462,7 +511,7 @@ export const PlayerScreen = ({
         video.play();
         setPaused(false);
         scheduleControlsHide();
-        setStatusText('Starting video...');
+        setStatusText('Playing');
       }
 
       await reportPlaybackProgress(serverUrl, accessToken, {
@@ -734,23 +783,9 @@ export const PlayerScreen = ({
 
   const seekToChapter = useCallback(
     (startPositionTicks: number) => {
-      const video = videoRef.current;
-
-      if (!video) {
-        return;
-      }
-
-      video.currentTime = startPositionTicks / TICKS_PER_SECOND;
-      latestPositionTicks.current = startPositionTicks;
-      if (video.paused) {
-        video.play();
-        setPaused(false);
-      }
-      setSettingsPanel(null);
-      scheduleControlsHide();
-      setStatusText('Playing');
+      seekToSeconds(startPositionTicks / TICKS_PER_SECOND, true);
     },
-    [scheduleControlsHide],
+    [seekToSeconds],
   );
 
   const durationSeconds =
@@ -947,7 +982,11 @@ const SettingsColumn = ({
 }: React.PropsWithChildren<{title: string}>) => (
   <View style={styles.settingsColumn}>
     <Text style={styles.settingsHeading}>{title}</Text>
-    {children}
+    <ScrollView
+      showsVerticalScrollIndicator={true}
+      style={styles.settingsColumnScroller}>
+      {children}
+    </ScrollView>
   </View>
 );
 
@@ -1074,6 +1113,9 @@ const styles = StyleSheet.create({
   settingsColumn: {
     flex: 1,
     marginBottom: 18,
+  },
+  settingsColumnScroller: {
+    maxHeight: 550,
   },
   settingsHeading: {
     color: '#89CFF0',
