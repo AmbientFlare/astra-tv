@@ -92,6 +92,10 @@ export const PlayerScreen = ({
   const retriedAfterPlaybackError = useRef(false);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastHandledKeyEvent = useRef<{
+    time: number;
+    type?: string;
+  }>({time: 0});
   const keplerAppStateManager = useKeplerAppStateManager();
   const [currentStream, setCurrentStream] = useState<JellyfinStreamInfo | null>(
     null,
@@ -238,7 +242,11 @@ export const PlayerScreen = ({
         setSettingsPanel(null);
       }
       scheduleControlsHide();
-      setStatusText('Playing');
+      setStatusText(
+        `Jumped to ${Math.floor(target / 60)}:${String(
+          Math.floor(target % 60),
+        ).padStart(2, '0')}`,
+      );
 
       if (streamInfo.current) {
         reportPlaybackProgress(serverUrl, accessToken, {
@@ -585,9 +593,16 @@ export const PlayerScreen = ({
   };
 
   useTVEventHandler((event) => {
-    if (event.eventKeyAction === 0 || event.eventKeyAction === -1) {
+    const now = Date.now();
+    const key = `${event.eventType}:${event.eventKeyAction ?? 'none'}`;
+
+    if (
+      lastHandledKeyEvent.current.type === key &&
+      now - lastHandledKeyEvent.current.time < 350
+    ) {
       return;
     }
+    lastHandledKeyEvent.current = {time: now, type: key};
 
     revealControls(!settingsPanel && !showExitConfirm);
 
