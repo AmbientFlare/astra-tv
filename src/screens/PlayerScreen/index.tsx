@@ -90,6 +90,8 @@ export const PlayerScreen = ({
   const playbackEventsAttached = useRef(false);
   const playbackErrorHandler = useRef<() => void>(() => undefined);
   const retriedAfterPlaybackError = useRef(false);
+  const pendingInitialSeekSeconds = useRef<number | null>(null);
+  const initialSeekApplied = useRef(false);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHandledKeyEvent = useRef<{
@@ -181,6 +183,41 @@ export const PlayerScreen = ({
       }
     },
     [clearControlsHideTimer, scheduleControlsHide],
+  );
+
+  const applyPendingInitialSeek = useCallback(
+    (video: VideoPlayer) => {
+      const target = pendingInitialSeekSeconds.current;
+
+      if (target === null || initialSeekApplied.current) {
+        return;
+      }
+
+      initialSeekApplied.current = true;
+      setTimeout(() => {
+        const duration =
+          typeof video.duration === 'number' && Number.isFinite(video.duration)
+            ? video.duration
+            : 0;
+        const clampedTarget =
+          duration > 0 ? Math.min(target, Math.max(0, duration - 1)) : target;
+
+        try {
+          video.currentTime = clampedTarget;
+          latestPositionTicks.current = toTicks(clampedTarget);
+          setPositionSeconds(clampedTarget);
+          setStatusText(
+            `Resumed at ${Math.floor(clampedTarget / 60)}:${String(
+              Math.floor(clampedTarget % 60),
+            ).padStart(2, '0')}`,
+          );
+        } catch (error) {
+          console.warn('Failed to apply resume position', error);
+          setStatusText('Playing from start');
+        }
+      }, 250);
+    },
+    [],
   );
 
   const reportStopped = useCallback(async () => {
@@ -352,9 +389,11 @@ export const PlayerScreen = ({
       });
       video.addEventListener('loadedmetadata', () => {
         setStatusText('Stream loaded');
+        applyPendingInitialSeek(video);
       });
       video.addEventListener('canplay', () => {
         setStatusText('Ready to play');
+        applyPendingInitialSeek(video);
       });
       video.addEventListener('waiting', () => {
         revealControls(false);
@@ -380,7 +419,7 @@ export const PlayerScreen = ({
       });
       playbackEventsAttached.current = true;
     },
-    [revealControls, scheduleControlsHide],
+    [applyPendingInitialSeek, revealControls, scheduleControlsHide],
   );
 
   const addSelectedSubtitleTrack = useCallback(
@@ -721,6 +760,7 @@ export const PlayerScreen = ({
     async (handle: string) => {
       surfaceHandle.current = handle;
       const startTicks = item.resumePositionTicks ?? 0;
+      const startSeconds = startTicks / TICKS_PER_SECOND;
       const video = videoRef.current ?? new VideoPlayer();
       videoRef.current = video;
 
@@ -745,8 +785,10 @@ export const PlayerScreen = ({
         video.autoplay = false;
         video.defaultSeekIntervalInSec = preferredSeekSeconds;
         video.playbackRate = playbackRate;
+        pendingInitialSeekSeconds.current =
+          startSeconds > 0 ? startSeconds : null;
+        initialSeekApplied.current = false;
         await loadVideoSource(video, stream);
-        video.currentTime = startTicks / TICKS_PER_SECOND;
         addSelectedSubtitleTrack(video, stream);
         video.play();
         setPaused(false);
