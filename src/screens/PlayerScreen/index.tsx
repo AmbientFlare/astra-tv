@@ -780,7 +780,7 @@ export const PlayerScreen = ({
         attachPlaybackEvents(video);
         video.setSurfaceHandle(handle);
 
-        const stream = await loadStream(startTicks);
+        const stream = await loadStream(0);
 
         video.autoplay = false;
         video.defaultSeekIntervalInSec = preferredSeekSeconds;
