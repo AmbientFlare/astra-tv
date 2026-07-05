@@ -3,6 +3,7 @@ import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView, useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
+import {measureServerBandwidth} from '../../services/jellyfin';
 import {APP_VERSION, BUILD_DATE} from '../../config/app';
 import {
   defaultUserPreferences,
@@ -39,6 +40,7 @@ type SettingsRoute =
   | {route: 'homeSections'}
   | {route: 'displayPreferences'}
   | {route: 'maxBitrate'}
+  | {route: 'connectionTest'}
   | {route: 'audioChannels'}
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
@@ -396,6 +398,12 @@ export const SettingsScreen = ({
               onPress={() => push({route: 'maxBitrate'})}
             />
             <MenuRow
+              icon="⇄"
+              title="Test server connection"
+              subtitle="Measure download speed and get a bitrate recommendation"
+              onPress={() => push({route: 'connectionTest'})}
+            />
+            <MenuRow
               icon="◎"
               title="Audio output"
               subtitle="Match your TV or receiver's channel capability"
@@ -432,6 +440,17 @@ export const SettingsScreen = ({
         );
       case 'maxBitrate':
         return <RadioPage title="Max streaming bitrate" onBack={pop} options={bitrateOptions} selectedValue={playbackPrefs.maxBitrateBps} onSelect={(maxBitrateBps) => savePlaybackPrefs({maxBitrateBps})} />;
+      case 'connectionTest':
+        return (
+          <ConnectionTestPage
+            currentMaxBitrateBps={playbackPrefs.maxBitrateBps}
+            onApplyBitrate={(maxBitrateBps) =>
+              savePlaybackPrefs({maxBitrateBps})
+            }
+            onBack={pop}
+            serverProfile={serverProfile}
+          />
+        );
       case 'audioChannels':
         return (
           <Page title="Audio output" onBack={pop}>
@@ -542,6 +561,113 @@ const labelForSubtitleMode = (mode: UserPreferences['subtitleMode']) =>
 
 const labelForSkip = (mode: UserPreferences['skipIntroCredits']) =>
   ({ask: 'Ask', auto: 'Auto-skip', ignore: 'Ignore'}[mode]);
+
+const ConnectionTestPage = ({
+  currentMaxBitrateBps,
+  onApplyBitrate,
+  onBack,
+  serverProfile,
+}: {
+  currentMaxBitrateBps: number;
+  onApplyBitrate: (bitrateBps: PlaybackPreferences['maxBitrateBps']) => void;
+  onBack: () => void;
+  serverProfile: ServerProfile;
+}) => {
+  const [phase, setPhase] = useState<'idle' | 'testing' | 'done' | 'error'>(
+    'idle',
+  );
+  const [measuredBps, setMeasuredBps] = useState<number | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
+  const runTest = async () => {
+    setPhase('testing');
+    setErrorText(null);
+
+    try {
+      const bps = await measureServerBandwidth(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+      );
+      setMeasuredBps(bps);
+      setPhase('done');
+    } catch (error) {
+      setErrorText(
+        error instanceof Error ? error.message : 'Connection test failed.',
+      );
+      setPhase('error');
+    }
+  };
+
+  // Leave 20% headroom over sustained playback so bursts and container
+  // overhead don't cause buffering right at the limit.
+  const usableBps = measuredBps === null ? null : measuredBps * 0.8;
+  const suggestion =
+    usableBps === null
+      ? null
+      : [...bitrateOptions]
+          .sort((a, b) => b.value - a.value)
+          .find((option) => option.value <= usableBps) ?? bitrateOptions[0];
+  const belowLowestOption =
+    usableBps !== null && suggestion !== null
+      ? usableBps < suggestion.value
+      : false;
+
+  return (
+    <Page title="Test server connection" onBack={onBack}>
+      <Text style={styles.description}>
+        Downloads test data from {serverProfile.name || 'your server'} to
+        measure real throughput between this device and the server.
+      </Text>
+      <MenuRow
+        icon="⇄"
+        preferred={true}
+        title={phase === 'testing' ? 'Testing… (about 20 MB)' : 'Run test'}
+        subtitle={
+          phase === 'testing' ? 'This takes a few seconds' : undefined
+        }
+        onPress={phase === 'testing' ? undefined : runTest}
+      />
+      {phase === 'done' && measuredBps !== null && suggestion ? (
+        <>
+          <Text style={styles.infoText}>
+            Measured speed: {(measuredBps / 1000000).toFixed(0)} Mbps
+          </Text>
+          {belowLowestOption ? (
+            <Text style={styles.infoText}>
+              Your connection is slower than the lowest bitrate cap. Playback
+              of high-bitrate files may buffer; the server will transcode
+              them down to fit.
+            </Text>
+          ) : null}
+          <MenuRow
+            icon="↯"
+            title={`Set max bitrate to ${suggestion.label}`}
+            subtitle={
+              suggestion.value === currentMaxBitrateBps
+                ? 'Already your current setting'
+                : `Currently ${
+                    bitrateOptions.find(
+                      (o) => o.value === currentMaxBitrateBps,
+                    )?.label ?? 'unknown'
+                  }`
+            }
+            onPress={() => {
+              onApplyBitrate(suggestion.value);
+              onBack();
+            }}
+          />
+          <Text style={styles.infoText}>
+            If playback stutters or buffers, lower the max bitrate. If your
+            network is fast and files look soft, raise it.
+          </Text>
+        </>
+      ) : null}
+      {phase === 'error' && errorText ? (
+        <Text style={styles.infoText}>{errorText}</Text>
+      ) : null}
+    </Page>
+  );
+};
 
 const Page = ({
   children,
