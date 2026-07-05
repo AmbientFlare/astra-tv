@@ -129,6 +129,7 @@ export interface JellyfinQualityOption {
 
 export interface JellyfinStreamInfo {
   itemId: string;
+  audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
   mediaSourceId?: string;
   playSessionId?: string;
@@ -713,8 +714,13 @@ export const getStreamUrl = async (
           options.alwaysBurnInSubtitleWhenTranscoding,
         MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
         MaxAudioChannels: prefs.maxAudioChannels,
-        EnableDirectPlay: !options.forceTranscode,
-        EnableDirectStream: true,
+        // Always deliver via HLS. Direct play of raw files blocks the JS
+        // thread inside setSrcUri when KeplerMediaSink rejects the stream
+        // (confirmed with 4K HDR10 HEVC), and HLS gives segment-level
+        // seek/resume. Stream copy keeps compatible h264 sources cheap —
+        // the server remuxes instead of re-encoding them.
+        EnableDirectPlay: false,
+        EnableDirectStream: false,
         AllowVideoStreamCopy: !options.forceTranscode,
         AllowAudioStreamCopy: true,
         AutoOpenLiveStream: true,
@@ -845,6 +851,7 @@ export const getStreamUrl = async (
 
   return {
     itemId,
+    audioStreamIndex: selectedAudioStreamIndex ?? undefined,
     audioTracks: streams
       .filter((track) => track.Type === 'Audio')
       .map((track) => mapTrack(track)),
