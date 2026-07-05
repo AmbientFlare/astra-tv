@@ -10,14 +10,16 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
     },
   ],
   TranscodingProfiles: [
-    // HEVC in fMP4 segments: the only way this device gets 4K out of a
-    // transcode (its h264 decoder tops out at 1080p). Requires "Allow
-    // encoding in HEVC" on the server; Jellyfin falls through to the h264
-    // profile below when HEVC encoding is unavailable.
+    // Primary delivery: HLS with fMP4 segments. Listing both codecs lets
+    // the server STREAM-COPY compatible sources into segments (full source
+    // quality, no GPU) and only re-encode when a CodecProfile condition
+    // fails — HDR10 becomes tonemapped 4K HEVC, oversized h264 becomes
+    // HEVC. HEVC is first so re-encodes target it (this device's h264
+    // decoder tops out at 1080p, HEVC decodes at 4K).
     {
       Type: 'Video',
       Container: 'mp4',
-      VideoCodec: 'hevc',
+      VideoCodec: 'hevc,h264',
       AudioCodec: 'aac,ac3,eac3',
       Protocol: 'hls',
       Context: 'Streaming',
@@ -48,10 +50,13 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
   ],
   ContainerProfiles: [],
   CodecProfiles: [
-    // HDR10 direct play crashes the native pipeline (KeplerMediaSink
-    // rejects the stream and the JS thread stalls in setSrcUri), so only
-    // SDR HEVC may direct-play; HDR10 sources get transcoded (tonemapped
-    // to SDR by the server).
+    // Only SDR HEVC may be stream-copied; HDR10 fails this condition and
+    // gets re-encoded to tonemapped SDR HEVC (the device sink rejects
+    // HDR10, and untonemapped HDR looks washed out).
+    // Do NOT add resolution conditions on h264 here: Jellyfin applies
+    // conditions across every codec listed in a TranscodingProfile, so an
+    // h264 width cap silently downscales HEVC output too (observed:
+    // Neighbors 4K forced to 1080p).
     {
       Type: 'Video',
       Codec: 'hevc',
@@ -60,26 +65,6 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
           Condition: 'EqualsAny',
           Property: 'VideoRangeType',
           Value: 'SDR',
-          IsRequired: true,
-        },
-      ],
-    },
-    // Fire TV hardware decodes h264 only up to 1080p (4K decode is
-    // HEVC/VP9/AV1 only), so h264 transcodes must be downscaled.
-    {
-      Type: 'Video',
-      Codec: 'h264',
-      Conditions: [
-        {
-          Condition: 'LessThanEqual',
-          Property: 'Width',
-          Value: '1920',
-          IsRequired: true,
-        },
-        {
-          Condition: 'LessThanEqual',
-          Property: 'Height',
-          Value: '1080',
           IsRequired: true,
         },
       ],
