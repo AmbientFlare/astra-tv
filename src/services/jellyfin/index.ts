@@ -131,6 +131,7 @@ export interface JellyfinStreamInfo {
   itemId: string;
   audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
+  bitrate?: number;
   height?: number;
   width?: number;
   mediaSourceId?: string;
@@ -858,6 +859,7 @@ export const getStreamUrl = async (
     audioTracks: streams
       .filter((track) => track.Type === 'Audio')
       .map((track) => mapTrack(track)),
+    bitrate: mediaSource?.Bitrate,
     height: mediaSource?.Height,
     width: mediaSource?.Width,
     mediaSourceId: mediaSource?.Id,
@@ -1193,6 +1195,35 @@ const scanCandidate = async (
   } catch {
     return null;
   }
+};
+
+export const measureServerBandwidth = async (
+  serverUrl: string,
+  accessToken: string,
+): Promise<number> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const download = async (sizeBytes: number) => {
+    const url = buildUrl(baseUrl, '/Playback/BitrateTest', {
+      Size: sizeBytes,
+      api_key: accessToken,
+    });
+    const started = Date.now();
+    const response = await fetch(url, {headers: getAuthHeaders(accessToken)});
+
+    if (!response.ok) {
+      throw new Error(`Bandwidth test failed (HTTP ${response.status}).`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const seconds = (Date.now() - started) / 1000;
+    return (buffer.byteLength * 8) / seconds;
+  };
+
+  // Small warm-up so connection setup / TLS handshake doesn't count
+  // against the real measurement.
+  await download(500000);
+  const bitsPerSecond = await download(20000000);
+  return Math.round(bitsPerSecond);
 };
 
 export const discoverServers = async ({

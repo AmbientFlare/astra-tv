@@ -1053,6 +1053,19 @@ const PlaybackSettingsOverlay = ({
 }) => (
   <View style={styles.settingsOverlay} testID="player-settings-overlay">
     <Text style={styles.settingsTitle}>Playback Options</Text>
+    <Text style={styles.settingsStreamInfo}>
+      {[
+        streamInfo.width && streamInfo.height
+          ? `${streamInfo.width}x${streamInfo.height}`
+          : undefined,
+        streamInfo.bitrate
+          ? `${(streamInfo.bitrate / 1000000).toFixed(1)} Mbps`
+          : undefined,
+        streamInfo.playMethod,
+      ]
+        .filter(Boolean)
+        .join('  •  ')}
+    </Text>
     <View style={styles.settingsGrid}>
       <SettingsColumn title="Audio">
         {streamInfo.audioTracks.length ? (
@@ -1215,6 +1228,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '800',
+    marginBottom: 4,
+  },
+  settingsStreamInfo: {
+    color: '#8FE3C0',
+    fontSize: 22,
     marginBottom: 16,
   },
   settingsGrid: {
