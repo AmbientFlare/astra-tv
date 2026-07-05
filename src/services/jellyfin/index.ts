@@ -131,6 +131,8 @@ export interface JellyfinStreamInfo {
   itemId: string;
   audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
+  height?: number;
+  width?: number;
   mediaSourceId?: string;
   playSessionId?: string;
   playMethod: 'DirectPlay' | 'DirectStream' | 'Transcode';
@@ -856,6 +858,8 @@ export const getStreamUrl = async (
     audioTracks: streams
       .filter((track) => track.Type === 'Audio')
       .map((track) => mapTrack(track)),
+    height: mediaSource?.Height,
+    width: mediaSource?.Width,
     mediaSourceId: mediaSource?.Id,
     playSessionId: response.PlaySessionId,
     playMethod,
