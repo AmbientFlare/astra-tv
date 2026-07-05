@@ -32,7 +32,30 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
     },
   ],
   ContainerProfiles: [],
-  CodecProfiles: [],
+  CodecProfiles: [
+    // Fire TV hardware decodes h264 only up to 1080p (4K decode is
+    // HEVC/VP9/AV1 only). Without this cap, Jellyfin transcodes 4K sources
+    // to 4K h264, which the device's capability check rejects — Shaka then
+    // filters out every variant and playback silently stalls.
+    {
+      Type: 'Video',
+      Codec: 'h264',
+      Conditions: [
+        {
+          Condition: 'LessThanEqual',
+          Property: 'Width',
+          Value: '1920',
+          IsRequired: true,
+        },
+        {
+          Condition: 'LessThanEqual',
+          Property: 'Height',
+          Value: '1080',
+          IsRequired: true,
+        },
+      ],
+    },
+  ],
   SubtitleProfiles: [
     {Format: 'vtt', Method: 'External'},
     {Format: 'srt', Method: 'External'},
