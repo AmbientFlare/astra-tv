@@ -362,16 +362,46 @@ export const PlayerScreen = ({
       unloadAdaptivePlayer();
       const shakaPlayer = new ShakaPlayer(video, settings);
       shakaPlayerRef.current = shakaPlayer;
-      await shakaPlayer.load(
-        {
-          uri: stream.url,
-          format: stream.url.includes('.mpd') ? 'DASH' : 'HLS',
-          secure: settings.secure,
-          drm_scheme: '',
-          drm_license_uri: '',
-        },
-        false,
-      );
+      try {
+        await shakaPlayer.load(
+          {
+            uri: stream.url,
+            format: stream.url.includes('.mpd') ? 'DASH' : 'HLS',
+            secure: settings.secure,
+            drm_scheme: '',
+            drm_license_uri: '',
+          },
+          false,
+        );
+      } catch (error) {
+        // Shaka rejects with shaka.util.Error, which is not an Error
+        // instance — without this it surfaces as a blank "Unable to start
+        // playback" with no diagnostic trail.
+        const shakaError = error as {
+          code?: number;
+          category?: number;
+          severity?: number;
+          data?: unknown[];
+        };
+        console.error(
+          '[Astra] Shaka load failed:',
+          'code:',
+          shakaError?.code,
+          'category:',
+          shakaError?.category,
+          'severity:',
+          shakaError?.severity,
+          'data:',
+          JSON.stringify(shakaError?.data ?? []).slice(0, 500),
+        );
+        throw error instanceof Error
+          ? error
+          : new Error(
+              `Stream engine error ${shakaError?.code ?? 'unknown'} (category ${
+                shakaError?.category ?? '?'
+              })`,
+            );
+      }
     },
     [unloadAdaptivePlayer],
   );
