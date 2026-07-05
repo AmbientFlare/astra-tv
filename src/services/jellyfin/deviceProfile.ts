@@ -10,6 +10,23 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
     },
   ],
   TranscodingProfiles: [
+    // Primary delivery: HLS with fMP4 segments. Listing both codecs lets
+    // the server STREAM-COPY compatible sources into segments (full source
+    // quality, no GPU) and only re-encode when a CodecProfile condition
+    // fails — HDR10 becomes tonemapped 4K HEVC, oversized h264 becomes
+    // HEVC. HEVC is first so re-encodes target it (this device's h264
+    // decoder tops out at 1080p, HEVC decodes at 4K).
+    {
+      Type: 'Video',
+      Container: 'mp4',
+      VideoCodec: 'hevc,h264',
+      AudioCodec: 'aac,ac3,eac3',
+      Protocol: 'hls',
+      Context: 'Streaming',
+      MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
+      MinSegments: 1,
+      BreakOnNonKeyFrames: true,
+    },
     {
       Type: 'Video',
       Container: 'ts',
@@ -32,7 +49,27 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
     },
   ],
   ContainerProfiles: [],
-  CodecProfiles: [],
+  CodecProfiles: [
+    // Only SDR HEVC may be stream-copied; HDR10 fails this condition and
+    // gets re-encoded to tonemapped SDR HEVC (the device sink rejects
+    // HDR10, and untonemapped HDR looks washed out).
+    // Do NOT add resolution conditions on h264 here: Jellyfin applies
+    // conditions across every codec listed in a TranscodingProfile, so an
+    // h264 width cap silently downscales HEVC output too (observed:
+    // Neighbors 4K forced to 1080p).
+    {
+      Type: 'Video',
+      Codec: 'hevc',
+      Conditions: [
+        {
+          Condition: 'EqualsAny',
+          Property: 'VideoRangeType',
+          Value: 'SDR',
+          IsRequired: true,
+        },
+      ],
+    },
+  ],
   SubtitleProfiles: [
     {Format: 'vtt', Method: 'External'},
     {Format: 'srt', Method: 'External'},

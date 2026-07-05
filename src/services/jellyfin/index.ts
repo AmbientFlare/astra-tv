@@ -129,7 +129,11 @@ export interface JellyfinQualityOption {
 
 export interface JellyfinStreamInfo {
   itemId: string;
+  audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
+  bitrate?: number;
+  height?: number;
+  width?: number;
   mediaSourceId?: string;
   playSessionId?: string;
   playMethod: 'DirectPlay' | 'DirectStream' | 'Transcode';
@@ -713,8 +717,14 @@ export const getStreamUrl = async (
           options.alwaysBurnInSubtitleWhenTranscoding,
         MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
         MaxAudioChannels: prefs.maxAudioChannels,
-        EnableDirectPlay: !options.forceTranscode,
-        EnableDirectStream: true,
+        // Everything is delivered over HLS — no direct play. Raw-file
+        // direct play blocks the JS thread inside setSrcUri when
+        // KeplerMediaSink rejects a stream (HDR10), and byte-range seeking
+        // into raw files is unreliable; HLS segments seek cleanly.
+        // Compatible sources are stream-copied by the server (full source
+        // quality), so this costs nothing for most of the library.
+        EnableDirectPlay: false,
+        EnableDirectStream: false,
         AllowVideoStreamCopy: !options.forceTranscode,
         AllowAudioStreamCopy: true,
         AutoOpenLiveStream: true,
@@ -845,9 +855,13 @@ export const getStreamUrl = async (
 
   return {
     itemId,
+    audioStreamIndex: selectedAudioStreamIndex ?? undefined,
     audioTracks: streams
       .filter((track) => track.Type === 'Audio')
       .map((track) => mapTrack(track)),
+    bitrate: mediaSource?.Bitrate,
+    height: mediaSource?.Height,
+    width: mediaSource?.Width,
     mediaSourceId: mediaSource?.Id,
     playSessionId: response.PlaySessionId,
     playMethod,
@@ -1181,6 +1195,35 @@ const scanCandidate = async (
   } catch {
     return null;
   }
+};
+
+export const measureServerBandwidth = async (
+  serverUrl: string,
+  accessToken: string,
+): Promise<number> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const download = async (sizeBytes: number) => {
+    const url = buildUrl(baseUrl, '/Playback/BitrateTest', {
+      Size: sizeBytes,
+      api_key: accessToken,
+    });
+    const started = Date.now();
+    const response = await fetch(url, {headers: getAuthHeaders(accessToken)});
+
+    if (!response.ok) {
+      throw new Error(`Bandwidth test failed (HTTP ${response.status}).`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const seconds = (Date.now() - started) / 1000;
+    return (buffer.byteLength * 8) / seconds;
+  };
+
+  // Small warm-up so connection setup / TLS handshake doesn't count
+  // against the real measurement.
+  await download(500000);
+  const bitsPerSecond = await download(20000000);
+  return Math.round(bitsPerSecond);
 };
 
 export const discoverServers = async ({

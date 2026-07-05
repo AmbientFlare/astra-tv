@@ -14,6 +14,7 @@ import {
   DiscoveredServer,
   discoverServers,
 } from '../../services/jellyfin';
+import {getLocalSubnetPrefixes} from '../../services/network';
 import {
   ServerProfile,
   ServerType,
@@ -45,7 +46,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
     try {
       const servers = await discoverServers({
-        subnetPrefixes: ['192.168.1'],
+        subnetPrefixes: await getLocalSubnetPrefixes(),
         timeoutMs: 180,
       });
       setDiscoveredServers(servers);
@@ -63,7 +64,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
     const scan = async () => {
       const servers = await discoverServers({
-        subnetPrefixes: ['192.168.1'],
+        subnetPrefixes: await getLocalSubnetPrefixes(),
         timeoutMs: 180,
       });
 

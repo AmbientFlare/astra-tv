@@ -27,7 +27,7 @@ import {
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
-type PlaybackPanel = 'audio' | 'subtitles' | 'quality' | 'speed' | 'chapters';
+type PlaybackPanel = 'audio' | 'subtitles';
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -39,6 +39,10 @@ interface PlayerScreenProps {
 
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
+
+// For content without embedded chapters, the FF/RW keys jump across this
+// many evenly spaced synthetic chapters instead.
+const SYNTHETIC_CHAPTER_COUNT = 12;
 
 const isAdaptiveStream = (url: string) =>
   url.includes('.m3u8') || url.includes('.mpd');
@@ -146,11 +150,17 @@ export const PlayerScreen = ({
 
   const currentPositionTicks = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
+    // A freshly created or failed video element reports currentTime 0;
+    // trusting it would wipe a real resume position during error retries.
+    // Deliberate seeks to 0 update latestPositionTicks directly, so a zero
+    // here with a non-zero ref can only be a dead element.
+    const isTrustworthy =
+      typeof currentTime === 'number' &&
+      Number.isFinite(currentTime) &&
+      (currentTime > 0 || latestPositionTicks.current === 0);
 
     latestPositionTicks.current = toTicks(
-      typeof currentTime === 'number' && Number.isFinite(currentTime)
-        ? currentTime
-        : undefined,
+      isTrustworthy ? currentTime : undefined,
       latestPositionTicks.current / TICKS_PER_SECOND,
     );
 
@@ -313,6 +323,60 @@ export const PlayerScreen = ({
     [seekToSeconds],
   );
 
+  const jumpChapter = useCallback(
+    (direction: 1 | -1) => {
+      const video = videoRef.current;
+
+      if (!video || typeof video.currentTime !== 'number') {
+        return;
+      }
+
+      const duration =
+        typeof video.duration === 'number' &&
+        Number.isFinite(video.duration) &&
+        video.duration > 0
+          ? video.duration
+          : (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+            TICKS_PER_SECOND;
+
+      if (duration <= 0) {
+        seek(direction * preferredSeekSeconds);
+        return;
+      }
+
+      const realChapters = (item.chapters ?? [])
+        .map((chapter) => chapter.startPositionTicks / TICKS_PER_SECOND)
+        .filter((seconds) => seconds >= 0 && seconds < duration)
+        .sort((a, b) => a - b);
+      const boundaries =
+        realChapters.length >= 2
+          ? realChapters
+          : Array.from(
+              {length: SYNTHETIC_CHAPTER_COUNT},
+              (_, index) => (duration * index) / SYNTHETIC_CHAPTER_COUNT,
+            );
+      const current = video.currentTime;
+      // Backward uses a small grace window so a quick double-press crosses
+      // into the previous chapter instead of re-snapping to the current one.
+      const target =
+        direction > 0
+          ? boundaries.find((seconds) => seconds > current + 2)
+          : [...boundaries].reverse().find((seconds) => seconds < current - 3);
+
+      if (target === undefined) {
+        if (direction < 0) {
+          seekToSeconds(0);
+        }
+        // Already in the last chapter: do nothing rather than jump to the
+        // end and accidentally finish the movie.
+        return;
+      }
+
+      seekToSeconds(target);
+    },
+    [item, preferredSeekSeconds, seek, seekToSeconds],
+  );
+
   const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
 
@@ -356,16 +420,46 @@ export const PlayerScreen = ({
       unloadAdaptivePlayer();
       const shakaPlayer = new ShakaPlayer(video, settings);
       shakaPlayerRef.current = shakaPlayer;
-      await shakaPlayer.load(
-        {
-          uri: stream.url,
-          format: stream.url.includes('.mpd') ? 'DASH' : 'HLS',
-          secure: settings.secure,
-          drm_scheme: '',
-          drm_license_uri: '',
-        },
-        false,
-      );
+      try {
+        await shakaPlayer.load(
+          {
+            uri: stream.url,
+            format: stream.url.includes('.mpd') ? 'DASH' : 'HLS',
+            secure: settings.secure,
+            drm_scheme: '',
+            drm_license_uri: '',
+          },
+          false,
+        );
+      } catch (error) {
+        // Shaka rejects with shaka.util.Error, which is not an Error
+        // instance — without this it surfaces as a blank "Unable to start
+        // playback" with no diagnostic trail.
+        const shakaError = error as {
+          code?: number;
+          category?: number;
+          severity?: number;
+          data?: unknown[];
+        };
+        console.error(
+          '[Astra] Shaka load failed:',
+          'code:',
+          shakaError?.code,
+          'category:',
+          shakaError?.category,
+          'severity:',
+          shakaError?.severity,
+          'data:',
+          JSON.stringify(shakaError?.data ?? []).slice(0, 500),
+        );
+        throw error instanceof Error
+          ? error
+          : new Error(
+              `Stream engine error ${shakaError?.code ?? 'unknown'} (category ${
+                shakaError?.category ?? '?'
+              })`,
+            );
+      }
     },
     [unloadAdaptivePlayer],
   );
@@ -378,8 +472,20 @@ export const PlayerScreen = ({
 
       video.addEventListener('playing', () => {
         setPaused(false);
+        const videoWithDimensions = video as VideoPlayer & {
+          videoWidth?: number;
+          videoHeight?: number;
+        };
+        // The w3cmedia element doesn't populate videoWidth/videoHeight, so
+        // fall back to the source dimensions from PlaybackInfo — with
+        // stream copy (and unscaled HDR re-encodes) output equals source.
+        const width =
+          videoWithDimensions.videoWidth || streamInfo.current?.width;
+        const height =
+          videoWithDimensions.videoHeight || streamInfo.current?.height;
+        const resolution = width && height ? ` ${width}x${height}` : '';
         setStatusText(
-          `Playing (${streamInfo.current?.playMethod ?? 'stream'})`,
+          `Playing (${streamInfo.current?.playMethod ?? 'stream'}${resolution})`,
         );
         scheduleControlsHide();
       });
@@ -483,7 +589,15 @@ export const PlayerScreen = ({
         selectedAudioIndex.current === undefined &&
         stream.audioTracks.length
       ) {
+        // The service already picked a track (language/channel-aware) and
+        // baked it into the stream URL — the UI selection must match it, or
+        // a later reload silently switches audio tracks.
         const defaultTrack =
+          (stream.audioStreamIndex !== undefined
+            ? stream.audioTracks.find(
+                (track) => track.index === stream.audioStreamIndex,
+              )
+            : undefined) ??
           stream.audioTracks.find((track) => track.isDefault) ??
           stream.audioTracks.find((track) =>
             track.language?.toLowerCase().startsWith('en'),
@@ -633,7 +747,11 @@ export const PlayerScreen = ({
 
   useTVEventHandler((event) => {
     const now = Date.now();
-    const key = `${event.eventType}:${event.eventKeyAction ?? 'none'}`;
+    // Vega delivers both key phases of one physical press (down + up, and
+    // for some keys a separate "_up" event type). Deduplicate on the
+    // normalized event type alone so a single press is a single command —
+    // keying on eventKeyAction made select/menu/back fire twice.
+    const key = (event.eventType ?? '').replace(/_up$/, '');
 
     if (
       lastHandledKeyEvent.current.type === key &&
@@ -643,7 +761,11 @@ export const PlayerScreen = ({
     }
     lastHandledKeyEvent.current = {time: now, type: key};
 
-    revealControls(!settingsPanel && !showExitConfirm);
+    // Back dismisses one layer at a time and must not reveal the controls
+    // it is about to dismiss.
+    if (key !== 'back') {
+      revealControls(!settingsPanel && !showExitConfirm);
+    }
 
     switch (event.eventType) {
       case 'back':
@@ -651,6 +773,9 @@ export const PlayerScreen = ({
           setSettingsPanel(null);
         } else if (showExitConfirm) {
           setShowExitConfirm(false);
+        } else if (showControls) {
+          clearControlsHideTimer();
+          setShowControls(false);
         } else {
           setShowExitConfirm(true);
         }
@@ -673,15 +798,19 @@ export const PlayerScreen = ({
         break;
       case 'right':
       case 'right_up':
+        seek(preferredSeekSeconds);
+        break;
       case 'forward':
       case 'skip_forward':
-        seek(preferredSeekSeconds);
+        jumpChapter(1);
         break;
       case 'left':
       case 'left_up':
+        seek(-preferredSeekSeconds);
+        break;
       case 'rewind':
       case 'skip_backward':
-        seek(-preferredSeekSeconds);
+        jumpChapter(-1);
         break;
     }
   });
@@ -751,7 +880,7 @@ export const PlayerScreen = ({
       }).catch((error) => {
         console.warn('Failed to report playback progress', error);
       });
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [accessToken, currentPositionTicks, isPaused, serverUrl]);
@@ -834,20 +963,6 @@ export const PlayerScreen = ({
     [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer],
   );
 
-  const setSpeed = useCallback((rate: number) => {
-    setPlaybackRate(rate);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = rate;
-    }
-  }, []);
-
-  const seekToChapter = useCallback(
-    (startPositionTicks: number) => {
-      seekToSeconds(startPositionTicks / TICKS_PER_SECOND, true);
-    },
-    [seekToSeconds],
-  );
-
   const durationSeconds =
     typeof videoRef.current?.duration === 'number' &&
     videoRef.current.duration > 0
@@ -887,29 +1002,9 @@ export const PlayerScreen = ({
       ) : null}
       {settingsPanel && currentStream ? (
         <PlaybackSettingsOverlay
-          activePanel={settingsPanel}
           onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
-          onSelectQuality={(quality) => {
-            const forceQualityTranscode =
-              quality.id !== 'auto' &&
-              quality.id !== 'source' &&
-              Boolean(quality.bitrate);
-
-            reloadWithTrack({
-              bitrate:
-                quality.id === 'auto' || quality.id === 'source'
-                  ? null
-                  : quality.bitrate,
-              forceTranscode: forceQualityTranscode,
-            });
-          }}
           onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
-          onSetSpeed={setSpeed}
-          onSelectChapter={seekToChapter}
-          item={item}
-          playbackRate={playbackRate}
           selectedAudioIndex={selectedAudioTrackIndex}
-          selectedQualityId={selectedQualityId}
           selectedSubtitleIndex={selectedSubtitleTrackIndex}
           streamInfo={currentStream}
         />
@@ -940,34 +1035,37 @@ export const PlayerScreen = ({
   );
 };
 
+// Only track selection lives in-player; quality/speed/chapters were removed
+// deliberately — chapters ride the FF/RW keys, and quality is meant to be
+// configured outside the playback window.
 const PlaybackSettingsOverlay = ({
-  item,
-  onSelectChapter,
   onSelectAudio,
-  onSelectQuality,
   onSelectSubtitle,
-  onSetSpeed,
-  playbackRate,
   selectedAudioIndex,
-  selectedQualityId,
   selectedSubtitleIndex,
   streamInfo,
 }: {
-  activePanel: PlaybackPanel;
-  item: JellyfinMediaItem;
-  onSelectChapter: (startPositionTicks: number) => void;
   onSelectAudio: (track: JellyfinMediaTrack) => void;
-  onSelectQuality: (quality: JellyfinQualityOption) => void;
   onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
-  onSetSpeed: (rate: number) => void;
-  playbackRate: number;
   selectedAudioIndex?: number;
-  selectedQualityId: string;
   selectedSubtitleIndex?: number;
   streamInfo: JellyfinStreamInfo;
 }) => (
   <View style={styles.settingsOverlay} testID="player-settings-overlay">
     <Text style={styles.settingsTitle}>Playback Options</Text>
+    <Text style={styles.settingsStreamInfo}>
+      {[
+        streamInfo.width && streamInfo.height
+          ? `${streamInfo.width}x${streamInfo.height}`
+          : undefined,
+        streamInfo.bitrate
+          ? `${(streamInfo.bitrate / 1000000).toFixed(1)} Mbps`
+          : undefined,
+        streamInfo.playMethod,
+      ]
+        .filter(Boolean)
+        .join('  •  ')}
+    </Text>
     <View style={styles.settingsGrid}>
       <SettingsColumn title="Audio">
         {streamInfo.audioTracks.length ? (
@@ -998,40 +1096,6 @@ const PlaybackSettingsOverlay = ({
           />
         ))}
       </SettingsColumn>
-      <SettingsColumn title="Quality">
-        {streamInfo.qualityOptions.map((quality) => (
-          <SettingsButton
-            key={quality.id}
-            label={quality.label || 'Auto'}
-            onPress={() => onSelectQuality(quality)}
-            selected={
-              quality.id === selectedQualityId ||
-              (quality.id === 'auto' && selectedQualityId === 'auto')
-            }
-          />
-        ))}
-      </SettingsColumn>
-      <SettingsColumn title="Speed">
-        {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
-          <SettingsButton
-            key={rate}
-            label={`${rate}x`}
-            onPress={() => onSetSpeed(rate)}
-            selected={rate === playbackRate}
-          />
-        ))}
-      </SettingsColumn>
-      {item.chapters?.length ? (
-        <SettingsColumn title="Chapters">
-          {item.chapters.map((chapter) => (
-            <SettingsButton
-              key={`${chapter.startPositionTicks}-${chapter.name}`}
-              label={chapter.name}
-              onPress={() => onSelectChapter(chapter.startPositionTicks)}
-            />
-          ))}
-        </SettingsColumn>
-      ) : null}
     </View>
   </View>
 );
@@ -1164,6 +1228,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '800',
+    marginBottom: 4,
+  },
+  settingsStreamInfo: {
+    color: '#8FE3C0',
+    fontSize: 22,
     marginBottom: 16,
   },
   settingsGrid: {
