@@ -714,11 +714,13 @@ export const getStreamUrl = async (
           options.alwaysBurnInSubtitleWhenTranscoding,
         MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
         MaxAudioChannels: prefs.maxAudioChannels,
-        // Direct play is allowed except where CodecProfiles forbid it —
-        // notably HDR10 HEVC, whose direct play blocks the JS thread inside
-        // setSrcUri when KeplerMediaSink rejects the stream. Anything the
-        // profile rules out is delivered as an HLS transcode instead.
-        EnableDirectPlay: !options.forceTranscode,
+        // Everything is delivered over HLS — no direct play. Raw-file
+        // direct play blocks the JS thread inside setSrcUri when
+        // KeplerMediaSink rejects a stream (HDR10), and byte-range seeking
+        // into raw files is unreliable; HLS segments seek cleanly.
+        // Compatible sources are stream-copied by the server (full source
+        // quality), so this costs nothing for most of the library.
+        EnableDirectPlay: false,
         EnableDirectStream: false,
         AllowVideoStreamCopy: !options.forceTranscode,
         AllowAudioStreamCopy: true,

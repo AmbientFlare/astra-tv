@@ -743,7 +743,11 @@ export const PlayerScreen = ({
 
   useTVEventHandler((event) => {
     const now = Date.now();
-    const key = `${event.eventType}:${event.eventKeyAction ?? 'none'}`;
+    // Vega delivers both key phases of one physical press (down + up, and
+    // for some keys a separate "_up" event type). Deduplicate on the
+    // normalized event type alone so a single press is a single command —
+    // keying on eventKeyAction made select/menu/back fire twice.
+    const key = (event.eventType ?? '').replace(/_up$/, '');
 
     if (
       lastHandledKeyEvent.current.type === key &&
