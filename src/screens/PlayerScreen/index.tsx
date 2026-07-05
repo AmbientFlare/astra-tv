@@ -27,7 +27,7 @@ import {
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
-type PlaybackPanel = 'audio' | 'subtitles' | 'quality' | 'speed' | 'chapters';
+type PlaybackPanel = 'audio' | 'subtitles';
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -476,10 +476,14 @@ export const PlayerScreen = ({
           videoWidth?: number;
           videoHeight?: number;
         };
-        const resolution =
-          videoWithDimensions.videoWidth && videoWithDimensions.videoHeight
-            ? ` ${videoWithDimensions.videoWidth}x${videoWithDimensions.videoHeight}`
-            : '';
+        // The w3cmedia element doesn't populate videoWidth/videoHeight, so
+        // fall back to the source dimensions from PlaybackInfo — with
+        // stream copy (and unscaled HDR re-encodes) output equals source.
+        const width =
+          videoWithDimensions.videoWidth || streamInfo.current?.width;
+        const height =
+          videoWithDimensions.videoHeight || streamInfo.current?.height;
+        const resolution = width && height ? ` ${width}x${height}` : '';
         setStatusText(
           `Playing (${streamInfo.current?.playMethod ?? 'stream'}${resolution})`,
         );
@@ -757,7 +761,11 @@ export const PlayerScreen = ({
     }
     lastHandledKeyEvent.current = {time: now, type: key};
 
-    revealControls(!settingsPanel && !showExitConfirm);
+    // Back dismisses one layer at a time and must not reveal the controls
+    // it is about to dismiss.
+    if (key !== 'back') {
+      revealControls(!settingsPanel && !showExitConfirm);
+    }
 
     switch (event.eventType) {
       case 'back':
@@ -765,6 +773,9 @@ export const PlayerScreen = ({
           setSettingsPanel(null);
         } else if (showExitConfirm) {
           setShowExitConfirm(false);
+        } else if (showControls) {
+          clearControlsHideTimer();
+          setShowControls(false);
         } else {
           setShowExitConfirm(true);
         }
@@ -952,20 +963,6 @@ export const PlayerScreen = ({
     [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer],
   );
 
-  const setSpeed = useCallback((rate: number) => {
-    setPlaybackRate(rate);
-    if (videoRef.current) {
-      videoRef.current.playbackRate = rate;
-    }
-  }, []);
-
-  const seekToChapter = useCallback(
-    (startPositionTicks: number) => {
-      seekToSeconds(startPositionTicks / TICKS_PER_SECOND, true);
-    },
-    [seekToSeconds],
-  );
-
   const durationSeconds =
     typeof videoRef.current?.duration === 'number' &&
     videoRef.current.duration > 0
@@ -1005,29 +1002,9 @@ export const PlayerScreen = ({
       ) : null}
       {settingsPanel && currentStream ? (
         <PlaybackSettingsOverlay
-          activePanel={settingsPanel}
           onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
-          onSelectQuality={(quality) => {
-            const forceQualityTranscode =
-              quality.id !== 'auto' &&
-              quality.id !== 'source' &&
-              Boolean(quality.bitrate);
-
-            reloadWithTrack({
-              bitrate:
-                quality.id === 'auto' || quality.id === 'source'
-                  ? null
-                  : quality.bitrate,
-              forceTranscode: forceQualityTranscode,
-            });
-          }}
           onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
-          onSetSpeed={setSpeed}
-          onSelectChapter={seekToChapter}
-          item={item}
-          playbackRate={playbackRate}
           selectedAudioIndex={selectedAudioTrackIndex}
-          selectedQualityId={selectedQualityId}
           selectedSubtitleIndex={selectedSubtitleTrackIndex}
           streamInfo={currentStream}
         />
@@ -1058,29 +1035,19 @@ export const PlayerScreen = ({
   );
 };
 
+// Only track selection lives in-player; quality/speed/chapters were removed
+// deliberately — chapters ride the FF/RW keys, and quality is meant to be
+// configured outside the playback window.
 const PlaybackSettingsOverlay = ({
-  item,
-  onSelectChapter,
   onSelectAudio,
-  onSelectQuality,
   onSelectSubtitle,
-  onSetSpeed,
-  playbackRate,
   selectedAudioIndex,
-  selectedQualityId,
   selectedSubtitleIndex,
   streamInfo,
 }: {
-  activePanel: PlaybackPanel;
-  item: JellyfinMediaItem;
-  onSelectChapter: (startPositionTicks: number) => void;
   onSelectAudio: (track: JellyfinMediaTrack) => void;
-  onSelectQuality: (quality: JellyfinQualityOption) => void;
   onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
-  onSetSpeed: (rate: number) => void;
-  playbackRate: number;
   selectedAudioIndex?: number;
-  selectedQualityId: string;
   selectedSubtitleIndex?: number;
   streamInfo: JellyfinStreamInfo;
 }) => (
@@ -1116,40 +1083,6 @@ const PlaybackSettingsOverlay = ({
           />
         ))}
       </SettingsColumn>
-      <SettingsColumn title="Quality">
-        {streamInfo.qualityOptions.map((quality) => (
-          <SettingsButton
-            key={quality.id}
-            label={quality.label || 'Auto'}
-            onPress={() => onSelectQuality(quality)}
-            selected={
-              quality.id === selectedQualityId ||
-              (quality.id === 'auto' && selectedQualityId === 'auto')
-            }
-          />
-        ))}
-      </SettingsColumn>
-      <SettingsColumn title="Speed">
-        {[0.5, 1, 1.25, 1.5, 2].map((rate) => (
-          <SettingsButton
-            key={rate}
-            label={`${rate}x`}
-            onPress={() => onSetSpeed(rate)}
-            selected={rate === playbackRate}
-          />
-        ))}
-      </SettingsColumn>
-      {item.chapters?.length ? (
-        <SettingsColumn title="Chapters">
-          {item.chapters.map((chapter) => (
-            <SettingsButton
-              key={`${chapter.startPositionTicks}-${chapter.name}`}
-              label={chapter.name}
-              onPress={() => onSelectChapter(chapter.startPositionTicks)}
-            />
-          ))}
-        </SettingsColumn>
-      ) : null}
     </View>
   </View>
 );

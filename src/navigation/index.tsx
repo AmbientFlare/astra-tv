@@ -149,6 +149,14 @@ export const RootNavigator = () => {
       return true;
     }
 
+    if (current.route === 'player') {
+      // PlayerScreen owns back while playing: it closes its overlays first
+      // and shows its own exit confirm, which calls onBack/pop. Popping
+      // here too would yank the user out of the movie on the first press.
+      resetExitPresses();
+      return true;
+    }
+
     if (route === 'loading') {
       requestExitConfirmation();
       return true;
