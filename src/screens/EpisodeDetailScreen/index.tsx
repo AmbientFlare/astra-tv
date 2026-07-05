@@ -82,9 +82,7 @@ export const EpisodeDetailScreen = ({
   serverProfile,
 }: EpisodeDetailScreenProps) => {
   const [detail, setDetail] = useState(item);
-  const [seasonEpisodes, setSeasonEpisodes] = useState<JellyfinMediaItem[]>(
-    [],
-  );
+  const [seasonEpisodes, setSeasonEpisodes] = useState<JellyfinMediaItem[]>([]);
   const [seriesItem, setSeriesItem] = useState<JellyfinMediaItem | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isUpdatingUserData, setUpdatingUserData] = useState(false);
@@ -243,7 +241,9 @@ export const EpisodeDetailScreen = ({
         ) : null}
         <View style={styles.heroShade} />
         <View style={styles.heroContent}>
-          <Text style={styles.seriesName}>{detail.seriesName ?? 'Episode'}</Text>
+          <Text style={styles.seriesName}>
+            {detail.seriesName ?? 'Episode'}
+          </Text>
           <Text style={styles.title}>{detail.name}</Text>
           <Text style={styles.meta}>{meta.join('  |  ')}</Text>
           {badges.length ? (
@@ -256,7 +256,13 @@ export const EpisodeDetailScreen = ({
             </View>
           ) : null}
           <Text style={styles.meta}>
-            {[detail.genres?.join(' / '), formatRuntime(detail.runTimeTicks), formatEndsAt(detail.runTimeTicks) ? `Ends at ${formatEndsAt(detail.runTimeTicks)}` : null]
+            {[
+              detail.genres?.join(' / '),
+              formatRuntime(detail.runTimeTicks),
+              formatEndsAt(detail.runTimeTicks)
+                ? `Ends at ${formatEndsAt(detail.runTimeTicks)}`
+                : null,
+            ]
               .filter(Boolean)
               .join('  |  ')}
           </Text>
@@ -415,7 +421,9 @@ const PersonCard = ({
     onPress={onPress}
     style={styles.personCard}
     testID={`episode-person-${name}`}>
-    {imageUrl ? <Image source={{uri: imageUrl}} style={styles.personImage} /> : null}
+    {imageUrl ? (
+      <Image source={{uri: imageUrl}} style={styles.personImage} />
+    ) : null}
     <Text numberOfLines={1} style={styles.personName}>
       {name}
     </Text>

@@ -1,6 +1,9 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {TVFocusGuideView, useTVEventHandler} from '@amazon-devices/react-native-kepler';
+import {
+  TVFocusGuideView,
+  useTVEventHandler,
+} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {measureServerBandwidth} from '../../services/jellyfin';
@@ -108,7 +111,8 @@ export const SettingsScreen = ({
   } | null>(null);
 
   const current = stack[stack.length - 1];
-  const push = (entry: SettingsRoute) => setStack((entries) => [...entries, entry]);
+  const push = (entry: SettingsRoute) =>
+    setStack((entries) => [...entries, entry]);
   const pop = useCallback(() => {
     if (stack.length > 1) {
       setStack((entries) => entries.slice(0, -1));
@@ -183,7 +187,9 @@ export const SettingsScreen = ({
             <MenuRow
               icon="▣"
               title="Manage servers"
-              subtitle={`${profiles.length} saved server${profiles.length === 1 ? '' : 's'}`}
+              subtitle={`${profiles.length} saved server${
+                profiles.length === 1 ? '' : 's'
+              }`}
               onPress={() => push({route: 'manageServers'})}
             />
           </Page>
@@ -238,7 +244,9 @@ export const SettingsScreen = ({
               subtitle={`Last used on ${new Date(
                 current.profile.lastUsed,
               ).toLocaleDateString()}`}
-              onPress={() => push({route: 'accountDetail', profile: current.profile})}
+              onPress={() =>
+                push({route: 'accountDetail', profile: current.profile})
+              }
             />
             <Text style={styles.groupTitle}>Server</Text>
             <DangerRow
@@ -251,7 +259,11 @@ export const SettingsScreen = ({
                   onConfirm: async () => {
                     await removeServerProfile(current.profile.id);
                     await refreshProfiles();
-                    setStack([{route: 'preferences'}, {route: 'login'}, {route: 'manageServers'}]);
+                    setStack([
+                      {route: 'preferences'},
+                      {route: 'login'},
+                      {route: 'manageServers'},
+                    ]);
                   },
                 })
               }
@@ -286,7 +298,11 @@ export const SettingsScreen = ({
                   onConfirm: async () => {
                     await removeServerProfile(current.profile.id);
                     await refreshProfiles();
-                    setStack([{route: 'preferences'}, {route: 'login'}, {route: 'manageServers'}]);
+                    setStack([
+                      {route: 'preferences'},
+                      {route: 'login'},
+                      {route: 'manageServers'},
+                    ]);
                   },
                 })
               }
@@ -419,8 +435,18 @@ export const SettingsScreen = ({
               }
               onPress={() => push({route: 'audioLanguage'})}
             />
-            <MenuRow icon="▱" title="Preferred subtitle language" subtitle={preferences.preferredSubtitleLanguage} onPress={() => push({route: 'subtitleLanguage'})} />
-            <MenuRow icon="▰" title="Subtitle mode" subtitle={labelForSubtitleMode(preferences.subtitleMode)} onPress={() => push({route: 'subtitleMode'})} />
+            <MenuRow
+              icon="▱"
+              title="Preferred subtitle language"
+              subtitle={preferences.preferredSubtitleLanguage}
+              onPress={() => push({route: 'subtitleLanguage'})}
+            />
+            <MenuRow
+              icon="▰"
+              title="Subtitle mode"
+              subtitle={labelForSubtitleMode(preferences.subtitleMode)}
+              onPress={() => push({route: 'subtitleMode'})}
+            />
             <ToggleRow
               title="Next episode autoplay"
               subtitle={`Countdown: ${preferences.nextEpisodeCountdownSeconds}s`}
@@ -432,14 +458,37 @@ export const SettingsScreen = ({
               }
             />
             {preferences.nextEpisodeAutoplay ? (
-              <MenuRow icon="◷" title="Countdown duration" subtitle={`${preferences.nextEpisodeCountdownSeconds}s`} onPress={() => push({route: 'autoplayCountdown'})} />
+              <MenuRow
+                icon="◷"
+                title="Countdown duration"
+                subtitle={`${preferences.nextEpisodeCountdownSeconds}s`}
+                onPress={() => push({route: 'autoplayCountdown'})}
+              />
             ) : null}
-            <MenuRow icon="»" title="Seek duration" subtitle={`${playbackPrefs.seekDurationSeconds}s`} onPress={() => push({route: 'seekDuration'})} />
-            <MenuRow icon="⊘" title="Skip intro/credits" subtitle={labelForSkip(preferences.skipIntroCredits)} onPress={() => push({route: 'skipIntro'})} />
+            <MenuRow
+              icon="»"
+              title="Seek duration"
+              subtitle={`${playbackPrefs.seekDurationSeconds}s`}
+              onPress={() => push({route: 'seekDuration'})}
+            />
+            <MenuRow
+              icon="⊘"
+              title="Skip intro/credits"
+              subtitle={labelForSkip(preferences.skipIntroCredits)}
+              onPress={() => push({route: 'skipIntro'})}
+            />
           </Page>
         );
       case 'maxBitrate':
-        return <RadioPage title="Max streaming bitrate" onBack={pop} options={bitrateOptions} selectedValue={playbackPrefs.maxBitrateBps} onSelect={(maxBitrateBps) => savePlaybackPrefs({maxBitrateBps})} />;
+        return (
+          <RadioPage
+            title="Max streaming bitrate"
+            onBack={pop}
+            options={bitrateOptions}
+            selectedValue={playbackPrefs.maxBitrateBps}
+            onSelect={(maxBitrateBps) => savePlaybackPrefs({maxBitrateBps})}
+          />
+        );
       case 'connectionTest':
         return (
           <ConnectionTestPage
@@ -486,24 +535,76 @@ export const SettingsScreen = ({
           </Page>
         );
       case 'subtitleLanguage':
-        return <RadioPage title="Preferred subtitle language" onBack={pop} options={languageOptions} selectedValue={preferences.preferredSubtitleLanguage} onSelect={(preferredSubtitleLanguage) => savePreferences({preferredSubtitleLanguage})} />;
+        return (
+          <RadioPage
+            title="Preferred subtitle language"
+            onBack={pop}
+            options={languageOptions}
+            selectedValue={preferences.preferredSubtitleLanguage}
+            onSelect={(preferredSubtitleLanguage) =>
+              savePreferences({preferredSubtitleLanguage})
+            }
+          />
+        );
       case 'subtitleMode':
-        return <RadioPage title="Subtitle mode" onBack={pop} options={[
-          {label: 'Default', value: 'default'},
-          {label: 'Always On', value: 'alwaysOn'},
-          {label: 'Always Off', value: 'alwaysOff'},
-          {label: 'Only Forced', value: 'forcedOnly'},
-        ]} selectedValue={preferences.subtitleMode} onSelect={(subtitleMode) => savePreferences({subtitleMode})} />;
+        return (
+          <RadioPage
+            title="Subtitle mode"
+            onBack={pop}
+            options={[
+              {label: 'Default', value: 'default'},
+              {label: 'Always On', value: 'alwaysOn'},
+              {label: 'Always Off', value: 'alwaysOff'},
+              {label: 'Only Forced', value: 'forcedOnly'},
+            ]}
+            selectedValue={preferences.subtitleMode}
+            onSelect={(subtitleMode) => savePreferences({subtitleMode})}
+          />
+        );
       case 'autoplayCountdown':
-        return <RadioPage title="Countdown duration" onBack={pop} options={[10, 15, 30].map((value) => ({label: `${value}s`, value: value as 10 | 15 | 30}))} selectedValue={preferences.nextEpisodeCountdownSeconds} onSelect={(nextEpisodeCountdownSeconds) => savePreferences({nextEpisodeCountdownSeconds})} />;
+        return (
+          <RadioPage
+            title="Countdown duration"
+            onBack={pop}
+            options={[10, 15, 30].map((value) => ({
+              label: `${value}s`,
+              value: value as 10 | 15 | 30,
+            }))}
+            selectedValue={preferences.nextEpisodeCountdownSeconds}
+            onSelect={(nextEpisodeCountdownSeconds) =>
+              savePreferences({nextEpisodeCountdownSeconds})
+            }
+          />
+        );
       case 'seekDuration':
-        return <RadioPage title="Seek duration" onBack={pop} options={[10, 15, 30, 60].map((value) => ({label: `${value}s`, value}))} selectedValue={playbackPrefs.seekDurationSeconds} onSelect={(seekDurationSeconds) => savePlaybackPrefs({seekDurationSeconds})} />;
+        return (
+          <RadioPage
+            title="Seek duration"
+            onBack={pop}
+            options={[10, 15, 30, 60].map((value) => ({
+              label: `${value}s`,
+              value,
+            }))}
+            selectedValue={playbackPrefs.seekDurationSeconds}
+            onSelect={(seekDurationSeconds) =>
+              savePlaybackPrefs({seekDurationSeconds})
+            }
+          />
+        );
       case 'skipIntro':
-        return <RadioPage title="Skip intro/credits" onBack={pop} options={[
-          {label: 'Ask', value: 'ask'},
-          {label: 'Auto-skip', value: 'auto'},
-          {label: 'Ignore', value: 'ignore'},
-        ]} selectedValue={preferences.skipIntroCredits} onSelect={(skipIntroCredits) => savePreferences({skipIntroCredits})} />;
+        return (
+          <RadioPage
+            title="Skip intro/credits"
+            onBack={pop}
+            options={[
+              {label: 'Ask', value: 'ask'},
+              {label: 'Auto-skip', value: 'auto'},
+              {label: 'Ignore', value: 'ignore'},
+            ]}
+            selectedValue={preferences.skipIntroCredits}
+            onSelect={(skipIntroCredits) => savePreferences({skipIntroCredits})}
+          />
+        );
       case 'about':
         return (
           <Page title="About" onBack={pop}>
@@ -512,11 +613,18 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>Build date: {BUILD_DATE}</Text>
               <Text style={styles.aboutText}>Device: Vega / Fire TV</Text>
               <Text style={styles.aboutText}>Server: {serverProfile.name}</Text>
-              <Text style={styles.aboutText}>URL: {serverProfile.serverUrl}</Text>
+              <Text style={styles.aboutText}>
+                URL: {serverProfile.serverUrl}
+              </Text>
               <Text style={styles.aboutText}>License: GPL-3.0</Text>
-              <Text style={styles.aboutText}>Open source: React, React Native, Amazon Vega SDK, Jellyfin API</Text>
+              <Text style={styles.aboutText}>
+                Open source: React, React Native, Amazon Vega SDK, Jellyfin API
+              </Text>
               <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
-              <Image source={require('../../assets/kofi-qr.png')} style={styles.qrImage} />
+              <Image
+                source={require('../../assets/kofi-qr.png')}
+                style={styles.qrImage}
+              />
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
             </View>
           </Page>
@@ -524,11 +632,35 @@ export const SettingsScreen = ({
       case 'preferences':
       default:
         return (
-          <Page title="Preferences" subtitle={serverProfile.name} onBack={onBack}>
-            <MenuRow icon="⇥" title="Login" subtitle="Servers, accounts, automatic sign in" onPress={() => push({route: 'login'})} preferred />
-            <MenuRow icon="▧" title="Customization" subtitle="Home layout, display preferences" onPress={() => push({route: 'customization'})} />
-            <MenuRow icon="▶" title="Playback" subtitle="Video, subtitles, next up" onPress={() => push({route: 'playback'})} />
-            <MenuRow icon="ⓘ" title="About" subtitle="Version, device info, licenses" onPress={() => push({route: 'about'})} />
+          <Page
+            title="Preferences"
+            subtitle={serverProfile.name}
+            onBack={onBack}>
+            <MenuRow
+              icon="⇥"
+              title="Login"
+              subtitle="Servers, accounts, automatic sign in"
+              onPress={() => push({route: 'login'})}
+              preferred
+            />
+            <MenuRow
+              icon="▧"
+              title="Customization"
+              subtitle="Home layout, display preferences"
+              onPress={() => push({route: 'customization'})}
+            />
+            <MenuRow
+              icon="▶"
+              title="Playback"
+              subtitle="Video, subtitles, next up"
+              onPress={() => push({route: 'playback'})}
+            />
+            <MenuRow
+              icon="ⓘ"
+              title="About"
+              subtitle="Version, device info, licenses"
+              onPress={() => push({route: 'about'})}
+            />
           </Page>
         );
     }
@@ -622,9 +754,7 @@ const ConnectionTestPage = ({
         icon="⇄"
         preferred={true}
         title={phase === 'testing' ? 'Testing… (about 20 MB)' : 'Run test'}
-        subtitle={
-          phase === 'testing' ? 'This takes a few seconds' : undefined
-        }
+        subtitle={phase === 'testing' ? 'This takes a few seconds' : undefined}
         onPress={phase === 'testing' ? undefined : runTest}
       />
       {phase === 'done' && measuredBps !== null && suggestion ? (
@@ -634,9 +764,9 @@ const ConnectionTestPage = ({
           </Text>
           {belowLowestOption ? (
             <Text style={styles.infoText}>
-              Your connection is slower than the lowest bitrate cap. Playback
-              of high-bitrate files may buffer; the server will transcode
-              them down to fit.
+              Your connection is slower than the lowest bitrate cap. Playback of
+              high-bitrate files may buffer; the server will transcode them down
+              to fit.
             </Text>
           ) : null}
           <MenuRow
@@ -646,9 +776,8 @@ const ConnectionTestPage = ({
               suggestion.value === currentMaxBitrateBps
                 ? 'Already your current setting'
                 : `Currently ${
-                    bitrateOptions.find(
-                      (o) => o.value === currentMaxBitrateBps,
-                    )?.label ?? 'unknown'
+                    bitrateOptions.find((o) => o.value === currentMaxBitrateBps)
+                      ?.label ?? 'unknown'
                   }`
             }
             onPress={() => {
@@ -682,7 +811,11 @@ const Page = ({
   <ScrollView style={styles.screen} testID="settings-screen">
     <Text style={styles.title}>{title}</Text>
     {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-    <FocusableItem focusedStyle={styles.rowFocused} onPress={onBack} style={styles.backButton} testID="settings-back-button">
+    <FocusableItem
+      focusedStyle={styles.rowFocused}
+      onPress={onBack}
+      style={styles.backButton}
+      testID="settings-back-button">
       <Text style={styles.backText}>Back</Text>
     </FocusableItem>
     <View style={styles.group}>{children}</View>
@@ -702,7 +835,12 @@ const MenuRow = ({
   subtitle?: string;
   title: string;
 }) => (
-  <FocusableItem hasTVPreferredFocus={preferred} focusedStyle={styles.rowFocused} onPress={onPress} style={styles.menuRow} testID={`settings-${title}`}>
+  <FocusableItem
+    hasTVPreferredFocus={preferred}
+    focusedStyle={styles.rowFocused}
+    onPress={onPress}
+    style={styles.menuRow}
+    testID={`settings-${title}`}>
     <Text style={styles.icon}>{icon}</Text>
     <View style={styles.rowCopy}>
       <Text style={styles.rowText}>{title}</Text>
@@ -726,7 +864,11 @@ const ToggleRow = ({
   title: string;
   value: boolean;
 }) => (
-  <FocusableItem focusedStyle={styles.rowFocused} onPress={onToggle} style={styles.menuRow} testID={`settings-toggle-${title}`}>
+  <FocusableItem
+    focusedStyle={styles.rowFocused}
+    onPress={onToggle}
+    style={styles.menuRow}
+    testID={`settings-toggle-${title}`}>
     <Text style={styles.icon}>{value ? '☑' : '☐'}</Text>
     <View style={styles.rowCopy}>
       <Text style={styles.rowText}>{title}</Text>
@@ -773,10 +915,17 @@ const ConfirmDialog = ({
       <Text style={styles.confirmTitle}>{title}</Text>
       <Text style={styles.confirmBody}>{body}</Text>
       <TVFocusGuideView style={styles.confirmActions}>
-        <FocusableItem hasTVPreferredFocus focusedStyle={styles.rowFocused} onPress={onCancel} style={styles.confirmButton}>
+        <FocusableItem
+          hasTVPreferredFocus
+          focusedStyle={styles.rowFocused}
+          onPress={onCancel}
+          style={styles.confirmButton}>
           <Text style={styles.backText}>Cancel</Text>
         </FocusableItem>
-        <FocusableItem focusedStyle={styles.dangerFocused} onPress={onConfirm} style={[styles.confirmButton, styles.dangerButton]}>
+        <FocusableItem
+          focusedStyle={styles.dangerFocused}
+          onPress={onConfirm}
+          style={[styles.confirmButton, styles.dangerButton]}>
           <Text style={styles.backText}>Confirm</Text>
         </FocusableItem>
       </TVFocusGuideView>

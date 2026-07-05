@@ -187,7 +187,9 @@ export const PersonDetailScreen = ({
                   }
                   subtitle={
                     item.seriesName ??
-                    (item.productionYear ? String(item.productionYear) : item.type)
+                    (item.productionYear
+                      ? String(item.productionYear)
+                      : item.type)
                   }
                   title={item.name}
                 />

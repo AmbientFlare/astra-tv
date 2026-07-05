@@ -14,10 +14,10 @@ import {
   JellyfinMediaItem,
   JellyfinMediaTrack,
   JellyfinStreamInfo,
-  JellyfinQualityOption,
   reportPlaybackProgress,
   reportPlaybackStart,
   reportPlaybackStopped,
+  sanitizeUrlForLog,
 } from '../../services/jellyfin';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
@@ -118,9 +118,8 @@ export const PlayerScreen = ({
   const [selectedSubtitleTrackIndex, setSelectedSubtitleTrackIndex] = useState<
     number | undefined
   >(undefined);
-  const [selectedQualityId, setSelectedQualityId] = useState('auto');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
+  const playbackRate = 1;
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
   );
@@ -195,40 +194,37 @@ export const PlayerScreen = ({
     [clearControlsHideTimer, scheduleControlsHide],
   );
 
-  const applyPendingInitialSeek = useCallback(
-    (video: VideoPlayer) => {
-      const target = pendingInitialSeekSeconds.current;
+  const applyPendingInitialSeek = useCallback((video: VideoPlayer) => {
+    const target = pendingInitialSeekSeconds.current;
 
-      if (target === null || initialSeekApplied.current) {
-        return;
+    if (target === null || initialSeekApplied.current) {
+      return;
+    }
+
+    initialSeekApplied.current = true;
+    setTimeout(() => {
+      const duration =
+        typeof video.duration === 'number' && Number.isFinite(video.duration)
+          ? video.duration
+          : 0;
+      const clampedTarget =
+        duration > 0 ? Math.min(target, Math.max(0, duration - 1)) : target;
+
+      try {
+        video.currentTime = clampedTarget;
+        latestPositionTicks.current = toTicks(clampedTarget);
+        setPositionSeconds(clampedTarget);
+        setStatusText(
+          `Resumed at ${Math.floor(clampedTarget / 60)}:${String(
+            Math.floor(clampedTarget % 60),
+          ).padStart(2, '0')}`,
+        );
+      } catch (error) {
+        console.warn('Failed to apply resume position', error);
+        setStatusText('Playing from start');
       }
-
-      initialSeekApplied.current = true;
-      setTimeout(() => {
-        const duration =
-          typeof video.duration === 'number' && Number.isFinite(video.duration)
-            ? video.duration
-            : 0;
-        const clampedTarget =
-          duration > 0 ? Math.min(target, Math.max(0, duration - 1)) : target;
-
-        try {
-          video.currentTime = clampedTarget;
-          latestPositionTicks.current = toTicks(clampedTarget);
-          setPositionSeconds(clampedTarget);
-          setStatusText(
-            `Resumed at ${Math.floor(clampedTarget / 60)}:${String(
-              Math.floor(clampedTarget % 60),
-            ).padStart(2, '0')}`,
-          );
-        } catch (error) {
-          console.warn('Failed to apply resume position', error);
-          setStatusText('Playing from start');
-        }
-      }, 250);
-    },
-    [],
-  );
+    }, 250);
+  }, []);
 
   const reportStopped = useCallback(async () => {
     if (stoppedReported.current || !streamInfo.current) {
@@ -485,7 +481,9 @@ export const PlayerScreen = ({
           videoWithDimensions.videoHeight || streamInfo.current?.height;
         const resolution = width && height ? ` ${width}x${height}` : '';
         setStatusText(
-          `Playing (${streamInfo.current?.playMethod ?? 'stream'}${resolution})`,
+          `Playing (${
+            streamInfo.current?.playMethod ?? 'stream'
+          }${resolution})`,
         );
         scheduleControlsHide();
       });
@@ -573,13 +571,13 @@ export const PlayerScreen = ({
       console.log(
         '[Astra] Stream URL parts:',
         'transcodeUrl:',
-        stream.transcodeUrl,
+        sanitizeUrlForLog(stream.transcodeUrl),
         'url:',
-        stream.url,
+        sanitizeUrlForLog(stream.url),
       );
       console.log(
         '[Astra] Stream URL:',
-        stream.url,
+        sanitizeUrlForLog(stream.url),
         '| PlayMethod:',
         stream.playMethod,
       );
@@ -641,9 +639,6 @@ export const PlayerScreen = ({
       }
       if (bitrate !== undefined) {
         selectedBitrate.current = bitrate ?? undefined;
-        setSelectedQualityId(
-          bitrate === null ? 'auto' : String(bitrate ?? 'auto'),
-        );
       }
       if (forceTranscode !== undefined) {
         selectedForceTranscode.current = forceTranscode;
@@ -851,7 +846,10 @@ export const PlayerScreen = ({
               positionTicks: currentPositionTicks(),
               subtitleStreamIndex: selectedSubtitleIndex.current,
             }).catch((error) => {
-              console.warn('Failed to report background playback progress', error);
+              console.warn(
+                'Failed to report background playback progress',
+                error,
+              );
             });
           }
         }
@@ -946,6 +944,7 @@ export const PlayerScreen = ({
       loadVideoSource,
       loadStream,
       playbackRate,
+      preferredSeekSeconds,
       scheduleControlsHide,
       serverUrl,
     ],

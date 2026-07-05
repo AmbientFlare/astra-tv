@@ -466,7 +466,9 @@ const PersonCard = ({
     onPress={onPress}
     style={styles.personCard}
     testID={`person-${name}`}>
-    {imageUrl ? <Image source={{uri: imageUrl}} style={styles.personImage} /> : null}
+    {imageUrl ? (
+      <Image source={{uri: imageUrl}} style={styles.personImage} />
+    ) : null}
     <Text numberOfLines={1} style={styles.personName}>
       {name}
     </Text>

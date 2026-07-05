@@ -55,6 +55,9 @@ id = "com.amazon.audio.system"
 [[wants.service]]
 id = "com.amazon.network.service"
 
+[[needs.privilege]]
+id = "com.amazon.network.privilege.net-info"
+
 [[extras]]
 key = "interface.provider"
 component-id = "com.astra.tv.main"

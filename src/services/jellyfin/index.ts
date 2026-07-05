@@ -214,6 +214,38 @@ const buildUrl = (
   return url.toString();
 };
 
+export const sanitizeUrlForLog = (rawUrl?: string) => {
+  if (!rawUrl) {
+    return rawUrl;
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    const sensitiveParams = [
+      'api_key',
+      'access_token',
+      'token',
+      'password',
+      'pw',
+    ];
+
+    sensitiveParams.forEach((paramName) => {
+      parsed.searchParams.forEach((_, key) => {
+        if (key.toLowerCase() === paramName) {
+          parsed.searchParams.set(key, '[redacted]');
+        }
+      });
+    });
+
+    return parsed.toString();
+  } catch {
+    return rawUrl.replace(
+      /([?&](?:api_key|access_token|token|password|pw)=)[^&]*/gi,
+      '$1[redacted]',
+    );
+  }
+};
+
 const hasQueryParam = (url: string, paramName: string) =>
   new RegExp(`[?&]${paramName}=`, 'i').test(url);
 
@@ -668,7 +700,10 @@ export const getStreamUrl = async (
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
     api_key: accessToken,
   });
-  console.log('[Astra] buildUrl PlaybackInfo output:', playbackInfoUrl);
+  console.log(
+    '[Astra] buildUrl PlaybackInfo output:',
+    sanitizeUrlForLog(playbackInfoUrl),
+  );
 
   type PlaybackInfoResponse = {
     PlaySessionId?: string;
@@ -762,7 +797,7 @@ export const getStreamUrl = async (
   if (mediaSource?.TranscodingUrl) {
     console.log(
       '[Astra] Raw Jellyfin TranscodingUrl:',
-      mediaSource.TranscodingUrl,
+      sanitizeUrlForLog(mediaSource.TranscodingUrl),
     );
   }
   const playMethod: JellyfinStreamInfo['playMethod'] = shouldUseTranscode
@@ -781,7 +816,10 @@ export const getStreamUrl = async (
       mediaSource.TranscodingUrl,
       accessToken,
     );
-    console.log('[Astra] buildTranscodingUrl output:', resolvedTranscodeUrl);
+    console.log(
+      '[Astra] buildTranscodingUrl output:',
+      sanitizeUrlForLog(resolvedTranscodeUrl),
+    );
     url = resolvedTranscodeUrl;
   } else if (mediaSource?.SupportsDirectPlay && mediaSource?.Id) {
     url = buildUrl(baseUrl, `/Videos/${itemId}/stream`, {
@@ -792,7 +830,10 @@ export const getStreamUrl = async (
       tag: mediaSource?.ETag,
       api_key: accessToken,
     });
-    console.log('[Astra] buildUrl DirectStream output:', url);
+    console.log(
+      '[Astra] buildUrl DirectStream output:',
+      sanitizeUrlForLog(url),
+    );
   } else {
     throw new Error('No playable URL returned from Jellyfin.');
   }
