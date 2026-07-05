@@ -40,6 +40,10 @@ interface PlayerScreenProps {
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
 
+// For content without embedded chapters, the FF/RW keys jump across this
+// many evenly spaced synthetic chapters instead.
+const SYNTHETIC_CHAPTER_COUNT = 12;
+
 const isAdaptiveStream = (url: string) =>
   url.includes('.m3u8') || url.includes('.mpd');
 
@@ -319,6 +323,60 @@ export const PlayerScreen = ({
     [seekToSeconds],
   );
 
+  const jumpChapter = useCallback(
+    (direction: 1 | -1) => {
+      const video = videoRef.current;
+
+      if (!video || typeof video.currentTime !== 'number') {
+        return;
+      }
+
+      const duration =
+        typeof video.duration === 'number' &&
+        Number.isFinite(video.duration) &&
+        video.duration > 0
+          ? video.duration
+          : (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+            TICKS_PER_SECOND;
+
+      if (duration <= 0) {
+        seek(direction * preferredSeekSeconds);
+        return;
+      }
+
+      const realChapters = (item.chapters ?? [])
+        .map((chapter) => chapter.startPositionTicks / TICKS_PER_SECOND)
+        .filter((seconds) => seconds >= 0 && seconds < duration)
+        .sort((a, b) => a - b);
+      const boundaries =
+        realChapters.length >= 2
+          ? realChapters
+          : Array.from(
+              {length: SYNTHETIC_CHAPTER_COUNT},
+              (_, index) => (duration * index) / SYNTHETIC_CHAPTER_COUNT,
+            );
+      const current = video.currentTime;
+      // Backward uses a small grace window so a quick double-press crosses
+      // into the previous chapter instead of re-snapping to the current one.
+      const target =
+        direction > 0
+          ? boundaries.find((seconds) => seconds > current + 2)
+          : [...boundaries].reverse().find((seconds) => seconds < current - 3);
+
+      if (target === undefined) {
+        if (direction < 0) {
+          seekToSeconds(0);
+        }
+        // Already in the last chapter: do nothing rather than jump to the
+        // end and accidentally finish the movie.
+        return;
+      }
+
+      seekToSeconds(target);
+    },
+    [item, preferredSeekSeconds, seek, seekToSeconds],
+  );
+
   const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
 
@@ -414,8 +472,16 @@ export const PlayerScreen = ({
 
       video.addEventListener('playing', () => {
         setPaused(false);
+        const videoWithDimensions = video as VideoPlayer & {
+          videoWidth?: number;
+          videoHeight?: number;
+        };
+        const resolution =
+          videoWithDimensions.videoWidth && videoWithDimensions.videoHeight
+            ? ` ${videoWithDimensions.videoWidth}x${videoWithDimensions.videoHeight}`
+            : '';
         setStatusText(
-          `Playing (${streamInfo.current?.playMethod ?? 'stream'})`,
+          `Playing (${streamInfo.current?.playMethod ?? 'stream'}${resolution})`,
         );
         scheduleControlsHide();
       });
@@ -717,15 +783,19 @@ export const PlayerScreen = ({
         break;
       case 'right':
       case 'right_up':
+        seek(preferredSeekSeconds);
+        break;
       case 'forward':
       case 'skip_forward':
-        seek(preferredSeekSeconds);
+        jumpChapter(1);
         break;
       case 'left':
       case 'left_up':
+        seek(-preferredSeekSeconds);
+        break;
       case 'rewind':
       case 'skip_backward':
-        seek(-preferredSeekSeconds);
+        jumpChapter(-1);
         break;
     }
   });
@@ -795,7 +865,7 @@ export const PlayerScreen = ({
       }).catch((error) => {
         console.warn('Failed to report playback progress', error);
       });
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [accessToken, currentPositionTicks, isPaused, serverUrl]);
