@@ -146,11 +146,17 @@ export const PlayerScreen = ({
 
   const currentPositionTicks = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
+    // A freshly created or failed video element reports currentTime 0;
+    // trusting it would wipe a real resume position during error retries.
+    // Deliberate seeks to 0 update latestPositionTicks directly, so a zero
+    // here with a non-zero ref can only be a dead element.
+    const isTrustworthy =
+      typeof currentTime === 'number' &&
+      Number.isFinite(currentTime) &&
+      (currentTime > 0 || latestPositionTicks.current === 0);
 
     latestPositionTicks.current = toTicks(
-      typeof currentTime === 'number' && Number.isFinite(currentTime)
-        ? currentTime
-        : undefined,
+      isTrustworthy ? currentTime : undefined,
       latestPositionTicks.current / TICKS_PER_SECOND,
     );
 
@@ -483,7 +489,15 @@ export const PlayerScreen = ({
         selectedAudioIndex.current === undefined &&
         stream.audioTracks.length
       ) {
+        // The service already picked a track (language/channel-aware) and
+        // baked it into the stream URL — the UI selection must match it, or
+        // a later reload silently switches audio tracks.
         const defaultTrack =
+          (stream.audioStreamIndex !== undefined
+            ? stream.audioTracks.find(
+                (track) => track.index === stream.audioStreamIndex,
+              )
+            : undefined) ??
           stream.audioTracks.find((track) => track.isDefault) ??
           stream.audioTracks.find((track) =>
             track.language?.toLowerCase().startsWith('en'),
