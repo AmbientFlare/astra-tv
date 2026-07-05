@@ -15,18 +15,8 @@ import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {SupportScreen} from '../screens/SupportScreen';
-import {
-  authenticate,
-  connect,
-  JellyfinLibrary,
-  JellyfinMediaItem,
-} from '../services/jellyfin';
+import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
 import {checkAstraProReceipt} from '../services/iap';
-import {
-  DEV_PASSWORD,
-  DEV_SERVER_URL,
-  DEV_USERNAME,
-} from '../config/devCredentials';
 import {
   getLastUsedServerProfile,
   getUserPreferences,
@@ -34,53 +24,12 @@ import {
   readServerProfiles,
   ServerProfile,
   setProStatus,
-  upsertServerProfile,
 } from '../services/storage';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
-const LEGACY_DEV_SERVER_URLS = ['http://jelly2.ambientflare.art'];
 
-const refreshDevServerProfile = async (
-  profile: ServerProfile | null,
-): Promise<ServerProfile | null> => {
-  const isDevServerProfile =
-    profile?.username === DEV_USERNAME &&
-    [DEV_SERVER_URL, ...LEGACY_DEV_SERVER_URLS].includes(profile.serverUrl);
-
-  if (!profile || !isDevServerProfile) {
-    return profile;
-  }
-
-  try {
-    const serverInfo = await connect(DEV_SERVER_URL);
-    const authResult = await authenticate(
-      DEV_SERVER_URL,
-      DEV_USERNAME,
-      DEV_PASSWORD,
-    );
-    const refreshedProfile: ServerProfile = {
-      ...profile,
-      id: serverInfo.id || profile.id,
-      name: serverInfo.name || profile.name,
-      serverUrl: DEV_SERVER_URL,
-      accessToken: authResult.accessToken,
-      userId: authResult.userId,
-      lastUsed: Date.now(),
-    };
-
-    await upsertServerProfile(refreshedProfile);
-
-    return refreshedProfile;
-  } catch {
-    return profile;
-  }
-};
-
-type LaunchRoute =
-  | 'loading'
-  | 'setup'
-  | 'support';
+type LaunchRoute = 'loading' | 'setup' | 'support';
 
 type RouteEntry =
   | {route: 'home'}
@@ -221,7 +170,6 @@ export const RootNavigator = () => {
         preferences.autoSignIn === 'mostRecent'
           ? await getLastUsedServerProfile()
           : null;
-      const refreshedProfile = await refreshDevServerProfile(lastUsedProfile);
       const launchCount = await incrementLaunchCount();
       const isPro = await checkAstraProReceipt();
 
@@ -229,7 +177,7 @@ export const RootNavigator = () => {
         return;
       }
 
-      setServerProfile(refreshedProfile);
+      setServerProfile(lastUsedProfile);
       if (!isPro && launchCount > 0 && launchCount % 10 === 0) {
         setRoute('support');
       } else {
@@ -245,7 +193,7 @@ export const RootNavigator = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [resetStack]);
 
   const exitPrompt = exitPromptVisible ? (
     <ExitPrompt
@@ -397,10 +345,7 @@ export const RootNavigator = () => {
 
   if (current.route === 'settings' && serverProfile) {
     return withExitPrompt(
-      <SettingsScreen
-        onBack={pop}
-        serverProfile={serverProfile}
-      />,
+      <SettingsScreen onBack={pop} serverProfile={serverProfile} />,
     );
   }
 

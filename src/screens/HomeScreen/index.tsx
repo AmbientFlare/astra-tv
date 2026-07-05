@@ -163,107 +163,107 @@ export const HomeScreen = ({
       <ScrollView
         contentContainerStyle={styles.screenContent}
         style={styles.content}>
-      <View style={styles.topBar}>
-        <FocusableItem
-          focusedStyle={styles.profileFocused}
-          onPress={onSettings}
-          style={styles.profileButton}
-          testID="home-profile-button">
-          <Text style={styles.profileIcon}>
-            {(serverProfile?.username ?? serverProfile?.name ?? 'A')
-              .slice(0, 1)
-              .toUpperCase()}
-          </Text>
-        </FocusableItem>
-        <TVFocusGuideView style={styles.actions}>
+        <View style={styles.topBar}>
           <FocusableItem
-            focusedStyle={styles.pillFocused}
-            style={[styles.pillButton, styles.pillSelected]}
-            testID="home-pill-button">
-            <Text style={styles.pillText}>Home</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.pillFocused}
-            onPress={onSearch}
-            style={styles.pillButton}
-            testID="home-search-button">
-            <Text style={styles.pillText}>Search</Text>
-          </FocusableItem>
-          <FocusableItem
-            focusedStyle={styles.pillFocused}
+            focusedStyle={styles.profileFocused}
             onPress={onSettings}
-            style={styles.pillButton}
-            testID="home-settings-button">
-            <Text style={styles.pillText}>Settings</Text>
+            style={styles.profileButton}
+            testID="home-profile-button">
+            <Text style={styles.profileIcon}>
+              {(serverProfile?.username ?? serverProfile?.name ?? 'A')
+                .slice(0, 1)
+                .toUpperCase()}
+            </Text>
           </FocusableItem>
-        </TVFocusGuideView>
-      </View>
-      {isLoading ? (
-        <Text style={styles.status}>Loading libraries...</Text>
-      ) : null}
-      {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-      {errorText ? (
-        <FocusableItem
-          focusedStyle={styles.actionFocused}
-          onPress={loadLibraries}
-          style={styles.retryButton}
-          testID="home-libraries-retry">
-          <Text style={styles.actionText}>Retry</Text>
-        </FocusableItem>
-      ) : null}
-      {!isLoading && !errorText && libraries.length === 0 ? (
-        <Text style={styles.status}>No libraries found.</Text>
-      ) : null}
-      {preferences.homeSections.myMedia && libraries.length ? (
-        <>
-          <Text style={styles.featureTitle}>My Media</Text>
-          <ScrollView horizontal={true} style={styles.libraryScroller}>
-            <TVFocusGuideView style={styles.libraryRow}>
-              {libraries.map((library, index) => (
-                <LibraryTile
-                  hasTVPreferredFocus={index === 0}
-                  key={library.id}
-                  library={library}
-                  onFocus={() => queueBackdrop(library.imageUrl)}
-                  onPress={() => onSelectLibrary?.(library)}
-                />
-              ))}
-            </TVFocusGuideView>
-          </ScrollView>
-        </>
-      ) : null}
-      {preferences.homeSections.continueWatching ? (
-        <HomeMediaRow
-          loadItems={rowLoaders.resume}
-          onFocusBackdrop={queueBackdrop}
-          onSelectItem={onSelectItem}
-          title="Continue Watching"
-        />
-      ) : null}
-      {preferences.homeSections.nextUp ? (
-        <HomeMediaRow
-          loadItems={rowLoaders.nextUp}
-          onFocusBackdrop={queueBackdrop}
-          onSelectItem={onSelectItem}
-          title="Next Up"
-        />
-      ) : null}
-      {preferences.homeSections.latestMovies ? (
-        <HomeMediaRow
-          loadItems={rowLoaders.latestMovies}
-          onFocusBackdrop={queueBackdrop}
-          onSelectItem={onSelectItem}
-          title="Latest Movies"
-        />
-      ) : null}
-      {preferences.homeSections.latestShows ? (
-        <HomeMediaRow
-          loadItems={rowLoaders.latestShows}
-          onFocusBackdrop={queueBackdrop}
-          onSelectItem={onSelectItem}
-          title="Latest Shows"
-        />
-      ) : null}
+          <TVFocusGuideView style={styles.actions}>
+            <FocusableItem
+              focusedStyle={styles.pillFocused}
+              style={[styles.pillButton, styles.pillSelected]}
+              testID="home-pill-button">
+              <Text style={styles.pillText}>Home</Text>
+            </FocusableItem>
+            <FocusableItem
+              focusedStyle={styles.pillFocused}
+              onPress={onSearch}
+              style={styles.pillButton}
+              testID="home-search-button">
+              <Text style={styles.pillText}>Search</Text>
+            </FocusableItem>
+            <FocusableItem
+              focusedStyle={styles.pillFocused}
+              onPress={onSettings}
+              style={styles.pillButton}
+              testID="home-settings-button">
+              <Text style={styles.pillText}>Settings</Text>
+            </FocusableItem>
+          </TVFocusGuideView>
+        </View>
+        {isLoading ? (
+          <Text style={styles.status}>Loading libraries...</Text>
+        ) : null}
+        {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+        {errorText ? (
+          <FocusableItem
+            focusedStyle={styles.actionFocused}
+            onPress={loadLibraries}
+            style={styles.retryButton}
+            testID="home-libraries-retry">
+            <Text style={styles.actionText}>Retry</Text>
+          </FocusableItem>
+        ) : null}
+        {!isLoading && !errorText && libraries.length === 0 ? (
+          <Text style={styles.status}>No libraries found.</Text>
+        ) : null}
+        {preferences.homeSections.myMedia && libraries.length ? (
+          <>
+            <Text style={styles.featureTitle}>My Media</Text>
+            <ScrollView horizontal={true} style={styles.libraryScroller}>
+              <TVFocusGuideView style={styles.libraryRow}>
+                {libraries.map((library, index) => (
+                  <LibraryTile
+                    hasTVPreferredFocus={index === 0}
+                    key={library.id}
+                    library={library}
+                    onFocus={() => queueBackdrop(library.imageUrl)}
+                    onPress={() => onSelectLibrary?.(library)}
+                  />
+                ))}
+              </TVFocusGuideView>
+            </ScrollView>
+          </>
+        ) : null}
+        {preferences.homeSections.continueWatching ? (
+          <HomeMediaRow
+            loadItems={rowLoaders.resume}
+            onFocusBackdrop={queueBackdrop}
+            onSelectItem={onSelectItem}
+            title="Continue Watching"
+          />
+        ) : null}
+        {preferences.homeSections.nextUp ? (
+          <HomeMediaRow
+            loadItems={rowLoaders.nextUp}
+            onFocusBackdrop={queueBackdrop}
+            onSelectItem={onSelectItem}
+            title="Next Up"
+          />
+        ) : null}
+        {preferences.homeSections.latestMovies ? (
+          <HomeMediaRow
+            loadItems={rowLoaders.latestMovies}
+            onFocusBackdrop={queueBackdrop}
+            onSelectItem={onSelectItem}
+            title="Latest Movies"
+          />
+        ) : null}
+        {preferences.homeSections.latestShows ? (
+          <HomeMediaRow
+            loadItems={rowLoaders.latestShows}
+            onFocusBackdrop={queueBackdrop}
+            onSelectItem={onSelectItem}
+            title="Latest Shows"
+          />
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -359,7 +359,9 @@ const HomeMediaRow = ({
             <MediaCard
               imageUrl={item.imageUrl}
               key={item.id}
-              onFocus={() => onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl)}
+              onFocus={() =>
+                onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl)
+              }
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.seriesName ??

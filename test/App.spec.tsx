@@ -75,6 +75,10 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => {
   };
 });
 
+jest.mock('@amazon-devices/keplerscript-netmgr-lib', () => ({
+  getIpAddress: jest.fn(async () => '192.168.1.25'),
+}));
+
 jest.mock('../src/services/jellyfin', () => ({
   authenticate: jest.fn(async () => ({
     accessToken: 'test-token',
@@ -104,8 +108,66 @@ jest.mock('../src/services/iap', () => ({
 }));
 
 jest.mock('../src/services/storage', () => ({
+  defaultPlaybackPrefs: {
+    maxAudioChannels: 6,
+    maxBitrateBps: 80000000,
+    preferredAudioLanguage: 'en',
+    seekDurationSeconds: 10,
+    version: 1,
+  },
+  defaultUserPreferences: {
+    accountSortBy: 'lastUsed',
+    autoSignIn: 'mostRecent',
+    focusedBackdropEnabled: true,
+    homeSections: {
+      continueWatching: true,
+      latestMovies: true,
+      latestShows: true,
+      myMedia: true,
+      nextUp: true,
+    },
+    maxStreamingBitrate: 'auto',
+    nextEpisodeAutoplay: false,
+    nextEpisodeCountdownSeconds: 15,
+    preferredAudioLanguage: 'English',
+    preferredSubtitleLanguage: 'English',
+    seekDurationSeconds: 10,
+    skipIntroCredits: 'ask',
+    subtitleMode: 'default',
+  },
+  getDisplayPreferences: jest.fn(async () => ({
+    imageSize: 'medium',
+    imageType: 'Primary',
+  })),
   getLastUsedServerProfile: jest.fn(async () => null),
+  getUserPreferences: jest.fn(async () => ({
+    accountSortBy: 'lastUsed',
+    autoSignIn: 'mostRecent',
+    focusedBackdropEnabled: true,
+    homeSections: {
+      continueWatching: true,
+      latestMovies: true,
+      latestShows: true,
+      myMedia: true,
+      nextUp: true,
+    },
+    maxStreamingBitrate: 'auto',
+    nextEpisodeAutoplay: false,
+    nextEpisodeCountdownSeconds: 15,
+    preferredAudioLanguage: 'English',
+    preferredSubtitleLanguage: 'English',
+    seekDurationSeconds: 10,
+    skipIntroCredits: 'ask',
+    subtitleMode: 'default',
+  })),
   incrementLaunchCount: jest.fn(async () => 1),
+  readPlaybackPreferences: jest.fn(async () => ({
+    maxAudioChannels: 6,
+    maxBitrateBps: 80000000,
+    preferredAudioLanguage: 'en',
+    seekDurationSeconds: 10,
+    version: 1,
+  })),
   readServerProfiles: jest.fn(async () => []),
   readAppState: jest.fn(async () => ({isPro: false, launchCount: 0})),
   setProStatus: jest.fn(async () => undefined),

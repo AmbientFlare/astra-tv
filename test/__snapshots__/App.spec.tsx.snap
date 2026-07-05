@@ -154,15 +154,156 @@ exports[`App matches snapshot 1`] = `
           }
         }
       >
+        Server Type
+      </Text>
+      <View
+        style={
+          Object {
+            "flexDirection": "row",
+            "gap": 16,
+          }
+        }
+      >
+        <View
+          accessibilityLabel="jellyfin"
+          accessibilityRole="button"
+          accessibilityState={
+            Object {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            Object {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            Object {
+              "alignItems": "center",
+              "backgroundColor": "#1B2630",
+              "borderColor": "#7B5EA7",
+              "borderRadius": 8,
+              "borderWidth": 2,
+              "height": 62,
+              "justifyContent": "center",
+              "opacity": 1,
+              "width": 180,
+            }
+          }
+          testID="setup-server-type-jellyfin"
+        >
+          <Text
+            style={
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 24,
+                "fontWeight": "700",
+              }
+            }
+          >
+            Jellyfin
+          </Text>
+        </View>
+        <View
+          accessibilityLabel="emby"
+          accessibilityRole="button"
+          accessibilityState={
+            Object {
+              "busy": undefined,
+              "checked": undefined,
+              "disabled": undefined,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            Object {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onClick={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          style={
+            Object {
+              "alignItems": "center",
+              "backgroundColor": "#172129",
+              "borderColor": "rgba(255,255,255,0.2)",
+              "borderRadius": 8,
+              "borderWidth": 1,
+              "height": 62,
+              "justifyContent": "center",
+              "opacity": 1,
+              "width": 180,
+            }
+          }
+          testID="setup-server-type-emby"
+        >
+          <Text
+            style={
+              Object {
+                "color": "#FFFFFF",
+                "fontSize": 24,
+                "fontWeight": "700",
+              }
+            }
+          >
+            Emby
+          </Text>
+        </View>
+      </View>
+    </View>
+    <View
+      style={
+        Object {
+          "marginBottom": 22,
+        }
+      }
+    >
+      <Text
+        style={
+          Object {
+            "color": "#E6EDF2",
+            "fontSize": 26,
+            "fontWeight": "700",
+            "marginBottom": 8,
+          }
+        }
+      >
         Server URL
       </Text>
       <TextInput
         autoCapitalize="none"
         autoComplete="url"
         autoCorrect={false}
-        autoFocus={true}
         auxOptions="title:Server URL"
-        hasTVPreferredFocus={true}
         inputMode="url"
         keyboardType="url"
         onBlur={[Function]}
@@ -202,7 +343,7 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-server-url-input"
         textContentType="URL"
-        value="https://jelly2.ambientflare.art"
+        value=""
       />
       <Text
         style={
@@ -279,7 +420,7 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-username-input"
         textContentType="username"
-        value="Levi"
+        value=""
       />
     </View>
     <View
@@ -344,211 +485,8 @@ exports[`App matches snapshot 1`] = `
         }
         testID="setup-password-input"
         textContentType="password"
-        value="broken6667"
+        value=""
       />
-    </View>
-    <View
-      style={
-        Object {
-          "marginBottom": 22,
-        }
-      }
-    >
-      <Text
-        style={
-          Object {
-            "color": "#E6EDF2",
-            "fontSize": 26,
-            "fontWeight": "700",
-            "marginBottom": 8,
-          }
-        }
-      >
-        Server Type
-      </Text>
-      <View
-        style={
-          Object {
-            "flexDirection": "row",
-            "gap": 16,
-          }
-        }
-      >
-        <View
-          accessibilityLabel="jellyfin"
-          accessibilityRole="button"
-          accessibilityState={
-            Object {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": undefined,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            Object {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            Object {
-              "alignItems": "center",
-              "backgroundColor": "#1F6F5A",
-              "borderColor": "transparent",
-              "borderRadius": 8,
-              "borderWidth": 3,
-              "height": 62,
-              "justifyContent": "center",
-              "opacity": 1,
-              "width": 180,
-            }
-          }
-          testID="setup-server-type-jellyfin"
-        >
-          <Text
-            style={
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-                "textTransform": "uppercase",
-              }
-            }
-          >
-            jellyfin
-          </Text>
-        </View>
-        <View
-          accessibilityLabel="kodi"
-          accessibilityRole="button"
-          accessibilityState={
-            Object {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": undefined,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            Object {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            Object {
-              "alignItems": "center",
-              "backgroundColor": "#172129",
-              "borderColor": "transparent",
-              "borderRadius": 8,
-              "borderWidth": 3,
-              "height": 62,
-              "justifyContent": "center",
-              "opacity": 1,
-              "width": 180,
-            }
-          }
-          testID="setup-server-type-kodi"
-        >
-          <Text
-            style={
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-                "textTransform": "uppercase",
-              }
-            }
-          >
-            kodi
-          </Text>
-        </View>
-        <View
-          accessibilityLabel="emby"
-          accessibilityRole="button"
-          accessibilityState={
-            Object {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": undefined,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            Object {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            Object {
-              "alignItems": "center",
-              "backgroundColor": "#172129",
-              "borderColor": "transparent",
-              "borderRadius": 8,
-              "borderWidth": 3,
-              "height": 62,
-              "justifyContent": "center",
-              "opacity": 1,
-              "width": 180,
-            }
-          }
-          testID="setup-server-type-emby"
-        >
-          <Text
-            style={
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-                "textTransform": "uppercase",
-              }
-            }
-          >
-            emby
-          </Text>
-        </View>
-      </View>
     </View>
     <View
       accessibilityLabel="Connect"
@@ -573,6 +511,7 @@ exports[`App matches snapshot 1`] = `
       accessible={true}
       collapsable={false}
       focusable={true}
+      hasTVPreferredFocus={true}
       onClick={[Function]}
       onResponderGrant={[Function]}
       onResponderMove={[Function]}
