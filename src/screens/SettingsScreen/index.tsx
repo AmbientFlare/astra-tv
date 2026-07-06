@@ -2,12 +2,12 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {
   TVFocusGuideView,
-  useTVEventHandler,
+  useKeplerBackHandler,
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {measureServerBandwidth} from '../../services/jellyfin';
-import {APP_VERSION, BUILD_DATE} from '../../config/app';
+import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
 import {
   defaultUserPreferences,
   defaultPlaybackPrefs,
@@ -54,6 +54,7 @@ type SettingsRoute =
   | {route: 'skipIntro'};
 
 interface SettingsScreenProps {
+  onAddServer?: () => void;
   onBack?: () => void;
   serverProfile: ServerProfile;
 }
@@ -89,9 +90,11 @@ const languageOptions: Array<{label: string; value: string}> = [
 ];
 
 export const SettingsScreen = ({
+  onAddServer,
   onBack,
   serverProfile,
 }: SettingsScreenProps) => {
+  const keplerBackHandler = useKeplerBackHandler();
   const [stack, setStack] = useState<SettingsRoute[]>([{route: 'preferences'}]);
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>(
@@ -132,17 +135,26 @@ export const SettingsScreen = ({
     getDisplayPreferences().then(setDisplayPreferenceState);
   }, [refreshProfiles]);
 
-  useTVEventHandler((event) => {
-    if (event.eventKeyAction === 1 || event.eventType !== 'back') {
-      return;
-    }
-
+  const handleSettingsBack = useCallback(() => {
     if (confirmAction) {
       setConfirmAction(null);
     } else {
       pop();
     }
-  });
+
+    return true;
+  }, [confirmAction, pop]);
+
+  useEffect(() => {
+    const subscription = keplerBackHandler.addEventListener(
+      'hardwareBackPress',
+      handleSettingsBack,
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [handleSettingsBack, keplerBackHandler]);
 
   const savePreferences = async (patch: Partial<UserPreferences>) => {
     const next = await updateUserPreferences(patch);
@@ -223,6 +235,16 @@ export const SettingsScreen = ({
       case 'manageServers':
         return (
           <Page title="Manage servers" onBack={pop}>
+            <MenuRow
+              icon="+"
+              preferred
+              title="Add server"
+              subtitle="Connect another media server"
+              onPress={onAddServer}
+            />
+            {profiles.length === 0 ? (
+              <Text style={styles.infoText}>No saved servers yet.</Text>
+            ) : null}
             {profiles.map((profile) => (
               <MenuRow
                 icon="▣"
@@ -610,15 +632,11 @@ export const SettingsScreen = ({
           <Page title="About" onBack={pop}>
             <View style={styles.about}>
               <Text style={styles.aboutText}>Astra {APP_VERSION}</Text>
+              <Text style={styles.aboutText}>Build: {BUILD_NUMBER}</Text>
               <Text style={styles.aboutText}>Build date: {BUILD_DATE}</Text>
-              <Text style={styles.aboutText}>Device: Vega / Fire TV</Text>
-              <Text style={styles.aboutText}>Server: {serverProfile.name}</Text>
-              <Text style={styles.aboutText}>
-                URL: {serverProfile.serverUrl}
-              </Text>
               <Text style={styles.aboutText}>License: GPL-3.0</Text>
               <Text style={styles.aboutText}>
-                Open source: React, React Native, Amazon Vega SDK, Jellyfin API
+                Open source: React, React Native, Jellyfin API
               </Text>
               <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
               <Image

@@ -1,5 +1,6 @@
 import {buildDeviceProfile} from './deviceProfile';
 import {readPlaybackPreferences} from '../storage';
+import {APP_VERSION} from '../../config/app';
 
 export interface JellyfinServerInfo {
   id: string;
@@ -180,8 +181,7 @@ interface DiscoveryOptions {
   timeoutMs?: number;
 }
 
-const AUTH_HEADER =
-  'MediaBrowser Client="Astra", Device="FireTV", DeviceId="astra-device-001", Version="0.1.0"';
+const AUTH_HEADER = `MediaBrowser Client="Astra", Device="FireTV", DeviceId="astra-device-001", Version="${APP_VERSION}"`;
 
 const normalizeServerUrl = (serverUrl: string) =>
   serverUrl
