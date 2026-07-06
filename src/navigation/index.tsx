@@ -39,6 +39,7 @@ type RouteEntry =
   | {route: 'player'; item: JellyfinMediaItem}
   | {route: 'search'}
   | {route: 'settings'}
+  | {route: 'addServer'}
   | {route: 'personDetail'; personId: string; personName?: string};
 
 export const RootNavigator = () => {
@@ -345,7 +346,23 @@ export const RootNavigator = () => {
 
   if (current.route === 'settings' && serverProfile) {
     return withExitPrompt(
-      <SettingsScreen onBack={pop} serverProfile={serverProfile} />,
+      <SettingsScreen
+        onAddServer={() => push({route: 'addServer'})}
+        onBack={pop}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'addServer') {
+    return withExitPrompt(
+      <SetupScreen
+        onConnected={(profile) => {
+          setServerProfile(profile);
+          resetStack();
+          setRoute('setup');
+        }}
+      />,
     );
   }
 

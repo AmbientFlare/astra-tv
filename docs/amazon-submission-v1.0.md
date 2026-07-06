@@ -1,7 +1,7 @@
 # Astra Amazon Appstore Submission Packet
 
 Date: 2026-07-05
-Release target: v0.5 review / app version 0.1.0
+Release target: v1.0 review / app version 1.0.0
 Package ID: com.astra.tv
 Main component: com.astra.tv.main
 
@@ -9,10 +9,10 @@ Main component: com.astra.tv.main
 
 Fresh release VPKGs are local-only because `dist/` is gitignored:
 
-- `dist/amazon-submission-0.1.0-20260705/astra-0.1.0-aarch64-release.vpkg`
-- `dist/amazon-submission-0.1.0-20260705/astra-0.1.0-armv7-release.vpkg`
-- `dist/amazon-submission-0.1.0-20260705/astra-0.1.0-x86_64-release.vpkg`
-- `dist/amazon-submission-0.1.0-20260705/SHA256SUMS.txt`
+- `dist/amazon-submission-1.0.0-20260705/astra-1.0.0-aarch64-release.vpkg`
+- `dist/amazon-submission-1.0.0-20260705/astra-1.0.0-armv7-release.vpkg`
+- `dist/amazon-submission-1.0.0-20260705/astra-1.0.0-x86_64-release.vpkg`
+- `dist/amazon-submission-1.0.0-20260705/SHA256SUMS.txt`
 
 Build command used:
 
@@ -52,10 +52,23 @@ Key requirements:
 
 Upload:
 
-- Primary: `astra-0.1.0-aarch64-release.vpkg`
-- Also upload if the console accepts separate architecture binaries:
-  - `astra-0.1.0-armv7-release.vpkg`
-  - `astra-0.1.0-x86_64-release.vpkg`
+- Primary current Fire TV target: `astra-1.0.0-x86_64-release.vpkg`
+- Additional local builds exist for future hardware coverage:
+  - `astra-1.0.0-aarch64-release.vpkg`
+  - `astra-1.0.0-armv7-release.vpkg`
+
+Amazon console behavior observed on 2026-07-05:
+
+- `x86_64` mapped to supported Fire TV Vega devices.
+- `aarch64` and `armv7` mapped to 0 currently supported devices.
+- If multiple VPKGs are uploaded into the same version, Amazon requires unique
+  build numbers for each uploaded file.
+
+1.0.0 build numbers:
+
+- `aarch64`: `202607051`
+- `armv7`: `202607052`
+- `x86_64`: `202607053`
 
 Release notes:
 
@@ -84,7 +97,7 @@ United States
 Recommended first submission choice:
 
 ```text
-US only for v0.5 review, then expand after approval and more device testing.
+US only for v1.0 review, then expand after approval and more device testing.
 ```
 
 Target audience:
@@ -134,29 +147,31 @@ Stream your personal media library on Fire TV.
 Long description:
 
 ```text
-Astra is a media client for Fire TV devices running Amazon Vega OS. It is built for people who keep movies, shows, and videos on a personal media server and want a clean living-room interface for watching them from the couch.
+Astra is a Fire TV media client for Jellyfin, designed for people who host their own movie and TV libraries and want a clean, remote-friendly way to watch them on the big screen.
 
-The first supported backend is Jellyfin. Astra lets you connect to your server, browse your libraries, search your media, view movie and episode details, resume where you left off, and start playback quickly with a TV remote.
+Connect Astra to your Jellyfin server, sign in with your own account, and browse your personal media collection from Fire TV. Astra supports local network Jellyfin servers running at home over HTTP, as well as remote Jellyfin servers over HTTPS.
 
-For movie and TV libraries, Astra includes home rows for Continue Watching, Next Up, latest movies, and latest shows. Library screens use a remote-friendly grid with poster art and metadata. Detail screens show overview text, genres, ratings, runtime, people, chapters, resume state, and watched/favorite controls where supported by the server.
+Astra is built around TV use. The interface is designed for couch navigation with a Fire TV remote, with large artwork, focused rows, clear menus, and playback controls that feel natural on a television. It is intended to make your Jellyfin library feel at home on Fire TV.
 
-Playback is built around the Vega media stack and Jellyfin playback information. Astra supports HLS playback, Jellyfin stream-copy and transcode fallback, audio track selection, subtitle selection, quality controls, progress reporting, resume reporting, and chapter navigation.
+You can browse your libraries, view movies and series, explore seasons and episodes, search your server, resume in-progress videos, and open detailed pages with artwork, descriptions, runtime, release year, ratings, genres, cast, and related information when available from your Jellyfin server.
 
-Astra is different from subscription streaming services because it is centered on your own server and your own media library. There is no bundled catalog, no monthly subscription required by Astra, and no recommendation system pushing third-party content. You choose the server, you manage the content, and Astra gives it a Fire TV interface.
+Astra is for users who already run Jellyfin or plan to set up their own Jellyfin server. It does not include a media service, subscription, hosted catalog, or public streaming channels. Your library, accounts, metadata, and playback options come from the Jellyfin server you connect to.
 
-Astra is free and open source under the GPL-3.0 license. Optional support features may be added later to help fund development, but the core media client is intended to remain free.
+Astra does not provide, sell, rent, stream, host, or include any movies, shows, channels, subscriptions, or live content. All media shown in Astra comes from your own Jellyfin server. You are responsible for your own server, media files, accounts, network configuration, and content rights.
+
+Astra is an independent client application and is not affiliated with, endorsed by, or sponsored by Jellyfin, Amazon, or any content provider. Jellyfin is a trademark of its respective owners.
 ```
 
 Keywords:
 
 ```text
-jellyfin, media server, personal media, home server, self hosted, streaming, fire tv player
+jellyfin, media server, home media, movie library, tv library, video player, media player, home theater, self hosted media, personal streaming, local media, private media, jellyfin client, media center, fire tv media, network media, nas media, resume playback
 ```
 
 Category:
 
 ```text
-Entertainment
+Movies & TV / Video Streaming
 ```
 
 Support email:
@@ -180,7 +195,7 @@ https://github.com/wangdangel/astra-tv
 Privacy policy URL:
 
 ```text
-TODO before submission: create a simple privacy policy page.
+TODO: add the final hosted privacy policy URL used in Amazon Developer Console.
 ```
 
 Suggested privacy policy copy:
@@ -195,57 +210,59 @@ Users can remove saved server profiles and clear access tokens in the app settin
 
 ## Required Image Assets
 
-Still needed before submission:
+Fire TV listing assets are in:
 
-- App Icon: 1280 x 720 PNG, no transparency.
-- Screenshots: minimum 3, maximum 10, 1920 x 1080 landscape JPG or 24-bit PNG, no transparency.
-- Background Image: 1920 x 1080 landscape JPG or 24-bit PNG, no transparency.
+- `dist/amazon-submission-1.0.0-20260705/assets/astra-fire-tv-icon-1280x720.png`
+- `dist/amazon-submission-1.0.0-20260705/assets/astra-fire-tv-background-1920x1080.png`
+- `dist/amazon-submission-1.0.0-20260705/screenshots/`
 
-Recommended screenshot set:
+Tablet fallback assets requested by the Amazon console are in:
 
-1. Setup screen with blank/dummy server fields or discovered dummy server.
-2. Home screen showing library rows.
-3. Movie library grid.
-4. Movie detail screen.
-5. Player with controls visible.
-6. Settings / playback preferences.
+- `dist/amazon-submission-1.0.0-20260705/tablet-assets/icons/astra-tablet-large-icon-512x512.png`
+- `dist/amazon-submission-1.0.0-20260705/tablet-assets/icons/astra-tablet-small-icon-114x114.png`
+- `dist/amazon-submission-1.0.0-20260705/tablet-assets/screenshots/`
 
-Screenshot rules:
+Final Fire TV screenshot set:
 
-- Use dummy account/server data.
-- Do not show Levi's real server URL, username, watch history, access tokens, or personal library metadata if privacy matters.
-- Show the TV app itself, not a photo of a TV.
-- Use different scenes that show the main user flow.
-
-Current blocker:
-
-```text
-The connected Fire TV is visible to Vega CLI, but this SDK install does not expose `gwsi-tool-screenshooter`, which Amazon references for Vega screenshots. Screenshots may need to be captured manually or through another SDK/device tool.
-```
+1. `01-setup-connect-server.png`
+2. `02-home-library-rows.png`
+3. `03-shows-library-grid.png`
+4. `04-movie-detail-cast.png`
+5. `05-series-detail-seasons.png`
+6. `06-episode-detail-next-up.png`
+7. `07-playback-settings.png`
+8. `08-preferences.png`
+9. `09-login-settings.png`
+10. `10-about.png`
 
 ## Reviewer Notes
 
 Use this in the review notes / testing instructions field:
 
 ```text
-Astra is a client for user-managed Jellyfin media servers. The app does not include built-in media content. To test the app, reviewers need access to a Jellyfin server with at least one movie or episode library.
+Astra requires a Jellyfin server account for review. Please use the test account below.
 
-Test flow:
+Server URL:
+https://jelly2.ambientflare.art
+
+Username:
+Provided in the secure Amazon reviewer credentials field.
+
+Password:
+Provided in the secure Amazon reviewer credentials field.
+
+Login steps:
 1. Launch Astra.
-2. Enter a Jellyfin server URL, username, and password, or select a discovered server if one is available on the local network.
-3. Browse libraries from the Home screen.
-4. Open a movie or episode detail screen.
-5. Start playback.
-6. Use the Fire TV remote for pause/play, seek, back, menu, audio/subtitle controls, and settings.
+2. Enter the server URL above when prompted.
+3. Sign in with the username and password above.
+4. After login, the app will open to the available media libraries.
 
-Astra stores server profiles locally on the device. Users can sign out or remove saved server profiles from Settings > Login > Manage servers.
-
-If a review test account is required, provide a temporary Jellyfin server URL and credentials separately in the secure reviewer credentials field.
+Astra is a client for user-provided Jellyfin media servers. It is intended for users to access their own media libraries from servers they control, including local network, VPN, or remote HTTPS configurations.
 ```
 
-Do not include Levi's personal Jellyfin credentials in public app metadata.
+Do not include reviewer credentials in public app metadata or committed docs.
 
-## Known v0.5 Limitations To Avoid Overclaiming
+## Known v1.0 Limitations To Avoid Overclaiming
 
 - Jellyfin is the first supported backend.
 - Emby/Kodi are planned, not complete.
@@ -262,9 +279,10 @@ Do not include Levi's personal Jellyfin credentials in public app metadata.
 - [x] Dev credentials removed from app defaults.
 - [x] Playback URL logs redact tokens.
 - [x] Network info privilege declared in `manifest.toml`.
-- [ ] Create privacy policy URL.
-- [ ] Capture 3-10 real 1920 x 1080 screenshots with dummy/non-private content.
-- [ ] Create 1280 x 720 Fire TV app icon.
-- [ ] Create 1920 x 1080 Fire TV background image.
-- [ ] Decide whether to provide a temporary reviewer Jellyfin account.
-- [ ] Upload VPKG(s) and complete Amazon Developer Console fields.
+- [ ] Create/privacy-policy URL and add it to Amazon Developer Console.
+- [x] Capture 3-10 real 1920 x 1080 screenshots.
+- [x] Create 1280 x 720 Fire TV app icon.
+- [x] Create 1920 x 1080 Fire TV background image.
+- [x] Stage tablet fallback icon/screenshot assets requested by console.
+- [x] Provide a temporary reviewer Jellyfin account.
+- [ ] Upload final VPKG and complete Amazon Developer Console fields.

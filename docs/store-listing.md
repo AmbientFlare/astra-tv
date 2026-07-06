@@ -2,22 +2,37 @@
 
 ## Short Description
 
-Stream your personal media library on Fire TV. Connects to Jellyfin and more. No subscriptions. Your server, your content.
+Stream your personal media library on Fire TV.
 
 ## Long Description
 
-Astra is a media client for Fire TV devices running Amazon Vega OS. It is built for people who keep their movies, shows, and videos on a personal media server and want a clean living-room interface for watching them from the couch.
+Astra is a Fire TV media client for Jellyfin, designed for people who host their own movie and TV libraries and want a clean, remote-friendly way to watch them on the big screen.
 
-The first supported backend is Jellyfin. Emby and Kodi support are planned next, with the app architecture already shaped around multiple backends. Astra focuses on the essentials first: connect to your server, browse your libraries, pick up where you left off, search across your media, and start playback quickly.
+Connect Astra to your Jellyfin server, sign in with your own account, and browse your personal media collection from Fire TV. Astra supports local network Jellyfin servers running at home over HTTP, as well as remote Jellyfin servers over HTTPS.
 
-For movie and TV libraries, Astra includes home rows for continue watching, next up, latest movies, and latest shows. Library pages use a remote-friendly grid with poster art, title metadata, and item detail pages before playback. Detail pages show overview text, genres, ratings, runtime, resume state, and quick watched or favorite controls.
+Astra is built around TV use. The interface is designed for couch navigation with a Fire TV remote, with large artwork, focused rows, clear menus, and playback controls that feel natural on a television. It is intended to make your Jellyfin library feel at home on Fire TV.
 
-Playback is built around the Vega media stack. Astra supports direct play when the device and network can handle the source file, and it can use Jellyfin playback information for transcode fallback when the server provides a transcoded stream. The player includes remote-friendly controls, audio track selection, subtitle selection, quality choices, playback speed, resume reporting, progress reporting, and chapter navigation.
+You can browse your libraries, view movies and series, explore seasons and episodes, search your server, resume in-progress videos, and open detailed pages with artwork, descriptions, runtime, release year, ratings, genres, cast, and related information when available from your Jellyfin server.
 
-Astra is different from subscription streaming because it is centered on your own server and your own library. There is no monthly fee, no locked catalog, and no recommendation system trying to push you somewhere else. You choose the server, you manage the content, and Astra gives it a TV interface.
+Astra is for users who already run Jellyfin or plan to set up their own Jellyfin server. It does not include a media service, subscription, hosted catalog, or public streaming channels. Your library, accounts, metadata, and playback options come from the Jellyfin server you connect to.
 
-Astra is free and open source under the GPL-3.0 license. The core app will remain free. Astra Pro is a small optional one-time purchase for users who want to support development. Pro does not lock core media features; it simply helps keep the project moving.
+Astra does not provide, sell, rent, stream, host, or include any movies, shows, channels, subscriptions, or live content. All media shown in Astra comes from your own Jellyfin server. You are responsible for your own server, media files, accounts, network configuration, and content rights.
+
+Astra is an independent client application and is not affiliated with, endorsed by, or sponsored by Jellyfin, Amazon, or any content provider. Jellyfin is a trademark of its respective owners.
+
+## Feature Bullets
+
+- Connect to your own Jellyfin server
+- Browse personal movie and TV libraries
+- Watch supported media on Fire TV
+- Resume videos from where you left off
+- Search your Jellyfin media collection
+- View movie, series, season, and episode details
+- Explore cast and people pages when metadata is available
+- Use local network HTTP or remote HTTPS servers
+- Navigate with a Fire TV remote-friendly interface
+- Manage and switch between Jellyfin servers
 
 ## Keywords
 
-jellyfin, media server, personal media, home server, self hosted, streaming, fire tv player
+jellyfin, media server, home media, movie library, tv library, video player, media player, home theater, self hosted media, personal streaming, local media, private media, jellyfin client, media center, fire tv media, network media, nas media, resume playback
