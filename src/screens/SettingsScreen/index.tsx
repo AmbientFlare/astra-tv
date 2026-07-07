@@ -634,11 +634,18 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>Astra {APP_VERSION}</Text>
               <Text style={styles.aboutText}>Build: {BUILD_NUMBER}</Text>
               <Text style={styles.aboutText}>Build date: {BUILD_DATE}</Text>
-              <Text style={styles.aboutText}>License: GPL-3.0</Text>
               <Text style={styles.aboutText}>
-                Open source: React, React Native, Jellyfin API
+                License: Astra Source-Available License v1.0
               </Text>
-              <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
+              <Text style={styles.aboutText}>
+                Open source: React, React Native
+              </Text>
+              <Text style={styles.aboutText}>
+                Compatible with: Jellyfin (trademark of its respective owners)
+              </Text>
+              <Text style={styles.aboutText}>
+                Support: ko-fi.com/astrafiretv
+              </Text>
               <Image
                 source={require('../../assets/kofi-qr.png')}
                 style={styles.qrImage}
