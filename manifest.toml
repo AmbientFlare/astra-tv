@@ -2,7 +2,7 @@ schema-version = 1
 
 [package]
 title = "Astra"
-version = "1.0.0"
+version = "1.0.1"
 id = "com.astra.tv"
 icon = "@image/icon_512x512.png"
 

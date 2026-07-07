@@ -8,7 +8,7 @@ and play compatible media through the Vega media stack.
 
 ## Current Release
 
-- App version: `1.0.0`
+- App version: `1.0.1`
 - Package ID: `com.astra.tv`
 - Primary target: Fire TV devices running Amazon Vega OS
 - Supported backend: Jellyfin
@@ -44,4 +44,6 @@ this codebase.
 
 ## License
 
-GPL-3.0. See [LICENSE](LICENSE).
+Astra is source-available under the Astra Source-Available License
+(Reference-Only) v1.0. See [LICENSE.md](LICENSE.md) and
+[NOTICES.md](NOTICES.md).

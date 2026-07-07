@@ -183,13 +183,13 @@ levi@ambientflare.art
 Support URL:
 
 ```text
-https://github.com/wangdangel/astra-tv
+https://watchastra.com
 ```
 
 Website URL:
 
 ```text
-https://github.com/wangdangel/astra-tv
+https://watchastra.com
 ```
 
 Privacy policy URL:

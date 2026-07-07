@@ -634,15 +634,32 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>Astra {APP_VERSION}</Text>
               <Text style={styles.aboutText}>Build: {BUILD_NUMBER}</Text>
               <Text style={styles.aboutText}>Build date: {BUILD_DATE}</Text>
-              <Text style={styles.aboutText}>License: GPL-3.0</Text>
               <Text style={styles.aboutText}>
-                Open source: React, React Native, Jellyfin API
+                License: Astra Source-Available License v1.0
               </Text>
-              <Text style={styles.aboutText}>Support: ko-fi.com/astratv</Text>
-              <Image
-                source={require('../../assets/kofi-qr.png')}
-                style={styles.qrImage}
-              />
+              <Text style={styles.aboutText}>
+                Open source: React, React Native
+              </Text>
+              <Text style={styles.aboutText}>
+                Compatible with: Jellyfin (trademark of its respective owners)
+              </Text>
+              <Text style={styles.aboutText}>
+                Support: ko-fi.com/astrafiretv
+              </Text>
+              <Text style={styles.aboutText}>Website: watchastra.com</Text>
+              <Text style={styles.aboutText}>
+                Source: github.com/AmbientFlare/astra-tv
+              </Text>
+              <View style={styles.qrRow}>
+                <Image
+                  source={require('../../assets/kofi-qr.png')}
+                  style={styles.qrImage}
+                />
+                <Image
+                  source={require('../../assets/source-qr.png')}
+                  style={styles.qrImage}
+                />
+              </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
             </View>
           </Page>
@@ -1055,11 +1072,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
     opacity: 0.58,
   },
+  qrRow: {
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 10,
+  },
   qrImage: {
     width: 132,
     height: 132,
     borderRadius: 8,
-    marginTop: 10,
   },
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
