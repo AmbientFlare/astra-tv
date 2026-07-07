@@ -646,10 +646,19 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>
                 Support: ko-fi.com/astrafiretv
               </Text>
-              <Image
-                source={require('../../assets/kofi-qr.png')}
-                style={styles.qrImage}
-              />
+              <Text style={styles.aboutText}>
+                Source: github.com/wangdangel/astra-tv
+              </Text>
+              <View style={styles.qrRow}>
+                <Image
+                  source={require('../../assets/kofi-qr.png')}
+                  style={styles.qrImage}
+                />
+                <Image
+                  source={require('../../assets/source-qr.png')}
+                  style={styles.qrImage}
+                />
+              </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
             </View>
           </Page>
@@ -1062,11 +1071,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
     opacity: 0.58,
   },
+  qrRow: {
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 10,
+  },
   qrImage: {
     width: 132,
     height: 132,
     borderRadius: 8,
-    marginTop: 10,
   },
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
