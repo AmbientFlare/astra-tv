@@ -646,8 +646,9 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>
                 Support: ko-fi.com/astrafiretv
               </Text>
+              <Text style={styles.aboutText}>Website: watchastra.com</Text>
               <Text style={styles.aboutText}>
-                Source: github.com/wangdangel/astra-tv
+                Source: github.com/AmbientFlare/astra-tv
               </Text>
               <View style={styles.qrRow}>
                 <Image
