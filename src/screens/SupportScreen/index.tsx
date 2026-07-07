@@ -44,7 +44,7 @@ export const SupportScreen = ({
 
   const donate = async () => {
     try {
-      await Linking.openURL('https://ko-fi.com/astratv');
+      await Linking.openURL('https://ko-fi.com/astrafiretv');
       onDismiss();
     } catch {
       setStatusText('Unable to open Ko-fi on this device.');
