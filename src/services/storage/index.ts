@@ -5,6 +5,7 @@ export type ServerType = 'jellyfin' | 'emby';
 export interface ServerProfile {
   id: string;
   name: string;
+  serverId?: string;
   serverUrl: string;
   serverType: ServerType;
   username?: string;
@@ -32,8 +33,10 @@ export interface DisplayPreferences {
 export interface PlaybackPreferences {
   version: 1;
   maxBitrateBps: number;
-  maxAudioChannels: 2 | 6 | 8;
+  maxAudioChannels: 2 | 3 | 4 | 6 | 8;
   preferredAudioLanguage: string;
+  preferredSubtitleLanguage: string;
+  subtitleMode: 'alwaysOn' | 'alwaysOff';
   seekDurationSeconds: number;
 }
 
@@ -112,6 +115,8 @@ export const defaultPlaybackPrefs: PlaybackPreferences = {
   maxBitrateBps: 80000000,
   maxAudioChannels: 6,
   preferredAudioLanguage: 'en',
+  preferredSubtitleLanguage: 'en',
+  subtitleMode: 'alwaysOff',
   seekDurationSeconds: 10,
 };
 
@@ -139,6 +144,7 @@ const parseConfig = (rawConfig: string | null): ServerProfilesConfig => {
       version: 1,
       servers: parsed.servers.map((server: ServerProfile) => ({
         ...server,
+        serverId: server.serverId ?? server.id,
         serverUrl: normalizeServerUrl(server.serverUrl),
       })),
     };
@@ -177,9 +183,33 @@ export const upsertServerProfile = async (
     {
       ...profile,
       lastUsed: profile.lastUsed || Date.now(),
+      serverId: profile.serverId ?? profile.id,
       serverUrl: normalizeServerUrl(profile.serverUrl),
     },
   ]);
+};
+
+export const markServerProfileUsed = async (
+  profileId: string,
+): Promise<ServerProfile | null> => {
+  const profiles = await readServerProfiles();
+  const profile = profiles.find(
+    (savedProfile) => savedProfile.id === profileId,
+  );
+
+  if (!profile) {
+    return null;
+  }
+
+  const updatedProfile = {...profile, lastUsed: Date.now()};
+
+  await writeServerProfiles(
+    profiles.map((savedProfile) =>
+      savedProfile.id === profileId ? updatedProfile : savedProfile,
+    ),
+  );
+
+  return updatedProfile;
 };
 
 export const getLastUsedServerProfile =
@@ -353,13 +383,20 @@ const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
     )
       ? maxBitrateBps
       : defaultPlaybackPrefs.maxBitrateBps,
-    maxAudioChannels: [2, 6, 8].includes(maxAudioChannels)
+    maxAudioChannels: [2, 3, 4, 6, 8].includes(maxAudioChannels)
       ? (maxAudioChannels as PlaybackPreferences['maxAudioChannels'])
       : defaultPlaybackPrefs.maxAudioChannels,
     preferredAudioLanguage:
       typeof parsed.preferredAudioLanguage === 'string'
         ? parsed.preferredAudioLanguage
         : defaultPlaybackPrefs.preferredAudioLanguage,
+    preferredSubtitleLanguage:
+      typeof parsed.preferredSubtitleLanguage === 'string'
+        ? parsed.preferredSubtitleLanguage
+        : defaultPlaybackPrefs.preferredSubtitleLanguage,
+    subtitleMode: ['alwaysOn', 'alwaysOff'].includes(parsed.subtitleMode ?? '')
+      ? (parsed.subtitleMode as PlaybackPreferences['subtitleMode'])
+      : defaultPlaybackPrefs.subtitleMode,
     seekDurationSeconds: [10, 15, 30, 60].includes(seekDurationSeconds)
       ? seekDurationSeconds
       : defaultPlaybackPrefs.seekDurationSeconds,
@@ -400,6 +437,12 @@ const migrateLegacyPlaybackPreferences =
         legacy.preferredAudioLanguage === 'English'
           ? 'en'
           : legacy.preferredAudioLanguage,
+      preferredSubtitleLanguage:
+        legacy.preferredSubtitleLanguage === 'English'
+          ? 'en'
+          : legacy.preferredSubtitleLanguage,
+      subtitleMode:
+        legacy.subtitleMode === 'alwaysOn' ? 'alwaysOn' : 'alwaysOff',
       seekDurationSeconds: legacy.seekDurationSeconds,
     });
 

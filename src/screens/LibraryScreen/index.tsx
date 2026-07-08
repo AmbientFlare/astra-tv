@@ -76,6 +76,8 @@ const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
   medium: 1,
   small: 0.75,
 };
+const GRID_GAP = 26;
+const BASE_CARD_HEIGHT = 412;
 
 export const LibraryScreen = ({
   libraryId,
@@ -241,13 +243,50 @@ export const LibraryScreen = ({
   };
 
   const cardScale = imageSizeScale[displayPreferences.imageSize];
+  const cardHeight = Math.round(BASE_CARD_HEIGHT * cardScale);
 
-  const handleCardFocus = (item: JellyfinMediaItem) => {
+  const handleCardFocus = useCallback((item: JellyfinMediaItem) => {
     if (focusDebounceRef.current) {
       clearTimeout(focusDebounceRef.current);
     }
     focusDebounceRef.current = setTimeout(() => setFocusedItem(item), 150);
-  };
+  }, []);
+  const keyExtractor = useCallback((item: JellyfinMediaItem) => item.id, []);
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<JellyfinMediaItem> | null | undefined, index: number) => {
+      const rowIndex = Math.floor(index / 3);
+      const rowHeight = cardHeight + GRID_GAP;
+
+      return {
+        index,
+        length: rowHeight,
+        offset: rowHeight * rowIndex,
+      };
+    },
+    [cardHeight],
+  );
+  const renderItem = useCallback(
+    ({index, item}: {index: number; item: JellyfinMediaItem}) => (
+      <MediaCard
+        hasTVPreferredFocus={index === 0}
+        imageUrl={item.imageUrl}
+        imageScale={cardScale}
+        onFocus={() => {
+          setFocusedIndex(index);
+          handleCardFocus(item);
+          queueBackdrop(item.backdropUrl ?? item.imageUrl);
+        }}
+        onPress={() => onSelectItem?.(item)}
+        subtitle={
+          item.productionYear
+            ? String(item.productionYear)
+            : item.type.toLowerCase()
+        }
+        title={item.name}
+      />
+    ),
+    [cardScale, handleCardFocus, onSelectItem, queueBackdrop],
+  );
 
   useTVEventHandler((event) => {
     if (event.eventKeyAction === 1) {
@@ -299,29 +338,14 @@ export const LibraryScreen = ({
               columnWrapperStyle={styles.gridRow}
               contentContainerStyle={styles.grid}
               data={items}
+              getItemLayout={getItemLayout}
               horizontal={false}
-              keyExtractor={(item) => item.id}
+              keyExtractor={keyExtractor}
               key="vertical"
               numColumns={3}
-              renderItem={({index, item}) => (
-                <MediaCard
-                  hasTVPreferredFocus={index === 0}
-                  imageUrl={item.imageUrl}
-                  imageScale={cardScale}
-                  onFocus={() => {
-                    setFocusedIndex(index);
-                    handleCardFocus(item);
-                    queueBackdrop(item.backdropUrl ?? item.imageUrl);
-                  }}
-                  onPress={() => onSelectItem?.(item)}
-                  subtitle={
-                    item.productionYear
-                      ? String(item.productionYear)
-                      : item.type.toLowerCase()
-                  }
-                  title={item.name}
-                />
-              )}
+              removeClippedSubviews={true}
+              renderItem={renderItem}
+              windowSize={5}
             />
           </TVFocusGuideView>
         </View>
@@ -473,11 +497,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   grid: {
-    gap: 26,
+    gap: GRID_GAP,
     paddingBottom: 80,
   },
   gridRow: {
-    gap: 26,
+    gap: GRID_GAP,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,

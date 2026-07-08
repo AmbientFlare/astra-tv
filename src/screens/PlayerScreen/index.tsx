@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -12,8 +12,8 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {
   getStreamUrl,
   JellyfinMediaItem,
-  JellyfinMediaTrack,
   JellyfinStreamInfo,
+  PlaybackTrackSelection,
   reportPlaybackProgress,
   reportPlaybackStart,
   reportPlaybackStopped,
@@ -24,16 +24,17 @@ import {
   defaultPlaybackPrefs,
   readPlaybackPreferences,
 } from '../../services/storage';
+import {debugLog} from '../../utils/logger';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
-type PlaybackPanel = 'audio' | 'subtitles';
 
 interface PlayerScreenProps {
   accessToken: string;
   item: JellyfinMediaItem;
   onBack?: () => void;
   serverUrl: string;
+  trackSelection?: PlaybackTrackSelection;
   userId?: string;
 }
 
@@ -46,6 +47,9 @@ const SYNTHETIC_CHAPTER_COUNT = 12;
 
 const isAdaptiveStream = (url: string) =>
   url.includes('.m3u8') || url.includes('.mpd');
+
+const adaptiveStreamLabel = (url: string) =>
+  url.includes('.mpd') ? 'DASH' : 'HLS';
 
 const assertPlayableUrl = (url: string) => {
   const parsed = new URL(url);
@@ -79,6 +83,7 @@ export const PlayerScreen = ({
   item,
   onBack,
   serverUrl,
+  trackSelection,
   userId,
 }: PlayerScreenProps) => {
   const videoRef = useRef<VideoPlayer | null>(null);
@@ -86,11 +91,15 @@ export const PlayerScreen = ({
   const surfaceHandle = useRef<string | null>(null);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
   const stoppedReported = useRef(false);
-  const selectedAudioIndex = useRef<number | undefined>();
+  const selectedAudioIndex = useRef<number | undefined>(
+    trackSelection?.audioStreamIndex,
+  );
   const selectedBitrate = useRef<number | undefined>();
   const selectedForceTranscode = useRef(false);
   const selectedSubtitleBurnIn = useRef(false);
-  const selectedSubtitleIndex = useRef<number | undefined>();
+  const selectedSubtitleIndex = useRef<number | undefined>(
+    trackSelection?.subtitleStreamIndex,
+  );
   const playbackEventsAttached = useRef(false);
   const playbackErrorHandler = useRef<() => void>(() => undefined);
   const retriedAfterPlaybackError = useRef(false);
@@ -109,15 +118,6 @@ export const PlayerScreen = ({
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [showControls, setShowControls] = useState(true);
   const [isPaused, setPaused] = useState(false);
-  const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
-    null,
-  );
-  const [selectedAudioTrackIndex, setSelectedAudioTrackIndex] = useState<
-    number | undefined
-  >(undefined);
-  const [selectedSubtitleTrackIndex, setSelectedSubtitleTrackIndex] = useState<
-    number | undefined
-  >(undefined);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const playbackRate = 1;
   const [positionSeconds, setPositionSeconds] = useState(
@@ -247,7 +247,7 @@ export const PlayerScreen = ({
   }, [onBack, reportStopped]);
 
   const seekToSeconds = useCallback(
-    (targetSeconds: number, closeSettings = false) => {
+    (targetSeconds: number) => {
       const video = videoRef.current;
 
       if (!video) {
@@ -281,9 +281,6 @@ export const PlayerScreen = ({
         setPaused(false);
       }
 
-      if (closeSettings) {
-        setSettingsPanel(null);
-      }
       scheduleControlsHide();
       setStatusText(
         `Jumped to ${Math.floor(target / 60)}:${String(
@@ -568,14 +565,14 @@ export const PlayerScreen = ({
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
       );
-      console.log(
+      debugLog(
         '[Astra] Stream URL parts:',
         'transcodeUrl:',
         sanitizeUrlForLog(stream.transcodeUrl),
         'url:',
         sanitizeUrlForLog(stream.url),
       );
-      console.log(
+      debugLog(
         '[Astra] Stream URL:',
         sanitizeUrlForLog(stream.url),
         '| PlayMethod:',
@@ -603,13 +600,12 @@ export const PlayerScreen = ({
           stream.audioTracks[0];
 
         selectedAudioIndex.current = defaultTrack.index;
-        setSelectedAudioTrackIndex(defaultTrack.index);
       }
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
       setStatusText(
         stream.playMethod === 'Transcode'
           ? isAdaptiveStream(stream.url)
-            ? 'Loading HLS transcode...'
+            ? `Loading ${adaptiveStreamLabel(stream.url)} transcode...`
             : 'Loading transcoded MP4 stream...'
           : 'Loading direct stream...',
       );
@@ -620,80 +616,11 @@ export const PlayerScreen = ({
     [accessToken, item.id, preferredMaxBitrate, serverUrl, userId],
   );
 
-  const reloadWithTrack = useCallback(
-    async ({
-      audioTrack,
-      bitrate,
-      forceTranscode,
-      subtitleTrack,
-    }: {
-      audioTrack?: JellyfinMediaTrack;
-      bitrate?: number | null;
-      forceTranscode?: boolean;
-      subtitleTrack?: JellyfinMediaTrack | null;
-    }) => {
-      selectedAudioIndex.current =
-        audioTrack?.index ?? selectedAudioIndex.current;
-      if (audioTrack?.index !== undefined) {
-        setSelectedAudioTrackIndex(audioTrack.index);
-      }
-      if (bitrate !== undefined) {
-        selectedBitrate.current = bitrate ?? undefined;
-      }
-      if (forceTranscode !== undefined) {
-        selectedForceTranscode.current = forceTranscode;
-      }
-      selectedSubtitleIndex.current =
-        subtitleTrack === null
-          ? undefined
-          : subtitleTrack?.index ?? selectedSubtitleIndex.current;
-      if (subtitleTrack === null || subtitleTrack?.index !== undefined) {
-        setSelectedSubtitleTrackIndex(subtitleTrack?.index);
-      }
-      selectedSubtitleBurnIn.current =
-        subtitleTrack === null ? false : Boolean(subtitleTrack?.burnInRequired);
-      if (selectedSubtitleBurnIn.current) {
-        selectedForceTranscode.current = true;
-      }
-      setStatusText('Buffering stream...');
-      const positionTicks = currentPositionTicks();
-      const stream = await loadStream(positionTicks);
-      const video = videoRef.current;
-
-      if (video) {
-        video.pause();
-        await loadVideoSource(video, stream);
-        video.currentTime = positionTicks / TICKS_PER_SECOND;
-        addSelectedSubtitleTrack(video, stream);
-        video.play();
-        setPaused(false);
-        scheduleControlsHide();
-        setStatusText('Playing');
-      }
-
-      await reportPlaybackProgress(serverUrl, accessToken, {
-        ...stream,
-        audioStreamIndex: selectedAudioIndex.current,
-        isPaused,
-        positionTicks,
-        subtitleStreamIndex: selectedSubtitleIndex.current,
-      });
-    },
-    [
-      accessToken,
-      addSelectedSubtitleTrack,
-      currentPositionTicks,
-      isPaused,
-      loadVideoSource,
-      loadStream,
-      scheduleControlsHide,
-      serverUrl,
-    ],
-  );
-
   playbackErrorHandler.current = () => {
     if (retriedAfterPlaybackError.current) {
-      setStatusText('Playback failed. Open settings and try another quality.');
+      setStatusText(
+        'Playback failed. Try another quality in Playback settings.',
+      );
       return;
     }
 
@@ -759,14 +686,12 @@ export const PlayerScreen = ({
     // Back dismisses one layer at a time and must not reveal the controls
     // it is about to dismiss.
     if (key !== 'back') {
-      revealControls(!settingsPanel && !showExitConfirm);
+      revealControls(!showExitConfirm);
     }
 
     switch (event.eventType) {
       case 'back':
-        if (settingsPanel) {
-          setSettingsPanel(null);
-        } else if (showExitConfirm) {
+        if (showExitConfirm) {
           setShowExitConfirm(false);
         } else if (showControls) {
           clearControlsHideTimer();
@@ -777,15 +702,14 @@ export const PlayerScreen = ({
         break;
       case 'menu':
       case 'context_menu':
-        revealControls(false);
-        setSettingsPanel((panel) => (panel ? null : 'audio'));
+        revealControls(true);
         break;
       case 'playPause':
       case 'playpause':
         togglePlayPause();
         break;
       case 'select':
-        if (!showControls && !settingsPanel && !showExitConfirm) {
+        if (!showControls && !showExitConfirm) {
           revealControls(true);
           break;
         }
@@ -829,7 +753,7 @@ export const PlayerScreen = ({
     const subscription = keplerAppStateManager.addAppStateListener(
       'change',
       (nextState) => {
-        console.log('[Astra] Player app state changed:', nextState);
+        debugLog('[Astra] Player app state changed:', nextState);
 
         if (nextState === 'background' || nextState === 'inactive') {
           const video = videoRef.current;
@@ -976,8 +900,7 @@ export const PlayerScreen = ({
         )}%`
       : '0%';
   const progressWidth = progressPercent as `${number}%`;
-  const controlsVisible =
-    showControls || Boolean(settingsPanel) || showExitConfirm;
+  const controlsVisible = showControls || showExitConfirm;
 
   return (
     <View style={styles.screen} testID="player-screen">
@@ -998,15 +921,6 @@ export const PlayerScreen = ({
             <View style={[styles.progressFill, {width: progressWidth}]} />
           </View>
         </View>
-      ) : null}
-      {settingsPanel && currentStream ? (
-        <PlaybackSettingsOverlay
-          onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
-          onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
-          selectedAudioIndex={selectedAudioTrackIndex}
-          selectedSubtitleIndex={selectedSubtitleTrackIndex}
-          streamInfo={currentStream}
-        />
       ) : null}
       {showExitConfirm ? (
         <View style={styles.exitOverlay} testID="player-exit-confirm">
@@ -1033,107 +947,6 @@ export const PlayerScreen = ({
     </View>
   );
 };
-
-// Only track selection lives in-player; quality/speed/chapters were removed
-// deliberately — chapters ride the FF/RW keys, and quality is meant to be
-// configured outside the playback window.
-const PlaybackSettingsOverlay = ({
-  onSelectAudio,
-  onSelectSubtitle,
-  selectedAudioIndex,
-  selectedSubtitleIndex,
-  streamInfo,
-}: {
-  onSelectAudio: (track: JellyfinMediaTrack) => void;
-  onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
-  selectedAudioIndex?: number;
-  selectedSubtitleIndex?: number;
-  streamInfo: JellyfinStreamInfo;
-}) => (
-  <View style={styles.settingsOverlay} testID="player-settings-overlay">
-    <Text style={styles.settingsTitle}>Playback Options</Text>
-    <Text style={styles.settingsStreamInfo}>
-      {[
-        streamInfo.width && streamInfo.height
-          ? `${streamInfo.width}x${streamInfo.height}`
-          : undefined,
-        streamInfo.bitrate
-          ? `${(streamInfo.bitrate / 1000000).toFixed(1)} Mbps`
-          : undefined,
-        streamInfo.playMethod,
-      ]
-        .filter(Boolean)
-        .join('  •  ')}
-    </Text>
-    <View style={styles.settingsGrid}>
-      <SettingsColumn title="Audio">
-        {streamInfo.audioTracks.length ? (
-          streamInfo.audioTracks.map((track) => (
-            <SettingsButton
-              key={track.id}
-              label={track.title}
-              onPress={() => onSelectAudio(track)}
-              selected={track.index === selectedAudioIndex}
-            />
-          ))
-        ) : (
-          <Text style={styles.settingsEmpty}>Default audio</Text>
-        )}
-      </SettingsColumn>
-      <SettingsColumn title="Subtitles">
-        <SettingsButton
-          label="Off"
-          onPress={() => onSelectSubtitle(null)}
-          selected={selectedSubtitleIndex === undefined}
-        />
-        {streamInfo.subtitleTracks.map((track) => (
-          <SettingsButton
-            key={track.id}
-            label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
-            onPress={() => onSelectSubtitle(track)}
-            selected={track.index === selectedSubtitleIndex}
-          />
-        ))}
-      </SettingsColumn>
-    </View>
-  </View>
-);
-
-const SettingsColumn = ({
-  children,
-  title,
-}: React.PropsWithChildren<{title: string}>) => (
-  <View style={styles.settingsColumn}>
-    <Text style={styles.settingsHeading}>{title}</Text>
-    <ScrollView
-      showsVerticalScrollIndicator={true}
-      style={styles.settingsColumnScroller}>
-      {children}
-    </ScrollView>
-  </View>
-);
-
-const SettingsButton = ({
-  label,
-  onPress,
-  selected = false,
-}: {
-  label: string;
-  onPress: () => void;
-  selected?: boolean;
-}) => (
-  <FocusableItem
-    focusedStyle={styles.settingsButtonFocused}
-    onPress={onPress}
-    style={[styles.settingsButton, selected && styles.settingsButtonSelected]}>
-    <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
-      {selected ? <View style={styles.radioDot} /> : null}
-    </View>
-    <Text numberOfLines={1} style={styles.settingsButtonText}>
-      {label}
-    </Text>
-  </FocusableItem>
-);
 
 const styles = StyleSheet.create({
   screen: {
@@ -1163,11 +976,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginTop: 6,
   },
-  controls: {
-    flexDirection: 'row',
-    gap: 18,
-    marginTop: 22,
-  },
   progressTrack: {
     height: 8,
     borderRadius: 4,
@@ -1196,16 +1004,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
   },
-  settingsOverlay: {
-    position: 'absolute',
-    top: 44,
-    left: 52,
-    right: 52,
-    maxHeight: 670,
-    borderRadius: 8,
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    padding: 24,
-  },
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -1222,76 +1020,5 @@ const styles = StyleSheet.create({
   exitButtons: {
     flexDirection: 'row',
     gap: 20,
-  },
-  settingsTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  settingsStreamInfo: {
-    color: '#8FE3C0',
-    fontSize: 22,
-    marginBottom: 16,
-  },
-  settingsGrid: {
-    flexDirection: 'row',
-    gap: 18,
-  },
-  settingsColumn: {
-    flex: 1,
-    marginBottom: 18,
-  },
-  settingsColumnScroller: {
-    maxHeight: 550,
-  },
-  settingsHeading: {
-    color: '#89CFF0',
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  settingsButton: {
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: '#25313A',
-    flexDirection: 'row',
-    minHeight: 44,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-  },
-  settingsButtonSelected: {
-    backgroundColor: '#1F3746',
-  },
-  settingsButtonFocused: {
-    backgroundColor: '#2E5A72',
-  },
-  settingsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  radioCircle: {
-    alignItems: 'center',
-    borderColor: '#8CA1AA',
-    borderRadius: 9,
-    borderWidth: 2,
-    height: 18,
-    justifyContent: 'center',
-    marginRight: 9,
-    width: 18,
-  },
-  radioCircleSelected: {
-    borderColor: '#4CC9F0',
-  },
-  radioDot: {
-    backgroundColor: '#4CC9F0',
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  settingsEmpty: {
-    color: '#B8C5CC',
-    fontSize: 18,
   },
 });

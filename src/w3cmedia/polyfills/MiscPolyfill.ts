@@ -14,28 +14,32 @@
  */
 
 // @ts-nocheck
-import { WebCrypto } from "@amazon-devices/react-native-w3cmedia/dist/headless";
-import {decode/*, encode*/} from 'base-64';
+import {WebCrypto} from '@amazon-devices/react-native-w3cmedia/dist/headless';
+import {debugLog} from '../../utils/logger';
 
 class MiscPolyfill {
-    static install() {
-        console.log("Installing misc polyfills");
-        global.navigator.userAgent = "AFTCA001";
-        global.window.fetch = fetch;
-        global.window.addEventListener = (type: any, listener: any, options?: any) => {
-            console.log(`adding window listener ${type}`);
-        }
-        global.window.removeEventListener = (
-          type: any,
-          listener: any,
-          options?: any
-        ) => {
-          console.log(`removing window listener ${type}`);
-        };
-        global.window.console = console;
-        global.window.crypto = WebCrypto;
-        global.window.atob = decode;
-    }
+  static install() {
+    debugLog('Installing misc polyfills');
+    global.navigator.userAgent = 'AFTCA001';
+    global.window.fetch = fetch;
+    global.window.addEventListener = (
+      type: any,
+      listener: any,
+      options?: any,
+    ) => {
+      debugLog(`adding window listener ${type}`);
+    };
+    global.window.removeEventListener = (
+      type: any,
+      listener: any,
+      options?: any,
+    ) => {
+      debugLog(`removing window listener ${type}`);
+    };
+    global.window.console = console;
+    global.window.crypto = WebCrypto;
+    global.window.atob = decode;
+  }
 }
 
 export default MiscPolyfill;

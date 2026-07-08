@@ -14,6 +14,7 @@ import {
   DisplayPreferences,
   getDisplayPreferences,
   getUserPreferences,
+  markServerProfileUsed,
   PlaybackPreferences,
   readPlaybackPreferences,
   readServerProfiles,
@@ -56,6 +57,7 @@ type SettingsRoute =
 interface SettingsScreenProps {
   onAddServer?: () => void;
   onBack?: () => void;
+  onSelectProfile?: (profile: ServerProfile | null) => void;
   serverProfile: ServerProfile;
 }
 
@@ -74,8 +76,10 @@ const audioChannelOptions: Array<{
   value: PlaybackPreferences['maxAudioChannels'];
 }> = [
   {label: 'Stereo (2.0)', value: 2},
+  {label: '2.1 Soundbar', value: 3},
+  {label: '3.1 Soundbar', value: 4},
   {label: '5.1 Surround', value: 6},
-  {label: '7.1 Surround', value: 8},
+  {label: '7.1 / Atmos passthrough', value: 8},
 ];
 
 const languageOptions: Array<{label: string; value: string}> = [
@@ -92,6 +96,7 @@ const languageOptions: Array<{label: string; value: string}> = [
 export const SettingsScreen = ({
   onAddServer,
   onBack,
+  onSelectProfile,
   serverProfile,
 }: SettingsScreenProps) => {
   const keplerBackHandler = useKeplerBackHandler();
@@ -171,6 +176,45 @@ export const SettingsScreen = ({
     setPlaybackPrefs(next);
   };
 
+  const serverGroups = profiles.reduce<
+    Array<{serverId: string; serverName: string; accounts: ServerProfile[]}>
+  >((groups, profile) => {
+    const serverId = profile.serverId ?? profile.id;
+    const group = groups.find((entry) => entry.serverId === serverId);
+
+    if (group) {
+      group.accounts.push(profile);
+    } else {
+      groups.push({
+        serverId,
+        serverName: profile.name,
+        accounts: [profile],
+      });
+    }
+
+    return groups;
+  }, []);
+
+  const sortedAccounts = (accounts: ServerProfile[]) =>
+    [...accounts].sort((left, right) =>
+      preferences.accountSortBy === 'name'
+        ? (left.username ?? left.userId).localeCompare(
+            right.username ?? right.userId,
+          )
+        : right.lastUsed - left.lastUsed,
+    );
+
+  const selectFallbackProfile = async (removedProfileIds: string[]) => {
+    const remainingProfiles = (await readServerProfiles())
+      .filter(
+        (profile) =>
+          profile.accessToken && !removedProfileIds.includes(profile.id),
+      )
+      .sort((left, right) => right.lastUsed - left.lastUsed);
+
+    onSelectProfile?.(remainingProfiles[0] ?? null);
+  };
+
   const page = (() => {
     switch (current.route) {
       case 'login':
@@ -199,8 +243,8 @@ export const SettingsScreen = ({
             <MenuRow
               icon="▣"
               title="Manage servers"
-              subtitle={`${profiles.length} saved server${
-                profiles.length === 1 ? '' : 's'
+              subtitle={`${serverGroups.length} saved server${
+                serverGroups.length === 1 ? '' : 's'
               }`}
               onPress={() => push({route: 'manageServers'})}
             />
@@ -245,31 +289,44 @@ export const SettingsScreen = ({
             {profiles.length === 0 ? (
               <Text style={styles.infoText}>No saved servers yet.</Text>
             ) : null}
-            {profiles.map((profile) => (
+            {serverGroups.map((group) => (
               <MenuRow
                 icon="▣"
-                key={profile.id}
-                title={profile.name}
-                subtitle={profile.serverUrl}
-                onPress={() => push({route: 'serverDetail', profile})}
+                key={group.serverId}
+                title={group.serverName}
+                subtitle={`${group.accounts.length} account${
+                  group.accounts.length === 1 ? '' : 's'
+                } • ${group.accounts[0]?.serverUrl ?? ''}`}
+                onPress={() =>
+                  push({route: 'serverDetail', profile: group.accounts[0]})
+                }
               />
             ))}
           </Page>
         );
-      case 'serverDetail':
+      case 'serverDetail': {
+        const serverAccounts = sortedAccounts(
+          profiles.filter(
+            (profile) =>
+              (profile.serverId ?? profile.id) ===
+              (current.profile.serverId ?? current.profile.id),
+          ),
+        );
+
         return (
           <Page title={current.profile.name} onBack={pop}>
             <Text style={styles.groupTitle}>Accounts</Text>
-            <MenuRow
-              icon="◉"
-              title={current.profile.username ?? current.profile.userId}
-              subtitle={`Last used on ${new Date(
-                current.profile.lastUsed,
-              ).toLocaleDateString()}`}
-              onPress={() =>
-                push({route: 'accountDetail', profile: current.profile})
-              }
-            />
+            {serverAccounts.map((profile) => (
+              <MenuRow
+                icon={profile.id === serverProfile.id ? '●' : '○'}
+                key={profile.id}
+                title={profile.username ?? profile.userId}
+                subtitle={`Last used on ${new Date(
+                  profile.lastUsed,
+                ).toLocaleDateString()}`}
+                onPress={() => push({route: 'accountDetail', profile})}
+              />
+            ))}
             <Text style={styles.groupTitle}>Server</Text>
             <DangerRow
               title="Remove server"
@@ -279,8 +336,18 @@ export const SettingsScreen = ({
                   title: 'Remove server?',
                   body: 'This removes the saved server profile from Astra.',
                   onConfirm: async () => {
-                    await removeServerProfile(current.profile.id);
+                    const removedProfileIds = serverAccounts.map(
+                      (profile) => profile.id,
+                    );
+                    await Promise.all(
+                      serverAccounts.map((profile) =>
+                        removeServerProfile(profile.id),
+                      ),
+                    );
                     await refreshProfiles();
+                    if (removedProfileIds.includes(serverProfile.id)) {
+                      await selectFallbackProfile(removedProfileIds);
+                    }
                     setStack([
                       {route: 'preferences'},
                       {route: 'login'},
@@ -292,9 +359,23 @@ export const SettingsScreen = ({
             />
           </Page>
         );
+      }
       case 'accountDetail':
         return (
           <Page title={current.profile.username ?? 'Account'} onBack={pop}>
+            <MenuRow
+              icon="✓"
+              title="Use this account"
+              subtitle={current.profile.name}
+              onPress={async () => {
+                const updatedProfile = await markServerProfileUsed(
+                  current.profile.id,
+                );
+                await refreshProfiles();
+                onSelectProfile?.(updatedProfile ?? current.profile);
+                setStack([{route: 'preferences'}]);
+              }}
+            />
             <DangerRow
               title="Sign out"
               subtitle="Requires login on next use"
@@ -305,6 +386,9 @@ export const SettingsScreen = ({
                   onConfirm: async () => {
                     await signOutServerProfile(current.profile.id);
                     await refreshProfiles();
+                    if (current.profile.id === serverProfile.id) {
+                      await selectFallbackProfile([current.profile.id]);
+                    }
                     pop();
                   },
                 })
@@ -320,6 +404,9 @@ export const SettingsScreen = ({
                   onConfirm: async () => {
                     await removeServerProfile(current.profile.id);
                     await refreshProfiles();
+                    if (current.profile.id === serverProfile.id) {
+                      await selectFallbackProfile([current.profile.id]);
+                    }
                     setStack([
                       {route: 'preferences'},
                       {route: 'login'},
@@ -460,13 +547,17 @@ export const SettingsScreen = ({
             <MenuRow
               icon="▱"
               title="Preferred subtitle language"
-              subtitle={preferences.preferredSubtitleLanguage}
+              subtitle={
+                languageOptions.find(
+                  (o) => o.value === playbackPrefs.preferredSubtitleLanguage,
+                )?.label ?? 'English'
+              }
               onPress={() => push({route: 'subtitleLanguage'})}
             />
             <MenuRow
               icon="▰"
               title="Subtitle mode"
-              subtitle={labelForSubtitleMode(preferences.subtitleMode)}
+              subtitle={labelForSubtitleMode(playbackPrefs.subtitleMode)}
               onPress={() => push({route: 'subtitleMode'})}
             />
             <ToggleRow
@@ -526,7 +617,7 @@ export const SettingsScreen = ({
         return (
           <Page title="Audio output" onBack={pop}>
             <Text style={styles.description}>
-              Match your TV or receiver's channel capability
+              Match your TV, soundbar, or receiver's channel capability
             </Text>
             <PreferenceRadioGroup
               options={audioChannelOptions}
@@ -536,7 +627,8 @@ export const SettingsScreen = ({
               }
             />
             <Text style={styles.infoText}>
-              7.1 requires direct play. Transcoded audio is 5.1 maximum.
+              7.1 and Atmos depend on source compatibility and passthrough.
+              Transcoded audio is 5.1 maximum.
             </Text>
           </Page>
         );
@@ -562,9 +654,9 @@ export const SettingsScreen = ({
             title="Preferred subtitle language"
             onBack={pop}
             options={languageOptions}
-            selectedValue={preferences.preferredSubtitleLanguage}
+            selectedValue={playbackPrefs.preferredSubtitleLanguage}
             onSelect={(preferredSubtitleLanguage) =>
-              savePreferences({preferredSubtitleLanguage})
+              savePlaybackPrefs({preferredSubtitleLanguage})
             }
           />
         );
@@ -574,13 +666,11 @@ export const SettingsScreen = ({
             title="Subtitle mode"
             onBack={pop}
             options={[
-              {label: 'Default', value: 'default'},
               {label: 'Always On', value: 'alwaysOn'},
               {label: 'Always Off', value: 'alwaysOff'},
-              {label: 'Only Forced', value: 'forcedOnly'},
             ]}
-            selectedValue={preferences.subtitleMode}
-            onSelect={(subtitleMode) => savePreferences({subtitleMode})}
+            selectedValue={playbackPrefs.subtitleMode}
+            onSelect={(subtitleMode) => savePlaybackPrefs({subtitleMode})}
           />
         );
       case 'autoplayCountdown':
@@ -718,12 +808,10 @@ export const SettingsScreen = ({
   );
 };
 
-const labelForSubtitleMode = (mode: UserPreferences['subtitleMode']) =>
+const labelForSubtitleMode = (mode: PlaybackPreferences['subtitleMode']) =>
   ({
     alwaysOff: 'Always Off',
     alwaysOn: 'Always On',
-    default: 'Default',
-    forcedOnly: 'Only Forced',
   }[mode]);
 
 const labelForSkip = (mode: UserPreferences['skipIntroCredits']) =>

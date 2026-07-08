@@ -20,6 +20,7 @@ import {
   ServerType,
   upsertServerProfile,
 } from '../../services/storage';
+import {debugInfo} from '../../utils/logger';
 
 const serverTypes: ServerType[] = ['jellyfin', 'emby'];
 
@@ -89,7 +90,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   ];
 
   const handleInputFocus = (id: string) => {
-    console.info(`[Astra] Setup focus: ${id}`);
+    debugInfo(`[Astra] Setup focus: ${id}`);
     setFocusedInput(id);
   };
 
@@ -100,13 +101,17 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     try {
       const serverInfo = await connect(serverUrl);
       const authResult = await authenticate(serverUrl, username, password);
+      const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
+      const serverId = serverInfo.id || normalizedServerUrl;
+      const userId = authResult.userId;
       const profile: ServerProfile = {
-        id: serverInfo.id || serverUrl,
+        id: `${serverId}:${userId}`,
         name: serverInfo.name,
-        serverUrl: serverUrl.trim().replace(/\/+$/, ''),
+        serverId,
+        serverUrl: normalizedServerUrl,
         serverType,
-        username: username.trim(),
-        userId: authResult.userId,
+        username: authResult.username ?? username.trim(),
+        userId,
         accessToken: authResult.accessToken,
         lastUsed: Date.now(),
       };

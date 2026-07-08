@@ -10,6 +10,20 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
     },
   ],
   TranscodingProfiles: [
+    // Experimental high-capability path: ask Jellyfin for DASH/fMP4 first so
+    // Shaka can try an MPD manifest with higher-tier audio codecs before the
+    // conservative HLS profiles below.
+    {
+      Type: 'Video',
+      Container: 'mp4',
+      VideoCodec: 'hevc,h264',
+      AudioCodec: 'truehd,dts,eac3,ac3,aac',
+      Protocol: 'dash',
+      Context: 'Streaming',
+      MaxAudioChannels: String(prefs.maxAudioChannels),
+      MinSegments: 1,
+      BreakOnNonKeyFrames: true,
+    },
     // Primary delivery: HLS with fMP4 segments. Listing both codecs lets
     // the server STREAM-COPY compatible sources into segments (full source
     // quality, no GPU) and only re-encode when a CodecProfile condition

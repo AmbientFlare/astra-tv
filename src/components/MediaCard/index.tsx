@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {memo} from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
 
@@ -12,57 +12,59 @@ interface MediaCardProps {
   onPress?: () => void;
 }
 
-export const MediaCard = ({
-  hasTVPreferredFocus,
-  imageUrl,
-  imageScale = 1,
-  onFocus,
-  onPress,
-  subtitle,
-  title,
-}: MediaCardProps) => (
-  <FocusableItem
-    accessibilityLabel={title}
-    focusedStyle={styles.focused}
-    hasTVPreferredFocus={hasTVPreferredFocus}
-    onFocus={onFocus}
-    onPress={onPress}
-    style={[
-      styles.card,
-      {
-        width: Math.round(248 * imageScale),
-        height: Math.round(412 * imageScale),
-      },
-    ]}
-    testID={`media-card-${title}`}>
-    {imageUrl ? (
-      <Image
-        resizeMode="cover"
-        source={{uri: imageUrl}}
-        style={[styles.image, {height: Math.round(330 * imageScale)}]}
-      />
-    ) : (
-      <View
-        style={[
-          styles.imagePlaceholder,
-          {height: Math.round(330 * imageScale)},
-        ]}>
-        <Text numberOfLines={2} style={styles.placeholderText}>
+export const MediaCard = memo(
+  ({
+    hasTVPreferredFocus,
+    imageUrl,
+    imageScale = 1,
+    onFocus,
+    onPress,
+    subtitle,
+    title,
+  }: MediaCardProps) => (
+    <FocusableItem
+      accessibilityLabel={title}
+      focusedStyle={styles.focused}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      onFocus={onFocus}
+      onPress={onPress}
+      style={[
+        styles.card,
+        {
+          width: Math.round(248 * imageScale),
+          height: Math.round(412 * imageScale),
+        },
+      ]}
+      testID={`media-card-${title}`}>
+      {imageUrl ? (
+        <Image
+          resizeMode="cover"
+          source={{uri: imageUrl}}
+          style={[styles.image, {height: Math.round(330 * imageScale)}]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.imagePlaceholder,
+            {height: Math.round(330 * imageScale)},
+          ]}>
+          <Text numberOfLines={2} style={styles.placeholderText}>
+            {title}
+          </Text>
+        </View>
+      )}
+      <View style={styles.caption}>
+        <Text numberOfLines={2} style={styles.title}>
           {title}
         </Text>
+        {subtitle ? (
+          <Text numberOfLines={1} style={styles.subtitle}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-    )}
-    <View style={styles.caption}>
-      <Text numberOfLines={2} style={styles.title}>
-        {title}
-      </Text>
-      {subtitle ? (
-        <Text numberOfLines={1} style={styles.subtitle}>
-          {subtitle}
-        </Text>
-      ) : null}
-    </View>
-  </FocusableItem>
+    </FocusableItem>
+  ),
 );
 
 const styles = StyleSheet.create({

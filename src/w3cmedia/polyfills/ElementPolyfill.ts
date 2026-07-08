@@ -13,6 +13,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
  */
 
+import {debugLog} from '../../utils/logger';
+
 declare global {
   namespace globalThis {
     var Element: any;
@@ -25,7 +27,7 @@ class Element {
     this.tagName = tagName;
   }
   static install() {
-    console.log('Installing Element Polyfill');
+    debugLog('Installing Element Polyfill');
     global.Element = Element;
   }
 }

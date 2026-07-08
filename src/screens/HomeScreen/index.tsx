@@ -44,6 +44,8 @@ export const HomeScreen = ({
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const accountName =
+    serverProfile?.username ?? serverProfile?.name ?? 'Account';
 
   const queueBackdrop = useCallback((url?: string) => {
     if (!url) {
@@ -170,9 +172,10 @@ export const HomeScreen = ({
             style={styles.profileButton}
             testID="home-profile-button">
             <Text style={styles.profileIcon}>
-              {(serverProfile?.username ?? serverProfile?.name ?? 'A')
-                .slice(0, 1)
-                .toUpperCase()}
+              {accountName.slice(0, 1).toUpperCase()}
+            </Text>
+            <Text numberOfLines={1} style={styles.profileName}>
+              {accountName}
             </Text>
           </FocusableItem>
           <TVFocusGuideView style={styles.actions}>
@@ -399,9 +402,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1B2832',
     borderRadius: 28,
+    flexDirection: 'row',
+    gap: 10,
     height: 56,
     justifyContent: 'center',
-    width: 56,
+    maxWidth: 280,
+    minWidth: 56,
+    paddingHorizontal: 16,
   },
   profileFocused: {
     backgroundColor: '#2E5A72',
@@ -410,6 +417,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 26,
     fontWeight: '800',
+  },
+  profileName: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+    maxWidth: 190,
   },
   actions: {
     flexDirection: 'row',

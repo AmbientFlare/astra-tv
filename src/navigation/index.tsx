@@ -15,7 +15,11 @@ import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {SupportScreen} from '../screens/SupportScreen';
-import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
+import {
+  JellyfinLibrary,
+  JellyfinMediaItem,
+  PlaybackTrackSelection,
+} from '../services/jellyfin';
 import {checkAstraProReceipt} from '../services/iap';
 import {
   getLastUsedServerProfile,
@@ -36,7 +40,11 @@ type RouteEntry =
   | {route: 'library'; library: JellyfinLibrary}
   | {route: 'detail'; item: JellyfinMediaItem}
   | {route: 'episodeDetail'; item: JellyfinMediaItem}
-  | {route: 'player'; item: JellyfinMediaItem}
+  | {
+      route: 'player';
+      item: JellyfinMediaItem;
+      trackSelection?: PlaybackTrackSelection;
+    }
   | {route: 'search'}
   | {route: 'settings'}
   | {route: 'addServer'}
@@ -282,7 +290,9 @@ export const RootNavigator = () => {
       <ItemDetailScreen
         item={current.item}
         onBack={pop}
-        onPlay={(item) => push({route: 'player', item})}
+        onPlay={(item, trackSelection) =>
+          push({route: 'player', item, trackSelection})
+        }
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectItem={(item) => push({route: 'detail', item})}
         onSelectPerson={(personId, personName) =>
@@ -300,6 +310,7 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         serverUrl={serverProfile.serverUrl}
+        trackSelection={current.trackSelection}
         userId={serverProfile.userId}
       />,
     );
@@ -311,7 +322,9 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         onGoToSeries={(item) => push({route: 'detail', item})}
-        onPlay={(item) => push({route: 'player', item})}
+        onPlay={(item, trackSelection) =>
+          push({route: 'player', item, trackSelection})
+        }
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectPerson={(personId, personName) =>
           push({route: 'personDetail', personId, personName})
@@ -349,6 +362,13 @@ export const RootNavigator = () => {
       <SettingsScreen
         onAddServer={() => push({route: 'addServer'})}
         onBack={pop}
+        onSelectProfile={(profile) => {
+          setServerProfile(profile);
+          resetStack();
+          if (!profile) {
+            setRoute('setup');
+          }
+        }}
         serverProfile={serverProfile}
       />,
     );

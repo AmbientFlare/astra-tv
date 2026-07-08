@@ -26,20 +26,20 @@ import {
 
 class W3CMediaPolyfill {
   static install() {
-    console.log('Installing W3CMedia polyfills');
+    debugLog('Installing W3CMedia polyfills');
     global.window.MediaSource = global.MediaSource = MediaSource;
     global.window.TextTrackCue = global.TextTrackCue = TextTrackCue;
     global.window.VTTCue = global.VTTCue = VTTCue;
-    window["TextTrackCue"] = TextTrackCue;
-    if(!window.TextTrackCue) {
-        console.log("TextTrackCue not polyfilled");
+    window['TextTrackCue'] = TextTrackCue;
+    if (!window.TextTrackCue) {
+      debugLog('TextTrackCue not polyfilled');
     }
-    window["VTTCue"] = VTTCue;
-    if(!window.VTTCue) {
-      console.log("VTTCue not polyfilled");
+    window['VTTCue'] = VTTCue;
+    if (!window.VTTCue) {
+      debugLog('VTTCue not polyfilled');
     }
     global.navigator.requestMediaKeySystemAccess = requestMediaKeySystemAccess;
-    global.navigator.mediaCapabilities = ({});
+    global.navigator.mediaCapabilities = {};
     global.navigator.mediaCapabilities.decodingInfo = decodingInfoImpl;
     global.HTMLMediaElement = HTMLMediaElement;
     global.Node = {};
