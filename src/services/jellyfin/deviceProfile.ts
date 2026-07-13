@@ -6,18 +6,22 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
       Type: 'Video',
       Container: 'mp4,mkv,mov,avi,ts,webm,m4v',
       VideoCodec: 'h264,hevc,av1,vp9,vp8,mpeg4',
-      AudioCodec: 'aac,mp3,ac3,eac3,dts,flac,opus,vorbis,pcm,truehd',
+      AudioCodec: 'aac,mp3,ac3,eac3,flac,opus,pcm',
     },
   ],
   TranscodingProfiles: [
-    // Experimental high-capability path: ask Jellyfin for DASH/fMP4 first so
-    // Shaka can try an MPD manifest with higher-tier audio codecs before the
-    // conservative HLS profiles below.
+    // Experimental high-capability path: ask Jellyfin for DASH/fMP4 first,
+    // falling back to the HLS profiles below if the server can't produce it.
+    // Audio codecs are capped to Vega's documented support (AAC, MP3, Dolby
+    // AC3/eAC3/AC4, Opus, FLAC) — DTS/TrueHD aren't decodable on this
+    // platform at all, so requesting them here caused every title with a
+    // DTS/TrueHD track to fail with a MANIFEST/CONTENT_UNSUPPORTED_BY_BROWSER
+    // Shaka error (never shipped past this WIP branch).
     {
       Type: 'Video',
       Container: 'mp4',
       VideoCodec: 'hevc,h264',
-      AudioCodec: 'truehd,dts,eac3,ac3,aac',
+      AudioCodec: 'eac3,ac3,aac',
       Protocol: 'dash',
       Context: 'Streaming',
       MaxAudioChannels: String(prefs.maxAudioChannels),

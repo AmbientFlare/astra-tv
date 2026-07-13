@@ -434,6 +434,10 @@ export const PlayerScreen = ({
           severity?: number;
           data?: unknown[];
         };
+        const dataSummary = JSON.stringify(shakaError?.data ?? []).slice(
+          0,
+          500,
+        );
         console.error(
           '[Astra] Shaka load failed:',
           'code:',
@@ -443,14 +447,14 @@ export const PlayerScreen = ({
           'severity:',
           shakaError?.severity,
           'data:',
-          JSON.stringify(shakaError?.data ?? []).slice(0, 500),
+          dataSummary,
         );
         throw error instanceof Error
           ? error
           : new Error(
               `Stream engine error ${shakaError?.code ?? 'unknown'} (category ${
                 shakaError?.category ?? '?'
-              })`,
+              }): ${dataSummary}`,
             );
       }
     },
