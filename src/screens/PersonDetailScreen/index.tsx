@@ -192,6 +192,7 @@ export const PersonDetailScreen = ({
                       : item.type)
                   }
                   title={item.name}
+                  unplayedCount={item.unplayedItemCount}
                 />
               ))}
             </TVFocusGuideView>

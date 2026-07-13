@@ -371,6 +371,7 @@ const HomeMediaRow = ({
                 (item.productionYear ? String(item.productionYear) : item.type)
               }
               title={item.name}
+              unplayedCount={item.unplayedItemCount}
             />
           ))}
         </TVFocusGuideView>

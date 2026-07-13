@@ -26,6 +26,7 @@ import {
   getUserPreferences,
   incrementLaunchCount,
   readServerProfiles,
+  runStorageMigration,
   ServerProfile,
   setProStatus,
 } from '../services/storage';
@@ -173,6 +174,9 @@ export const RootNavigator = () => {
     let mounted = true;
 
     const bootstrap = async () => {
+      // Carry existing data from the legacy store into the supported one
+      // before any read, so an in-place update keeps the user signed in.
+      await runStorageMigration();
       const profiles = await readServerProfiles();
       const preferences = await getUserPreferences();
       const lastUsedProfile =
@@ -221,8 +225,13 @@ export const RootNavigator = () => {
   if (route === 'loading') {
     return withExitPrompt(
       <View style={styles.loading} testID="navigation-loading">
-        <ActivityIndicator color="#4CC9F0" size="large" />
-        <Text style={styles.loadingText}>Loading Astra</Text>
+        <Text style={styles.splashLogo}>Astra</Text>
+        <Text style={styles.splashTagline}>your media, everywhere</Text>
+        <ActivityIndicator
+          color="#4CC9F0"
+          size="large"
+          style={styles.splashSpinner}
+        />
       </View>,
     );
   }
@@ -453,6 +462,19 @@ const styles = StyleSheet.create({
     color: '#B8C5CC',
     fontSize: 30,
     marginTop: 24,
+  },
+  splashLogo: {
+    color: '#FFFFFF',
+    fontSize: 108,
+    fontWeight: '800',
+  },
+  splashTagline: {
+    color: '#8CA1AA',
+    fontSize: 28,
+    marginTop: 6,
+  },
+  splashSpinner: {
+    marginTop: 40,
   },
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,

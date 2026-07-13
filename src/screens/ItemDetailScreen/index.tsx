@@ -394,6 +394,7 @@ export const ItemDetailScreen = ({
                     selectedSeason?.id === season.id ? 'Selected' : 'Season'
                   }
                   title={season.name}
+                  unplayedCount={season.unplayedItemCount}
                 />
               ))}
             </TVFocusGuideView>
@@ -461,6 +462,7 @@ export const ItemDetailScreen = ({
                       : similarItem.type
                   }
                   title={similarItem.name}
+                  unplayedCount={similarItem.unplayedItemCount}
                 />
               ))}
             </TVFocusGuideView>

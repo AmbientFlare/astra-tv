@@ -24,7 +24,12 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
       AudioCodec: 'eac3,ac3,aac',
       Protocol: 'dash',
       Context: 'Streaming',
-      MaxAudioChannels: String(prefs.maxAudioChannels),
+      // Cap transcodes at 6ch (5.1) to match the HLS/HTTP profiles below, so
+      // the delivered channel count doesn't depend on which protocol the
+      // server happens to pick. 7.1/Atmos still reaches the sink intact via
+      // DirectPlay (eac3 is a direct-play codec) — only genuine re-encodes
+      // are capped, matching the Settings copy that 7.1 needs a DD+ source.
+      MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
       MinSegments: 1,
       BreakOnNonKeyFrames: true,
     },

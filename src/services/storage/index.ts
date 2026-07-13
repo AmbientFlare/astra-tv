@@ -1,4 +1,6 @@
-import {AsyncStorage} from '@amazon-devices/react-native-kepler';
+import {getItem, removeItem, setItem} from './kvStore';
+
+export {runStorageMigration} from './kvStore';
 
 export type ServerType = 'jellyfin' | 'emby';
 
@@ -154,7 +156,7 @@ const parseConfig = (rawConfig: string | null): ServerProfilesConfig => {
 };
 
 export const readServerProfiles = async (): Promise<ServerProfile[]> => {
-  const rawConfig = await AsyncStorage.getItem(STORAGE_KEY);
+  const rawConfig = await getItem(STORAGE_KEY);
   return parseConfig(rawConfig).servers;
 };
 
@@ -169,7 +171,7 @@ export const writeServerProfiles = async (
     })),
   };
 
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  await setItem(STORAGE_KEY, JSON.stringify(config));
 };
 
 export const upsertServerProfile = async (
@@ -224,7 +226,7 @@ export const getLastUsedServerProfile =
   };
 
 export const clearServerProfiles = async (): Promise<void> => {
-  await AsyncStorage.removeItem(STORAGE_KEY);
+  await removeItem(STORAGE_KEY);
 };
 
 const parseAppState = (rawState: string | null): AppStateConfig => {
@@ -250,7 +252,7 @@ const parseAppState = (rawState: string | null): AppStateConfig => {
 };
 
 export const readAppState = async (): Promise<AppStateConfig> => {
-  const rawState = await AsyncStorage.getItem(APP_STATE_KEY);
+  const rawState = await getItem(APP_STATE_KEY);
   return parseAppState(rawState);
 };
 
@@ -266,7 +268,7 @@ export const writeAppState = async (
     version: 1,
   };
 
-  await AsyncStorage.setItem(APP_STATE_KEY, JSON.stringify(nextState));
+  await setItem(APP_STATE_KEY, JSON.stringify(nextState));
 
   return nextState;
 };
@@ -285,7 +287,7 @@ export const setProStatus = async (isPro: boolean): Promise<void> => {
 };
 
 export const getDisplayPreferences = async (): Promise<DisplayPreferences> => {
-  const rawPreferences = await AsyncStorage.getItem(DISPLAY_PREFERENCES_KEY);
+  const rawPreferences = await getItem(DISPLAY_PREFERENCES_KEY);
 
   if (!rawPreferences) {
     return defaultDisplayPreferences;
@@ -310,7 +312,7 @@ export const getDisplayPreferences = async (): Promise<DisplayPreferences> => {
 export const setDisplayPreferences = async (
   preferences: DisplayPreferences,
 ): Promise<void> => {
-  await AsyncStorage.setItem(
+  await setItem(
     DISPLAY_PREFERENCES_KEY,
     JSON.stringify({
       imageSize: preferences.imageSize,
@@ -343,14 +345,14 @@ const parseUserPreferences = (
 };
 
 export const getUserPreferences = async (): Promise<UserPreferences> => {
-  const rawPreferences = await AsyncStorage.getItem(USER_PREFERENCES_KEY);
+  const rawPreferences = await getItem(USER_PREFERENCES_KEY);
   return parseUserPreferences(rawPreferences);
 };
 
 export const setUserPreferences = async (
   preferences: UserPreferences,
 ): Promise<void> => {
-  await AsyncStorage.setItem(USER_PREFERENCES_KEY, JSON.stringify(preferences));
+  await setItem(USER_PREFERENCES_KEY, JSON.stringify(preferences));
 };
 
 export const updateUserPreferences = async (
@@ -446,14 +448,14 @@ const migrateLegacyPlaybackPreferences =
       seekDurationSeconds: legacy.seekDurationSeconds,
     });
 
-    await AsyncStorage.setItem(PLAYBACK_PREFS_KEY, JSON.stringify(migrated));
+    await setItem(PLAYBACK_PREFS_KEY, JSON.stringify(migrated));
 
     return migrated;
   };
 
 export const readPlaybackPreferences =
   async (): Promise<PlaybackPreferences> => {
-    const rawPreferences = await AsyncStorage.getItem(PLAYBACK_PREFS_KEY);
+    const rawPreferences = await getItem(PLAYBACK_PREFS_KEY);
     const parsed = parsePlaybackPreferences(rawPreferences);
 
     return parsed ?? migrateLegacyPlaybackPreferences();
@@ -465,7 +467,7 @@ export const writePlaybackPreferences = async (
   const current = await readPlaybackPreferences();
   const next = coercePlaybackPrefs({...current, ...prefs, version: 1});
 
-  await AsyncStorage.setItem(PLAYBACK_PREFS_KEY, JSON.stringify(next));
+  await setItem(PLAYBACK_PREFS_KEY, JSON.stringify(next));
 
   return next;
 };

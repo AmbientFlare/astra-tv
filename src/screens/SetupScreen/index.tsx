@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
@@ -10,9 +10,15 @@ import {
 } from '../../config/devCredentials';
 import {
   authenticate,
+  authenticateWithQuickConnect,
   connect,
   DiscoveredServer,
   discoverServers,
+  initiateQuickConnect,
+  isQuickConnectEnabled,
+  JellyfinAuthResult,
+  JellyfinServerInfo,
+  pollQuickConnect,
 } from '../../services/jellyfin';
 import {getLocalSubnetPrefixes} from '../../services/network';
 import {
@@ -22,29 +28,36 @@ import {
 } from '../../services/storage';
 import {debugInfo} from '../../utils/logger';
 
-const serverTypes: ServerType[] = ['jellyfin', 'emby'];
+// One lightweight screen per step keeps memory/render cost low on the device.
+type WizardStep = 'serverType' | 'server' | 'authMethod' | 'code' | 'password';
+
+const QUICK_CONNECT_POLL_MS = 5000;
 
 interface SetupScreenProps {
   onConnected?: (profile: ServerProfile) => void;
 }
 
 export const SetupScreen = ({onConnected}: SetupScreenProps) => {
+  const [step, setStep] = useState<WizardStep>('serverType');
+  const [serverType, setServerType] = useState<ServerType>('jellyfin');
   const [serverUrl, setServerUrl] = useState(DEV_SERVER_URL);
   const [username, setUsername] = useState(DEV_USERNAME);
   const [password, setPassword] = useState(DEV_PASSWORD);
-  const [serverType, setServerType] = useState<ServerType>('jellyfin');
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [discoveredServers, setDiscoveredServers] = useState<
     DiscoveredServer[]
   >([]);
   const [isScanning, setScanning] = useState(false);
-  const [isConnecting, setConnecting] = useState(false);
+  const [isBusy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [serverInfo, setServerInfo] = useState<JellyfinServerInfo | null>(null);
+  const [quickConnectEnabled, setQuickConnectEnabled] = useState(false);
+  const [quickConnectCode, setQuickConnectCode] = useState<string | null>(null);
+  const quickConnectSecret = useRef<string | null>(null);
 
-  const scanForServers = async () => {
+  const scanForServers = useCallback(async () => {
     setScanning(true);
     setErrorText(null);
-
     try {
       const servers = await discoverServers({
         subnetPrefixes: await getLocalSubnetPrefixes(),
@@ -58,26 +71,25 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     } finally {
       setScanning(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
-
-    const scan = async () => {
-      const servers = await discoverServers({
-        subnetPrefixes: await getLocalSubnetPrefixes(),
-        timeoutMs: 180,
-      });
-
-      if (mounted) {
-        setDiscoveredServers(servers);
-      }
-    };
-
     const timeout = setTimeout(() => {
-      scan().catch(() => undefined);
+      (async () => {
+        try {
+          const servers = await discoverServers({
+            subnetPrefixes: await getLocalSubnetPrefixes(),
+            timeoutMs: 180,
+          });
+          if (mounted) {
+            setDiscoveredServers(servers);
+          }
+        } catch {
+          // Discovery is best-effort; the user can still type a URL.
+        }
+      })();
     }, 1500);
-
     return () => {
       mounted = false;
       clearTimeout(timeout);
@@ -94,128 +106,352 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     setFocusedInput(id);
   };
 
-  const handleConnect = async () => {
-    setConnecting(true);
-    setErrorText(null);
-
-    try {
-      const serverInfo = await connect(serverUrl);
-      const authResult = await authenticate(serverUrl, username, password);
+  // Shared by both sign-in paths: build + persist the profile, then hand off.
+  const saveProfile = useCallback(
+    async (authResult: JellyfinAuthResult, info: JellyfinServerInfo) => {
       const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
-      const serverId = serverInfo.id || normalizedServerUrl;
-      const userId = authResult.userId;
+      const serverId = info.id || normalizedServerUrl;
       const profile: ServerProfile = {
-        id: `${serverId}:${userId}`,
-        name: serverInfo.name,
+        id: `${serverId}:${authResult.userId}`,
+        name: info.name,
         serverId,
         serverUrl: normalizedServerUrl,
         serverType,
         username: authResult.username ?? username.trim(),
-        userId,
+        userId: authResult.userId,
         accessToken: authResult.accessToken,
         lastUsed: Date.now(),
       };
-
       await upsertServerProfile(profile);
       onConnected?.(profile);
+    },
+    [onConnected, serverType, serverUrl, username],
+  );
+
+  // Reach the server (public info only, no account creds), decide whether the
+  // code path is offered, then advance.
+  const handleServerConnect = async () => {
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const info = await connect(serverUrl);
+      setServerInfo(info);
+      const enabled = await isQuickConnectEnabled(serverUrl);
+      setQuickConnectEnabled(enabled);
+      setStep(enabled ? 'authMethod' : 'password');
+    } catch (error) {
+      setErrorText(
+        error instanceof Error ? error.message : 'Unable to reach the server.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startQuickConnect = async () => {
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const {code, secret} = await initiateQuickConnect(serverUrl);
+      quickConnectSecret.current = secret;
+      setQuickConnectCode(code);
+      setStep('code');
     } catch (error) {
       setErrorText(
         error instanceof Error
           ? error.message
-          : 'Unable to connect to the server.',
+          : 'Could not start Quick Connect.',
       );
     } finally {
-      setConnecting(false);
+      setBusy(false);
     }
   };
 
-  return (
-    <View style={styles.screen} testID="setup-screen">
-      <View style={styles.header}>
-        <Text style={styles.logo}>Astra</Text>
-        <Text style={styles.subtitle}>Connect your media server</Text>
-      </View>
+  const cancelQuickConnect = () => {
+    quickConnectSecret.current = null;
+    setQuickConnectCode(null);
+    setErrorText(null);
+    setStep('authMethod');
+  };
 
-      <TVFocusGuideView style={styles.form}>
-        <View style={styles.discoveryArea}>
-          <Text style={styles.discoveryTitle}>
-            {isScanning ? 'Scanning for servers...' : 'Found servers'}
+  const handlePasswordSignIn = async () => {
+    setBusy(true);
+    setErrorText(null);
+    try {
+      const info = serverInfo ?? (await connect(serverUrl));
+      const authResult = await authenticate(serverUrl, username, password);
+      await saveProfile(authResult, info);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : 'Sign-in failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Poll for Quick Connect approval while the code screen is showing.
+  useEffect(() => {
+    if (step !== 'code' || !quickConnectSecret.current) {
+      return;
+    }
+    let active = true;
+    const interval = setInterval(async () => {
+      const secret = quickConnectSecret.current;
+      if (!secret) {
+        return;
+      }
+      try {
+        const approved = await pollQuickConnect(serverUrl, secret);
+        if (!approved || !active) {
+          return;
+        }
+        clearInterval(interval);
+        const authResult = await authenticateWithQuickConnect(
+          serverUrl,
+          secret,
+        );
+        const info = serverInfo ?? (await connect(serverUrl));
+        if (active) {
+          await saveProfile(authResult, info);
+        }
+      } catch {
+        // Transient poll errors are expected until approval; keep waiting.
+      }
+    }, QUICK_CONNECT_POLL_MS);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [step, serverUrl, serverInfo, saveProfile]);
+
+  const backButton = (label: string, onPress: () => void) => (
+    <FocusableItem
+      accessibilityLabel={label}
+      focusedStyle={styles.backFocused}
+      onPress={onPress}
+      style={styles.backButton}
+      testID="setup-back-button">
+      <Text style={styles.backText}>{label}</Text>
+    </FocusableItem>
+  );
+
+  const renderStep = () => {
+    if (step === 'serverType') {
+      return (
+        <>
+          <Text style={styles.stepTitle}>What are you connecting to?</Text>
+          <Text style={styles.stepSubtitle}>
+            Astra plays movies and shows from your own media server. Pick the
+            kind of server you have.
           </Text>
-          {!isScanning && discoveredServers.length === 0 ? (
-            <Text style={styles.helperText}>No local servers found.</Text>
-          ) : null}
-          {discoveredServers.map((server) => (
-            <FocusableItem
-              accessibilityLabel={server.name}
-              focusedStyle={styles.discoveredFocused}
-              key={server.address}
-              onPress={() => setServerUrl(server.address)}
-              style={styles.discoveredServer}
-              testID={`setup-discovered-server-${server.id}`}>
-              <Text style={styles.discoveredName}>{server.name}</Text>
-              <Text style={styles.discoveredAddress}>{server.address}</Text>
-            </FocusableItem>
-          ))}
-          <FocusableItem
-            focusedStyle={styles.discoveredFocused}
-            onPress={scanForServers}
-            style={styles.scanButton}
-            testID="setup-scan-button">
-            <Text style={styles.scanText}>
-              {isScanning ? 'Scanning' : 'Scan again'}
-            </Text>
-          </FocusableItem>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Server Type</Text>
           <View style={styles.segmentedControl}>
-            {serverTypes.map((type) => (
+            <FocusableItem
+              accessibilityLabel="Jellyfin"
+              focusedStyle={styles.segmentFocused}
+              hasTVPreferredFocus={true}
+              onPress={() => {
+                setServerType('jellyfin');
+                setErrorText(null);
+                setStep('server');
+              }}
+              style={[
+                styles.segment,
+                styles.segmentBorder,
+                styles.segmentSelected,
+              ]}
+              testID="setup-server-type-jellyfin">
+              <Text style={styles.segmentText}>Jellyfin</Text>
+              <Text style={styles.segmentHint}>Press Select to continue</Text>
+            </FocusableItem>
+            <View
+              accessibilityLabel="Emby, coming soon"
+              style={[
+                styles.segment,
+                styles.segmentBorder,
+                styles.segmentDisabled,
+              ]}
+              testID="setup-server-type-emby">
+              <Text style={styles.segmentTextDisabled}>Emby</Text>
+              <Text style={styles.segmentDisabledHint}>Coming soon</Text>
+            </View>
+          </View>
+          <Text style={styles.helperText}>
+            Have a Jellyfin server? It's highlighted and ready — just press the
+            Select button on your remote.
+          </Text>
+        </>
+      );
+    }
+
+    if (step === 'server') {
+      return (
+        <>
+          <Text style={styles.stepTitle}>Find your server</Text>
+          <View style={styles.discoveryArea}>
+            <Text style={styles.discoveryTitle}>
+              {isScanning ? 'Scanning for servers...' : 'Found on your network'}
+            </Text>
+            {!isScanning && discoveredServers.length === 0 ? (
+              <Text style={styles.helperText}>No local servers found.</Text>
+            ) : null}
+            {discoveredServers.map((server) => (
               <FocusableItem
-                accessibilityLabel={type}
-                focusedStyle={styles.segmentFocused}
-                key={type}
-                onPress={() => setServerType(type)}
-                style={[
-                  styles.segment,
-                  styles.segmentBorder,
-                  serverType === type && styles.segmentSelected,
-                ]}
-                testID={`setup-server-type-${type}`}>
-                <Text style={styles.segmentText}>
-                  {type === 'jellyfin' ? 'Jellyfin' : 'Emby'}
-                </Text>
+                accessibilityLabel={server.name}
+                focusedStyle={styles.discoveredFocused}
+                key={server.address}
+                onPress={() => setServerUrl(server.address)}
+                style={styles.discoveredServer}
+                testID={`setup-discovered-server-${server.id}`}>
+                <Text style={styles.discoveredName}>{server.name}</Text>
+                <Text style={styles.discoveredAddress}>{server.address}</Text>
               </FocusableItem>
             ))}
+            <FocusableItem
+              focusedStyle={styles.discoveredFocused}
+              onPress={scanForServers}
+              style={styles.scanButton}
+              testID="setup-scan-button">
+              <Text style={styles.scanText}>
+                {isScanning ? 'Scanning' : 'Scan again'}
+              </Text>
+            </FocusableItem>
           </View>
-        </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Server URL</Text>
-          <TVTextInput
-            autoCapitalize="none"
-            autoComplete="url"
-            autoCorrect={false}
-            auxOptions="title:Server URL"
-            focusStrategy="native"
-            inputStyle={styles.inputText}
-            inputMode="url"
-            keyboardType="url"
-            onBlur={() => setFocusedInput(null)}
-            onChangeText={setServerUrl}
-            onFocus={() => handleInputFocus('serverUrl')}
-            placeholder="https://jellyfin.example.com"
-            placeholderTextColor="#7D8A92"
-            textContentType="URL"
-            style={inputStyle('serverUrl')}
-            testID="setup-server-url-input"
-            value={serverUrl}
-          />
-          <Text style={styles.helperText}>
-            Enter IP, domain, or Tailscale address.
+          <View style={styles.field}>
+            <Text style={styles.label}>…or enter address</Text>
+            <TVTextInput
+              autoCapitalize="none"
+              autoComplete="url"
+              autoCorrect={false}
+              auxOptions="title:Server URL"
+              focusStrategy="press"
+              inputStyle={styles.inputText}
+              inputMode="url"
+              keyboardType="url"
+              onBlur={() => setFocusedInput(null)}
+              onChangeText={setServerUrl}
+              onFocus={() => handleInputFocus('serverUrl')}
+              placeholder="https://jellyfin.example.com"
+              placeholderTextColor="#7D8A92"
+              textContentType="URL"
+              style={inputStyle('serverUrl')}
+              testID="setup-server-url-input"
+              value={serverUrl}
+            />
+            <Text style={styles.helperText}>
+              Enter IP, domain, or Tailscale address.
+            </Text>
+          </View>
+
+          <View style={styles.buttonRow}>
+            {backButton('Back', () => {
+              setErrorText(null);
+              setStep('serverType');
+            })}
+            <FocusableItem
+              accessibilityLabel="Connect"
+              focusedStyle={styles.connectFocused}
+              onPress={handleServerConnect}
+              style={styles.connectButton}
+              testID="setup-connect-button">
+              <Text style={styles.connectText}>
+                {isBusy ? 'Connecting' : 'Connect'}
+              </Text>
+            </FocusableItem>
+          </View>
+        </>
+      );
+    }
+
+    if (step === 'authMethod') {
+      return (
+        <>
+          <Text style={styles.stepTitle}>
+            Connected to {serverInfo?.name ?? 'your server'}
           </Text>
-        </View>
+          <Text style={styles.stepSubtitle}>
+            How would you like to sign in? Using a code means you don't have to
+            type your password with the remote — you approve it from your phone
+            instead. Pick whichever is easier for you.
+          </Text>
+          <View style={styles.methodRow}>
+            <FocusableItem
+              accessibilityLabel="Sign in with a code, recommended"
+              focusedStyle={styles.methodFocused}
+              hasTVPreferredFocus={true}
+              onPress={startQuickConnect}
+              style={[styles.methodButton, styles.methodRecommended]}
+              testID="setup-method-code">
+              <Text style={styles.methodBadge}>RECOMMENDED</Text>
+              <Text style={styles.methodTitle}>Use a code</Text>
+              <Text style={styles.methodHint}>
+                No typing. Approve on your phone or computer.
+              </Text>
+            </FocusableItem>
+            <FocusableItem
+              accessibilityLabel="Sign in with username and password"
+              focusedStyle={styles.methodFocused}
+              onPress={() => {
+                setErrorText(null);
+                setStep('password');
+              }}
+              style={styles.methodButton}
+              testID="setup-method-password">
+              <Text style={styles.methodTitle}>Use a password</Text>
+              <Text style={styles.methodHint}>
+                Type your username and password here.
+              </Text>
+            </FocusableItem>
+          </View>
+          {backButton('Back', () => {
+            setErrorText(null);
+            setStep('server');
+          })}
+        </>
+      );
+    }
 
+    if (step === 'code') {
+      return (
+        <>
+          <Text style={styles.stepTitle}>Enter this code to sign in</Text>
+
+          <View style={styles.codeRow}>
+            <View style={styles.codeInstructionsCol}>
+              <Text style={styles.codeStep}>
+                <Text style={styles.codeStepNum}>1. </Text>
+                On your phone, tablet, or computer, open Jellyfin and sign in
+                (the website or the Jellyfin app).
+              </Text>
+              <Text style={styles.codeStep}>
+                <Text style={styles.codeStepNum}>2. </Text>
+                Tap your account icon in the top-right corner, then choose{' '}
+                <Text style={styles.codeEmphasis}>Quick Connect</Text>.
+              </Text>
+              <Text style={styles.codeStep}>
+                <Text style={styles.codeStepNum}>3. </Text>
+                Type in the code shown here and confirm. You'll be signed in
+                automatically.
+              </Text>
+            </View>
+
+            <View style={styles.codeBox}>
+              <Text style={styles.codeBoxLabel}>Your code</Text>
+              <Text style={styles.code} testID="setup-quickconnect-code">
+                {quickConnectCode ?? '——————'}
+              </Text>
+              <Text style={styles.waitingText}>Waiting for approval…</Text>
+            </View>
+          </View>
+
+          {backButton('Cancel', cancelQuickConnect)}
+        </>
+      );
+    }
+
+    // step === 'password'
+    return (
+      <>
+        <Text style={styles.stepTitle}>Sign in</Text>
         <View style={styles.field}>
           <Text style={styles.label}>Username</Text>
           <TVTextInput
@@ -223,8 +459,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             autoComplete="username"
             autoCorrect={false}
             auxOptions="title:Username"
-            focusDelayMs={350}
-            focusStrategy="delayed"
+            focusStrategy="press"
             inputStyle={styles.inputText}
             inputMode="email"
             keyboardType="email-address"
@@ -239,7 +474,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             value={username}
           />
         </View>
-
         <View style={styles.field}>
           <Text style={styles.label}>Password</Text>
           <TVTextInput
@@ -261,18 +495,35 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             value={password}
           />
         </View>
+        <View style={styles.buttonRow}>
+          {backButton('Back', () => {
+            setErrorText(null);
+            setStep(quickConnectEnabled ? 'authMethod' : 'server');
+          })}
+          <FocusableItem
+            accessibilityLabel="Sign in"
+            focusedStyle={styles.connectFocused}
+            onPress={handlePasswordSignIn}
+            style={styles.connectButton}
+            testID="setup-signin-button">
+            <Text style={styles.connectText}>
+              {isBusy ? 'Signing in' : 'Sign in'}
+            </Text>
+          </FocusableItem>
+        </View>
+      </>
+    );
+  };
 
-        <FocusableItem
-          accessibilityLabel="Connect"
-          focusedStyle={styles.connectFocused}
-          hasTVPreferredFocus={true}
-          onPress={handleConnect}
-          style={styles.connectButton}
-          testID="setup-connect-button">
-          <Text style={styles.connectText}>
-            {isConnecting ? 'Connecting' : 'Connect'}
-          </Text>
-        </FocusableItem>
+  return (
+    <View style={styles.screen} testID="setup-screen">
+      <View style={styles.header}>
+        <Text style={styles.logo}>Astra</Text>
+        <Text style={styles.subtitle}>Connect your media server</Text>
+      </View>
+
+      <TVFocusGuideView style={styles.form}>
+        {renderStep()}
         {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
       </TVFocusGuideView>
     </View>
@@ -302,6 +553,19 @@ const styles = StyleSheet.create({
   },
   form: {
     width: 840,
+  },
+  stepTitle: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  stepSubtitle: {
+    color: '#AAB7C0',
+    fontSize: 26,
+    lineHeight: 36,
+    maxWidth: 820,
+    marginBottom: 26,
   },
   discoveryArea: {
     marginBottom: 22,
@@ -384,8 +648,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   segment: {
-    width: 180,
-    height: 62,
+    width: 220,
+    height: 96,
     borderRadius: 8,
     backgroundColor: '#172129',
     alignItems: 'center',
@@ -400,13 +664,131 @@ const styles = StyleSheet.create({
     borderColor: '#7B5EA7',
     borderWidth: 2,
   },
+  segmentDisabled: {
+    backgroundColor: '#0F171C',
+    borderColor: 'rgba(255,255,255,0.08)',
+    opacity: 0.5,
+  },
   segmentFocused: {
     backgroundColor: '#285168',
   },
   segmentText: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
+  },
+  segmentTextDisabled: {
+    color: '#AAB7C0',
+    fontSize: 26,
+    fontWeight: '700',
+  },
+  segmentHint: {
+    color: '#8CA1AA',
+    fontSize: 18,
+    marginTop: 4,
+  },
+  segmentDisabledHint: {
+    color: '#6B7A82',
+    fontSize: 18,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  methodRow: {
+    flexDirection: 'row',
+    gap: 22,
+    marginBottom: 26,
+  },
+  methodButton: {
+    width: 360,
+    minHeight: 190,
+    borderRadius: 12,
+    backgroundColor: '#172129',
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  methodRecommended: {
+    borderColor: '#4CC9F0',
+    borderWidth: 2,
+  },
+  methodFocused: {
+    backgroundColor: '#285168',
+  },
+  methodBadge: {
+    color: '#4CC9F0',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  methodTitle: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  methodHint: {
+    color: '#9FB0B8',
+    fontSize: 22,
+    lineHeight: 30,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  codeRow: {
+    marginBottom: 8,
+  },
+  codeInstructionsCol: {
+    maxWidth: 900,
+    marginBottom: 28,
+  },
+  codeStep: {
+    color: '#D3DDE3',
+    fontSize: 26,
+    lineHeight: 38,
+    marginBottom: 14,
+  },
+  codeStepNum: {
+    color: '#4CC9F0',
+    fontWeight: '800',
+  },
+  codeEmphasis: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  codeBox: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#111C23',
+    borderColor: '#4CC9F0',
+    borderWidth: 2,
+    borderRadius: 14,
+    paddingHorizontal: 44,
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  codeBoxLabel: {
+    color: '#8CA1AA',
+    fontSize: 22,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  code: {
+    color: '#FFFFFF',
+    fontSize: 92,
+    fontWeight: '800',
+    letterSpacing: 16,
+    marginBottom: 8,
+  },
+  waitingText: {
+    color: '#4CC9F0',
+    fontSize: 24,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+    marginTop: 8,
   },
   connectButton: {
     width: 280,
@@ -415,7 +797,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#2F9C7C',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
   },
   connectFocused: {
     backgroundColor: '#36B28E',
@@ -424,6 +805,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '800',
+  },
+  backButton: {
+    minWidth: 140,
+    height: 68,
+    borderRadius: 8,
+    backgroundColor: '#24313A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    marginTop: 8,
+  },
+  backFocused: {
+    backgroundColor: '#33454F',
+  },
+  backText: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '700',
   },
   errorText: {
     color: '#FFB4A8',

@@ -10,6 +10,8 @@ interface MediaCardProps {
   imageScale?: number;
   onFocus?: () => void;
   onPress?: () => void;
+  // Number of unwatched child episodes for a series; a badge shows when > 0.
+  unplayedCount?: number | null;
 }
 
 export const MediaCard = memo(
@@ -21,9 +23,12 @@ export const MediaCard = memo(
     onPress,
     subtitle,
     title,
+    unplayedCount,
   }: MediaCardProps) => (
     <FocusableItem
-      accessibilityLabel={title}
+      accessibilityLabel={
+        unplayedCount ? `${title}, ${unplayedCount} unplayed` : title
+      }
       focusedStyle={styles.focused}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onFocus={onFocus}
@@ -53,6 +58,13 @@ export const MediaCard = memo(
           </Text>
         </View>
       )}
+      {unplayedCount ? (
+        <View style={styles.unplayedBadge} testID="media-card-unplayed-badge">
+          <Text style={styles.unplayedBadgeText}>
+            {unplayedCount > 99 ? '99+' : unplayedCount}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.caption}>
         <Text numberOfLines={2} style={styles.title}>
           {title}
@@ -83,6 +95,30 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 330,
     backgroundColor: '#182027',
+  },
+  // Unwatched-episode count, TOP-LEFT of the poster. Deliberately a red
+  // square — distinct from Jellyfin's own top-right light-blue circle so the
+  // two read as separate at a glance. Dark outline keeps it legible on any
+  // artwork.
+  unplayedBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#E5342E',
+    borderWidth: 2,
+    borderColor: '#0B1418',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unplayedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   imagePlaceholder: {
     width: '100%',

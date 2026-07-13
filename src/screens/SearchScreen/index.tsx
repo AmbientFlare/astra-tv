@@ -92,6 +92,7 @@ export const SearchScreen = ({
         inputMode="search"
         keyboardType="default"
         onChangeText={setQuery}
+        openKeyboardOnFocus={true}
         placeholder="Movie, show, or episode"
         placeholderTextColor="#7E9098"
         style={styles.input}
@@ -127,6 +128,7 @@ export const SearchScreen = ({
                 item.productionYear ? String(item.productionYear) : item.type
               }
               title={item.name}
+              unplayedCount={item.unplayedItemCount}
             />
           )}
         />

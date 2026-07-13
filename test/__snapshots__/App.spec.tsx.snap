@@ -50,37 +50,41 @@ exports[`App matches snapshot 1`] = `
       }
     }
   >
-    <View
+    <Text
       style={
         Object {
-          "marginBottom": 22,
+          "color": "#FFFFFF",
+          "fontSize": 34,
+          "fontWeight": "700",
+          "marginBottom": 12,
         }
       }
     >
-      <Text
-        style={
-          Object {
-            "color": "#E6EDF2",
-            "fontSize": 26,
-            "fontWeight": "700",
-            "marginBottom": 10,
-          }
+      What are you connecting to?
+    </Text>
+    <Text
+      style={
+        Object {
+          "color": "#AAB7C0",
+          "fontSize": 26,
+          "lineHeight": 36,
+          "marginBottom": 26,
+          "maxWidth": 820,
         }
-      >
-        Found servers
-      </Text>
-      <Text
-        style={
-          Object {
-            "color": "#91A2AD",
-            "fontSize": 22,
-            "marginTop": 8,
-          }
+      }
+    >
+      Astra plays movies and shows from your own media server. Pick the kind of server you have.
+    </Text>
+    <View
+      style={
+        Object {
+          "flexDirection": "row",
+          "gap": 16,
         }
-      >
-        No local servers found.
-      </Text>
+      }
+    >
       <View
+        accessibilityLabel="Jellyfin"
         accessibilityRole="button"
         accessibilityState={
           Object {
@@ -102,6 +106,7 @@ exports[`App matches snapshot 1`] = `
         accessible={true}
         collapsable={false}
         focusable={true}
+        hasTVPreferredFocus={true}
         onClick={[Function]}
         onResponderGrant={[Function]}
         onResponderMove={[Function]}
@@ -112,441 +117,102 @@ exports[`App matches snapshot 1`] = `
         style={
           Object {
             "alignItems": "center",
-            "backgroundColor": "#24313A",
-            "borderColor": "transparent",
+            "backgroundColor": "#1B2630",
+            "borderColor": "#7B5EA7",
             "borderRadius": 8,
-            "borderWidth": 3,
-            "height": 48,
+            "borderWidth": 2,
+            "height": 96,
             "justifyContent": "center",
             "opacity": 1,
-            "width": 180,
+            "width": 220,
           }
         }
-        testID="setup-scan-button"
+        testID="setup-server-type-jellyfin"
       >
         <Text
           style={
             Object {
               "color": "#FFFFFF",
-              "fontSize": 20,
+              "fontSize": 26,
               "fontWeight": "700",
             }
           }
         >
-          Scan again
+          Jellyfin
+        </Text>
+        <Text
+          style={
+            Object {
+              "color": "#8CA1AA",
+              "fontSize": 18,
+              "marginTop": 4,
+            }
+          }
+        >
+          Press Select to continue
         </Text>
       </View>
-    </View>
-    <View
-      style={
-        Object {
-          "marginBottom": 22,
-        }
-      }
-    >
-      <Text
-        style={
-          Object {
-            "color": "#E6EDF2",
-            "fontSize": 26,
-            "fontWeight": "700",
-            "marginBottom": 8,
-          }
-        }
-      >
-        Server Type
-      </Text>
       <View
+        accessibilityLabel="Emby, coming soon"
         style={
-          Object {
-            "flexDirection": "row",
-            "gap": 16,
-          }
-        }
-      >
-        <View
-          accessibilityLabel="jellyfin"
-          accessibilityRole="button"
-          accessibilityState={
-            Object {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": undefined,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            Object {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
-            Object {
-              "alignItems": "center",
-              "backgroundColor": "#1B2630",
-              "borderColor": "#7B5EA7",
-              "borderRadius": 8,
-              "borderWidth": 2,
-              "height": 62,
-              "justifyContent": "center",
-              "opacity": 1,
-              "width": 180,
-            }
-          }
-          testID="setup-server-type-jellyfin"
-        >
-          <Text
-            style={
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-              }
-            }
-          >
-            Jellyfin
-          </Text>
-        </View>
-        <View
-          accessibilityLabel="emby"
-          accessibilityRole="button"
-          accessibilityState={
-            Object {
-              "busy": undefined,
-              "checked": undefined,
-              "disabled": undefined,
-              "expanded": undefined,
-              "selected": undefined,
-            }
-          }
-          accessibilityValue={
-            Object {
-              "max": undefined,
-              "min": undefined,
-              "now": undefined,
-              "text": undefined,
-            }
-          }
-          accessible={true}
-          collapsable={false}
-          focusable={true}
-          onClick={[Function]}
-          onResponderGrant={[Function]}
-          onResponderMove={[Function]}
-          onResponderRelease={[Function]}
-          onResponderTerminate={[Function]}
-          onResponderTerminationRequest={[Function]}
-          onStartShouldSetResponder={[Function]}
-          style={
+          Array [
             Object {
               "alignItems": "center",
               "backgroundColor": "#172129",
-              "borderColor": "rgba(255,255,255,0.2)",
               "borderRadius": 8,
-              "borderWidth": 1,
-              "height": 62,
+              "height": 96,
               "justifyContent": "center",
-              "opacity": 1,
-              "width": 180,
+              "width": 220,
+            },
+            Object {
+              "borderColor": "rgba(255,255,255,0.2)",
+              "borderWidth": 1,
+            },
+            Object {
+              "backgroundColor": "#0F171C",
+              "borderColor": "rgba(255,255,255,0.08)",
+              "opacity": 0.5,
+            },
+          ]
+        }
+        testID="setup-server-type-emby"
+      >
+        <Text
+          style={
+            Object {
+              "color": "#AAB7C0",
+              "fontSize": 26,
+              "fontWeight": "700",
             }
           }
-          testID="setup-server-type-emby"
         >
-          <Text
-            style={
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-              }
+          Emby
+        </Text>
+        <Text
+          style={
+            Object {
+              "color": "#6B7A82",
+              "fontSize": 18,
+              "fontStyle": "italic",
+              "marginTop": 4,
             }
-          >
-            Emby
-          </Text>
-        </View>
+          }
+        >
+          Coming soon
+        </Text>
       </View>
     </View>
-    <View
+    <Text
       style={
         Object {
-          "marginBottom": 22,
-        }
-      }
-    >
-      <Text
-        style={
-          Object {
-            "color": "#E6EDF2",
-            "fontSize": 26,
-            "fontWeight": "700",
-            "marginBottom": 8,
-          }
-        }
-      >
-        Server URL
-      </Text>
-      <TextInput
-        autoCapitalize="none"
-        autoComplete="url"
-        autoCorrect={false}
-        auxOptions="title:Server URL"
-        inputMode="url"
-        keyboardType="url"
-        onBlur={[Function]}
-        onChangeText={[Function]}
-        onFocus={[Function]}
-        onPressIn={[Function]}
-        placeholder="https://jellyfin.example.com"
-        placeholderTextColor="#7D8A92"
-        returnKeyType="done"
-        showSoftInputOnFocus={true}
-        style={
-          Array [
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 26,
-              "padding": 0,
-            },
-            undefined,
-            Array [
-              Object {
-                "backgroundColor": "#162027",
-                "borderColor": "#2F3D46",
-                "borderRadius": 8,
-                "borderWidth": 3,
-                "height": 68,
-                "paddingHorizontal": 24,
-                "width": 840,
-              },
-              false,
-            ],
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 28,
-            },
-            false,
-          ]
-        }
-        testID="setup-server-url-input"
-        textContentType="URL"
-        value=""
-      />
-      <Text
-        style={
-          Object {
-            "color": "#91A2AD",
-            "fontSize": 22,
-            "marginTop": 8,
-          }
-        }
-      >
-        Enter IP, domain, or Tailscale address.
-      </Text>
-    </View>
-    <View
-      style={
-        Object {
-          "marginBottom": 22,
-        }
-      }
-    >
-      <Text
-        style={
-          Object {
-            "color": "#E6EDF2",
-            "fontSize": 26,
-            "fontWeight": "700",
-            "marginBottom": 8,
-          }
-        }
-      >
-        Username
-      </Text>
-      <TextInput
-        autoCapitalize="none"
-        autoComplete="username"
-        autoCorrect={false}
-        auxOptions="title:Username"
-        inputMode="email"
-        keyboardType="email-address"
-        onBlur={[Function]}
-        onChangeText={[Function]}
-        onFocus={[Function]}
-        onPressIn={[Function]}
-        placeholder="Media server username"
-        placeholderTextColor="#7D8A92"
-        returnKeyType="done"
-        showSoftInputOnFocus={true}
-        style={
-          Array [
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 26,
-              "padding": 0,
-            },
-            undefined,
-            Array [
-              Object {
-                "backgroundColor": "#162027",
-                "borderColor": "#2F3D46",
-                "borderRadius": 8,
-                "borderWidth": 3,
-                "height": 68,
-                "paddingHorizontal": 24,
-                "width": 840,
-              },
-              false,
-            ],
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 28,
-            },
-            false,
-          ]
-        }
-        testID="setup-username-input"
-        textContentType="username"
-        value=""
-      />
-    </View>
-    <View
-      style={
-        Object {
-          "marginBottom": 22,
-        }
-      }
-    >
-      <Text
-        style={
-          Object {
-            "color": "#E6EDF2",
-            "fontSize": 26,
-            "fontWeight": "700",
-            "marginBottom": 8,
-          }
-        }
-      >
-        Password
-      </Text>
-      <TextInput
-        autoComplete="password"
-        auxOptions="title:Password;password:true"
-        inputMode="text"
-        keyboardType="default"
-        onBlur={[Function]}
-        onChangeText={[Function]}
-        onFocus={[Function]}
-        onPressIn={[Function]}
-        placeholder="Password"
-        placeholderTextColor="#7D8A92"
-        returnKeyType="done"
-        secureTextEntry={true}
-        showSoftInputOnFocus={true}
-        style={
-          Array [
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 26,
-              "padding": 0,
-            },
-            undefined,
-            Array [
-              Object {
-                "backgroundColor": "#162027",
-                "borderColor": "#2F3D46",
-                "borderRadius": 8,
-                "borderWidth": 3,
-                "height": 68,
-                "paddingHorizontal": 24,
-                "width": 840,
-              },
-              false,
-            ],
-            Object {
-              "color": "#FFFFFF",
-              "fontSize": 28,
-            },
-            false,
-          ]
-        }
-        testID="setup-password-input"
-        textContentType="password"
-        value=""
-      />
-    </View>
-    <View
-      accessibilityLabel="Connect"
-      accessibilityRole="button"
-      accessibilityState={
-        Object {
-          "busy": undefined,
-          "checked": undefined,
-          "disabled": undefined,
-          "expanded": undefined,
-          "selected": undefined,
-        }
-      }
-      accessibilityValue={
-        Object {
-          "max": undefined,
-          "min": undefined,
-          "now": undefined,
-          "text": undefined,
-        }
-      }
-      accessible={true}
-      collapsable={false}
-      focusable={true}
-      hasTVPreferredFocus={true}
-      onClick={[Function]}
-      onResponderGrant={[Function]}
-      onResponderMove={[Function]}
-      onResponderRelease={[Function]}
-      onResponderTerminate={[Function]}
-      onResponderTerminationRequest={[Function]}
-      onStartShouldSetResponder={[Function]}
-      style={
-        Object {
-          "alignItems": "center",
-          "backgroundColor": "#2F9C7C",
-          "borderColor": "transparent",
-          "borderRadius": 8,
-          "borderWidth": 3,
-          "height": 68,
-          "justifyContent": "center",
+          "color": "#91A2AD",
+          "fontSize": 22,
           "marginTop": 8,
-          "opacity": 1,
-          "width": 280,
         }
       }
-      testID="setup-connect-button"
     >
-      <Text
-        style={
-          Object {
-            "color": "#FFFFFF",
-            "fontSize": 28,
-            "fontWeight": "800",
-          }
-        }
-      >
-        Connect
-      </Text>
-    </View>
+      Have a Jellyfin server? It's highlighted and ready — just press the Select button on your remote.
+    </Text>
   </View>
 </View>
 `;

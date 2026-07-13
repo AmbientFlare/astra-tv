@@ -73,6 +73,7 @@ export interface JellyfinMediaItem {
   remoteTrailers?: Array<{name?: string; url: string}>;
   seriesId?: string;
   seriesName?: string;
+  unplayedItemCount?: number | null;
 }
 
 export interface JellyfinMediaSource {
@@ -411,6 +412,9 @@ const mapItem = (
       Played?: boolean;
       PlayCount?: number;
       PlaybackPositionTicks?: number;
+      // Jellyfin populates this on folder/series items when UserData fields
+      // are requested — the number of not-yet-watched child episodes.
+      UnplayedItemCount?: number;
     };
     Overview?: string;
     Genres?: string[];
@@ -473,6 +477,7 @@ const mapItem = (
   resumePositionTicks: item.UserData?.PlaybackPositionTicks,
   isFavorite: item.UserData?.IsFavorite,
   isPlayed: item.UserData?.Played,
+  unplayedItemCount: item.UserData?.UnplayedItemCount ?? null,
   overview: item.Overview ?? null,
   genres: item.Genres ?? [],
   people: (item.People ?? []).map((person) => ({
@@ -591,6 +596,90 @@ export const authenticate = async (
   };
 };
 
+export interface QuickConnectInitiateResult {
+  code: string;
+  secret: string;
+}
+
+// Whether the server has Quick Connect turned on. Returns false (rather than
+// throwing) so the UI can simply hide the code option and fall back to
+// password login when it isn't available.
+export const isQuickConnectEnabled = async (
+  serverUrl: string,
+): Promise<boolean> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  try {
+    const enabled = await getJson<boolean>(`${baseUrl}/QuickConnect/Enabled`);
+    return enabled === true;
+  } catch {
+    return false;
+  }
+};
+
+// Start a Quick Connect request. Returns the 6-digit code to show the user and
+// the secret the client keeps to poll/authenticate with. No account creds.
+export const initiateQuickConnect = async (
+  serverUrl: string,
+): Promise<QuickConnectInitiateResult> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{Code?: string; Secret?: string}>(
+    `${baseUrl}/QuickConnect/Initiate`,
+    {headers: {'X-Emby-Authorization': AUTH_HEADER}},
+  );
+
+  if (!response.Code || !response.Secret) {
+    throw new Error('Quick Connect could not be started on this server');
+  }
+
+  return {code: response.Code, secret: response.Secret};
+};
+
+// Poll whether the user has approved the code yet. True once authorized.
+export const pollQuickConnect = async (
+  serverUrl: string,
+  secret: string,
+): Promise<boolean> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{Authenticated?: boolean}>(
+    buildUrl(baseUrl, '/QuickConnect/Connect', {Secret: secret}),
+    {headers: {'X-Emby-Authorization': AUTH_HEADER}},
+  );
+
+  return response.Authenticated === true;
+};
+
+// Exchange an approved secret for an access token — same shape as a password
+// login, so the caller saves the profile identically.
+export const authenticateWithQuickConnect = async (
+  serverUrl: string,
+  secret: string,
+): Promise<JellyfinAuthResult> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{
+    User?: {Id?: string; Name?: string};
+    AccessToken?: string;
+  }>(`${baseUrl}/Users/AuthenticateWithQuickConnect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Emby-Authorization': AUTH_HEADER,
+    },
+    body: JSON.stringify({Secret: secret}),
+  });
+
+  if (!response.User?.Id || !response.AccessToken) {
+    throw new Error(
+      'Quick Connect authentication response was missing credentials',
+    );
+  }
+
+  return {
+    userId: response.User.Id,
+    accessToken: response.AccessToken,
+    username: response.User.Name,
+  };
+};
+
 export const getLibraries = async (
   serverUrl: string,
   accessToken: string,
@@ -651,7 +740,7 @@ export const getItems = async (
       ChildCount?: number;
       MediaSources?: JellyfinMediaSource[];
       RunTimeTicks?: number;
-      UserData?: {PlaybackPositionTicks?: number};
+      UserData?: {PlaybackPositionTicks?: number; UnplayedItemCount?: number};
       Overview?: string;
       Genres?: string[];
       People?: Array<{

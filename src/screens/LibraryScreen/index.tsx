@@ -283,6 +283,7 @@ export const LibraryScreen = ({
             : item.type.toLowerCase()
         }
         title={item.name}
+        unplayedCount={item.unplayedItemCount}
       />
     ),
     [cardScale, handleCardFocus, onSelectItem, queueBackdrop],

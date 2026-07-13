@@ -84,12 +84,19 @@ jest.mock('../src/services/jellyfin', () => ({
     accessToken: 'test-token',
     userId: 'test-user',
   })),
+  authenticateWithQuickConnect: jest.fn(async () => ({
+    accessToken: 'test-token',
+    userId: 'test-user',
+  })),
   connect: jest.fn(async () => ({
     id: 'test-server',
     name: 'Test Server',
     version: '10.11.11',
   })),
   discoverServers: jest.fn(async () => []),
+  initiateQuickConnect: jest.fn(async () => ({code: '123456', secret: 'sec'})),
+  isQuickConnectEnabled: jest.fn(async () => false),
+  pollQuickConnect: jest.fn(async () => false),
   getLibraries: jest.fn(async () => []),
   getStreamUrl: jest.fn(async () => ({
     itemId: 'test-item',
@@ -170,6 +177,7 @@ jest.mock('../src/services/storage', () => ({
   })),
   readServerProfiles: jest.fn(async () => []),
   readAppState: jest.fn(async () => ({isPro: false, launchCount: 0})),
+  runStorageMigration: jest.fn(async () => undefined),
   setProStatus: jest.fn(async () => undefined),
   upsertServerProfile: jest.fn(async () => undefined),
   writeAppState: jest.fn(async () => ({isPro: false, launchCount: 1})),
@@ -197,30 +205,56 @@ describe('App', () => {
     expect(readServerProfiles).toHaveBeenCalledTimes(1);
   });
 
-  it('renders setup input fields', async () => {
-    const screen = render(<App />);
+  // Walk the onboarding wizard from the server-type step through to the
+  // password sign-in step (Quick Connect mocked off, so the flow routes
+  // straight to password after connecting).
+  const advanceToPasswordStep = async (screen: ReturnType<typeof render>) => {
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-jellyfin')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-server-type-jellyfin'));
     await waitFor(() =>
       expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
     );
+    fireEvent.press(screen.getByTestId('setup-connect-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-username-input')).toBeTruthy(),
+    );
+  };
+
+  it('walks the wizard from server type through to the sign-in fields', async () => {
+    const screen = render(<App />);
+    await advanceToPasswordStep(screen);
     expect(screen.getByTestId('setup-username-input')).toBeTruthy();
     expect(screen.getByTestId('setup-password-input')).toBeTruthy();
-    expect(screen.getByTestId('setup-connect-button')).toBeTruthy();
+    expect(screen.getByTestId('setup-signin-button')).toBeTruthy();
   });
 
-  it('enables the TV soft keyboard for setup input fields', async () => {
+  it('does not auto-open the soft keyboard on setup field focus', async () => {
+    // The keyboard should open only when a field is pressed (clicked into),
+    // not merely when D-pad focus lands on it while navigating — otherwise
+    // every field pops a keyboard the user has to dismiss.
     const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-jellyfin')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-server-type-jellyfin'));
     await waitFor(() =>
       expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
     );
-
     expect(screen.getByTestId('setup-server-url-input').props).toMatchObject({
-      showSoftInputOnFocus: true,
+      showSoftInputOnFocus: false,
     });
+
+    fireEvent.press(screen.getByTestId('setup-connect-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-username-input')).toBeTruthy(),
+    );
     expect(screen.getByTestId('setup-username-input').props).toMatchObject({
-      showSoftInputOnFocus: true,
+      showSoftInputOnFocus: false,
     });
     expect(screen.getByTestId('setup-password-input').props).toMatchObject({
-      showSoftInputOnFocus: true,
+      showSoftInputOnFocus: false,
     });
   });
 

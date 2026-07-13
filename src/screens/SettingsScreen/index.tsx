@@ -627,8 +627,9 @@ export const SettingsScreen = ({
               }
             />
             <Text style={styles.infoText}>
-              7.1 and Atmos depend on source compatibility and passthrough.
-              Transcoded audio is 5.1 maximum.
+              7.1 and Atmos require a Dolby Digital+ (eac3) source. TrueHD/
+              Atmos sources aren't decodable on this device and will downmix
+              to plain surround instead of passing through.
             </Text>
           </Page>
         );

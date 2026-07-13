@@ -12,6 +12,7 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {
   getStreamUrl,
   JellyfinMediaItem,
+  JellyfinMediaTrack,
   JellyfinStreamInfo,
   PlaybackTrackSelection,
   reportPlaybackProgress,
@@ -28,6 +29,12 @@ import {debugLog} from '../../utils/logger';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
+// If no frame/segment progresses within this window while playback is
+// expected to be running, treat it as a stall. Sized to comfortably clear a
+// cold transcode start (ffmpeg spin-up + first segment) so normal buffering
+// recovers on its own, while still capping the "server never produced a
+// segment" case (e.g. broken HW encode) instead of buffering forever.
+const PLAYBACK_STALL_TIMEOUT_MS = 30000;
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -50,6 +57,55 @@ const isAdaptiveStream = (url: string) =>
 
 const adaptiveStreamLabel = (url: string) =>
   url.includes('.mpd') ? 'DASH' : 'HLS';
+
+// Channel counts map to the same labels the Settings "Audio output" picker
+// uses (2.0/2.1/3.1/5.1/7.1), so the overlay reads consistently with the
+// preference it's meant to verify.
+const channelLayoutLabel = (channels?: number): string => {
+  switch (channels) {
+    case 1:
+      return 'Mono';
+    case 2:
+      return '2.0';
+    case 3:
+      return '2.1';
+    case 4:
+      return '3.1';
+    case 6:
+      return '5.1';
+    case 8:
+      return '7.1';
+    default:
+      return channels ? `${channels}ch` : '';
+  }
+};
+
+// Codec + channel layout of the audio track being played (e.g. "EAC3 5.1"),
+// surfaced in the status overlay so the picked "Audio output" preference can
+// be sanity-checked on-device. Reflects the SOURCE track; for a Transcode the
+// server may downmix below this per the device profile's MaxAudioChannels cap.
+const audioTrackSummary = (
+  stream: JellyfinStreamInfo | null,
+  selectedIndex?: number,
+): string => {
+  if (!stream?.audioTracks.length) {
+    return '';
+  }
+  const track: JellyfinMediaTrack | undefined =
+    (selectedIndex !== undefined
+      ? stream.audioTracks.find(
+          (candidate) => candidate.index === selectedIndex,
+        )
+      : undefined) ??
+    stream.audioTracks.find((candidate) => candidate.isDefault) ??
+    stream.audioTracks[0];
+  if (!track) {
+    return '';
+  }
+  return [track.codec?.toUpperCase(), channelLayoutLabel(track.channels)]
+    .filter(Boolean)
+    .join(' ');
+};
 
 const assertPlayableUrl = (url: string) => {
   const parsed = new URL(url);
@@ -103,6 +159,8 @@ export const PlayerScreen = ({
   const playbackEventsAttached = useRef(false);
   const playbackErrorHandler = useRef<() => void>(() => undefined);
   const retriedAfterPlaybackError = useRef(false);
+  const watchdogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchdogExhausted = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
   const initialSeekApplied = useRef(false);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
@@ -181,6 +239,39 @@ export const PlayerScreen = ({
       }
     }, CONTROL_HIDE_DELAY_MS);
   }, [clearControlsHideTimer]);
+
+  const clearWatchdog = useCallback(() => {
+    if (watchdogTimer.current) {
+      clearTimeout(watchdogTimer.current);
+      watchdogTimer.current = null;
+    }
+  }, []);
+
+  // Arm (or re-arm) the stall watchdog. Called whenever playback is expected
+  // to be progressing but isn't yet (initial load, 'waiting', 'stalled');
+  // cleared as soon as a frame progresses ('playing'/'timeupdate') or the
+  // user pauses. If it fires, an indefinite buffer is routed through the same
+  // path as a hard playback error — first a transcode-fallback retry, then a
+  // real on-screen message — so the spinner can't hang forever.
+  const armWatchdog = useCallback(() => {
+    if (watchdogExhausted.current) {
+      return;
+    }
+    clearWatchdog();
+    watchdogTimer.current = setTimeout(() => {
+      watchdogTimer.current = null;
+      const wasAlreadyRetried = retriedAfterPlaybackError.current;
+      debugLog(
+        '[Astra] Playback watchdog tripped — no progress within timeout',
+      );
+      playbackErrorHandler.current();
+      // The retry itself also stalled: stop re-arming so a permanently dead
+      // stream settles on the give-up message instead of looping.
+      if (wasAlreadyRetried) {
+        watchdogExhausted.current = true;
+      }
+    }, PLAYBACK_STALL_TIMEOUT_MS);
+  }, [clearWatchdog]);
 
   const revealControls = useCallback(
     (autoHide = true) => {
@@ -481,15 +572,21 @@ export const PlayerScreen = ({
         const height =
           videoWithDimensions.videoHeight || streamInfo.current?.height;
         const resolution = width && height ? ` ${width}x${height}` : '';
-        setStatusText(
-          `Playing (${
-            streamInfo.current?.playMethod ?? 'stream'
-          }${resolution})`,
+        const audio = audioTrackSummary(
+          streamInfo.current,
+          selectedAudioIndex.current,
         );
+        setStatusText(
+          `Playing (${streamInfo.current?.playMethod ?? 'stream'}${resolution}${
+            audio ? ` • ${audio}` : ''
+          })`,
+        );
+        clearWatchdog();
         scheduleControlsHide();
       });
       video.addEventListener('pause', () => {
         setPaused(true);
+        clearWatchdog();
         revealControls(false);
       });
       video.addEventListener('loadedmetadata', () => {
@@ -503,28 +600,40 @@ export const PlayerScreen = ({
       video.addEventListener('waiting', () => {
         revealControls(false);
         setStatusText('Buffering...');
+        armWatchdog();
       });
       video.addEventListener('stalled', () => {
         revealControls(false);
         setStatusText('Playback stalled. Buffering...');
+        armWatchdog();
       });
       video.addEventListener('timeupdate', () => {
         if (typeof video.currentTime === 'number') {
           latestPositionTicks.current = toTicks(video.currentTime);
           setPositionSeconds(video.currentTime);
+          // A frame advanced, so whatever we were waiting on resolved.
+          clearWatchdog();
         }
       });
       video.addEventListener('error', () => {
         revealControls(false);
+        clearWatchdog();
         playbackErrorHandler.current();
       });
       video.addEventListener('ended', () => {
         revealControls(false);
+        clearWatchdog();
         setStatusText('Finished');
       });
       playbackEventsAttached.current = true;
     },
-    [applyPendingInitialSeek, revealControls, scheduleControlsHide],
+    [
+      applyPendingInitialSeek,
+      armWatchdog,
+      clearWatchdog,
+      revealControls,
+      scheduleControlsHide,
+    ],
   );
 
   const addSelectedSubtitleTrack = useCallback(
@@ -644,6 +753,7 @@ export const PlayerScreen = ({
             addSelectedSubtitleTrack(video, stream);
             video.play();
             setPaused(false);
+            armWatchdog();
             scheduleControlsHide();
             setStatusText('Starting video...');
             return reportPlaybackProgress(serverUrl, accessToken, {
@@ -742,6 +852,7 @@ export const PlayerScreen = ({
     return () => {
       const handle = surfaceHandle.current;
 
+      clearWatchdog();
       reportStopped().finally(() => {
         clearControlsHideTimer();
         unloadAdaptivePlayer();
@@ -751,7 +862,12 @@ export const PlayerScreen = ({
         videoRef.current?.deinitialize();
       });
     };
-  }, [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer]);
+  }, [
+    clearControlsHideTimer,
+    clearWatchdog,
+    reportStopped,
+    unloadAdaptivePlayer,
+  ]);
 
   useEffect(() => {
     const subscription = keplerAppStateManager.addAppStateListener(
@@ -821,6 +937,9 @@ export const PlayerScreen = ({
 
       try {
         setStatusText('Preparing playback...');
+        // Fresh playback attempt on this surface — let the stall watchdog
+        // arm again even if a previous attempt had exhausted it.
+        watchdogExhausted.current = false;
         try {
           await video.setMediaControlFocus(
             keplerAppStateManager.getComponentInstance(),
@@ -847,6 +966,7 @@ export const PlayerScreen = ({
         addSelectedSubtitleTrack(video, stream);
         video.play();
         setPaused(false);
+        armWatchdog();
         scheduleControlsHide();
         setStatusText('Starting video...');
 
@@ -866,6 +986,7 @@ export const PlayerScreen = ({
     [
       accessToken,
       addSelectedSubtitleTrack,
+      armWatchdog,
       attachPlaybackEvents,
       item.resumePositionTicks,
       keplerAppStateManager,
@@ -885,9 +1006,15 @@ export const PlayerScreen = ({
       videoRef.current?.deinitialize();
       surfaceHandle.current = null;
       clearControlsHideTimer();
+      clearWatchdog();
       reportStopped();
     },
-    [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer],
+    [
+      clearControlsHideTimer,
+      clearWatchdog,
+      reportStopped,
+      unloadAdaptivePlayer,
+    ],
   );
 
   const durationSeconds =
