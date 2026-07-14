@@ -14,7 +14,7 @@
  */
 
 // @ts-nocheck
-import {debugLog} from '../../utils/logger';
+import {DOMParser} from 'xmldom';
 
 // CustomDOMParser will try to use native xml parser
 // provided by native-player-utils (sets property
@@ -22,24 +22,22 @@ import {debugLog} from '../../utils/logger';
 // it will fallback to use xmldom's DOMParser
 class CustomDOMParser extends DOMParser {
   constructor() {
-    debugLog(`CustomDOMParser created`);
+    console.log(`CustomDOMParser created`);
     super();
   }
 
   parseFromString(str: string, mimeType: string) {
-    debugLog(`CustomDOMParser::parseFromString`);
-    debugLog(
-      `shaka: global.nativeParseFromString = ${!!global.nativeParseFromString}`,
-    );
+    console.log(`CustomDOMParser::parseFromString`);
+    console.log(`shaka: global.nativeParseFromString = ${!!global.nativeParseFromString}`);
     if (global.nativeParseFromString) {
       // native xml parser available, can use native parsing
-      debugLog(`nativeParseFromString available`);
-      debugLog(`calling XmlUtils.nativeParseFromString, mime:`, mimeType);
+      console.log(`nativeParseFromString available`);
+      console.log(`calling XmlUtils.nativeParseFromString, mime:`, mimeType);
       return global.nativeParseFromString(str);
     } else {
       // native xml parser not available, fallback and use xmldom
-      debugLog(`nativeParseFromString not available`);
-      debugLog(`calling DomParser's parseFromString`);
+      console.log(`nativeParseFromString not available`);
+      console.log(`calling DomParser's parseFromString`);
       return super.parseFromString(str, mimeType);
     }
   }
@@ -47,12 +45,12 @@ class CustomDOMParser extends DOMParser {
 
 class DOMParserPolyfill {
   static install() {
-    debugLog('Installing dom parser polyfills');
+    console.log('Installing dom parser polyfills');
     if (typeof window !== 'undefined') {
       try {
         global.window.DOMParser = CustomDOMParser;
         global.DOMParser = CustomDOMParser;
-        debugLog('Installed dom parser polyfills');
+        console.log('Installed dom parser polyfills');
       } catch (e) {
         console.warn('Failed to install DOMParser polyfill:', e);
       }
@@ -61,3 +59,4 @@ class DOMParserPolyfill {
 }
 
 export default DOMParserPolyfill;
+

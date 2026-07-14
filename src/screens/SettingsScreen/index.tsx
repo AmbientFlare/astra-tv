@@ -76,10 +76,8 @@ const audioChannelOptions: Array<{
   value: PlaybackPreferences['maxAudioChannels'];
 }> = [
   {label: 'Stereo (2.0)', value: 2},
-  {label: '2.1 Soundbar', value: 3},
-  {label: '3.1 Soundbar', value: 4},
   {label: '5.1 Surround', value: 6},
-  {label: '7.1 / Atmos passthrough', value: 8},
+  {label: '7.1 Surround', value: 8},
 ];
 
 const languageOptions: Array<{label: string; value: string}> = [
@@ -627,9 +625,7 @@ export const SettingsScreen = ({
               }
             />
             <Text style={styles.infoText}>
-              7.1 and Atmos require a Dolby Digital+ (eac3) source. TrueHD/
-              Atmos sources aren't decodable on this device and will downmix
-              to plain surround instead of passing through.
+              7.1 requires direct play. Transcoded audio is 5.1 maximum.
             </Text>
           </Page>
         );

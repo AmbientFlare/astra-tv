@@ -3,14 +3,12 @@ import {Image, Linking, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
-import {PlaybackTrackSelectors} from '../../components/PlaybackTrackSelectors';
 import {
   getEpisodes,
   getItemDetails,
   getSeasons,
   getSimilarItems,
   JellyfinMediaItem,
-  PlaybackTrackSelection,
   setFavorite,
   setPlayed,
 } from '../../services/jellyfin';
@@ -19,10 +17,7 @@ import {ServerProfile} from '../../services/storage';
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
   onBack?: () => void;
-  onPlay?: (
-    item: JellyfinMediaItem,
-    selection?: PlaybackTrackSelection,
-  ) => void;
+  onPlay?: (item: JellyfinMediaItem) => void;
   onSelectEpisode?: (item: JellyfinMediaItem) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
   onSelectPerson?: (personId: string, personName?: string) => void;
@@ -59,9 +54,6 @@ export const ItemDetailScreen = ({
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
   const [isUpdatingUserData, setUpdatingUserData] = useState(false);
-  const [trackSelection, setTrackSelection] = useState<PlaybackTrackSelection>(
-    {},
-  );
 
   const loadDetail = useCallback(
     async (mounted = true) => {
@@ -273,8 +265,8 @@ export const ItemDetailScreen = ({
                 hasTVPreferredFocus={true}
                 onPress={() =>
                   detail.type === 'Series'
-                    ? episodes[0] && onPlay?.(episodes[0], trackSelection)
-                    : onPlay?.(detail, trackSelection)
+                    ? episodes[0] && onPlay?.(episodes[0])
+                    : onPlay?.(detail)
                 }
                 style={styles.actionButton}
                 testID="detail-play-button">
@@ -289,12 +281,7 @@ export const ItemDetailScreen = ({
               {detail.type === 'Movie' && detail.resumePositionTicks ? (
                 <FocusableItem
                   focusedStyle={styles.actionFocused}
-                  onPress={() =>
-                    onPlay?.(
-                      {...detail, resumePositionTicks: 0},
-                      trackSelection,
-                    )
-                  }
+                  onPress={() => onPlay?.({...detail, resumePositionTicks: 0})}
                   style={styles.actionButton}
                   testID="detail-play-from-start-button">
                   <Text style={styles.actionText}>Play from Start</Text>
@@ -311,7 +298,7 @@ export const ItemDetailScreen = ({
                     const randomEpisode =
                       pool[Math.floor(Math.random() * pool.length)];
                     if (randomEpisode) {
-                      onPlay?.(randomEpisode, trackSelection);
+                      onPlay?.(randomEpisode);
                     }
                   }}
                   style={styles.actionButton}
@@ -365,14 +352,6 @@ export const ItemDetailScreen = ({
                 <Text style={styles.actionText}>Back</Text>
               </FocusableItem>
             </TVFocusGuideView>
-            {detail.type !== 'Series' ? (
-              <PlaybackTrackSelectors
-                audioStreamIndex={trackSelection.audioStreamIndex}
-                mediaStreams={detail.mediaStreams}
-                onChange={setTrackSelection}
-                subtitleStreamIndex={trackSelection.subtitleStreamIndex}
-              />
-            ) : null}
             {director ? (
               <Text style={styles.director}>Directed by {director.name}</Text>
             ) : null}

@@ -3,12 +3,10 @@ import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
-import {PlaybackTrackSelectors} from '../../components/PlaybackTrackSelectors';
 import {
   getEpisodes,
   getItemDetails,
   JellyfinMediaItem,
-  PlaybackTrackSelection,
   setFavorite,
   setPlayed,
 } from '../../services/jellyfin';
@@ -20,10 +18,7 @@ interface EpisodeDetailScreenProps {
   item: JellyfinMediaItem;
   onBack?: () => void;
   onGoToSeries?: (item: JellyfinMediaItem) => void;
-  onPlay?: (
-    item: JellyfinMediaItem,
-    selection?: PlaybackTrackSelection,
-  ) => void;
+  onPlay?: (item: JellyfinMediaItem) => void;
   onSelectEpisode?: (item: JellyfinMediaItem) => void;
   onSelectPerson?: (personId: string, personName?: string) => void;
   serverProfile: ServerProfile;
@@ -91,9 +86,6 @@ export const EpisodeDetailScreen = ({
   const [seriesItem, setSeriesItem] = useState<JellyfinMediaItem | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isUpdatingUserData, setUpdatingUserData] = useState(false);
-  const [trackSelection, setTrackSelection] = useState<PlaybackTrackSelection>(
-    {},
-  );
 
   const loadDetail = useCallback(
     async (mounted = true) => {
@@ -282,7 +274,7 @@ export const EpisodeDetailScreen = ({
             <FocusableItem
               focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={true}
-              onPress={() => onPlay?.(detail, trackSelection)}
+              onPress={() => onPlay?.(detail)}
               style={styles.actionButton}
               testID="episode-play-button">
               <Text style={styles.actionText}>Play</Text>
@@ -333,12 +325,6 @@ export const EpisodeDetailScreen = ({
               <Text style={styles.actionText}>Back</Text>
             </FocusableItem>
           </TVFocusGuideView>
-          <PlaybackTrackSelectors
-            audioStreamIndex={trackSelection.audioStreamIndex}
-            mediaStreams={detail.mediaStreams}
-            onChange={setTrackSelection}
-            subtitleStreamIndex={trackSelection.subtitleStreamIndex}
-          />
         </View>
       </View>
 
@@ -393,13 +379,10 @@ export const EpisodeDetailScreen = ({
                   focusedStyle={styles.chapterFocused}
                   key={`${chapter.startPositionTicks}-${index}`}
                   onPress={() =>
-                    onPlay?.(
-                      {
-                        ...detail,
-                        resumePositionTicks: chapter.startPositionTicks,
-                      },
-                      trackSelection,
-                    )
+                    onPlay?.({
+                      ...detail,
+                      resumePositionTicks: chapter.startPositionTicks,
+                    })
                   }
                   style={styles.chapterCard}
                   testID={`episode-chapter-${index}`}>

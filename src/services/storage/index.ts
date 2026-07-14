@@ -70,6 +70,7 @@ export interface UserPreferences {
 }
 
 const STORAGE_KEY = 'astra.serverProfiles.v1';
+const DEVICE_ID_KEY = 'astra.deviceId.v1';
 const APP_STATE_KEY = 'astra.appState.v1';
 const DISPLAY_PREFERENCES_KEY = 'astra.displayPreferences.v1';
 const USER_PREFERENCES_KEY = 'astra.userPreferences.v1';
@@ -227,6 +228,22 @@ export const getLastUsedServerProfile =
 
 export const clearServerProfiles = async (): Promise<void> => {
   await removeItem(STORAGE_KEY);
+};
+
+// Stable, unique-per-install device id. Jellyfin keys a session on
+// (user, client, deviceId) and invalidates the previous token whenever a new
+// login arrives with the SAME deviceId — so a fixed shared id makes installs
+// (and dev tools) log each other out. Generated once and persisted.
+export const getDeviceId = async (): Promise<string> => {
+  const stored = await getItem(DEVICE_ID_KEY);
+  if (stored) {
+    return stored;
+  }
+  const generated = `astra-${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 12)}`;
+  await setItem(DEVICE_ID_KEY, generated);
+  return generated;
 };
 
 const parseAppState = (rawState: string | null): AppStateConfig => {

@@ -13,8 +13,6 @@
  * FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
  */
 
-import {debugLog} from '../../utils/logger';
-
 declare global {
   namespace globalThis {
     var gmedia: any;
@@ -24,15 +22,15 @@ declare global {
 
 class Document {
   createElement = (name: string) => {
-    debugLog(`document.createElement ${name}`);
+    console.log(`document.createElement ${name}`);
     return global.gmedia;
   };
   getElementsByTagName = (name: string) => {
-    debugLog(`document.getElementsByTagName ${name}`);
+    console.log(`document.getElementsByTagName ${name}`);
     return global.gmedia;
   };
   static install() {
-    debugLog('Installing Document polyfill');
+    console.log('Installing Document polyfill');
     global.document = new Document();
   }
 }

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -14,7 +14,6 @@ import {
   JellyfinMediaItem,
   JellyfinMediaTrack,
   JellyfinStreamInfo,
-  PlaybackTrackSelection,
   reportPlaybackProgress,
   reportPlaybackStart,
   reportPlaybackStopped,
@@ -25,23 +24,16 @@ import {
   defaultPlaybackPrefs,
   readPlaybackPreferences,
 } from '../../services/storage';
-import {debugLog} from '../../utils/logger';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
-// If no frame/segment progresses within this window while playback is
-// expected to be running, treat it as a stall. Sized to comfortably clear a
-// cold transcode start (ffmpeg spin-up + first segment) so normal buffering
-// recovers on its own, while still capping the "server never produced a
-// segment" case (e.g. broken HW encode) instead of buffering forever.
-const PLAYBACK_STALL_TIMEOUT_MS = 30000;
+type PlaybackPanel = 'audio' | 'subtitles';
 
 interface PlayerScreenProps {
   accessToken: string;
   item: JellyfinMediaItem;
   onBack?: () => void;
   serverUrl: string;
-  trackSelection?: PlaybackTrackSelection;
   userId?: string;
 }
 
@@ -54,58 +46,6 @@ const SYNTHETIC_CHAPTER_COUNT = 12;
 
 const isAdaptiveStream = (url: string) =>
   url.includes('.m3u8') || url.includes('.mpd');
-
-const adaptiveStreamLabel = (url: string) =>
-  url.includes('.mpd') ? 'DASH' : 'HLS';
-
-// Channel counts map to the same labels the Settings "Audio output" picker
-// uses (2.0/2.1/3.1/5.1/7.1), so the overlay reads consistently with the
-// preference it's meant to verify.
-const channelLayoutLabel = (channels?: number): string => {
-  switch (channels) {
-    case 1:
-      return 'Mono';
-    case 2:
-      return '2.0';
-    case 3:
-      return '2.1';
-    case 4:
-      return '3.1';
-    case 6:
-      return '5.1';
-    case 8:
-      return '7.1';
-    default:
-      return channels ? `${channels}ch` : '';
-  }
-};
-
-// Codec + channel layout of the audio track being played (e.g. "EAC3 5.1"),
-// surfaced in the status overlay so the picked "Audio output" preference can
-// be sanity-checked on-device. Reflects the SOURCE track; for a Transcode the
-// server may downmix below this per the device profile's MaxAudioChannels cap.
-const audioTrackSummary = (
-  stream: JellyfinStreamInfo | null,
-  selectedIndex?: number,
-): string => {
-  if (!stream?.audioTracks.length) {
-    return '';
-  }
-  const track: JellyfinMediaTrack | undefined =
-    (selectedIndex !== undefined
-      ? stream.audioTracks.find(
-          (candidate) => candidate.index === selectedIndex,
-        )
-      : undefined) ??
-    stream.audioTracks.find((candidate) => candidate.isDefault) ??
-    stream.audioTracks[0];
-  if (!track) {
-    return '';
-  }
-  return [track.codec?.toUpperCase(), channelLayoutLabel(track.channels)]
-    .filter(Boolean)
-    .join(' ');
-};
 
 const assertPlayableUrl = (url: string) => {
   const parsed = new URL(url);
@@ -139,7 +79,6 @@ export const PlayerScreen = ({
   item,
   onBack,
   serverUrl,
-  trackSelection,
   userId,
 }: PlayerScreenProps) => {
   const videoRef = useRef<VideoPlayer | null>(null);
@@ -147,20 +86,14 @@ export const PlayerScreen = ({
   const surfaceHandle = useRef<string | null>(null);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
   const stoppedReported = useRef(false);
-  const selectedAudioIndex = useRef<number | undefined>(
-    trackSelection?.audioStreamIndex,
-  );
+  const selectedAudioIndex = useRef<number | undefined>();
   const selectedBitrate = useRef<number | undefined>();
   const selectedForceTranscode = useRef(false);
   const selectedSubtitleBurnIn = useRef(false);
-  const selectedSubtitleIndex = useRef<number | undefined>(
-    trackSelection?.subtitleStreamIndex,
-  );
+  const selectedSubtitleIndex = useRef<number | undefined>();
   const playbackEventsAttached = useRef(false);
   const playbackErrorHandler = useRef<() => void>(() => undefined);
   const retriedAfterPlaybackError = useRef(false);
-  const watchdogTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const watchdogExhausted = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
   const initialSeekApplied = useRef(false);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
@@ -176,6 +109,15 @@ export const PlayerScreen = ({
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [showControls, setShowControls] = useState(true);
   const [isPaused, setPaused] = useState(false);
+  const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
+    null,
+  );
+  const [selectedAudioTrackIndex, setSelectedAudioTrackIndex] = useState<
+    number | undefined
+  >(undefined);
+  const [selectedSubtitleTrackIndex, setSelectedSubtitleTrackIndex] = useState<
+    number | undefined
+  >(undefined);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const playbackRate = 1;
   const [positionSeconds, setPositionSeconds] = useState(
@@ -239,39 +181,6 @@ export const PlayerScreen = ({
       }
     }, CONTROL_HIDE_DELAY_MS);
   }, [clearControlsHideTimer]);
-
-  const clearWatchdog = useCallback(() => {
-    if (watchdogTimer.current) {
-      clearTimeout(watchdogTimer.current);
-      watchdogTimer.current = null;
-    }
-  }, []);
-
-  // Arm (or re-arm) the stall watchdog. Called whenever playback is expected
-  // to be progressing but isn't yet (initial load, 'waiting', 'stalled');
-  // cleared as soon as a frame progresses ('playing'/'timeupdate') or the
-  // user pauses. If it fires, an indefinite buffer is routed through the same
-  // path as a hard playback error — first a transcode-fallback retry, then a
-  // real on-screen message — so the spinner can't hang forever.
-  const armWatchdog = useCallback(() => {
-    if (watchdogExhausted.current) {
-      return;
-    }
-    clearWatchdog();
-    watchdogTimer.current = setTimeout(() => {
-      watchdogTimer.current = null;
-      const wasAlreadyRetried = retriedAfterPlaybackError.current;
-      debugLog(
-        '[Astra] Playback watchdog tripped — no progress within timeout',
-      );
-      playbackErrorHandler.current();
-      // The retry itself also stalled: stop re-arming so a permanently dead
-      // stream settles on the give-up message instead of looping.
-      if (wasAlreadyRetried) {
-        watchdogExhausted.current = true;
-      }
-    }, PLAYBACK_STALL_TIMEOUT_MS);
-  }, [clearWatchdog]);
 
   const revealControls = useCallback(
     (autoHide = true) => {
@@ -338,7 +247,7 @@ export const PlayerScreen = ({
   }, [onBack, reportStopped]);
 
   const seekToSeconds = useCallback(
-    (targetSeconds: number) => {
+    (targetSeconds: number, closeSettings = false) => {
       const video = videoRef.current;
 
       if (!video) {
@@ -372,6 +281,9 @@ export const PlayerScreen = ({
         setPaused(false);
       }
 
+      if (closeSettings) {
+        setSettingsPanel(null);
+      }
       scheduleControlsHide();
       setStatusText(
         `Jumped to ${Math.floor(target / 60)}:${String(
@@ -525,10 +437,6 @@ export const PlayerScreen = ({
           severity?: number;
           data?: unknown[];
         };
-        const dataSummary = JSON.stringify(shakaError?.data ?? []).slice(
-          0,
-          500,
-        );
         console.error(
           '[Astra] Shaka load failed:',
           'code:',
@@ -538,14 +446,14 @@ export const PlayerScreen = ({
           'severity:',
           shakaError?.severity,
           'data:',
-          dataSummary,
+          JSON.stringify(shakaError?.data ?? []).slice(0, 500),
         );
         throw error instanceof Error
           ? error
           : new Error(
               `Stream engine error ${shakaError?.code ?? 'unknown'} (category ${
                 shakaError?.category ?? '?'
-              }): ${dataSummary}`,
+              })`,
             );
       }
     },
@@ -572,21 +480,15 @@ export const PlayerScreen = ({
         const height =
           videoWithDimensions.videoHeight || streamInfo.current?.height;
         const resolution = width && height ? ` ${width}x${height}` : '';
-        const audio = audioTrackSummary(
-          streamInfo.current,
-          selectedAudioIndex.current,
-        );
         setStatusText(
-          `Playing (${streamInfo.current?.playMethod ?? 'stream'}${resolution}${
-            audio ? ` • ${audio}` : ''
-          })`,
+          `Playing (${
+            streamInfo.current?.playMethod ?? 'stream'
+          }${resolution})`,
         );
-        clearWatchdog();
         scheduleControlsHide();
       });
       video.addEventListener('pause', () => {
         setPaused(true);
-        clearWatchdog();
         revealControls(false);
       });
       video.addEventListener('loadedmetadata', () => {
@@ -600,40 +502,28 @@ export const PlayerScreen = ({
       video.addEventListener('waiting', () => {
         revealControls(false);
         setStatusText('Buffering...');
-        armWatchdog();
       });
       video.addEventListener('stalled', () => {
         revealControls(false);
         setStatusText('Playback stalled. Buffering...');
-        armWatchdog();
       });
       video.addEventListener('timeupdate', () => {
         if (typeof video.currentTime === 'number') {
           latestPositionTicks.current = toTicks(video.currentTime);
           setPositionSeconds(video.currentTime);
-          // A frame advanced, so whatever we were waiting on resolved.
-          clearWatchdog();
         }
       });
       video.addEventListener('error', () => {
         revealControls(false);
-        clearWatchdog();
         playbackErrorHandler.current();
       });
       video.addEventListener('ended', () => {
         revealControls(false);
-        clearWatchdog();
         setStatusText('Finished');
       });
       playbackEventsAttached.current = true;
     },
-    [
-      applyPendingInitialSeek,
-      armWatchdog,
-      clearWatchdog,
-      revealControls,
-      scheduleControlsHide,
-    ],
+    [applyPendingInitialSeek, revealControls, scheduleControlsHide],
   );
 
   const addSelectedSubtitleTrack = useCallback(
@@ -678,14 +568,14 @@ export const PlayerScreen = ({
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
       );
-      debugLog(
+      console.log(
         '[Astra] Stream URL parts:',
         'transcodeUrl:',
         sanitizeUrlForLog(stream.transcodeUrl),
         'url:',
         sanitizeUrlForLog(stream.url),
       );
-      debugLog(
+      console.log(
         '[Astra] Stream URL:',
         sanitizeUrlForLog(stream.url),
         '| PlayMethod:',
@@ -713,12 +603,13 @@ export const PlayerScreen = ({
           stream.audioTracks[0];
 
         selectedAudioIndex.current = defaultTrack.index;
+        setSelectedAudioTrackIndex(defaultTrack.index);
       }
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
       setStatusText(
         stream.playMethod === 'Transcode'
           ? isAdaptiveStream(stream.url)
-            ? `Loading ${adaptiveStreamLabel(stream.url)} transcode...`
+            ? 'Loading HLS transcode...'
             : 'Loading transcoded MP4 stream...'
           : 'Loading direct stream...',
       );
@@ -729,11 +620,80 @@ export const PlayerScreen = ({
     [accessToken, item.id, preferredMaxBitrate, serverUrl, userId],
   );
 
+  const reloadWithTrack = useCallback(
+    async ({
+      audioTrack,
+      bitrate,
+      forceTranscode,
+      subtitleTrack,
+    }: {
+      audioTrack?: JellyfinMediaTrack;
+      bitrate?: number | null;
+      forceTranscode?: boolean;
+      subtitleTrack?: JellyfinMediaTrack | null;
+    }) => {
+      selectedAudioIndex.current =
+        audioTrack?.index ?? selectedAudioIndex.current;
+      if (audioTrack?.index !== undefined) {
+        setSelectedAudioTrackIndex(audioTrack.index);
+      }
+      if (bitrate !== undefined) {
+        selectedBitrate.current = bitrate ?? undefined;
+      }
+      if (forceTranscode !== undefined) {
+        selectedForceTranscode.current = forceTranscode;
+      }
+      selectedSubtitleIndex.current =
+        subtitleTrack === null
+          ? undefined
+          : subtitleTrack?.index ?? selectedSubtitleIndex.current;
+      if (subtitleTrack === null || subtitleTrack?.index !== undefined) {
+        setSelectedSubtitleTrackIndex(subtitleTrack?.index);
+      }
+      selectedSubtitleBurnIn.current =
+        subtitleTrack === null ? false : Boolean(subtitleTrack?.burnInRequired);
+      if (selectedSubtitleBurnIn.current) {
+        selectedForceTranscode.current = true;
+      }
+      setStatusText('Buffering stream...');
+      const positionTicks = currentPositionTicks();
+      const stream = await loadStream(positionTicks);
+      const video = videoRef.current;
+
+      if (video) {
+        video.pause();
+        await loadVideoSource(video, stream);
+        video.currentTime = positionTicks / TICKS_PER_SECOND;
+        addSelectedSubtitleTrack(video, stream);
+        video.play();
+        setPaused(false);
+        scheduleControlsHide();
+        setStatusText('Playing');
+      }
+
+      await reportPlaybackProgress(serverUrl, accessToken, {
+        ...stream,
+        audioStreamIndex: selectedAudioIndex.current,
+        isPaused,
+        positionTicks,
+        subtitleStreamIndex: selectedSubtitleIndex.current,
+      });
+    },
+    [
+      accessToken,
+      addSelectedSubtitleTrack,
+      currentPositionTicks,
+      isPaused,
+      loadVideoSource,
+      loadStream,
+      scheduleControlsHide,
+      serverUrl,
+    ],
+  );
+
   playbackErrorHandler.current = () => {
     if (retriedAfterPlaybackError.current) {
-      setStatusText(
-        'Playback failed. Try another quality in Playback settings.',
-      );
+      setStatusText('Playback failed. Open settings and try another quality.');
       return;
     }
 
@@ -753,7 +713,6 @@ export const PlayerScreen = ({
             addSelectedSubtitleTrack(video, stream);
             video.play();
             setPaused(false);
-            armWatchdog();
             scheduleControlsHide();
             setStatusText('Starting video...');
             return reportPlaybackProgress(serverUrl, accessToken, {
@@ -800,12 +759,14 @@ export const PlayerScreen = ({
     // Back dismisses one layer at a time and must not reveal the controls
     // it is about to dismiss.
     if (key !== 'back') {
-      revealControls(!showExitConfirm);
+      revealControls(!settingsPanel && !showExitConfirm);
     }
 
     switch (event.eventType) {
       case 'back':
-        if (showExitConfirm) {
+        if (settingsPanel) {
+          setSettingsPanel(null);
+        } else if (showExitConfirm) {
           setShowExitConfirm(false);
         } else if (showControls) {
           clearControlsHideTimer();
@@ -816,14 +777,15 @@ export const PlayerScreen = ({
         break;
       case 'menu':
       case 'context_menu':
-        revealControls(true);
+        revealControls(false);
+        setSettingsPanel((panel) => (panel ? null : 'audio'));
         break;
       case 'playPause':
       case 'playpause':
         togglePlayPause();
         break;
       case 'select':
-        if (!showControls && !showExitConfirm) {
+        if (!showControls && !settingsPanel && !showExitConfirm) {
           revealControls(true);
           break;
         }
@@ -852,7 +814,6 @@ export const PlayerScreen = ({
     return () => {
       const handle = surfaceHandle.current;
 
-      clearWatchdog();
       reportStopped().finally(() => {
         clearControlsHideTimer();
         unloadAdaptivePlayer();
@@ -862,18 +823,13 @@ export const PlayerScreen = ({
         videoRef.current?.deinitialize();
       });
     };
-  }, [
-    clearControlsHideTimer,
-    clearWatchdog,
-    reportStopped,
-    unloadAdaptivePlayer,
-  ]);
+  }, [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer]);
 
   useEffect(() => {
     const subscription = keplerAppStateManager.addAppStateListener(
       'change',
       (nextState) => {
-        debugLog('[Astra] Player app state changed:', nextState);
+        console.log('[Astra] Player app state changed:', nextState);
 
         if (nextState === 'background' || nextState === 'inactive') {
           const video = videoRef.current;
@@ -937,9 +893,6 @@ export const PlayerScreen = ({
 
       try {
         setStatusText('Preparing playback...');
-        // Fresh playback attempt on this surface — let the stall watchdog
-        // arm again even if a previous attempt had exhausted it.
-        watchdogExhausted.current = false;
         try {
           await video.setMediaControlFocus(
             keplerAppStateManager.getComponentInstance(),
@@ -966,7 +919,6 @@ export const PlayerScreen = ({
         addSelectedSubtitleTrack(video, stream);
         video.play();
         setPaused(false);
-        armWatchdog();
         scheduleControlsHide();
         setStatusText('Starting video...');
 
@@ -986,7 +938,6 @@ export const PlayerScreen = ({
     [
       accessToken,
       addSelectedSubtitleTrack,
-      armWatchdog,
       attachPlaybackEvents,
       item.resumePositionTicks,
       keplerAppStateManager,
@@ -1006,15 +957,9 @@ export const PlayerScreen = ({
       videoRef.current?.deinitialize();
       surfaceHandle.current = null;
       clearControlsHideTimer();
-      clearWatchdog();
       reportStopped();
     },
-    [
-      clearControlsHideTimer,
-      clearWatchdog,
-      reportStopped,
-      unloadAdaptivePlayer,
-    ],
+    [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer],
   );
 
   const durationSeconds =
@@ -1031,7 +976,8 @@ export const PlayerScreen = ({
         )}%`
       : '0%';
   const progressWidth = progressPercent as `${number}%`;
-  const controlsVisible = showControls || showExitConfirm;
+  const controlsVisible =
+    showControls || Boolean(settingsPanel) || showExitConfirm;
 
   return (
     <View style={styles.screen} testID="player-screen">
@@ -1052,6 +998,15 @@ export const PlayerScreen = ({
             <View style={[styles.progressFill, {width: progressWidth}]} />
           </View>
         </View>
+      ) : null}
+      {settingsPanel && currentStream ? (
+        <PlaybackSettingsOverlay
+          onSelectAudio={(track) => reloadWithTrack({audioTrack: track})}
+          onSelectSubtitle={(track) => reloadWithTrack({subtitleTrack: track})}
+          selectedAudioIndex={selectedAudioTrackIndex}
+          selectedSubtitleIndex={selectedSubtitleTrackIndex}
+          streamInfo={currentStream}
+        />
       ) : null}
       {showExitConfirm ? (
         <View style={styles.exitOverlay} testID="player-exit-confirm">
@@ -1078,6 +1033,107 @@ export const PlayerScreen = ({
     </View>
   );
 };
+
+// Only track selection lives in-player; quality/speed/chapters were removed
+// deliberately — chapters ride the FF/RW keys, and quality is meant to be
+// configured outside the playback window.
+const PlaybackSettingsOverlay = ({
+  onSelectAudio,
+  onSelectSubtitle,
+  selectedAudioIndex,
+  selectedSubtitleIndex,
+  streamInfo,
+}: {
+  onSelectAudio: (track: JellyfinMediaTrack) => void;
+  onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
+  selectedAudioIndex?: number;
+  selectedSubtitleIndex?: number;
+  streamInfo: JellyfinStreamInfo;
+}) => (
+  <View style={styles.settingsOverlay} testID="player-settings-overlay">
+    <Text style={styles.settingsTitle}>Playback Options</Text>
+    <Text style={styles.settingsStreamInfo}>
+      {[
+        streamInfo.width && streamInfo.height
+          ? `${streamInfo.width}x${streamInfo.height}`
+          : undefined,
+        streamInfo.bitrate
+          ? `${(streamInfo.bitrate / 1000000).toFixed(1)} Mbps`
+          : undefined,
+        streamInfo.playMethod,
+      ]
+        .filter(Boolean)
+        .join('  •  ')}
+    </Text>
+    <View style={styles.settingsGrid}>
+      <SettingsColumn title="Audio">
+        {streamInfo.audioTracks.length ? (
+          streamInfo.audioTracks.map((track) => (
+            <SettingsButton
+              key={track.id}
+              label={track.title}
+              onPress={() => onSelectAudio(track)}
+              selected={track.index === selectedAudioIndex}
+            />
+          ))
+        ) : (
+          <Text style={styles.settingsEmpty}>Default audio</Text>
+        )}
+      </SettingsColumn>
+      <SettingsColumn title="Subtitles">
+        <SettingsButton
+          label="Off"
+          onPress={() => onSelectSubtitle(null)}
+          selected={selectedSubtitleIndex === undefined}
+        />
+        {streamInfo.subtitleTracks.map((track) => (
+          <SettingsButton
+            key={track.id}
+            label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
+            onPress={() => onSelectSubtitle(track)}
+            selected={track.index === selectedSubtitleIndex}
+          />
+        ))}
+      </SettingsColumn>
+    </View>
+  </View>
+);
+
+const SettingsColumn = ({
+  children,
+  title,
+}: React.PropsWithChildren<{title: string}>) => (
+  <View style={styles.settingsColumn}>
+    <Text style={styles.settingsHeading}>{title}</Text>
+    <ScrollView
+      showsVerticalScrollIndicator={true}
+      style={styles.settingsColumnScroller}>
+      {children}
+    </ScrollView>
+  </View>
+);
+
+const SettingsButton = ({
+  label,
+  onPress,
+  selected = false,
+}: {
+  label: string;
+  onPress: () => void;
+  selected?: boolean;
+}) => (
+  <FocusableItem
+    focusedStyle={styles.settingsButtonFocused}
+    onPress={onPress}
+    style={[styles.settingsButton, selected && styles.settingsButtonSelected]}>
+    <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
+      {selected ? <View style={styles.radioDot} /> : null}
+    </View>
+    <Text numberOfLines={1} style={styles.settingsButtonText}>
+      {label}
+    </Text>
+  </FocusableItem>
+);
 
 const styles = StyleSheet.create({
   screen: {
@@ -1107,6 +1163,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     marginTop: 6,
   },
+  controls: {
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 22,
+  },
   progressTrack: {
     height: 8,
     borderRadius: 4,
@@ -1135,6 +1196,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
   },
+  settingsOverlay: {
+    position: 'absolute',
+    top: 44,
+    left: 52,
+    right: 52,
+    maxHeight: 670,
+    borderRadius: 8,
+    backgroundColor: 'rgba(12,17,22,0.94)',
+    padding: 24,
+  },
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -1151,5 +1222,76 @@ const styles = StyleSheet.create({
   exitButtons: {
     flexDirection: 'row',
     gap: 20,
+  },
+  settingsTitle: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  settingsStreamInfo: {
+    color: '#8FE3C0',
+    fontSize: 22,
+    marginBottom: 16,
+  },
+  settingsGrid: {
+    flexDirection: 'row',
+    gap: 18,
+  },
+  settingsColumn: {
+    flex: 1,
+    marginBottom: 18,
+  },
+  settingsColumnScroller: {
+    maxHeight: 550,
+  },
+  settingsHeading: {
+    color: '#89CFF0',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  settingsButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#25313A',
+    flexDirection: 'row',
+    minHeight: 44,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  settingsButtonSelected: {
+    backgroundColor: '#1F3746',
+  },
+  settingsButtonFocused: {
+    backgroundColor: '#2E5A72',
+  },
+  settingsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  radioCircle: {
+    alignItems: 'center',
+    borderColor: '#8CA1AA',
+    borderRadius: 9,
+    borderWidth: 2,
+    height: 18,
+    justifyContent: 'center',
+    marginRight: 9,
+    width: 18,
+  },
+  radioCircleSelected: {
+    borderColor: '#4CC9F0',
+  },
+  radioDot: {
+    backgroundColor: '#4CC9F0',
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  settingsEmpty: {
+    color: '#B8C5CC',
+    fontSize: 18,
   },
 });

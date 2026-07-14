@@ -94,6 +94,7 @@ jest.mock('../src/services/jellyfin', () => ({
     version: '10.11.11',
   })),
   discoverServers: jest.fn(async () => []),
+  initDeviceId: jest.fn(async () => 'test-device-id'),
   initiateQuickConnect: jest.fn(async () => ({code: '123456', secret: 'sec'})),
   isQuickConnectEnabled: jest.fn(async () => false),
   pollQuickConnect: jest.fn(async () => false),

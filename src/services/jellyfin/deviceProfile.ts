@@ -6,33 +6,10 @@ export const buildDeviceProfile = (prefs: PlaybackPreferences) => ({
       Type: 'Video',
       Container: 'mp4,mkv,mov,avi,ts,webm,m4v',
       VideoCodec: 'h264,hevc,av1,vp9,vp8,mpeg4',
-      AudioCodec: 'aac,mp3,ac3,eac3,flac,opus,pcm',
+      AudioCodec: 'aac,mp3,ac3,eac3,dts,flac,opus,vorbis,pcm,truehd',
     },
   ],
   TranscodingProfiles: [
-    // Experimental high-capability path: ask Jellyfin for DASH/fMP4 first,
-    // falling back to the HLS profiles below if the server can't produce it.
-    // Audio codecs are capped to Vega's documented support (AAC, MP3, Dolby
-    // AC3/eAC3/AC4, Opus, FLAC) — DTS/TrueHD aren't decodable on this
-    // platform at all, so requesting them here caused every title with a
-    // DTS/TrueHD track to fail with a MANIFEST/CONTENT_UNSUPPORTED_BY_BROWSER
-    // Shaka error (never shipped past this WIP branch).
-    {
-      Type: 'Video',
-      Container: 'mp4',
-      VideoCodec: 'hevc,h264',
-      AudioCodec: 'eac3,ac3,aac',
-      Protocol: 'dash',
-      Context: 'Streaming',
-      // Cap transcodes at 6ch (5.1) to match the HLS/HTTP profiles below, so
-      // the delivered channel count doesn't depend on which protocol the
-      // server happens to pick. 7.1/Atmos still reaches the sink intact via
-      // DirectPlay (eac3 is a direct-play codec) — only genuine re-encodes
-      // are capped, matching the Settings copy that 7.1 needs a DD+ source.
-      MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
-      MinSegments: 1,
-      BreakOnNonKeyFrames: true,
-    },
     // Primary delivery: HLS with fMP4 segments. Listing both codecs lets
     // the server STREAM-COPY compatible sources into segments (full source
     // quality, no GPU) and only re-encode when a CodecProfile condition

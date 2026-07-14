@@ -16,9 +16,9 @@ import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {SupportScreen} from '../screens/SupportScreen';
 import {
+  initDeviceId,
   JellyfinLibrary,
   JellyfinMediaItem,
-  PlaybackTrackSelection,
 } from '../services/jellyfin';
 import {checkAstraProReceipt} from '../services/iap';
 import {
@@ -41,11 +41,7 @@ type RouteEntry =
   | {route: 'library'; library: JellyfinLibrary}
   | {route: 'detail'; item: JellyfinMediaItem}
   | {route: 'episodeDetail'; item: JellyfinMediaItem}
-  | {
-      route: 'player';
-      item: JellyfinMediaItem;
-      trackSelection?: PlaybackTrackSelection;
-    }
+  | {route: 'player'; item: JellyfinMediaItem}
   | {route: 'search'}
   | {route: 'settings'}
   | {route: 'addServer'}
@@ -177,6 +173,9 @@ export const RootNavigator = () => {
       // Carry existing data from the legacy store into the supported one
       // before any read, so an in-place update keeps the user signed in.
       await runStorageMigration();
+      // Prime the persisted, unique-per-install device id before any auth so
+      // logins don't collide with (and invalidate) another session's token.
+      await initDeviceId();
       const profiles = await readServerProfiles();
       const preferences = await getUserPreferences();
       const lastUsedProfile =
@@ -299,9 +298,7 @@ export const RootNavigator = () => {
       <ItemDetailScreen
         item={current.item}
         onBack={pop}
-        onPlay={(item, trackSelection) =>
-          push({route: 'player', item, trackSelection})
-        }
+        onPlay={(item) => push({route: 'player', item})}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectItem={(item) => push({route: 'detail', item})}
         onSelectPerson={(personId, personName) =>
@@ -319,7 +316,6 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         serverUrl={serverProfile.serverUrl}
-        trackSelection={current.trackSelection}
         userId={serverProfile.userId}
       />,
     );
@@ -331,9 +327,7 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         onGoToSeries={(item) => push({route: 'detail', item})}
-        onPlay={(item, trackSelection) =>
-          push({route: 'player', item, trackSelection})
-        }
+        onPlay={(item) => push({route: 'player', item})}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectPerson={(personId, personName) =>
           push({route: 'personDetail', personId, personName})

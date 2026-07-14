@@ -83,14 +83,14 @@ export class ShakaPlayer implements PlayerInterface {
     type: shaka.net.NetworkingEngine.RequestType,
     response: shaka.extern.Response,
   ): void {
-    debugLog(`sample:shaka: in the response filter type = ${type}`);
+    console.log(`sample:shaka: in the response filter type = ${type}`);
     if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST) {
-      debugLog('sample:shaka: in the response filter MANIFEST');
+      console.log('sample:shaka: in the response filter MANIFEST');
       // Parse a custom header that contains a value needed to build a proper
       // license server URL.
       if (response.headers['x-uplynk-prefix']) {
         this.lastUplynkPrefix = response.headers['x-uplynk-prefix'];
-        debugLog(
+        console.log(
           `sample:shaka: in the response filter update Prefix to ${this.lastUplynkPrefix}`,
         );
       } else {
@@ -109,21 +109,21 @@ export class ShakaPlayer implements PlayerInterface {
     type: shaka.net.NetworkingEngine.RequestType,
     request: shaka.extern.Request,
   ): void {
-    debugLog(`sample:shaka: in the request filter type = ${type}`);
+    console.log(`sample:shaka: in the request filter type = ${type}`);
     if (type === shaka.net.NetworkingEngine.RequestType.LICENSE) {
-      debugLog('sample:shaka: in the request filter LICENSE');
+      console.log('sample:shaka: in the request filter LICENSE');
       // Modify the license request URL based on our cookie.
       if (request.uris[0].includes('wv') && this.lastUplynkPrefix) {
-        debugLog('sample:shaka: in the request filter LICENSE WV');
+        console.log('sample:shaka: in the request filter LICENSE WV');
         request.uris[0] = this.lastUplynkPrefix.concat('/wv');
       } else if (request.uris[0].includes('ck') && this.lastUplynkPrefix) {
         request.uris[0] = this.lastUplynkPrefix.concat('/ck');
       } else if (request.uris[0].includes('pr') && this.lastUplynkPrefix) {
-        debugLog('sample:shaka: in the request filter LICENSE PR');
+        console.log('sample:shaka: in the request filter LICENSE PR');
         request.uris[0] = this.lastUplynkPrefix.concat('/pr');
       }
     }
-    debugLog('sample:shaka: in the request filter END');
+    console.log('sample:shaka: in the request filter END');
   }
 
   /**
@@ -174,7 +174,7 @@ export class ShakaPlayer implements PlayerInterface {
     manifest: ArrayBuffer,
     absoluteuri: string,
   ): Promise<Array<shaka.hls.Playlist>> {
-    debugLog('shaka: nativeParsePlaylist+');
+    console.log('shaka: nativeParsePlaylist+');
     const playlist = await global.parseHlsManifest(
       playerName,
       playerVersion,
@@ -182,7 +182,7 @@ export class ShakaPlayer implements PlayerInterface {
       manifest,
       shaka,
     );
-    debugLog('shaka: nativeParsePlaylist-');
+    console.log('shaka: nativeParsePlaylist-');
     return playlist;
   }
 
@@ -190,10 +190,10 @@ export class ShakaPlayer implements PlayerInterface {
     manifest: ArrayBuffer,
     expectedRoot: string,
   ): Array<shaka.hls.Playlist> {
-    debugLog('shaka: nativeParseFromString+');
-    debugLog('shaka: nativeParseFromString: expectedRoot ', expectedRoot);
+    console.log('shaka: nativeParseFromString+');
+    console.log('shaka: nativeParseFromString: expectedRoot ', expectedRoot);
     const playlist = global.nativeParseFromString(manifest, expectedRoot);
-    debugLog('shaka: nativeParseFromString-');
+    console.log('shaka: nativeParseFromString-');
     return playlist;
   }
   // End custom callbacks }}}
@@ -205,10 +205,10 @@ export class ShakaPlayer implements PlayerInterface {
         global.registerNativePlayerUtils &&
         shaka.hls.HlsParser.setNativeFunctions
       ) {
-        debugLog('shakaplayer: registerNativePlayerUtils found');
+        console.log('shakaplayer: registerNativePlayerUtils found');
         if (!global.isNativeHlsParserSupported) {
           const ret = global.registerNativePlayerUtils();
-          debugLog('shaka: native functions registered: ' + ret);
+          console.log('shaka: native functions registered: ' + ret);
         }
         if (
           global.isNativeHlsParserSupported &&
@@ -220,24 +220,26 @@ export class ShakaPlayer implements PlayerInterface {
             playerVersion,
           );
           if (nativeHlsParserSupported) {
-            debugLog('shaka: setting native functions');
+            console.log('shaka: setting native functions');
             shaka.hls.HlsParser.setNativeFunctions(this.nativeParsePlaylist);
           } else {
-            debugLog('shaka: nativeHlsParser not supported for player version');
+            console.log(
+              'shaka: nativeHlsParser not supported for player version',
+            );
           }
         } else {
-          debugLog(
+          console.log(
             'shaka: native func not set even after register, skipping it',
           );
         }
       } else {
-        debugLog(
+        console.log(
           `shakaplayer: native offload not enabled!registerNativePlayerUtils: ${!!global.registerNativePlayerUtils},setNativeFunctions: ${!!shaka
             .hls.HlsParser.setNativeFunctions}`,
         );
       }
     } else {
-      debugLog('shaka: native playlist parsing is disabled');
+      console.log('shaka: native playlist parsing is disabled');
     }
 
     // Native XML parsing setup for DASH content
@@ -247,7 +249,7 @@ export class ShakaPlayer implements PlayerInterface {
         shaka.util.XmlUtils.setNativeFunctions
       ) {
         if (!global.isNativeXmlParserSupported) {
-          debugLog('shaka: isNativeXmlParserSupported not registered.');
+          console.log('shaka: isNativeXmlParserSupported not registered.');
         }
         if (global.isNativeXmlParserSupported && global.nativeParseFromString) {
           const isNativeXmlParserSupported = global.isNativeXmlParserSupported(
@@ -255,34 +257,36 @@ export class ShakaPlayer implements PlayerInterface {
             playerVersion,
           );
           if (isNativeXmlParserSupported) {
-            debugLog('shaka: setting DASH native functions');
+            console.log('shaka: setting DASH native functions');
             shaka.util.XmlUtils.setNativeFunctions(this.nativeParseFromString);
           } else {
-            debugLog('shaka: nativeXMLParser not supported for player version');
+            console.log(
+              'shaka: nativeXMLParser not supported for player version',
+            );
           }
         } else {
-          debugLog(
+          console.log(
             'shaka: native func not set even after register, skipping it',
           );
         }
       } else {
-        debugLog(
+        console.log(
           `shakaplayer: DASH native offload not enabled!registerNativePlayerUtils: ${!!global.registerNativePlayerUtils},DASH::setNativeFunctions: ${!!shaka
             .util.XmlUtils.setNativeFunctions}`,
         );
       }
     } else {
-      debugLog('shaka: native Xml playlist parsing is disabled');
+      console.log('shaka: native Xml playlist parsing is disabled');
     }
 
     shaka.polyfill.installAll();
-    debugLog('shakaplayer: unregistering scheme http and https');
+    console.log('shakaplayer: unregistering scheme http and https');
     shaka.net.NetworkingEngine.unregisterScheme('http');
     shaka.net.NetworkingEngine.unregisterScheme('https');
 
-    debugLog('shakaplayer: registering scheme http and https');
+    console.log('shakaplayer: registering scheme http and https');
     const httpFetchPluginSupported = shaka.net.HttpFetchPlugin.isSupported();
-    debugLog(`httpfetchplugin supported? ${httpFetchPluginSupported}`);
+    console.log(`httpfetchplugin supported? ${httpFetchPluginSupported}`);
 
     shaka.net.NetworkingEngine.registerScheme(
       'http',
@@ -298,9 +302,9 @@ export class ShakaPlayer implements PlayerInterface {
       true,
     );
 
-    debugLog('shakaplayer: creating');
+    console.log('shakaplayer: creating');
     this.player = new shaka.Player(this.mediaElement);
-    debugLog('shakaplayer: loading');
+    console.log('shakaplayer: loading');
 
     // Registering the Custom filters for uplynk test streams.
     const netEngine = this.player.getNetworkingEngine();
@@ -314,7 +318,7 @@ export class ShakaPlayer implements PlayerInterface {
       let header_map: Map<string, string> = new Map();
 
       content.drm_license_header.map((values) => {
-        debugLog(
+        console.log(
           `sample:shaka: got License header TAG: ${values[0]} DATA: ${values[1]}`,
         );
         header_map.set(values[0] as string, values[1] as string);
@@ -333,7 +337,7 @@ export class ShakaPlayer implements PlayerInterface {
       let header_map: Map<string, string> = new Map();
 
       content.manifest_header.map((values) => {
-        debugLog(
+        console.log(
           `sample:shaka: got Manifest header TAG: ${values[0]} DATA: ${values[1]}`,
         );
         header_map.set(values[0] as string, values[1] as string);
@@ -351,7 +355,7 @@ export class ShakaPlayer implements PlayerInterface {
     // resolution supported by native side and dynamically
     // populate 'Max resolution' setting for ABR.
     if (!Platform.isTV) {
-      debugLog(
+      console.log(
         'shakaplayer: For non-TV devices, max resolution is capped to FHD.',
       );
       this.setting_.abrMaxWidth = Math.min(
@@ -364,7 +368,7 @@ export class ShakaPlayer implements PlayerInterface {
       );
     }
 
-    debugLog(
+    console.log(
       `ABR Max Resolution: ${this.setting_.abrMaxWidth} x ${this.setting_.abrMaxHeight}`,
     );
 
@@ -372,8 +376,8 @@ export class ShakaPlayer implements PlayerInterface {
       streaming: {
         lowLatencyMode: false,
         inaccurateManifestTolerance: 0,
-        rebufferingGoal: 2,
-        bufferingGoal: 30,
+        rebufferingGoal: 0.01,
+        bufferingGoal: 5,
         alwaysStreamText: true,
         retryParameters: {
           maxAttempts: 3,
@@ -410,7 +414,7 @@ export class ShakaPlayer implements PlayerInterface {
 
     // Separating the drm configuration since Shaka seems to call drm operations even if they are not needed when drm configuration is present.
     if (content.drm_scheme !== null && content.drm_scheme !== '') {
-      debugLog(
+      console.log(
         `shakaplayer: loading with ${content.drm_scheme} and ${content.drm_license_uri} and ${content.secure}`,
       );
       let signal_secure: string = 'SW_SECURE_CRYPTO';
@@ -427,7 +431,7 @@ export class ShakaPlayer implements PlayerInterface {
         }
       }
 
-      debugLog(
+      console.log(
         `shakaplayer: loading with ${content.drm_scheme} and ${content.drm_license_uri} and ${signal_secure}`,
       );
 
@@ -458,13 +462,13 @@ export class ShakaPlayer implements PlayerInterface {
     }
 
     await this.internalLoad(content);
-    debugLog('shakaplayer: load() OUT');
+    console.log('shakaplayer: load() OUT');
   }
   private async internalLoad(content: any) {
     await this.player.load(content.uri);
-    debugLog('shakaplayer: setTextTrackVisibility');
+    console.log('shakaplayer: setTextTrackVisibility');
     this.player.setTextTrackVisibility(true);
-    debugLog('shakaplayer: loaded');
+    console.log('shakaplayer: loaded');
   }
   play(): void {
     this.mediaElement?.play();
@@ -474,17 +478,17 @@ export class ShakaPlayer implements PlayerInterface {
   }
   seekBack(): void {
     const time = this.mediaElement.currentTime;
-    debugLog('shakaplayer: seekBack to ', time - 10);
+    console.log('shakaplayer: seekBack to ', time - 10);
     this.mediaElement.currentTime = time - 10;
   }
   seekFront(): void {
     const time = this.mediaElement.currentTime;
-    debugLog('shakaplayer: seekFront to ', time + 10);
+    console.log('shakaplayer: seekFront to ', time + 10);
     this.mediaElement.currentTime = time + 10;
   }
 
   unload(): void {
-    debugLog('shakaplayer:unload');
+    console.log('shakaplayer:unload');
 
     // Clean up native XML parser if enabled
     if (
@@ -498,9 +502,9 @@ export class ShakaPlayer implements PlayerInterface {
         playerVersion,
       );
       if (isNativeXmlParserSupported) {
-        debugLog('shakaplayer: unloading native Xml parser');
+        console.log('shakaplayer: unloading native Xml parser');
         global.unloadNativeXmlParser();
-        debugLog('shakaplayer: unloaded native Xml parser');
+        console.log('shakaplayer: unloaded native Xml parser');
       }
     }
 

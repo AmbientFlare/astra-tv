@@ -1,5 +1,5 @@
 import {buildDeviceProfile} from './deviceProfile';
-import {readPlaybackPreferences} from '../storage';
+import {getDeviceId, readPlaybackPreferences} from '../storage';
 import {APP_VERSION} from '../../config/app';
 import {debugLog} from '../../utils/logger';
 
@@ -194,7 +194,28 @@ interface DiscoveryOptions {
   timeoutMs?: number;
 }
 
-const AUTH_HEADER = `MediaBrowser Client="Astra", Device="FireTV", DeviceId="astra-device-001", Version="${APP_VERSION}"`;
+// Unique-per-install device id. A fixed shared id makes Jellyfin invalidate
+// one session's token whenever another logs in with the same id (observed as
+// blanket 401s). Seeded with a random value so it's always unique even before
+// the persisted id loads; ensureDeviceId() swaps in the stored one, and
+// initDeviceId() primes it at startup before any auth happens.
+let deviceId = `astra-${Math.random().toString(36).slice(2, 14)}`;
+let deviceIdLoaded = false;
+
+const ensureDeviceId = async (): Promise<string> => {
+  if (!deviceIdLoaded) {
+    deviceId = await getDeviceId();
+    deviceIdLoaded = true;
+  }
+  return deviceId;
+};
+
+export const initDeviceId = ensureDeviceId;
+
+const authHeader = (token?: string) =>
+  `MediaBrowser Client="Astra", Device="FireTV", DeviceId="${deviceId}", Version="${APP_VERSION}"${
+    token ? `, Token="${token}"` : ''
+  }`;
 
 const normalizeServerUrl = (serverUrl: string) =>
   serverUrl
@@ -206,7 +227,7 @@ const normalizeServerUrl = (serverUrl: string) =>
     );
 
 const getAuthHeaders = (accessToken: string) => ({
-  'X-Emby-Authorization': `${AUTH_HEADER}, Token="${accessToken}"`,
+  'X-Emby-Authorization': authHeader(accessToken),
   'X-Emby-Token': accessToken,
   'X-MediaBrowser-Token': accessToken,
 });
@@ -570,6 +591,7 @@ export const authenticate = async (
   password: string,
 ): Promise<JellyfinAuthResult> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  await ensureDeviceId();
   const response = await getJson<{
     User?: {Id?: string; Name?: string};
     AccessToken?: string;
@@ -577,7 +599,7 @@ export const authenticate = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': AUTH_HEADER,
+      'X-Emby-Authorization': authHeader(),
     },
     body: JSON.stringify({
       Username: username,
@@ -622,9 +644,10 @@ export const initiateQuickConnect = async (
   serverUrl: string,
 ): Promise<QuickConnectInitiateResult> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  await ensureDeviceId();
   const response = await getJson<{Code?: string; Secret?: string}>(
     `${baseUrl}/QuickConnect/Initiate`,
-    {headers: {'X-Emby-Authorization': AUTH_HEADER}},
+    {headers: {'X-Emby-Authorization': authHeader()}},
   );
 
   if (!response.Code || !response.Secret) {
@@ -642,7 +665,7 @@ export const pollQuickConnect = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{Authenticated?: boolean}>(
     buildUrl(baseUrl, '/QuickConnect/Connect', {Secret: secret}),
-    {headers: {'X-Emby-Authorization': AUTH_HEADER}},
+    {headers: {'X-Emby-Authorization': authHeader()}},
   );
 
   return response.Authenticated === true;
@@ -655,6 +678,7 @@ export const authenticateWithQuickConnect = async (
   secret: string,
 ): Promise<JellyfinAuthResult> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  await ensureDeviceId();
   const response = await getJson<{
     User?: {Id?: string; Name?: string};
     AccessToken?: string;
@@ -662,7 +686,7 @@ export const authenticateWithQuickConnect = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': AUTH_HEADER,
+      'X-Emby-Authorization': authHeader(),
     },
     body: JSON.stringify({Secret: secret}),
   });

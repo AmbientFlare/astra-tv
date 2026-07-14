@@ -13,11 +13,11 @@
  * FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
  */
 // @ts-nocheck
-import {debugLog} from '../../utils/logger';
+import { TextDecoder } from "@amazon-devices/react-native-w3cmedia/dist/headless";
 
 class TextDecoderPolyfill {
   static install() {
-    debugLog('Installing TextDecoder polyfill');
+    console.log("Installing TextDecoder polyfill");
     global.window.TextDecoder = TextDecoder;
   }
 }
