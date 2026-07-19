@@ -8,13 +8,14 @@ and play compatible media through the Vega media stack.
 
 ## Current Release
 
-- App version: `1.0.1`
+- App version: `1.0.2`
 - Package ID: `com.astra.tv`
 - Primary target: Fire TV devices running Amazon Vega OS
 - Supported backend: Jellyfin
 
 Future backend support for Emby and Kodi is planned, but not part of the
-current submission build.
+current submission build. Emby is shown as a disabled Coming soon option in
+the setup wizard.
 
 ## Development
 

@@ -4,8 +4,14 @@ import * as React from 'react';
 
 import {App} from '../src/App';
 import {SearchScreen} from '../src/screens/SearchScreen';
+import {checkAstraProReceipt} from '../src/services/iap';
+import {
+  initiateQuickConnect,
+  isQuickConnectEnabled,
+} from '../src/services/jellyfin';
 import {
   getLastUsedServerProfile,
+  incrementLaunchCount,
   readServerProfiles,
 } from '../src/services/storage';
 
@@ -40,6 +46,21 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
       MockReact.createElement(View, props),
     useKeplerBackHandler: jest.fn(() => mockKeplerBackHandler),
     useTVEventHandler: jest.fn(),
+  };
+});
+
+jest.mock('../src/components/FocusableItem', () => {
+  const MockReact = require('react');
+  const {View} = require('react-native');
+
+  return {
+    FocusableItem: ({
+      children,
+      focusedStyle: _focusedStyle,
+      hasTVPreferredFocus: _hasTVPreferredFocus,
+      ...props
+    }: Record<string, unknown>) =>
+      MockReact.createElement(View, props, children),
   };
 });
 
@@ -84,12 +105,20 @@ jest.mock('../src/services/jellyfin', () => ({
     accessToken: 'test-token',
     userId: 'test-user',
   })),
+  authenticateWithQuickConnect: jest.fn(async () => ({
+    accessToken: 'test-token',
+    userId: 'test-user',
+    username: 'Test User',
+  })),
   connect: jest.fn(async () => ({
     id: 'test-server',
     name: 'Test Server',
     version: '10.11.11',
   })),
   discoverServers: jest.fn(async () => []),
+  initiateQuickConnect: jest.fn(async () => ({code: '123456', secret: 'sec'})),
+  isQuickConnectEnabled: jest.fn(async () => false),
+  pollQuickConnect: jest.fn(async () => false),
   getLibraries: jest.fn(async () => []),
   getStreamUrl: jest.fn(async () => ({
     itemId: 'test-item',
@@ -113,6 +142,7 @@ jest.mock('../src/services/storage', () => ({
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
     seekDurationSeconds: 10,
+    showPlaybackStats: false,
     version: 1,
   },
   defaultUserPreferences: {
@@ -166,6 +196,7 @@ jest.mock('../src/services/storage', () => ({
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
     seekDurationSeconds: 10,
+    showPlaybackStats: false,
     version: 1,
   })),
   readServerProfiles: jest.fn(async () => []),
@@ -197,18 +228,85 @@ describe('App', () => {
     expect(readServerProfiles).toHaveBeenCalledTimes(1);
   });
 
-  it('renders setup input fields', async () => {
+  it('never interrupts startup with a support prompt', async () => {
+    (incrementLaunchCount as jest.Mock).mockResolvedValueOnce(10);
+    (checkAstraProReceipt as jest.Mock).mockResolvedValueOnce(false);
+
     const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-screen')).toBeTruthy(),
+    );
+
+    expect(screen.queryByTestId('support-screen')).toBeNull();
+    expect(incrementLaunchCount).not.toHaveBeenCalled();
+    expect(checkAstraProReceipt).not.toHaveBeenCalled();
+  });
+
+  it('shows Emby as a disabled coming-soon option', async () => {
+    const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-emby')).toBeTruthy(),
+    );
+
+    expect(screen.getByTestId('setup-server-type-emby').props.disabled).toBe(
+      true,
+    );
+    expect(screen.getByText('Coming soon')).toBeTruthy();
+  });
+
+  const advanceToPasswordStep = async (screen: ReturnType<typeof render>) => {
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-jellyfin')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-server-type-jellyfin'));
     await waitFor(() =>
       expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
     );
+    fireEvent.press(screen.getByTestId('setup-connect-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-username-input')).toBeTruthy(),
+    );
+  };
+
+  it('walks the setup wizard to the password sign-in fields', async () => {
+    const screen = render(<App />);
+    await advanceToPasswordStep(screen);
     expect(screen.getByTestId('setup-username-input')).toBeTruthy();
     expect(screen.getByTestId('setup-password-input')).toBeTruthy();
-    expect(screen.getByTestId('setup-connect-button')).toBeTruthy();
+    expect(screen.getByTestId('setup-signin-button')).toBeTruthy();
+  });
+
+  it('offers Quick Connect and displays the server-issued code', async () => {
+    (isQuickConnectEnabled as jest.Mock).mockResolvedValueOnce(true);
+    const screen = render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-jellyfin')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-server-type-jellyfin'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-connect-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-method-code')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-method-code'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-quickconnect-code').props.children).toBe(
+        '123456',
+      ),
+    );
+
+    expect(initiateQuickConnect).toHaveBeenCalledTimes(1);
   });
 
   it('enables the TV soft keyboard for setup input fields', async () => {
     const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-jellyfin')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-server-type-jellyfin'));
     await waitFor(() =>
       expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
     );
@@ -216,6 +314,10 @@ describe('App', () => {
     expect(screen.getByTestId('setup-server-url-input').props).toMatchObject({
       showSoftInputOnFocus: true,
     });
+    fireEvent.press(screen.getByTestId('setup-connect-button'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-username-input')).toBeTruthy(),
+    );
     expect(screen.getByTestId('setup-username-input').props).toMatchObject({
       showSoftInputOnFocus: true,
     });

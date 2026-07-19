@@ -425,6 +425,16 @@ export const SettingsScreen = ({
           <Page title="Playback" onBack={pop}>
             {/* Wired now: max bitrate and seek duration. Other playback
                 choices persist as UI state until player support exists. */}
+            <ToggleRow
+              title="Stats for Nerds"
+              subtitle="Show live codecs, audio track, bitrate, buffer, and frames"
+              value={playbackPrefs.showPlaybackStats}
+              onToggle={() =>
+                savePlaybackPrefs({
+                  showPlaybackStats: !playbackPrefs.showPlaybackStats,
+                })
+              }
+            />
             <MenuRow
               icon="↯"
               title="Max streaming bitrate"

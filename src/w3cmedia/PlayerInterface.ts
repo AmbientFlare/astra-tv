@@ -18,5 +18,5 @@ export interface PlayerInterface {
   pause(): void;
   seekBack(): void;
   seekFront(): void;
-  unload(): void;
+  unload(): Promise<void>;
 }

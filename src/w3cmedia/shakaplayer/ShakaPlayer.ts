@@ -376,8 +376,11 @@ export class ShakaPlayer implements PlayerInterface {
       streaming: {
         lowLatencyMode: false,
         inaccurateManifestTolerance: 0,
-        rebufferingGoal: 0.01,
-        bufferingGoal: 5,
+        // A near-zero rebuffer threshold causes one-second play/buffer loops
+        // on high-bitrate HLS after a seek or track switch. Keep enough media
+        // queued for stable restart without overcommitting this 1 GB device.
+        rebufferingGoal: 2,
+        bufferingGoal: 10,
         alwaysStreamText: true,
         retryParameters: {
           maxAttempts: 3,
@@ -465,7 +468,7 @@ export class ShakaPlayer implements PlayerInterface {
     console.log('shakaplayer: load() OUT');
   }
   private async internalLoad(content: any) {
-    await this.player.load(content.uri);
+    await this.player.load(content.uri, content.startTime);
     console.log('shakaplayer: setTextTrackVisibility');
     this.player.setTextTrackVisibility(true);
     console.log('shakaplayer: loaded');
@@ -487,8 +490,37 @@ export class ShakaPlayer implements PlayerInterface {
     this.mediaElement.currentTime = time + 10;
   }
 
-  unload(): void {
+  getDebugStats() {
+    if (!this.player) {
+      return undefined;
+    }
+
+    try {
+      const activeVariant = this.player
+        .getVariantTracks?.()
+        ?.find((track: {active?: boolean}) => track.active);
+
+      return {
+        activeVariant,
+        buffered: this.player.getBufferedInfo?.(),
+        stats: this.player.getStats?.(),
+      };
+    } catch (error) {
+      console.warn('[Astra] Unable to read Shaka diagnostics:', error);
+      return undefined;
+    }
+  }
+
+  async unload(): Promise<void> {
     console.log('shakaplayer:unload');
+
+    const player = this.player;
+    this.player = null;
+    this.mediaElement = null;
+
+    if (!player) {
+      return;
+    }
 
     // Clean up native XML parser if enabled
     if (
@@ -508,8 +540,12 @@ export class ShakaPlayer implements PlayerInterface {
       }
     }
 
-    this.player.detach();
-    this.player.destroy();
-    this.player = null;
+    try {
+      await player.detach();
+    } finally {
+      // Shaka cleanup is asynchronous. Awaiting destroy is essential before
+      // another player attaches to the same Vega media element.
+      await player.destroy();
+    }
   }
 }
