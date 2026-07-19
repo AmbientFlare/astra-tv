@@ -1,6 +1,10 @@
 import {buildDeviceProfile} from './deviceProfile';
 import {readPlaybackPreferences} from '../storage';
 import {APP_VERSION} from '../../config/app';
+import {
+  AudioOutputCapabilities,
+  getAudioOutputCapabilities,
+} from '../mediaCapabilities';
 
 export interface JellyfinServerInfo {
   id: string;
@@ -107,8 +111,11 @@ export interface JellyfinMediaTrack {
   index?: number;
   title: string;
   channels?: number;
+  bitrate?: number;
   language?: string;
   codec?: string;
+  profile?: string;
+  sampleRate?: number;
   displayTitle?: string;
   deliveryMethod?: string;
   isDefault?: boolean;
@@ -133,6 +140,25 @@ export interface JellyfinStreamInfo {
   audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
   bitrate?: number;
+  container?: string;
+  sourceContainer?: string;
+  outputContainer?: string;
+  sourceAudioBitrate?: number;
+  sourceAudioCodec?: string;
+  sourceAudioProfile?: string;
+  sourceAudioSampleRate?: number;
+  sourceVideoCodec?: string;
+  outputAudioBitrate?: number;
+  outputAudioCodec?: string;
+  outputVideoCodec?: string;
+  audioDeliveryMethod?: 'Copy' | 'Transcode' | 'Unknown';
+  videoDeliveryMethod?: 'Copy' | 'Transcode' | 'Unknown';
+  transcodeReasons?: string[];
+  deliveredAudioCodec?: string;
+  deliveredAudioStreamIndex?: number;
+  deliveredVideoCodec?: string;
+  audioOutputCapabilities?: AudioOutputCapabilities;
+  audioTranscodePolicy?: string;
   height?: number;
   width?: number;
   mediaSourceId?: string;
@@ -145,6 +171,58 @@ export interface JellyfinStreamInfo {
   transcodeUrl?: string;
   url: string;
 }
+
+const getUrlParameter = (url: string, name: string) => {
+  try {
+    const normalizedName = name.toLowerCase();
+    let value: string | undefined;
+    new URL(url).searchParams.forEach((candidate, key) => {
+      if (key.toLowerCase() === normalizedName) {
+        value = candidate;
+      }
+    });
+    return value;
+  } catch {
+    return undefined;
+  }
+};
+
+const getCodecChoices = (url: string, parameter: string) =>
+  (getUrlParameter(url, parameter) ?? '')
+    .split(',')
+    .map((codec) => codec.trim().toLowerCase())
+    .filter(Boolean);
+
+const permitsStreamCopy = (url: string, parameter: string) =>
+  (getUrlParameter(url, parameter) ?? '')
+    .split(',')
+    .some((value) => value.trim().toLowerCase() === 'true');
+
+const isAdaptiveStreamUrl = (url: string) => /\.m3u8(?:$|\?)/i.test(url);
+
+const describeDelivery = (
+  url: string,
+  sourceCodec: string | undefined,
+  codecParameter: 'AudioCodec' | 'VideoCodec',
+  copyParameter: 'AllowAudioStreamCopy' | 'AllowVideoStreamCopy',
+) => {
+  const normalizedSourceCodec = sourceCodec?.toLowerCase();
+  const codecChoices = getCodecChoices(url, codecParameter);
+  const copied = Boolean(
+    normalizedSourceCodec &&
+      permitsStreamCopy(url, copyParameter) &&
+      codecChoices.includes(normalizedSourceCodec),
+  );
+
+  return {
+    codec: copied ? normalizedSourceCodec : codecChoices[0],
+    method: copied
+      ? ('Copy' as const)
+      : codecChoices.length
+      ? ('Transcode' as const)
+      : ('Unknown' as const),
+  };
+};
 
 export type JellyfinSortBy = 'name' | 'dateAdded' | 'releaseDate' | 'rating';
 export type JellyfinImageType = 'Primary' | 'Thumb' | 'Banner';
@@ -688,15 +766,20 @@ export const getStreamUrl = async (
   userId?: string,
   startPositionTicks = 0,
   options: {
+    allowAudioStreamCopy?: boolean;
     alwaysBurnInSubtitleWhenTranscoding?: boolean;
     audioStreamIndex?: number;
     forceTranscode?: boolean;
     maxStreamingBitrate?: number;
+    sourceHeight?: number;
+    sourceWidth?: number;
     subtitleStreamIndex?: number;
   } = {},
 ): Promise<JellyfinStreamInfo> => {
   const baseUrl = normalizeServerUrl(serverUrl);
   const prefs = await readPlaybackPreferences();
+  const audioOutputCapabilities = await getAudioOutputCapabilities();
+  const deviceProfile = buildDeviceProfile(prefs, audioOutputCapabilities);
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
     api_key: accessToken,
   });
@@ -721,12 +804,17 @@ export const getStreamUrl = async (
       SupportsDirectStream?: boolean;
       SupportsTranscoding?: boolean;
       MediaStreams?: Array<{
+        BitRate?: number;
         Channels?: number;
         Index?: number;
         Type?: string;
         Title?: string;
         Language?: string;
         Codec?: string;
+        Profile?: string;
+        SampleRate?: number;
+        Width?: number;
+        Height?: number;
         DisplayTitle?: string;
         IsDefault?: boolean;
         IsExternal?: boolean;
@@ -743,7 +831,11 @@ export const getStreamUrl = async (
         ...getAuthHeaders(accessToken),
       },
       body: JSON.stringify({
-        DeviceProfile: buildDeviceProfile(prefs),
+        DeviceProfile: deviceProfile,
+        // Jellyfin may silently choose a different compatible audio stream
+        // unless the selected media source is pinned alongside the stream
+        // index. For single-file items the media source id is the item id.
+        MediaSourceId: itemId,
         UserId: userId,
         StartTimeTicks: startPositionTicks,
         AudioStreamIndex: audioStreamIndex,
@@ -761,7 +853,7 @@ export const getStreamUrl = async (
         EnableDirectPlay: false,
         EnableDirectStream: false,
         AllowVideoStreamCopy: !options.forceTranscode,
-        AllowAudioStreamCopy: true,
+        AllowAudioStreamCopy: options.allowAudioStreamCopy ?? true,
         AutoOpenLiveStream: true,
       }),
     });
@@ -794,6 +886,12 @@ export const getStreamUrl = async (
   }
   const mediaSource = response.MediaSources?.[0];
   const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
+  const streams = mediaSource?.MediaStreams ?? [];
+  const selectedVideoStream = streams.find((stream) => stream.Type === 'Video');
+  const sourceWidth =
+    mediaSource?.Width ?? selectedVideoStream?.Width ?? options.sourceWidth;
+  const sourceHeight =
+    mediaSource?.Height ?? selectedVideoStream?.Height ?? options.sourceHeight;
   if (mediaSource?.TranscodingUrl) {
     console.log(
       '[Astra] Raw Jellyfin TranscodingUrl:',
@@ -837,7 +935,6 @@ export const getStreamUrl = async (
   } else {
     throw new Error('No playable URL returned from Jellyfin.');
   }
-  const streams = mediaSource?.MediaStreams ?? [];
   const mapTrack = (track: (typeof streams)[number]): JellyfinMediaTrack => {
     const isSubtitle = track.Type === 'Subtitle';
     const textTrackSupported = isSubtitle && supportsTextTrack(track.Codec);
@@ -857,8 +954,11 @@ export const getStreamUrl = async (
       ),
       index: track.Index,
       title: track.DisplayTitle ?? track.Title ?? track.Language ?? 'Unknown',
+      bitrate: track.BitRate,
       language: track.Language,
       codec: track.Codec,
+      profile: track.Profile,
+      sampleRate: track.SampleRate,
       channels: track.Channels,
       displayTitle: track.DisplayTitle,
       deliveryMethod: track.DeliveryMethod,
@@ -880,7 +980,7 @@ export const getStreamUrl = async (
         id: 'source',
         label: [
           'Source',
-          mediaSource.Height ? `${mediaSource.Height}p` : undefined,
+          sourceHeight ? `${sourceHeight}p` : undefined,
           mediaSource.Bitrate
             ? `${Math.round(mediaSource.Bitrate / 1000000)} Mbps`
             : undefined,
@@ -889,10 +989,41 @@ export const getStreamUrl = async (
           .filter(Boolean)
           .join(' / '),
         bitrate: mediaSource.Bitrate,
-        height: mediaSource.Height,
-        width: mediaSource.Width,
+        height: sourceHeight,
+        width: sourceWidth,
       }
     : undefined;
+  const deliveredAudioStreamIndexValue = getUrlParameter(
+    url,
+    'AudioStreamIndex',
+  );
+  const deliveredAudioStreamIndex = deliveredAudioStreamIndexValue
+    ? Number(deliveredAudioStreamIndexValue)
+    : selectedAudioStreamIndex ?? undefined;
+  const deliveredAudioStream = streams.find(
+    (stream) =>
+      stream.Type === 'Audio' && stream.Index === deliveredAudioStreamIndex,
+  );
+  const audioDelivery = describeDelivery(
+    url,
+    deliveredAudioStream?.Codec,
+    'AudioCodec',
+    'AllowAudioStreamCopy',
+  );
+  const videoDelivery = describeDelivery(
+    url,
+    selectedVideoStream?.Codec,
+    'VideoCodec',
+    'AllowVideoStreamCopy',
+  );
+  const transcodeReasons = (getUrlParameter(url, 'TranscodeReasons') ?? '')
+    .split(',')
+    .map((reason) => reason.trim())
+    .filter(Boolean);
+  const outputAudioBitrate =
+    audioDelivery.method === 'Copy'
+      ? deliveredAudioStream?.BitRate
+      : Number(getUrlParameter(url, 'AudioBitrate')) || undefined;
 
   return {
     itemId,
@@ -901,8 +1032,29 @@ export const getStreamUrl = async (
       .filter((track) => track.Type === 'Audio')
       .map((track) => mapTrack(track)),
     bitrate: mediaSource?.Bitrate,
-    height: mediaSource?.Height,
-    width: mediaSource?.Width,
+    container: mediaSource?.Container,
+    sourceContainer: mediaSource?.Container,
+    outputContainer:
+      getUrlParameter(url, 'SegmentContainer') ??
+      (isAdaptiveStreamUrl(url) ? 'fMP4 HLS' : mediaSource?.Container),
+    sourceAudioBitrate: deliveredAudioStream?.BitRate,
+    sourceAudioCodec: deliveredAudioStream?.Codec,
+    sourceAudioProfile: deliveredAudioStream?.Profile,
+    sourceAudioSampleRate: deliveredAudioStream?.SampleRate,
+    sourceVideoCodec: selectedVideoStream?.Codec,
+    outputAudioBitrate,
+    outputAudioCodec: audioDelivery.codec,
+    outputVideoCodec: videoDelivery.codec,
+    audioDeliveryMethod: audioDelivery.method,
+    videoDeliveryMethod: videoDelivery.method,
+    transcodeReasons,
+    deliveredAudioCodec: audioDelivery.codec ?? deliveredAudioStream?.Codec,
+    deliveredAudioStreamIndex,
+    deliveredVideoCodec: videoDelivery.codec ?? selectedVideoStream?.Codec,
+    audioOutputCapabilities,
+    audioTranscodePolicy: deviceProfile.TranscodingProfiles[0].AudioCodec,
+    height: sourceHeight,
+    width: sourceWidth,
     mediaSourceId: mediaSource?.Id,
     playSessionId: response.PlaySessionId,
     playMethod,

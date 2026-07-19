@@ -113,6 +113,7 @@ jest.mock('../src/services/storage', () => ({
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
     seekDurationSeconds: 10,
+    showPlaybackStats: false,
     version: 1,
   },
   defaultUserPreferences: {
@@ -166,6 +167,7 @@ jest.mock('../src/services/storage', () => ({
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
     seekDurationSeconds: 10,
+    showPlaybackStats: false,
     version: 1,
   })),
   readServerProfiles: jest.fn(async () => []),

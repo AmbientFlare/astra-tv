@@ -35,6 +35,7 @@ export interface PlaybackPreferences {
   maxAudioChannels: 2 | 6 | 8;
   preferredAudioLanguage: string;
   seekDurationSeconds: number;
+  showPlaybackStats: boolean;
 }
 
 export interface UserPreferences {
@@ -113,6 +114,7 @@ export const defaultPlaybackPrefs: PlaybackPreferences = {
   maxAudioChannels: 6,
   preferredAudioLanguage: 'en',
   seekDurationSeconds: 10,
+  showPlaybackStats: false,
 };
 
 const normalizeServerUrl = (serverUrl: string) =>
@@ -363,6 +365,10 @@ const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
     seekDurationSeconds: [10, 15, 30, 60].includes(seekDurationSeconds)
       ? seekDurationSeconds
       : defaultPlaybackPrefs.seekDurationSeconds,
+    showPlaybackStats:
+      typeof parsed.showPlaybackStats === 'boolean'
+        ? parsed.showPlaybackStats
+        : defaultPlaybackPrefs.showPlaybackStats,
   };
 
   return preferences;
