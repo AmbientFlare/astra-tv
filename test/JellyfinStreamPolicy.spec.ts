@@ -4,6 +4,7 @@ import {
 } from '../src/services/jellyfin/deviceProfile';
 import {defaultPlaybackPrefs} from '../src/services/storage';
 import type {AudioOutputCapabilities} from '../src/services/mediaCapabilities';
+import {subtitleMimeForDelivery} from '../src/services/jellyfin';
 
 const capabilities = (
   overrides: Partial<AudioOutputCapabilities> = {},
@@ -95,5 +96,47 @@ describe('Jellyfin audio delivery policy', () => {
 
     expect(profile.DirectPlayProfiles[0].AudioCodec).toContain('dts');
     expect(profile.TranscodingProfiles[0].AudioCodec).toContain('dts');
+  });
+});
+
+describe('Jellyfin subtitle delivery policy', () => {
+  it('delivers timed text externally and burns bitmap or styled subtitles in', () => {
+    const profile = buildDeviceProfile(
+      defaultPlaybackPrefs,
+      capabilities(),
+      false,
+    );
+
+    expect(profile.SubtitleProfiles).toEqual(
+      expect.arrayContaining([
+        {Format: 'vtt', Method: 'External'},
+        {Format: 'webvtt', Method: 'External'},
+        {Format: 'srt', Method: 'External'},
+        {Format: 'subrip', Method: 'External'},
+        {Format: 'ttml', Method: 'External'},
+        {Format: 'pgs', Method: 'Encode'},
+        {Format: 'pgssub', Method: 'Encode'},
+        {Format: 'ass', Method: 'Encode'},
+        {Format: 'ssa', Method: 'Encode'},
+      ]),
+    );
+  });
+
+  it('labels Jellyfin VTT delivery as text/vtt even with authentication parameters', () => {
+    expect(
+      subtitleMimeForDelivery(
+        'https://jellyfin.example/Videos/item/source/Subtitles/3/Stream.vtt?api_key=secret',
+        'subrip',
+      ),
+    ).toBe('text/vtt');
+  });
+
+  it('uses the source codec MIME when Jellyfin did not convert the track', () => {
+    expect(
+      subtitleMimeForDelivery(
+        'https://jellyfin.example/subtitles/track.srt?api_key=secret',
+        'srt',
+      ),
+    ).toBe('application/x-subrip');
   });
 });

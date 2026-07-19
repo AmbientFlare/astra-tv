@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
@@ -29,6 +29,11 @@ import {
   readPlaybackPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
+import {
+  activeWebVttText,
+  parseWebVtt,
+  WebVttCue,
+} from '../../services/subtitles';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -140,6 +145,9 @@ export const PlayerScreen = ({
   const [showPlaybackStats, setShowPlaybackStats] = useState(false);
   const [playbackDebugInfo, setPlaybackDebugInfo] =
     useState<PlaybackDebugInfo | null>(null);
+  const [externalSubtitleCues, setExternalSubtitleCues] = useState<WebVttCue[]>(
+    [],
+  );
   const playbackRate = 1;
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
@@ -168,6 +176,52 @@ export const PlayerScreen = ({
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const subtitleTrack = currentStream?.subtitleTracks.find(
+      (track) =>
+        track.index === selectedSubtitleTrackIndex &&
+        track.deliveryUrl &&
+        !track.burnInRequired,
+    );
+
+    setExternalSubtitleCues([]);
+    if (!subtitleTrack?.deliveryUrl) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetch(subtitleTrack.deliveryUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Subtitle request failed (${response.status})`);
+        }
+        return response.text();
+      })
+      .then((body) => {
+        if (!cancelled) {
+          const cues = parseWebVtt(body);
+          console.info('[Astra] Loaded external subtitle cues:', cues.length);
+          setExternalSubtitleCues(cues);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.warn('[Astra] Unable to load external subtitles:', error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentStream, selectedSubtitleTrackIndex]);
+
+  const activeSubtitleText = useMemo(
+    () => activeWebVttText(externalSubtitleCues, positionSeconds),
+    [externalSubtitleCues, positionSeconds],
+  );
 
   const currentPositionTicks = useCallback(() => {
     const currentTime = videoRef.current?.currentTime;
@@ -637,25 +691,16 @@ export const PlayerScreen = ({
   ]);
 
   const addSelectedSubtitleTrack = useCallback(
-    (video: VideoPlayer, stream: JellyfinStreamInfo) => {
-      const selectedExternalSubtitle = stream.subtitleTracks.find(
-        (track) =>
-          track.index === selectedSubtitleIndex.current && track.deliveryUrl,
+    (_video: VideoPlayer, stream: JellyfinStreamInfo) => {
+      const selectedSubtitle = stream.subtitleTracks.find(
+        (track) => track.index === selectedSubtitleIndex.current,
       );
 
-      if (
-        selectedExternalSubtitle?.deliveryUrl &&
-        !selectedExternalSubtitle.burnInRequired
-      ) {
-        const textTrack = video.addTextTrack(
-          'subtitles',
-          selectedExternalSubtitle.title,
-          selectedExternalSubtitle.language,
-          selectedExternalSubtitle.deliveryUrl,
-          selectedExternalSubtitle.mimeType ?? 'text/vtt',
-        );
-        textTrack.mode = 'showing';
-      } else if (selectedSubtitleBurnIn.current) {
+      // External timed text is fetched and rendered by Astra. Vega's native
+      // caption view is gated by a device-wide accessibility flag that apps
+      // cannot enable, so relying on VideoPlayer.addTextTrack silently hides
+      // SRT/SubRip for users whose system caption renderer is disabled.
+      if (selectedSubtitle?.burnInRequired || selectedSubtitleBurnIn.current) {
         setStatusText('Playing with burned-in subtitles');
       }
     },
@@ -832,8 +877,8 @@ export const PlayerScreen = ({
         const stream = await loadStream(positionTicks);
         pendingInitialSeekSeconds.current = null;
         initialSeekApplied.current = true;
-        await loadVideoSource(video, stream, positionTicks / TICKS_PER_SECOND);
         addSelectedSubtitleTrack(video, stream);
+        await loadVideoSource(video, stream, positionTicks / TICKS_PER_SECOND);
         stoppedReported.current = false;
 
         await reportPlaybackStart(serverUrl, accessToken, {
@@ -899,12 +944,12 @@ export const PlayerScreen = ({
 
         if (video) {
           video.pause();
+          addSelectedSubtitleTrack(video, stream);
           return loadVideoSource(
             video,
             stream,
             positionTicks / TICKS_PER_SECOND,
           ).then(() => {
-            addSelectedSubtitleTrack(video, stream);
             video.play();
             setPaused(false);
             scheduleControlsHide();
@@ -1177,8 +1222,8 @@ export const PlayerScreen = ({
             startSeconds > 0 ? startSeconds : null;
           initialSeekApplied.current = false;
         }
-        await loadVideoSource(video, stream, startSeconds);
         addSelectedSubtitleTrack(video, stream);
+        await loadVideoSource(video, stream, startSeconds);
         video.play();
         setPaused(false);
         scheduleControlsHide();
@@ -1260,6 +1305,14 @@ export const PlayerScreen = ({
         style={styles.videoSurface}
         testID="player-video-surface"
       />
+      {activeSubtitleText ? (
+        <View
+          pointerEvents="none"
+          style={styles.subtitleOverlay}
+          testID="player-external-subtitle">
+          <Text style={styles.subtitleText}>{activeSubtitleText}</Text>
+        </View>
+      ) : null}
       {controlsVisible ? (
         <View style={styles.overlay}>
           <Text numberOfLines={1} style={styles.title}>
@@ -1600,6 +1653,25 @@ const styles = StyleSheet.create({
   },
   videoSurface: {
     ...StyleSheet.absoluteFillObject,
+  },
+  subtitleOverlay: {
+    position: 'absolute',
+    alignItems: 'center',
+    bottom: 84,
+    left: 72,
+    right: 72,
+    zIndex: 2,
+  },
+  subtitleText: {
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderRadius: 5,
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '600',
+    lineHeight: 38,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    textAlign: 'center',
   },
   overlay: {
     position: 'absolute',

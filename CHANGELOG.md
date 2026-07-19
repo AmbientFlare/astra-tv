@@ -15,6 +15,12 @@
 - Audio-track changes now reload a fresh Jellyfin stream and resume at the
   captured position instead of hanging indefinitely while buffering.
 - Subtitle changes use the same clean reload-and-resume lifecycle.
+- SubRip/SRT subtitles now render in Astra's own synchronized WebVTT overlay,
+  independent of Fire TV's disabled system closed-caption renderer.
+- PGS/PGSSUB and styled ASS/SSA subtitles are negotiated as video burn-in
+  instead of unsupported external text tracks.
+- Jellyfin WebVTT subtitle URLs with authentication query parameters are now
+  identified with the correct `text/vtt` MIME type.
 - Track navigation no longer changes streams until Select is released and the
   completed press is dispatched.
 - DTS-HD audio uses stable AC3 conversion when Vega cannot accept DTS in the
@@ -29,4 +35,6 @@
 - Emby is visible but disabled and marked Coming soon.
 - Removed the periodic support/donation popup from application startup.
 - Updated release metadata and the About page to version 1.0.2, build
-  20260718.11.
+  20260718.14.
+- Added an in-app What's New section summarizing each release's user-visible
+  improvements.

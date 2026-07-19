@@ -135,7 +135,13 @@ describe('playback diagnostics entry points', () => {
     fireEvent.press(screen.getByTestId('settings-About'));
 
     expect(screen.getByText('Astra 1.0.2')).toBeTruthy();
-    expect(screen.getByText('Build: 20260718.11')).toBeTruthy();
+    expect(screen.getByText('Build: 20260718.14')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.0.2")).toBeTruthy();
+    expect(
+      screen.getByText(
+        '• SubRip text rendering and PGS subtitle burn-in support.',
+      ),
+    ).toBeTruthy();
   });
 
   it('also renders diagnostics in the separate in-player options overlay', () => {

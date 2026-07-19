@@ -670,6 +670,25 @@ export const SettingsScreen = ({
                   style={styles.qrImage}
                 />
               </View>
+              <View style={styles.releaseNotes}>
+                <Text style={styles.releaseNotesTitle}>
+                  What's new in {APP_VERSION}
+                </Text>
+                <Text style={styles.releaseNotesText}>
+                  • Guided setup with Jellyfin Quick Connect.
+                </Text>
+                <Text style={styles.releaseNotesText}>
+                  • Reliable audio and subtitle switching that resumes where you
+                  left off.
+                </Text>
+                <Text style={styles.releaseNotesText}>
+                  • SubRip text rendering and PGS subtitle burn-in support.
+                </Text>
+                <Text style={styles.releaseNotesText}>
+                  • Stats for Nerds plus improved 4K and surround-audio
+                  compatibility.
+                </Text>
+              </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
             </View>
           </Page>
@@ -1074,6 +1093,24 @@ const styles = StyleSheet.create({
     color: '#DDE7EB',
     fontSize: 22,
     marginBottom: 10,
+  },
+  releaseNotes: {
+    borderTopColor: '#34434B',
+    borderTopWidth: 1,
+    marginTop: 22,
+    paddingTop: 18,
+  },
+  releaseNotesTitle: {
+    color: '#89CFF0',
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  releaseNotesText: {
+    color: '#DDE7EB',
+    fontSize: 20,
+    lineHeight: 28,
+    marginBottom: 8,
   },
   easterEgg: {
     color: '#9FB0BA',

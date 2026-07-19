@@ -120,10 +120,20 @@ export const buildDeviceProfile = (
     ],
     SubtitleProfiles: [
       {Format: 'vtt', Method: 'External'},
+      {Format: 'webvtt', Method: 'External'},
       {Format: 'srt', Method: 'External'},
-      {Format: 'ass', Method: 'External'},
-      {Format: 'ssa', Method: 'External'},
-      {Format: 'pgs', Method: 'External'},
+      {Format: 'subrip', Method: 'External'},
+      {Format: 'ttml', Method: 'External'},
+      // Vega's caption surface renders timed text, not bitmap subtitles or
+      // styled ASS/SSA. Ask Jellyfin to burn these formats into the video
+      // instead of advertising them as external tracks that cannot render.
+      {Format: 'ass', Method: 'Encode'},
+      {Format: 'ssa', Method: 'Encode'},
+      {Format: 'pgs', Method: 'Encode'},
+      {Format: 'pgssub', Method: 'Encode'},
+      {Format: 'dvbsub', Method: 'Encode'},
+      {Format: 'dvdsub', Method: 'Encode'},
+      {Format: 'idx', Method: 'Encode'},
     ],
   };
 };

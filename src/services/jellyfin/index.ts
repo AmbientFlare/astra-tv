@@ -362,7 +362,7 @@ const qualityCaps: JellyfinQualityOption[] = [
   {id: '2000000', label: '2 Mbps', bitrate: 2000000},
 ];
 
-const subtitleMimeForCodec = (codec?: string) => {
+export const subtitleMimeForCodec = (codec?: string) => {
   switch (codec?.toLowerCase()) {
     case 'webvtt':
     case 'vtt':
@@ -378,6 +378,28 @@ const subtitleMimeForCodec = (codec?: string) => {
     default:
       return undefined;
   }
+};
+
+export const subtitleMimeForDelivery = (
+  deliveryUrl?: string,
+  sourceCodec?: string,
+) => {
+  if (deliveryUrl) {
+    try {
+      // Jellyfin usually converts SRT/SubRip into WebVTT. Authentication is
+      // appended as a query string, so checking the complete URL with
+      // endsWith('.vtt') incorrectly labels VTT as application/x-subrip.
+      if (new URL(deliveryUrl).pathname.toLowerCase().endsWith('.vtt')) {
+        return 'text/vtt';
+      }
+    } catch (_error) {
+      if (deliveryUrl.split(/[?#]/, 1)[0].toLowerCase().endsWith('.vtt')) {
+        return 'text/vtt';
+      }
+    }
+  }
+
+  return subtitleMimeForCodec(sourceCodec);
 };
 
 const supportsTextTrack = (codec?: string) =>
@@ -1048,9 +1070,7 @@ export const getStreamUrl = async (
       deliveryUrl,
       burnInRequired: isSubtitle && (!deliveryUrl || !textTrackSupported),
       mimeType: isSubtitle
-        ? subtitleMimeForCodec(
-            deliveryUrl?.endsWith('.vtt') ? 'vtt' : track.Codec,
-          )
+        ? subtitleMimeForDelivery(deliveryUrl, track.Codec)
         : undefined,
       supportsTextTrack: !isSubtitle || textTrackSupported,
       type: isSubtitle ? 'Subtitle' : 'Audio',
