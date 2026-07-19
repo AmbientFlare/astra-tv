@@ -16,6 +16,7 @@ export interface JellyfinServerInfo {
 export interface JellyfinAuthResult {
   userId: string;
   accessToken: string;
+  username?: string;
 }
 
 export interface JellyfinLibrary {
@@ -632,7 +633,7 @@ export const authenticate = async (
 ): Promise<JellyfinAuthResult> => {
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
-    User?: {Id?: string};
+    User?: {Id?: string; Name?: string};
     AccessToken?: string;
   }>(`${baseUrl}/Users/AuthenticateByName`, {
     method: 'POST',
@@ -653,6 +654,86 @@ export const authenticate = async (
   return {
     userId: response.User.Id,
     accessToken: response.AccessToken,
+    username: response.User.Name,
+  };
+};
+
+export interface QuickConnectInitiateResult {
+  code: string;
+  secret: string;
+}
+
+export const isQuickConnectEnabled = async (
+  serverUrl: string,
+): Promise<boolean> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+
+  try {
+    return (await getJson<boolean>(`${baseUrl}/QuickConnect/Enabled`)) === true;
+  } catch {
+    return false;
+  }
+};
+
+export const initiateQuickConnect = async (
+  serverUrl: string,
+): Promise<QuickConnectInitiateResult> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{Code?: string; Secret?: string}>(
+    `${baseUrl}/QuickConnect/Initiate`,
+    {
+      method: 'POST',
+      headers: {'X-Emby-Authorization': AUTH_HEADER},
+    },
+  );
+
+  if (!response.Code || !response.Secret) {
+    throw new Error('Quick Connect could not be started on this server');
+  }
+
+  return {code: response.Code, secret: response.Secret};
+};
+
+export const pollQuickConnect = async (
+  serverUrl: string,
+  secret: string,
+): Promise<boolean> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{Authenticated?: boolean}>(
+    buildUrl(baseUrl, '/QuickConnect/Connect', {Secret: secret}),
+    {headers: {'X-Emby-Authorization': AUTH_HEADER}},
+  );
+
+  return response.Authenticated === true;
+};
+
+export const authenticateWithQuickConnect = async (
+  serverUrl: string,
+  secret: string,
+): Promise<JellyfinAuthResult> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{
+    User?: {Id?: string; Name?: string};
+    AccessToken?: string;
+  }>(`${baseUrl}/Users/AuthenticateWithQuickConnect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Emby-Authorization': AUTH_HEADER,
+    },
+    body: JSON.stringify({Secret: secret}),
+  });
+
+  if (!response.User?.Id || !response.AccessToken) {
+    throw new Error(
+      'Quick Connect authentication response was missing credentials',
+    );
+  }
+
+  return {
+    userId: response.User.Id,
+    accessToken: response.AccessToken,
+    username: response.User.Name,
   };
 };
 

@@ -126,6 +126,18 @@ describe('playback diagnostics entry points', () => {
     );
   });
 
+  it('shows the release version and build number on the About page', async () => {
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('settings-About')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-About'));
+
+    expect(screen.getByText('Astra 1.0.2')).toBeTruthy();
+    expect(screen.getByText('Build: 20260718.11')).toBeTruthy();
+  });
+
   it('also renders diagnostics in the separate in-player options overlay', () => {
     const screen = render(
       <PlaybackSettingsOverlay

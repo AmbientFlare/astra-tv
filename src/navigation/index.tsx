@@ -14,22 +14,18 @@ import {PlayerScreen} from '../screens/PlayerScreen';
 import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
-import {SupportScreen} from '../screens/SupportScreen';
 import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
-import {checkAstraProReceipt} from '../services/iap';
 import {
   getLastUsedServerProfile,
   getUserPreferences,
-  incrementLaunchCount,
   readServerProfiles,
   ServerProfile,
-  setProStatus,
 } from '../services/storage';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
 
-type LaunchRoute = 'loading' | 'setup' | 'support';
+type LaunchRoute = 'loading' | 'setup';
 
 type RouteEntry =
   | {route: 'home'}
@@ -117,13 +113,6 @@ export const RootNavigator = () => {
       return true;
     }
 
-    if (route === 'support') {
-      resetExitPresses();
-      resetStack();
-      setRoute('setup');
-      return true;
-    }
-
     if (current.route === 'library' && libraryMenuVisible) {
       resetExitPresses();
       setLibraryMenuVisible(false);
@@ -142,7 +131,6 @@ export const RootNavigator = () => {
     exitPromptVisible,
     requestExitConfirmation,
     resetExitPresses,
-    resetStack,
     route,
     current.route,
     libraryMenuVisible,
@@ -171,21 +159,14 @@ export const RootNavigator = () => {
         preferences.autoSignIn === 'mostRecent'
           ? await getLastUsedServerProfile()
           : null;
-      const launchCount = await incrementLaunchCount();
-      const isPro = await checkAstraProReceipt();
-
       if (!mounted) {
         return;
       }
 
       setServerProfile(lastUsedProfile);
-      if (!isPro && launchCount > 0 && launchCount % 10 === 0) {
-        setRoute('support');
-      } else {
-        setRoute(profiles.length > 0 ? 'setup' : 'setup');
-        if (profiles.length > 0) {
-          resetStack();
-        }
+      setRoute('setup');
+      if (profiles.length > 0) {
+        resetStack();
       }
     };
 
@@ -226,23 +207,6 @@ export const RootNavigator = () => {
           setServerProfile(profile);
           resetStack();
           setRoute('setup');
-        }}
-      />,
-    );
-  }
-
-  if (route === 'support') {
-    return withExitPrompt(
-      <SupportScreen
-        onDismiss={() => {
-          resetStack();
-          setRoute('setup');
-        }}
-        onProPurchased={() => {
-          setProStatus(true).finally(() => {
-            resetStack();
-            setRoute('setup');
-          });
         }}
       />,
     );
