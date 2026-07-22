@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.3 - 2026-07-21
+
+### Added
+
+- Quick user switching: the Home screen profile button opens a "Who's
+  watching?" overlay for swapping between saved users or adding a new one —
+  no sign-out required.
+- Multiple users per server: signing in as another user keeps existing
+  profiles instead of replacing them.
+- The Home screen profile button now shows the signed-in username instead of
+  a single initial.
+- Settings > Manage servers groups accounts under their server (one entry per
+  server with a user count) and supports per-account sign-out/removal.
+
+### Fixed
+
+- Libraries failed to load with "Jellyfin request failed 403" for non-admin
+  users on Jellyfin 10.11+: the home screen used the admin-only
+  `/Library/MediaFolders` endpoint. It now uses `/UserViews`, which also
+  means each user sees exactly the libraries they have access to. (#6)
+- Requests now send the standard `Authorization: MediaBrowser` header
+  alongside the legacy `X-Emby-*` headers, keeping Astra compatible with
+  Jellyfin 10.12/10.13 where legacy authorization is disabled/removed.
+
+### Changed
+
+- Updated release metadata and the About page to version 1.0.3, build
+  20260721.1.
+
 ## 1.0.2 - 2026-07-18
 
 ### Added

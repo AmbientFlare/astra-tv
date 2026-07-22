@@ -18,6 +18,7 @@ import {
   readPlaybackPreferences,
   readServerProfiles,
   removeServerProfile,
+  removeServerProfilesByUrl,
   ServerProfile,
   setDisplayPreferences,
   signOutServerProfile,
@@ -38,7 +39,7 @@ type SettingsRoute =
   | {route: 'autoSignIn'}
   | {route: 'accountSort'}
   | {route: 'manageServers'}
-  | {route: 'serverDetail'; profile: ServerProfile}
+  | {route: 'serverDetail'; serverUrl: string; serverName: string}
   | {route: 'accountDetail'; profile: ServerProfile}
   | {route: 'homeSections'}
   | {route: 'displayPreferences'}
@@ -128,6 +129,31 @@ export const SettingsScreen = ({
     setProfiles(await readServerProfiles());
   }, []);
 
+  // One entry per server; profiles are per-user, so a server with two
+  // signed-in users has two profiles sharing a serverUrl.
+  const serverGroups = React.useMemo(() => {
+    const groups = new Map<
+      string,
+      {accounts: ServerProfile[]; name: string; serverUrl: string}
+    >();
+
+    for (const profile of profiles) {
+      const group = groups.get(profile.serverUrl);
+
+      if (group) {
+        group.accounts.push(profile);
+      } else {
+        groups.set(profile.serverUrl, {
+          accounts: [profile],
+          name: profile.name,
+          serverUrl: profile.serverUrl,
+        });
+      }
+    }
+
+    return [...groups.values()];
+  }, [profiles]);
+
   useEffect(() => {
     refreshProfiles();
     getUserPreferences().then(setPreferences);
@@ -199,8 +225,8 @@ export const SettingsScreen = ({
             <MenuRow
               icon="▣"
               title="Manage servers"
-              subtitle={`${profiles.length} saved server${
-                profiles.length === 1 ? '' : 's'
+              subtitle={`${serverGroups.length} saved server${
+                serverGroups.length === 1 ? '' : 's'
               }`}
               onPress={() => push({route: 'manageServers'})}
             />
@@ -242,44 +268,61 @@ export const SettingsScreen = ({
               subtitle="Connect another media server"
               onPress={onAddServer}
             />
-            {profiles.length === 0 ? (
+            {serverGroups.length === 0 ? (
               <Text style={styles.infoText}>No saved servers yet.</Text>
             ) : null}
-            {profiles.map((profile) => (
+            {serverGroups.map((group) => (
               <MenuRow
                 icon="▣"
-                key={profile.id}
-                title={profile.name}
-                subtitle={profile.serverUrl}
-                onPress={() => push({route: 'serverDetail', profile})}
+                key={group.serverUrl}
+                title={group.name}
+                subtitle={`${group.serverUrl}  ·  ${
+                  group.accounts.length
+                } user${group.accounts.length === 1 ? '' : 's'}`}
+                onPress={() =>
+                  push({
+                    route: 'serverDetail',
+                    serverName: group.name,
+                    serverUrl: group.serverUrl,
+                  })
+                }
               />
             ))}
           </Page>
         );
-      case 'serverDetail':
+      case 'serverDetail': {
+        const accounts =
+          serverGroups.find((group) => group.serverUrl === current.serverUrl)
+            ?.accounts ?? [];
+
         return (
-          <Page title={current.profile.name} onBack={pop}>
+          <Page title={current.serverName} onBack={pop}>
             <Text style={styles.groupTitle}>Accounts</Text>
-            <MenuRow
-              icon="◉"
-              title={current.profile.username ?? current.profile.userId}
-              subtitle={`Last used on ${new Date(
-                current.profile.lastUsed,
-              ).toLocaleDateString()}`}
-              onPress={() =>
-                push({route: 'accountDetail', profile: current.profile})
-              }
-            />
+            {accounts.map((profile) => (
+              <MenuRow
+                icon="◉"
+                key={profile.id}
+                title={profile.username ?? profile.userId}
+                subtitle={`Last used on ${new Date(
+                  profile.lastUsed,
+                ).toLocaleDateString()}${
+                  profile.accessToken ? '' : '  ·  Signed out'
+                }`}
+                onPress={() => push({route: 'accountDetail', profile})}
+              />
+            ))}
             <Text style={styles.groupTitle}>Server</Text>
             <DangerRow
               title="Remove server"
-              subtitle={current.profile.serverUrl}
+              subtitle={`${current.serverUrl}  ·  removes ${
+                accounts.length === 1 ? 'its saved user' : 'all saved users'
+              }`}
               onPress={() =>
                 setConfirmAction({
                   title: 'Remove server?',
-                  body: 'This removes the saved server profile from Astra.',
+                  body: 'This removes the server and every saved user on it from Astra.',
                   onConfirm: async () => {
-                    await removeServerProfile(current.profile.id);
+                    await removeServerProfilesByUrl(current.serverUrl);
                     await refreshProfiles();
                     setStack([
                       {route: 'preferences'},
@@ -292,6 +335,7 @@ export const SettingsScreen = ({
             />
           </Page>
         );
+      }
       case 'accountDetail':
         return (
           <Page title={current.profile.username ?? 'Account'} onBack={pop}>
@@ -675,18 +719,18 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Guided setup with Jellyfin Quick Connect.
+                  • Fixed libraries failing to load for non-admin users.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Reliable audio and subtitle switching that resumes where you
-                  left off.
+                  • Libraries now respect each user's library access settings.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • SubRip text rendering and PGS subtitle burn-in support.
+                  • Quick user switching: pick a profile from the Home screen
+                  without signing out.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Stats for Nerds plus improved 4K and surround-audio
-                  compatibility.
+                  • Add multiple users per server, and manage them under
+                  Settings.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
