@@ -111,7 +111,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     async (authResult: JellyfinAuthResult, info: JellyfinServerInfo) => {
       const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
       const profile: ServerProfile = {
-        id: info.id || normalizedServerUrl,
+        // Server id + user id, so each user on a server is its own profile
+        // and adding a second user doesn't overwrite the first.
+        id: `${info.id || normalizedServerUrl}:${authResult.userId}`,
         name: info.name,
         serverUrl: normalizedServerUrl,
         serverType,
