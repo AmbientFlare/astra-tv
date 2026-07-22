@@ -20,6 +20,7 @@ import {
 } from '../../services/storage';
 
 interface HomeScreenProps {
+  onProfiles?: () => void;
   onSearch?: () => void;
   onSelectLibrary?: (library: JellyfinLibrary) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
@@ -28,6 +29,7 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen = ({
+  onProfiles,
   onSearch,
   onSelectLibrary,
   onSelectItem,
@@ -92,6 +94,7 @@ export const HomeScreen = ({
       const libraryResults = await getLibraries(
         serverProfile.serverUrl,
         serverProfile.accessToken,
+        serverProfile.userId,
       );
       setLibraries(libraryResults);
     } catch (error) {
@@ -166,13 +169,18 @@ export const HomeScreen = ({
         <View style={styles.topBar}>
           <FocusableItem
             focusedStyle={styles.profileFocused}
-            onPress={onSettings}
+            onPress={onProfiles ?? onSettings}
             style={styles.profileButton}
             testID="home-profile-button">
-            <Text style={styles.profileIcon}>
-              {(serverProfile?.username ?? serverProfile?.name ?? 'A')
-                .slice(0, 1)
-                .toUpperCase()}
+            <View style={styles.profileBadge}>
+              <Text style={styles.profileIcon}>
+                {(serverProfile?.username ?? serverProfile?.name ?? 'A')
+                  .slice(0, 1)
+                  .toUpperCase()}
+              </Text>
+            </View>
+            <Text numberOfLines={1} style={styles.profileName}>
+              {serverProfile?.username ?? serverProfile?.name ?? 'Account'}
             </Text>
           </FocusableItem>
           <TVFocusGuideView style={styles.actions}>
@@ -399,17 +407,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1B2832',
     borderRadius: 28,
+    flexDirection: 'row',
+    gap: 12,
     height: 56,
-    justifyContent: 'center',
-    width: 56,
+    maxWidth: 320,
+    paddingLeft: 4,
+    paddingRight: 22,
   },
   profileFocused: {
     backgroundColor: '#2E5A72',
+  },
+  profileBadge: {
+    alignItems: 'center',
+    backgroundColor: '#2E5A72',
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
   },
   profileIcon: {
     color: '#FFFFFF',
     fontSize: 26,
     fontWeight: '800',
+  },
+  profileName: {
+    color: '#FFFFFF',
+    flexShrink: 1,
+    fontSize: 22,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',

@@ -134,12 +134,12 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.0.2')).toBeTruthy();
-    expect(screen.getByText('Build: 20260718.14')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.0.2")).toBeTruthy();
+    expect(screen.getByText('Astra 1.0.3')).toBeTruthy();
+    expect(screen.getByText('Build: 20260721.1')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.0.3")).toBeTruthy();
     expect(
       screen.getByText(
-        '• SubRip text rendering and PGS subtitle burn-in support.',
+        '• Quick user switching: pick a profile from the Home screen without signing out.',
       ),
     ).toBeTruthy();
   });
