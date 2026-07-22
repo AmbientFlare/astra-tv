@@ -271,7 +271,16 @@ const normalizeServerUrl = (serverUrl: string) =>
       'https://jelly2.ambientflare.art',
     );
 
+// Jellyfin 10.12 disables the X-Emby-* legacy headers by default and 10.13
+// removes them; send the standard Authorization header alongside them so both
+// old and new servers accept requests.
+const getPreAuthHeaders = () => ({
+  Authorization: AUTH_HEADER,
+  'X-Emby-Authorization': AUTH_HEADER,
+});
+
 const getAuthHeaders = (accessToken: string) => ({
+  Authorization: `${AUTH_HEADER}, Token="${accessToken}"`,
   'X-Emby-Authorization': `${AUTH_HEADER}, Token="${accessToken}"`,
   'X-Emby-Token': accessToken,
   'X-MediaBrowser-Token': accessToken,
@@ -661,7 +670,7 @@ export const authenticate = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': AUTH_HEADER,
+      ...getPreAuthHeaders(),
     },
     body: JSON.stringify({
       Username: username,
@@ -705,7 +714,7 @@ export const initiateQuickConnect = async (
     `${baseUrl}/QuickConnect/Initiate`,
     {
       method: 'POST',
-      headers: {'X-Emby-Authorization': AUTH_HEADER},
+      headers: getPreAuthHeaders(),
     },
   );
 
@@ -723,7 +732,7 @@ export const pollQuickConnect = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{Authenticated?: boolean}>(
     buildUrl(baseUrl, '/QuickConnect/Connect', {Secret: secret}),
-    {headers: {'X-Emby-Authorization': AUTH_HEADER}},
+    {headers: getPreAuthHeaders()},
   );
 
   return response.Authenticated === true;
@@ -741,7 +750,7 @@ export const authenticateWithQuickConnect = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': AUTH_HEADER,
+      ...getPreAuthHeaders(),
     },
     body: JSON.stringify({Secret: secret}),
   });
@@ -762,8 +771,10 @@ export const authenticateWithQuickConnect = async (
 export const getLibraries = async (
   serverUrl: string,
   accessToken: string,
+  userId: string,
 ): Promise<JellyfinLibrary[]> => {
   const baseUrl = normalizeServerUrl(serverUrl);
+  // /Library/MediaFolders requires admin; per-user views honor library access.
   const response = await getJson<{
     Items?: Array<{
       Id?: string;
@@ -771,7 +782,7 @@ export const getLibraries = async (
       CollectionType?: string;
       Type?: string;
     }>;
-  }>(buildUrl(baseUrl, '/Library/MediaFolders', {api_key: accessToken}), {
+  }>(buildUrl(baseUrl, '/UserViews', {userId}), {
     headers: getAuthHeaders(accessToken),
   });
 

@@ -5,6 +5,7 @@ import {
   useKeplerBackHandler,
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../components/FocusableItem';
+import {ProfileSwitcher} from '../components/ProfileSwitcher';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
@@ -20,6 +21,7 @@ import {
   getUserPreferences,
   readServerProfiles,
   ServerProfile,
+  upsertServerProfile,
 } from '../services/storage';
 
 const EXIT_BACK_PRESS_COUNT = 3;
@@ -47,6 +49,7 @@ export const RootNavigator = () => {
   );
   const [stack, setStack] = useState<RouteEntry[]>([{route: 'home'}]);
   const [libraryMenuVisible, setLibraryMenuVisible] = useState(false);
+  const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
 
@@ -72,6 +75,24 @@ export const RootNavigator = () => {
     exitBackPressState.current = {count: 0, lastPressedAt: 0};
   }, []);
 
+  const switchProfile = useCallback(
+    async (profile: ServerProfile) => {
+      setProfileSwitcherVisible(false);
+
+      if (!profile.accessToken) {
+        // Signed-out profile: token is gone, so route through sign-in.
+        push({route: 'addServer'});
+        return;
+      }
+
+      const nextProfile = {...profile, lastUsed: Date.now()};
+      await upsertServerProfile(nextProfile);
+      setServerProfile(nextProfile);
+      resetStack();
+    },
+    [push, resetStack],
+  );
+
   const requestExitConfirmation = useCallback(() => {
     const now = Date.now();
     const lastPressedAt = exitBackPressState.current.lastPressedAt;
@@ -91,6 +112,12 @@ export const RootNavigator = () => {
   const handleBackPress = useCallback(() => {
     if (exitPromptVisible) {
       setExitPromptVisible(false);
+      resetExitPresses();
+      return true;
+    }
+
+    if (profileSwitcherVisible) {
+      setProfileSwitcherVisible(false);
       resetExitPresses();
       return true;
     }
@@ -129,6 +156,7 @@ export const RootNavigator = () => {
     return true;
   }, [
     exitPromptVisible,
+    profileSwitcherVisible,
     requestExitConfirmation,
     resetExitPresses,
     route,
@@ -177,6 +205,18 @@ export const RootNavigator = () => {
     };
   }, [resetStack]);
 
+  const profileSwitcher = profileSwitcherVisible ? (
+    <ProfileSwitcher
+      currentProfileId={serverProfile?.id}
+      onAddUser={() => {
+        setProfileSwitcherVisible(false);
+        push({route: 'addServer'});
+      }}
+      onClose={() => setProfileSwitcherVisible(false)}
+      onSelect={switchProfile}
+    />
+  ) : null;
+
   const exitPrompt = exitPromptVisible ? (
     <ExitPrompt
       onCancel={() => setExitPromptVisible(false)}
@@ -214,13 +254,17 @@ export const RootNavigator = () => {
 
   if (current.route === 'home') {
     return withExitPrompt(
-      <HomeScreen
-        onSearch={() => push({route: 'search'})}
-        onSelectLibrary={(library) => push({route: 'library', library})}
-        onSelectItem={(item) => push({route: 'detail', item})}
-        onSettings={() => push({route: 'settings'})}
-        serverProfile={serverProfile}
-      />,
+      <>
+        <HomeScreen
+          onProfiles={() => setProfileSwitcherVisible(true)}
+          onSearch={() => push({route: 'search'})}
+          onSelectLibrary={(library) => push({route: 'library', library})}
+          onSelectItem={(item) => push({route: 'detail', item})}
+          onSettings={() => push({route: 'settings'})}
+          serverProfile={serverProfile}
+        />
+        {profileSwitcher}
+      </>,
     );
   }
 
@@ -343,13 +387,17 @@ export const RootNavigator = () => {
   }
 
   return withExitPrompt(
-    <HomeScreen
-      onSearch={() => push({route: 'search'})}
-      onSelectLibrary={(library) => push({route: 'library', library})}
-      onSelectItem={(item) => push({route: 'detail', item})}
-      onSettings={() => push({route: 'settings'})}
-      serverProfile={serverProfile}
-    />,
+    <>
+      <HomeScreen
+        onProfiles={() => setProfileSwitcherVisible(true)}
+        onSearch={() => push({route: 'search'})}
+        onSelectLibrary={(library) => push({route: 'library', library})}
+        onSelectItem={(item) => push({route: 'detail', item})}
+        onSettings={() => push({route: 'settings'})}
+        serverProfile={serverProfile}
+      />
+      {profileSwitcher}
+    </>,
   );
 };
 

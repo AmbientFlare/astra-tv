@@ -172,7 +172,17 @@ export const upsertServerProfile = async (
   profile: ServerProfile,
 ): Promise<void> => {
   const profiles = await readServerProfiles();
-  const nextProfiles = profiles.filter((server) => server.id !== profile.id);
+  const normalizedUrl = normalizeServerUrl(profile.serverUrl);
+  // Match on id, or on server+user so profiles saved before ids included the
+  // userId are replaced rather than duplicated.
+  const nextProfiles = profiles.filter(
+    (server) =>
+      server.id !== profile.id &&
+      !(
+        normalizeServerUrl(server.serverUrl) === normalizedUrl &&
+        server.userId === profile.userId
+      ),
+  );
 
   await writeServerProfiles([
     ...nextProfiles,
@@ -441,6 +451,19 @@ export const signOutServerProfile = async (
   await writeServerProfiles(
     profiles.map((profile) =>
       profile.id === profileId ? {...profile, accessToken: ''} : profile,
+    ),
+  );
+};
+
+export const removeServerProfilesByUrl = async (
+  serverUrl: string,
+): Promise<void> => {
+  const normalized = normalizeServerUrl(serverUrl);
+  const profiles = await readServerProfiles();
+
+  await writeServerProfiles(
+    profiles.filter(
+      (profile) => normalizeServerUrl(profile.serverUrl) !== normalized,
     ),
   );
 };
