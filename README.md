@@ -8,7 +8,7 @@ and play compatible media through the Vega media stack.
 
 ## Current Release
 
-- App version: `1.0.2`
+- App version: `1.0.3`
 - Package ID: `com.astra.tv`
 - Primary target: Fire TV devices running Amazon Vega OS
 - Supported backend: Jellyfin
