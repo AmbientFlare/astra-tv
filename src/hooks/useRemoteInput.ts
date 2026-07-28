@@ -27,6 +27,7 @@
  */
 import {useCallback, useRef} from 'react';
 import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
+import {audioIdleGate} from '../services/audioIdleGate';
 
 /** Matches PlayerScreen's long-standing value. */
 export const DEFAULT_KEY_DEDUPE_MS = 350;
@@ -202,6 +203,10 @@ export const useRemoteInput = (
   );
 
   useTVEventHandler((event: {eventType?: string}) => {
+    if (audioIdleGate.consumeInput()) {
+      return;
+    }
+
     const action = normalizeKeyEvent(event?.eventType);
 
     if (!action) {

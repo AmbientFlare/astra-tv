@@ -252,6 +252,23 @@ package directory so application autolinking can stage the module. Vega treats
 engagement as a reviewed hint, not an unconditional system guarantee, so verify
 the behavior on physical hardware.
 
+### Audio idle input contract
+
+The audio visual activates after three minutes. Album art, title, and artist
+move as one composition over a broad multi-point path so no metadata remains
+fixed during a long artist or discography session.
+
+The first physical remote press is wake-only: it dismisses the overlay without
+performing its normal action. `audioIdleGate` blocks both down/up delivery for
+600 ms and is checked by `useRemoteInput`, `FocusableItem`, and the native
+Kepler Media Controls handler. This covers D-pad navigation, Select, dedicated
+transport buttons, system transport UI, and voice-driven media commands. The
+next physical press operates the normal playback or navigation control.
+
+Individual track rows on album, playlist, and artist screens expose visible
+`Play next` and `+ Queue` controls. Do not make queue discovery depend on
+Vega's Menu event; its delivery is not consistent across remote models.
+
 ### Debugging workflow — important
 
 **There is no way to read the app's JS console from the host.** Every diagnosis

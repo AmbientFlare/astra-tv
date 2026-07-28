@@ -223,6 +223,8 @@ export const AlbumDetailScreen = ({
           <TrackRow
             isPlaying={track.id === playingTrackId}
             key={track.id}
+            onAddToQueue={() => audioPlayback.addToQueue([track])}
+            onPlayNext={() => audioPlayback.addNext([track])}
             onPress={() => playFrom(index)}
             track={track}
           />

@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-07-27
+Last updated: 2026-07-28
 
 ## Audio edition
 
@@ -25,6 +25,12 @@ Last updated: 2026-07-27
 
 - Audio playback and paused video use Astra's three-minute drifting-art idle
   visuals.
+- Album art, song title, and artist now move together across a broad
+  four-point path instead of leaving the text in a fixed location.
+- The first physical remote press only dismisses the audio idle visual. A
+  shared 600 ms gate consumes Vega's duplicate key phases, focusable Select,
+  and Kepler Media Controls commands, preventing the wake press from pausing,
+  skipping, seeking, opening, or navigating.
 - A native Vega IDL Turbo Module now reports video user engagement for the
   entire time a movie or episode is paused. This keeps Vega's system idle
   experience from preempting Astra before its own paused-video visual appears.
@@ -35,7 +41,7 @@ Last updated: 2026-07-27
 
 ## Validation
 
-- Automated tests: 157 passing across 18 suites.
+- Automated tests: 158 passing across 19 suites.
 - Lint: passing.
 - TypeScript (`tsc --noEmit`): passing. `reference/` is excluded because those
   separately cloned sample projects are not part of Astra's compilation.
@@ -58,13 +64,19 @@ Last updated: 2026-07-27
 - Vega x86_64 build 1.1.0 (2026072706), including the native User Engagement
   bridge, passed manifest and ABI validation, then installed and launched
   successfully on device `GT533M0752050H4U`.
+- Vega x86_64 build 1.1.0 (2026072801), including whole-composition audio idle
+  motion, wake-only first input, and visible per-track queue actions, passed
+  lint, TypeScript, 158 tests, manifest validation, and ABI validation. It was
+  installed and launched successfully on device `GT533M0752050H4U`.
 
 ## Remaining verification
 
 - Device-test the full now-playing screen, queue actions, idle visual, and
   series badges when convenient.
-- Confirm the idle visual dismisses on every physical remote input and does not
-  interrupt audio.
+- Confirm every physical remote input dismisses the audio idle visual without
+  also performing its normal action; the second press should act normally.
+- Confirm the broader whole-composition motion looks natural on the panel and
+  all `Play next` / `+ Queue` controls work on album, artist, and playlist rows.
 - Confirm that Vega's system screensaver does not replace Astra while video is
   paused, including before and after Astra's three-minute visual appears.
 - Playlist entries without server artwork still use a letter placeholder;

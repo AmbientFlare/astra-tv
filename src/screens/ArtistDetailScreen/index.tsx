@@ -314,6 +314,8 @@ export const ArtistDetailScreen = ({
             <TrackRow
               isPlaying={track.id === playingTrackId}
               key={track.id}
+              onAddToQueue={() => audioPlayback.addToQueue([track])}
+              onPlayNext={() => audioPlayback.addNext([track])}
               onPress={() => playTracks(topTracks, index)}
               position={index + 1}
               track={track}
@@ -334,6 +336,8 @@ export const ArtistDetailScreen = ({
                 <TrackRow
                   isPlaying={track.id === playingTrackId}
                   key={track.id}
+                  onAddToQueue={() => audioPlayback.addToQueue([track])}
+                  onPlayNext={() => audioPlayback.addNext([track])}
                   onPress={() => playTracks(entry.tracks, index)}
                   track={track}
                 />

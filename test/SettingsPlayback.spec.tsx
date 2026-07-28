@@ -135,7 +135,7 @@ describe('playback diagnostics entry points', () => {
     fireEvent.press(screen.getByTestId('settings-About'));
 
     expect(screen.getByText('Astra 1.1.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260727.6')).toBeTruthy();
+    expect(screen.getByText('Build: 20260728.1')).toBeTruthy();
     expect(screen.getByText("What's new in 1.1.0")).toBeTruthy();
     expect(
       screen.getByText(
