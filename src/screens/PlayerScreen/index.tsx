@@ -30,6 +30,7 @@ import {
   writePlaybackPreferences,
 } from '../../services/storage';
 import {audioPlayback} from '../../services/audioPlayer';
+import {VideoPauseIdleVisual} from '../../components/VideoPauseIdleVisual';
 import {
   activeWebVttText,
   parseWebVtt,
@@ -1385,6 +1386,11 @@ export const PlayerScreen = ({
           </View>
         </View>
       ) : null}
+      <VideoPauseIdleVisual
+        artworkUrl={item.backdropUrl ?? item.imageUrl}
+        paused={isPaused}
+        title={item.name}
+      />
     </View>
   );
 };

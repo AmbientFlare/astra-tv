@@ -3,9 +3,10 @@
 **Date:** 2026-07-27
 **Purpose:** Complete context for adding music playback to Astra, written for
 someone (or something) picking this up cold.
-**Status:** Browse UI works end to end. **Audio playback works only against an
-`https://` server.** Against `http://` it fails. Root cause is understood; the
-fix is designed but not implemented.
+**Status:** Music browsing and playback work end to end. Device testing
+confirmed both progressive HTTPS playback and AAC/TS HLS playback from a plain
+`http://192.168.x.x:8096` Jellyfin server. The HLS compatibility fix and remote
+control corrections are implemented on the `music` branch.
 
 ---
 
@@ -81,7 +82,7 @@ downloading in JS and the native layer only ever receives buffers.
 
 ---
 
-## 3. The proposed fix (designed, NOT implemented)
+## 3. The implemented fix
 
 Route audio the way video already goes: **HLS through ShakaPlayer**, so the
 fetch happens in JS.
@@ -115,16 +116,16 @@ Rationale: most self-hosters run plain http on a LAN, so audio must work there;
 but imposing a transcode on https users who currently get free direct play would
 be a regression. Pick based on `isCleartextUrl(session.serverUrl)`.
 
-### Implementation sketch
+### Implementation
 
-1. In `src/services/audioPlayer/index.ts`, branch in `loadCurrent()`.
-2. For the HLS branch, mirror `src/screens/PlayerScreen/index.tsx` — it already
-   wires `ShakaPlayer` from `src/w3cmedia/shakaplayer/ShakaPlayer.ts`.
-   `reference/vega-audio-sample/src/utils/AudioHandler.ts` (`loadAdaptivePlayerData`)
-   shows Shaka wrapping an `AudioPlayer` specifically.
-3. Add an HLS variant to `getAudioStreamUrl` in
-   `src/services/jellyfin/music.ts` that omits the source container.
-4. Verify seeking still works over HLS (it does for video).
+1. `src/services/audioPlayer/index.ts` selects HLS when the saved server URL is
+   cleartext and progressive direct play for HTTPS.
+2. The HLS branch wraps the shared `AudioPlayer` with ShakaPlayer and unloads
+   the adaptive instance cleanly between tracks or before video playback.
+3. `getAudioHlsStreamUrl` in `src/services/jellyfin/music.ts` requests AAC/TS
+   HLS and deliberately advertises only `Container=aac`.
+4. Device testing confirmed playback, FF/RW seeking, D-pad track changes,
+   background audio, play/pause, and music-to-video handoff over local HTTP.
 
 ### Alternatives not tried
 

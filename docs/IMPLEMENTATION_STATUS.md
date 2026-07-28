@@ -11,10 +11,19 @@ Last updated: 2026-07-27
 - URL regression coverage verifies that the HLS request excludes source
   containers such as MP3, because advertising them makes Jellyfin silently
   direct-play the source instead of returning an HLS manifest.
+- Full now-playing and queue UI is implemented with play-now and remove actions.
+- A three-minute drifting-art idle visual provides burn-in protection while
+  Vega suppresses its system screensaver.
+- Temporary audio diagnostics are disabled in the release UI.
+
+## TV library polish
+
+- Series posters display the Jellyfin `UnplayedItemCount` in a red top-left
+  square. Counts above 99 display as `99+`; zero displays no badge.
 
 ## Validation
 
-- Automated tests: 154 passing.
+- Automated tests: 156 passing across 17 suites.
 - Lint: passing.
 - TypeScript (`tsc --noEmit`): passing. `reference/` is excluded because those
   separately cloned sample projects are not part of Astra's compilation.
@@ -32,12 +41,16 @@ Last updated: 2026-07-27
   exclusively KMC-owned in build 2026072704.
 - Vega x86_64 release build 1.0.4 (2026072704) passed validation and was
   installed and launched on device `GT533M0752050H4U`.
+- Vega x86_64 music-preview build 1.1.0 (2026072705) passed package validation,
+  installed successfully, and launched on device `GT533M0752050H4U`.
 
-## Remaining audio work
+## Remaining verification
 
-- Verify HTTP HLS playback, track changes, seeking, end-of-track advance, and
-  background playback on the Vega device.
-- Build the full now-playing screen and per-track queue actions.
-- Add the in-app idle visual required to prevent burn-in during audio playback.
-- Triage launcher visibility, playlist artwork, and eventual removal of the
-  on-screen playback diagnostics.
+- Device-test the full now-playing screen, queue actions, idle visual, and
+  series badges when convenient.
+- Confirm the idle visual dismisses on every physical remote input and does not
+  interrupt audio.
+- Playlist entries without server artwork still use a letter placeholder;
+  composite artwork remains optional polish.
+- Astra reappeared in Apps & Channels after a later full package install, so
+  the launcher-visibility issue is currently considered resolved.

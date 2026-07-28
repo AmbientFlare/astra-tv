@@ -13,6 +13,9 @@ interface MediaCardProps {
   badgeText?: string;
 }
 
+export const formatUnplayedBadge = (count?: number) =>
+  count && count > 0 ? (count > 99 ? '99+' : String(count)) : undefined;
+
 export const MediaCard = ({
   hasTVPreferredFocus,
   badgeText,
@@ -87,13 +90,12 @@ const styles = StyleSheet.create({
   badge: {
     alignItems: 'center',
     backgroundColor: '#d6232f',
-    height: 46,
+    height: 50,
     justifyContent: 'center',
     left: 0,
-    minWidth: 46,
-    paddingHorizontal: 6,
     position: 'absolute',
     top: 0,
+    width: 50,
   },
   badgeText: {color: '#fff', fontSize: 18, fontWeight: '800'},
   image: {

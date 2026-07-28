@@ -661,8 +661,20 @@ export class AudioPlaybackService {
     }
   }
 
-  removeFromQueue(position: number) {
-    this.syncQueue(removeAt(this.queue, position));
+  async removeFromQueue(position: number) {
+    const removingCurrent = position === this.queue.cursor;
+    const nextQueue = removeAt(this.queue, position);
+
+    this.syncQueue(nextQueue);
+    if (!removingCurrent) {
+      return;
+    }
+
+    if (!nextQueue.order.length) {
+      await this.stop();
+    } else {
+      await this.loadCurrent();
+    }
   }
 }
 

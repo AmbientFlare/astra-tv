@@ -24,6 +24,7 @@ import {
 } from '../screens/MusicCollectionScreen';
 import {audioPlayback} from '../services/audioPlayer';
 import {NowPlayingBar} from '../components/NowPlayingBar';
+import {AudioIdleVisual} from '../components/AudioIdleVisual';
 import {NowPlayingScreen} from '../screens/NowPlayingScreen';
 import {useRemoteInput} from '../hooks/useRemoteInput';
 import {SettingsScreen} from '../screens/SettingsScreen';
@@ -86,7 +87,11 @@ export const RootNavigator = () => {
 
   useRemoteInput(
     async (action) => {
-      if (!audioPlayback.getStatus().track || current.route === 'player') {
+      if (
+        !audioPlayback.getStatus().track ||
+        current.route === 'player' ||
+        current.route === 'nowPlaying'
+      ) {
         return;
       }
 
@@ -102,7 +107,7 @@ export const RootNavigator = () => {
           break;
       }
     },
-    {enabled: current.route !== 'player'},
+    {enabled: current.route !== 'player' && current.route !== 'nowPlaying'},
   );
 
   const push = useCallback(
@@ -284,11 +289,15 @@ export const RootNavigator = () => {
       <View style={styles.appScreen}>{screen}</View>
       <NowPlayingBar
         onOpen={() => {
-          if (audioPlayback.getStatus().track && current.route !== 'nowPlaying') {
+          if (
+            audioPlayback.getStatus().track &&
+            current.route !== 'nowPlaying'
+          ) {
             push({route: 'nowPlaying'});
           }
         }}
       />
+      <AudioIdleVisual />
       {exitPrompt}
     </View>
   );
