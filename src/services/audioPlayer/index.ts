@@ -31,6 +31,7 @@ import {
   RepeatMode,
   setShuffle,
 } from '../audioQueue';
+import {audioIdleGate} from '../audioIdleGate';
 import {
   getAudioHlsStreamUrl,
   getAudioStreamUrl,
@@ -107,42 +108,72 @@ const MAX_CONSECUTIVE_ERRORS = 3;
 const createControlHandler = (service: AudioPlaybackService) => {
   class PlaybackControlHandler extends KeplerMediaControlHandler {
     async handlePlay() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.resume();
     }
 
     async handlePause() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.pause();
     }
 
     async handleTogglePlayPause() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.togglePlayPause();
     }
 
     async handleNext() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.next();
     }
 
     async handlePrevious() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.previous();
     }
 
     async handleStop() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.pause();
     }
 
     async handleFastForward() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.seekBy(10);
     }
 
     async handleRewind() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.seekBy(-10);
     }
 
     async handleSkipForward() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.seekBy(10);
     }
 
     async handleSkipBackward() {
+      if (audioIdleGate.consumeInput()) {
+        return;
+      }
       await service.seekBy(-10);
     }
 

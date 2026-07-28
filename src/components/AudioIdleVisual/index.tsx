@@ -1,8 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Animated, Image, StyleSheet, Text, View} from 'react-native';
+import {Animated, Easing, Image, StyleSheet, Text, View} from 'react-native';
 import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import {audioPlayback} from '../../services/audioPlayer';
 import {orderedTracks} from '../../services/audioQueue';
+import {audioIdleGate} from '../../services/audioIdleGate';
 
 export const AUDIO_IDLE_DELAY_MS = 3 * 60 * 1000;
 const ART_CHANGE_MS = 18 * 1000;
@@ -20,8 +21,8 @@ export const AudioIdleVisual = () => {
   const [artIndex, setArtIndex] = useState(0);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const opacity = useRef(new Animated.Value(1)).current;
-  const driftX = useRef(new Animated.Value(-55)).current;
-  const driftY = useRef(new Animated.Value(-30)).current;
+  const driftX = useRef(new Animated.Value(-230)).current;
+  const driftY = useRef(new Animated.Value(-85)).current;
   const hasTrack = artwork.length > 0;
 
   const clearIdleTimer = () => {
@@ -67,9 +68,25 @@ export const AudioIdleVisual = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useTVEventHandler(() => {
+  const dismissIdle = () => {
     setVisible(false);
     armIdleTimer();
+  };
+
+  useEffect(() => {
+    if (visible) {
+      audioIdleGate.activate(dismissIdle);
+    } else {
+      audioIdleGate.deactivate();
+    }
+
+    return () => audioIdleGate.deactivate();
+    // Timer helpers intentionally use current playback state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  useTVEventHandler(() => {
+    audioIdleGate.consumeInput();
   });
 
   useEffect(() => {
@@ -77,31 +94,63 @@ export const AudioIdleVisual = () => {
       return;
     }
 
-    driftX.setValue(-55);
-    driftY.setValue(-30);
+    driftX.setValue(-230);
+    driftY.setValue(-85);
     const drift = Animated.loop(
       Animated.sequence([
         Animated.parallel([
           Animated.timing(driftX, {
-            duration: 12000,
-            toValue: 55,
+            duration: 9000,
+            easing: Easing.linear,
+            toValue: 210,
             useNativeDriver: true,
           }),
           Animated.timing(driftY, {
-            duration: 12000,
-            toValue: 30,
+            duration: 9000,
+            easing: Easing.linear,
+            toValue: -40,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
           Animated.timing(driftX, {
-            duration: 12000,
-            toValue: -55,
+            duration: 7500,
+            easing: Easing.linear,
+            toValue: 150,
             useNativeDriver: true,
           }),
           Animated.timing(driftY, {
-            duration: 12000,
-            toValue: -30,
+            duration: 7500,
+            easing: Easing.linear,
+            toValue: 90,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(driftX, {
+            duration: 8500,
+            easing: Easing.linear,
+            toValue: -210,
+            useNativeDriver: true,
+          }),
+          Animated.timing(driftY, {
+            duration: 8500,
+            easing: Easing.linear,
+            toValue: 45,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(driftX, {
+            duration: 7000,
+            easing: Easing.linear,
+            toValue: -230,
+            useNativeDriver: true,
+          }),
+          Animated.timing(driftY, {
+            duration: 7000,
+            easing: Easing.linear,
+            toValue: -85,
             useNativeDriver: true,
           }),
         ]),
@@ -150,17 +199,19 @@ export const AudioIdleVisual = () => {
       testID="audio-idle-visual">
       <Animated.View
         style={[
-          styles.artFrame,
-          {opacity, transform: [{translateX: driftX}, {translateY: driftY}]},
+          styles.composition,
+          {transform: [{translateX: driftX}, {translateY: driftY}]},
         ]}>
-        <Image source={{uri: art}} style={styles.art} />
+        <Animated.View style={[styles.artFrame, {opacity}]}>
+          <Image source={{uri: art}} style={styles.art} />
+        </Animated.View>
+        <Text numberOfLines={1} style={styles.title}>
+          {status.track?.name}
+        </Text>
+        <Text numberOfLines={1} style={styles.artist}>
+          {status.track?.artistName}
+        </Text>
       </Animated.View>
-      <Text numberOfLines={1} style={styles.title}>
-        {status.track?.name}
-      </Text>
-      <Text numberOfLines={1} style={styles.artist}>
-        {status.track?.artistName}
-      </Text>
     </View>
   );
 };
@@ -185,6 +236,7 @@ const styles = StyleSheet.create({
     width: 390,
   },
   art: {height: '100%', width: '100%'},
+  composition: {alignItems: 'center'},
   title: {
     color: '#eef3f6',
     fontSize: 30,

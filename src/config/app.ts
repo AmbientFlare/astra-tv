@@ -1,6 +1,6 @@
 export const APP_VERSION = '1.1.0';
-export const BUILD_NUMBER = '20260727.6';
-export const BUILD_DATE = '2026-07-27';
+export const BUILD_NUMBER = '20260728.1';
+export const BUILD_DATE = '2026-07-28';
 
 // Physical-device testing confirmed that this Fire TV/Vega HLS/fMP4 path
 // rejects a DTS-HD remux. Keep the diagnostic switch available for isolated

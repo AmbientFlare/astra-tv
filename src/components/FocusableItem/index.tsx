@@ -1,5 +1,6 @@
 import React, {PropsWithChildren, useState} from 'react';
 import {StyleProp, StyleSheet, TouchableOpacity, ViewStyle} from 'react-native';
+import {audioIdleGate} from '../../services/audioIdleGate';
 
 interface FocusableItemProps {
   onBlur?: () => void;
@@ -42,7 +43,11 @@ export const FocusableItem = ({
         setFocused(true);
         onFocus?.();
       }}
-      onPress={onPress}
+      onPress={() => {
+        if (!audioIdleGate.consumeInput()) {
+          onPress?.();
+        }
+      }}
       style={[
         styles.base,
         style,
