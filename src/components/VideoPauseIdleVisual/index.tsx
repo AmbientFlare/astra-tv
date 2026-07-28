@@ -1,6 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Image, StyleSheet, Text, View} from 'react-native';
 import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
+import {
+  startVideoEngagement,
+  stopVideoEngagement,
+} from '@astra/user-engagement';
 import {AUDIO_IDLE_DELAY_MS} from '../AudioIdleVisual';
 
 interface VideoPauseIdleVisualProps {
@@ -19,6 +23,18 @@ export const VideoPauseIdleVisual = ({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const driftX = useRef(new Animated.Value(-45)).current;
   const driftY = useRef(new Animated.Value(-24)).current;
+
+  useEffect(() => {
+    if (!paused) {
+      stopVideoEngagement();
+      return;
+    }
+
+    startVideoEngagement();
+    return () => {
+      stopVideoEngagement();
+    };
+  }, [paused]);
 
   const clearTimer = () => {
     if (timer.current) {
