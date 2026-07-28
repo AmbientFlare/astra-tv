@@ -1,0 +1,7 @@
+/CMakeUserPresets.json
+/build/*
+!/build/x86_64-release/
+!/build/x86_64-release/lib/
+!/build/x86_64-release/lib/libAstraUserEngagement.so
+!/dist/
+/dist/**/*.debug

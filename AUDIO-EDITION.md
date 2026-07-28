@@ -231,6 +231,27 @@ vega device uninstall-app --appName com.astra.tv.main   # note: --appName, takes
 Target device: Fire TV stick `GT533M0752050H4U`, x86_64. Only x86_64 is needed —
 aarch64/armv7 mapped to zero supported devices at submission.
 
+### Paused-video system idle suppression
+
+Astra includes a local native IDL Turbo Module at
+`packages/astra-user-engagement`. It calls Vega's
+`com.amazon.kepler.user_engagement` API while video is paused, preventing the
+system idle experience from preempting Astra's own three-minute paused-video
+visual. The hint starts immediately on pause and stops on resume or player
+unmount; it is intentionally not held during ordinary app browsing.
+
+The native module must be built before a clean application build:
+
+```bash
+(cd packages/astra-user-engagement && \
+  vega build --target x86_64 --buildType Release)
+```
+
+The resulting release library and Turbo Module manifest are retained in the
+package directory so application autolinking can stage the module. Vega treats
+engagement as a reviewed hint, not an unconditional system guarantee, so verify
+the behavior on physical hardware.
+
 ### Debugging workflow — important
 
 **There is no way to read the app's JS console from the host.** Every diagnosis
