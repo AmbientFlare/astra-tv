@@ -7,7 +7,7 @@ import {
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {LibraryInfoPanel} from '../../components/LibraryInfoPanel';
-import {MediaCard} from '../../components/MediaCard';
+import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
   getItems,
@@ -306,10 +306,8 @@ export const LibraryScreen = ({
               renderItem={({index, item}) => (
                 <MediaCard
                   badgeText={
-                    item.type === 'Series' && item.unplayedItemCount
-                      ? item.unplayedItemCount > 99
-                        ? '99+'
-                        : String(item.unplayedItemCount)
+                    item.type === 'Series'
+                      ? formatUnplayedBadge(item.unplayedItemCount)
                       : undefined
                   }
                   hasTVPreferredFocus={index === 0}

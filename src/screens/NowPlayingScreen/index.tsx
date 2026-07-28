@@ -16,9 +16,7 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
   const [status, setStatus] = useState<PlaybackStatus>(
     audioPlayback.getStatus(),
   );
-  const [selectedPosition, setSelectedPosition] = useState(
-    status.queue.cursor,
-  );
+  const [selectedPosition, setSelectedPosition] = useState(status.queue.cursor);
   const [actionsVisible, setActionsVisible] = useState(false);
   const tracks = useMemo(() => orderedTracks(status.queue), [status.queue]);
 
@@ -68,7 +66,10 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
             {formatSeconds(status.durationSeconds)}
           </Text>
           <TVFocusGuideView style={styles.controls}>
-            <Action label="Previous" onPress={() => audioPlayback.skipPrevious()} />
+            <Action
+              label="Previous"
+              onPress={() => audioPlayback.skipPrevious()}
+            />
             <Action
               label={status.isPlaying ? 'Pause' : 'Play'}
               onPress={() => audioPlayback.togglePlayPause()}

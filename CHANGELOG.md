@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.1.0 - In development
+
+### Added
+
+- Music library navigation for artists, albums, genres, and playlists, with
+  paginated browsing, remembered poster/list layouts, and an A-Z jump rail.
+- Artist, album, genre, and playlist detail screens with play, shuffle,
+  play-next, and add-to-queue flows.
+- Persistent music playback with queue, shuffle, repeat, seeking, remote media
+  controls, background playback, and a docked now-playing bar.
+- Full now-playing and queue screen with per-track play-now and remove actions.
+- Three-minute audio idle visual with slowly drifting album art, because Vega
+  suppresses its system screensaver while audio is active.
+- Red unwatched-episode count badges on TV series posters, capped at `99+`.
+- Multi-server URL normalization and HTTP/HTTPS connection recovery.
+
+### Fixed
+
+- Cleartext LAN audio now uses AAC/TS HLS through ShakaPlayer. Vega rejects
+  native-player HTTP media fetches even though JavaScript HTTP requests work.
+- Source audio containers are excluded from HLS negotiation so Jellyfin cannot
+  silently choose progressive direct play instead of returning a manifest.
+- Remote key down/up duplication, slow-handler duplication, and dual
+  D-pad/KMC command delivery no longer double-advance or immediately re-pause.
+- Starting video stops music, unloads its adaptive stream, clears the queue,
+  and removes stale track metadata from the bottom of the screen.
+- Auto-capitalized server schemes and host casing no longer invalidate URLs.
+- Video Next/Previous command declarations were restored in the Vega manifest.
+
+### Changed
+
+- HTTPS Jellyfin servers retain efficient progressive audio direct play; only
+  HTTP servers use the compatibility HLS transcode path.
+- Temporary on-screen audio URL and ready-state diagnostics are disabled for
+  the release UI.
+
 ## 1.0.3 - 2026-07-21
 
 ### Added

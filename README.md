@@ -3,12 +3,12 @@
 Astra is a React Native media client for Amazon Vega OS Fire TV devices.
 
 Astra is currently focused on Jellyfin support: connect to a user-provided
-server, browse movie and TV libraries, view details, search, resume playback,
-and play compatible media through the Vega media stack.
+server, browse movie, TV, and music libraries, manage an audio queue, resume
+playback, and play compatible media through the Vega media stack.
 
 ## Current Release
 
-- App version: `1.0.2`
+- App version: `1.1.0` (music branch preview)
 - Package ID: `com.astra.tv`
 - Primary target: Fire TV devices running Amazon Vega OS
 - Supported backend: Jellyfin

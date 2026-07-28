@@ -726,18 +726,20 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Fixed libraries failing to load for non-admin users.
+                  • Browse and play Jellyfin music by artist, album, genre, and
+                  playlist.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Libraries now respect each user's library access settings.
+                  • Queue tracks, shuffle, repeat, seek, and keep listening in
+                  the background.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Quick user switching: pick a profile from the Home screen
-                  without signing out.
+                  • Local HTTP servers use HLS audio automatically—no TLS or
+                  reverse proxy required.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Add multiple users per server, and manage them under
-                  Settings.
+                  • Added burn-in protection for music and paused video, plus
+                  unwatched counts on series posters.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
