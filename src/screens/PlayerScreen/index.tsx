@@ -29,6 +29,7 @@ import {
   readPlaybackPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
+import {audioPlayback} from '../../services/audioPlayer';
 import {
   activeWebVttText,
   parseWebVtt,
@@ -158,6 +159,14 @@ export const PlayerScreen = ({
   const [preferredMaxBitrate, setPreferredMaxBitrate] = useState<
     number | undefined
   >(undefined);
+
+  // Audio browsing intentionally survives navigation, but starting a movie is
+  // an explicit media handoff. Stop and clear the music queue before the video
+  // player claims media focus so stale track metadata cannot remain docked
+  // beneath an active movie.
+  useEffect(() => {
+    audioPlayback.stop();
+  }, []);
 
   useEffect(() => {
     let mounted = true;

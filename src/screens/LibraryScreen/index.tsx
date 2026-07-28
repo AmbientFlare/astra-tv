@@ -305,6 +305,13 @@ export const LibraryScreen = ({
               numColumns={3}
               renderItem={({index, item}) => (
                 <MediaCard
+                  badgeText={
+                    item.type === 'Series' && item.unplayedItemCount
+                      ? item.unplayedItemCount > 99
+                        ? '99+'
+                        : String(item.unplayedItemCount)
+                      : undefined
+                  }
                   hasTVPreferredFocus={index === 0}
                   imageUrl={item.imageUrl}
                   imageScale={cardScale}

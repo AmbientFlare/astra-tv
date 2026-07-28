@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import {
   TVFocusGuideView,
+  useKeplerAppStateManager,
   useKeplerBackHandler,
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../components/FocusableItem';
@@ -14,6 +15,17 @@ import {SetupScreen} from '../screens/SetupScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
 import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
+import {MusicScreen, MusicTab} from '../screens/MusicScreen';
+import {ArtistDetailScreen} from '../screens/ArtistDetailScreen';
+import {AlbumDetailScreen} from '../screens/AlbumDetailScreen';
+import {
+  MusicCollectionKind,
+  MusicCollectionScreen,
+} from '../screens/MusicCollectionScreen';
+import {audioPlayback} from '../services/audioPlayer';
+import {NowPlayingBar} from '../components/NowPlayingBar';
+import {NowPlayingScreen} from '../screens/NowPlayingScreen';
+import {useRemoteInput} from '../hooks/useRemoteInput';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
 import {
@@ -35,6 +47,16 @@ type RouteEntry =
   | {route: 'detail'; item: JellyfinMediaItem}
   | {route: 'episodeDetail'; item: JellyfinMediaItem}
   | {route: 'player'; item: JellyfinMediaItem}
+  | {route: 'music'; tab?: MusicTab}
+  | {route: 'musicArtist'; artistId: string}
+  | {route: 'musicAlbum'; albumId: string}
+  | {route: 'nowPlaying'}
+  | {
+      route: 'musicCollection';
+      collectionId: string;
+      kind: MusicCollectionKind;
+      title: string;
+    }
   | {route: 'search'}
   | {route: 'settings'}
   | {route: 'addServer'}
@@ -42,6 +64,15 @@ type RouteEntry =
 
 export const RootNavigator = () => {
   const keplerBackHandler = useKeplerBackHandler();
+  const appStateManager = useKeplerAppStateManager();
+
+  // Media control focus must be acquired before the audio player initializes,
+  // or the platform refuses to start playback. Registered once here rather
+  // than per screen, because playback outlives any individual screen.
+  useEffect(() => {
+    audioPlayback.setComponentInstance(appStateManager.getComponentInstance());
+  }, [appStateManager]);
+
   const [route, setRoute] = useState<LaunchRoute>('loading');
   const [exitPromptVisible, setExitPromptVisible] = useState(false);
   const [serverProfile, setServerProfile] = useState<ServerProfile | null>(
@@ -52,6 +83,27 @@ export const RootNavigator = () => {
   const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
+
+  useRemoteInput(
+    async (action) => {
+      if (!audioPlayback.getStatus().track || current.route === 'player') {
+        return;
+      }
+
+      switch (action) {
+        case 'left':
+          await audioPlayback.skipPrevious();
+          break;
+        case 'right':
+          await audioPlayback.next();
+          break;
+        case 'playPause':
+          await audioPlayback.togglePlayPause();
+          break;
+      }
+    },
+    {enabled: current.route !== 'player'},
+  );
 
   const push = useCallback(
     (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
@@ -224,11 +276,21 @@ export const RootNavigator = () => {
     />
   ) : null;
 
+  // The now-playing bar is mounted globally, below whatever screen is showing,
+  // so music keeps its transport visible while browsing — including while
+  // browsing video. It renders nothing when there is no queue.
   const withExitPrompt = (screen: React.ReactElement) => (
-    <>
-      {screen}
+    <View style={styles.appShell}>
+      <View style={styles.appScreen}>{screen}</View>
+      <NowPlayingBar
+        onOpen={() => {
+          if (audioPlayback.getStatus().track && current.route !== 'nowPlaying') {
+            push({route: 'nowPlaying'});
+          }
+        }}
+      />
       {exitPrompt}
-    </>
+    </View>
   );
 
   if (route === 'loading') {
@@ -256,6 +318,8 @@ export const RootNavigator = () => {
     return withExitPrompt(
       <>
         <HomeScreen
+          onOpenMusic={() => push({route: 'music', tab: 'artists'})}
+          onOpenPlaylists={() => push({route: 'music', tab: 'playlists'})}
           onProfiles={() => setProfileSwitcherVisible(true)}
           onSearch={() => push({route: 'search'})}
           onSelectLibrary={(library) => push({route: 'library', library})}
@@ -299,6 +363,69 @@ export const RootNavigator = () => {
         serverProfile={serverProfile}
       />,
     );
+  }
+
+  if (current.route === 'music' && serverProfile) {
+    return withExitPrompt(
+      <MusicScreen
+        initialTab={current.tab}
+        onBack={pop}
+        onSelect={(tab, item) => {
+          if (tab === 'artists') {
+            push({route: 'musicArtist', artistId: item.id});
+          } else if (tab === 'albums') {
+            push({route: 'musicAlbum', albumId: item.id});
+          } else {
+            push({
+              route: 'musicCollection',
+              collectionId: item.id,
+              kind: tab === 'genres' ? 'genre' : 'playlist',
+              title: item.title,
+            });
+          }
+        }}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'musicArtist' && serverProfile) {
+    return withExitPrompt(
+      <ArtistDetailScreen
+        artistId={current.artistId}
+        onBack={pop}
+        onSelectAlbum={(albumId) => push({route: 'musicAlbum', albumId})}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'musicAlbum' && serverProfile) {
+    return withExitPrompt(
+      <AlbumDetailScreen
+        albumId={current.albumId}
+        onBack={pop}
+        onViewArtist={(artistId) => push({route: 'musicArtist', artistId})}
+        serverProfile={serverProfile}
+      />,
+    );
+  }
+
+  if (current.route === 'musicCollection' && serverProfile) {
+    return withExitPrompt(
+      <MusicCollectionScreen
+        collectionId={current.collectionId}
+        kind={current.kind}
+        onBack={pop}
+        onSelectAlbum={(albumId) => push({route: 'musicAlbum', albumId})}
+        serverProfile={serverProfile}
+        title={current.title}
+      />,
+    );
+  }
+
+  if (current.route === 'nowPlaying') {
+    return withExitPrompt(<NowPlayingScreen onBack={pop} />);
   }
 
   if (current.route === 'player' && serverProfile) {
@@ -389,6 +516,8 @@ export const RootNavigator = () => {
   return withExitPrompt(
     <>
       <HomeScreen
+        onOpenMusic={() => push({route: 'music', tab: 'artists'})}
+        onOpenPlaylists={() => push({route: 'music', tab: 'playlists'})}
         onProfiles={() => setProfileSwitcherVisible(true)}
         onSearch={() => push({route: 'search'})}
         onSelectLibrary={(library) => push({route: 'library', library})}
@@ -435,6 +564,8 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
 );
 
 const styles = StyleSheet.create({
+  appShell: {backgroundColor: '#0b0d10', flex: 1},
+  appScreen: {flex: 1},
   loading: {
     flex: 1,
     backgroundColor: '#0C1116',

@@ -10,10 +10,12 @@ interface MediaCardProps {
   imageScale?: number;
   onFocus?: () => void;
   onPress?: () => void;
+  badgeText?: string;
 }
 
 export const MediaCard = ({
   hasTVPreferredFocus,
+  badgeText,
   imageUrl,
   imageScale = 1,
   onFocus,
@@ -52,6 +54,11 @@ export const MediaCard = ({
         </Text>
       </View>
     )}
+    {badgeText ? (
+      <View style={styles.badge} testID={`media-card-badge-${title}`}>
+        <Text style={styles.badgeText}>{badgeText}</Text>
+      </View>
+    ) : null}
     <View style={styles.caption}>
       <Text numberOfLines={2} style={styles.title}>
         {title}
@@ -77,6 +84,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#24313A',
     transform: [{scale: 1.04}],
   },
+  badge: {
+    alignItems: 'center',
+    backgroundColor: '#d6232f',
+    height: 46,
+    justifyContent: 'center',
+    left: 0,
+    minWidth: 46,
+    paddingHorizontal: 6,
+    position: 'absolute',
+    top: 0,
+  },
+  badgeText: {color: '#fff', fontSize: 18, fontWeight: '800'},
   image: {
     width: '100%',
     height: 330,

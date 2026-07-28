@@ -65,8 +65,15 @@ component-id = "com.astra.tv.main"
 [extras.value.application]
 [[extras.value.application.interface]]
 interface_name = "com.amazon.kepler.media.IMediaPlaybackServer"
+# Next/Previous must be declared here or the remote's skip buttons fall back to
+# SkipForward/SkipBackward (a seek) instead of changing track. Matches what the
+# Amazon audio and sports reference apps declare.
 command_options = [
+    "Play",
+    "Pause",
     "StartOver",
+    "Previous",
+    "Next",
     "SkipForward",
     "SkipBackward",
 ]

@@ -26,6 +26,10 @@ import {
   ServerType,
   upsertServerProfile,
 } from '../../services/storage';
+import {
+  CLEARTEXT_MEDIA_MESSAGE,
+  isCleartextUrl,
+} from '../../services/serverUrl';
 
 const serverTypes: ServerType[] = ['jellyfin', 'emby'];
 type WizardStep = 'serverType' | 'server' | 'authMethod' | 'code' | 'password';
@@ -49,6 +53,8 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   const [isScanning, setScanning] = useState(false);
   const [isBusy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  // Not an error: the server is reachable, but media will not play from it.
+  const [warningText, setWarningText] = useState<string | null>(null);
   const [serverInfo, setServerInfo] = useState<JellyfinServerInfo | null>(null);
   const [quickConnectEnabled, setQuickConnectEnabled] = useState(false);
   const [quickConnectCode, setQuickConnectCode] = useState<string | null>(null);
@@ -109,13 +115,14 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
   const saveProfile = useCallback(
     async (authResult: JellyfinAuthResult, info: JellyfinServerInfo) => {
-      const normalizedServerUrl = serverUrl.trim().replace(/\/+$/, '');
+      // Persist the URL that actually answered during connect(), not the raw
+      // input — the scheme may have been resolved from http to https.
       const profile: ServerProfile = {
         // Server id + user id, so each user on a server is its own profile
         // and adding a second user doesn't overwrite the first.
-        id: `${info.id || normalizedServerUrl}:${authResult.userId}`,
+        id: `${info.id || info.baseUrl}:${authResult.userId}`,
         name: info.name,
-        serverUrl: normalizedServerUrl,
+        serverUrl: info.baseUrl,
         serverType,
         username: authResult.username ?? username.trim(),
         userId: authResult.userId,
@@ -126,7 +133,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       await upsertServerProfile(profile);
       onConnected?.(profile);
     },
-    [onConnected, serverType, serverUrl, username],
+    [onConnected, serverType, username],
   );
 
   const handleServerConnect = async () => {
@@ -140,8 +147,12 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     try {
       const info = await connect(serverUrl);
       setServerInfo(info);
+      setWarningText(
+        isCleartextUrl(info.baseUrl) ? CLEARTEXT_MEDIA_MESSAGE : null,
+      );
       const enabled =
-        serverType === 'jellyfin' && (await isQuickConnectEnabled(serverUrl));
+        serverType === 'jellyfin' &&
+        (await isQuickConnectEnabled(info.baseUrl));
       setQuickConnectEnabled(enabled);
       setStep(enabled ? 'authMethod' : 'password');
     } catch (error) {
@@ -163,7 +174,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
     try {
       const info = serverInfo ?? (await connect(serverUrl));
-      const authResult = await authenticate(serverUrl, username, password);
+      const authResult = await authenticate(info.baseUrl, username, password);
       await saveProfile(authResult, info);
     } catch (error) {
       setErrorText(
@@ -183,7 +194,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     setErrorText(null);
 
     try {
-      const {code, secret} = await initiateQuickConnect(serverUrl);
+      const {code, secret} = await initiateQuickConnect(
+        serverInfo?.baseUrl ?? serverUrl,
+      );
       quickConnectSecret.current = secret;
       setQuickConnectCode(code);
       setStep('code');
@@ -228,7 +241,10 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
       let approved = false;
       try {
-        approved = await pollQuickConnect(serverUrl, secret);
+        approved = await pollQuickConnect(
+          serverInfo?.baseUrl ?? serverUrl,
+          secret,
+        );
         consecutivePollErrors = 0;
       } catch {
         consecutivePollErrors += 1;
@@ -254,11 +270,11 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
       setBusy(true);
       try {
+        const info = serverInfo ?? (await connect(serverUrl));
         const authResult = await authenticateWithQuickConnect(
-          serverUrl,
+          info.baseUrl,
           secret,
         );
-        const info = serverInfo ?? (await connect(serverUrl));
         quickConnectSecret.current = null;
         await saveProfile(authResult, info);
       } catch (error) {
@@ -594,6 +610,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       <TVFocusGuideView style={styles.form}>
         {renderStep()}
         {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
+        {warningText ? (
+          <Text style={styles.warningText}>{warningText}</Text>
+        ) : null}
       </TVFocusGuideView>
     </View>
   );
@@ -876,6 +895,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '800',
+  },
+  warningText: {
+    color: '#f0c674',
+    fontSize: 17,
+    lineHeight: 24,
+    marginTop: 10,
   },
   errorText: {
     color: '#FFB4A8',
