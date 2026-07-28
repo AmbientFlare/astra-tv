@@ -1,5 +1,7 @@
 import {AsyncStorage} from '@amazon-devices/react-native-kepler';
 
+import {normalizeServerUrl} from '../serverUrl';
+
 export type ServerType = 'jellyfin' | 'emby';
 
 export interface ServerProfile {
@@ -46,9 +48,14 @@ export interface UserPreferences {
     continueWatching: boolean;
     latestMovies: boolean;
     latestShows: boolean;
-    myMedia: boolean;
     nextUp: boolean;
   };
+  /**
+   * User-facing switch for the music section. Gating also requires the signed-in
+   * user to actually have a music library — see hasMusicLibraries(). Both must
+   * be true before Music or Playlists appear anywhere in the UI.
+   */
+  musicEnabled: boolean;
   maxStreamingBitrate:
     | 'auto'
     | '20000000'
@@ -95,10 +102,10 @@ export const defaultUserPreferences: UserPreferences = {
     continueWatching: true,
     latestMovies: true,
     latestShows: true,
-    myMedia: true,
     nextUp: true,
   },
   maxStreamingBitrate: 'auto',
+  musicEnabled: true,
   nextEpisodeAutoplay: false,
   nextEpisodeCountdownSeconds: 15,
   preferredAudioLanguage: 'English',
@@ -116,14 +123,6 @@ export const defaultPlaybackPrefs: PlaybackPreferences = {
   seekDurationSeconds: 10,
   showPlaybackStats: false,
 };
-
-const normalizeServerUrl = (serverUrl: string) =>
-  serverUrl
-    .trim()
-    .replace(
-      /^http:\/\/jelly2\.ambientflare\.art\/?$/i,
-      'https://jelly2.ambientflare.art',
-    );
 
 const parseConfig = (rawConfig: string | null): ServerProfilesConfig => {
   if (!rawConfig) {
@@ -473,5 +472,62 @@ export const removeServerProfile = async (profileId: string): Promise<void> => {
 
   await writeServerProfiles(
     profiles.filter((profile) => profile.id !== profileId),
+  );
+};
+
+/**
+ * Browse layout for a music section.
+ *
+ * Remembered per section rather than globally: albums and playlists read well
+ * as posters, while a long artist list is easier to scan as a list. Jellyfin's
+ * client also keeps these independent, which is the one thing about its music
+ * browse worth copying.
+ *
+ * ("Postcard" is deliberately not offered — it is near-identical to poster.)
+ */
+export type MusicViewMode = 'poster' | 'list';
+
+export type MusicSection = 'artists' | 'albums' | 'genres' | 'playlists';
+
+const MUSIC_VIEW_MODE_KEY = 'astra.musicViewModes.v1';
+
+const defaultMusicViewModes: Record<MusicSection, MusicViewMode> = {
+  albums: 'poster',
+  artists: 'poster',
+  genres: 'poster',
+  playlists: 'poster',
+};
+
+const readMusicViewModes = async (): Promise<
+  Record<MusicSection, MusicViewMode>
+> => {
+  const raw = await AsyncStorage.getItem(MUSIC_VIEW_MODE_KEY);
+
+  if (!raw) {
+    return defaultMusicViewModes;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    return {...defaultMusicViewModes, ...parsed};
+  } catch {
+    return defaultMusicViewModes;
+  }
+};
+
+export const getMusicViewMode = async (
+  section: MusicSection,
+): Promise<MusicViewMode> => (await readMusicViewModes())[section];
+
+export const setMusicViewMode = async (
+  section: MusicSection,
+  mode: MusicViewMode,
+): Promise<void> => {
+  const modes = await readMusicViewModes();
+
+  await AsyncStorage.setItem(
+    MUSIC_VIEW_MODE_KEY,
+    JSON.stringify({...modes, [section]: mode}),
   );
 };

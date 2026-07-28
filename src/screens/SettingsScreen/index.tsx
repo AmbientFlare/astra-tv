@@ -400,13 +400,20 @@ export const SettingsScreen = ({
                 })
               }
             />
+            <ToggleRow
+              title="Music"
+              subtitle="Show Music and Playlists when your server has them"
+              value={preferences.musicEnabled}
+              onToggle={() =>
+                savePreferences({musicEnabled: !preferences.musicEnabled})
+              }
+            />
           </Page>
         );
       case 'homeSections':
         return (
           <Page title="Home sections" onBack={pop}>
             {[
-              ['myMedia', 'My Media'],
               ['continueWatching', 'Continue Watching'],
               ['nextUp', 'Next Up'],
               ['latestMovies', 'Latest Movies'],

@@ -44,6 +44,12 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
     ),
     TVFocusGuideView: (props: Record<string, unknown>) =>
       MockReact.createElement(View, props),
+    // The audio player acquires media control focus through this, so the
+    // navigator calls it on mount.
+    useKeplerAppStateManager: jest.fn(() => ({
+      addAppStateListener: jest.fn(() => ({remove: jest.fn()})),
+      getComponentInstance: jest.fn(() => ({})),
+    })),
     useKeplerBackHandler: jest.fn(() => mockKeplerBackHandler),
     useTVEventHandler: jest.fn(),
   };
@@ -113,6 +119,7 @@ jest.mock('../src/services/jellyfin', () => ({
     username: 'Test User',
   })),
   connect: jest.fn(async () => ({
+    baseUrl: 'https://test.example.com',
     id: 'test-server',
     name: 'Test Server',
     version: '10.11.11',
@@ -155,7 +162,6 @@ jest.mock('../src/services/storage', () => ({
       continueWatching: true,
       latestMovies: true,
       latestShows: true,
-      myMedia: true,
       nextUp: true,
     },
     maxStreamingBitrate: 'auto',
@@ -180,7 +186,6 @@ jest.mock('../src/services/storage', () => ({
       continueWatching: true,
       latestMovies: true,
       latestShows: true,
-      myMedia: true,
       nextUp: true,
     },
     maxStreamingBitrate: 'auto',

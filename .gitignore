@@ -9,6 +9,10 @@ dist
 build
 reference
 logs
+
+# Throwaway audio playback spike (2026-07-27). Contains hardcoded credentials
+# by design. Delete the directory and revert src/App.tsx when finished.
+src/spike
 buildinfo.json
 node_modules
 CMakeUserPresets.json

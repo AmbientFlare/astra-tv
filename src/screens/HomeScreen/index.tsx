@@ -1,9 +1,11 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
+import {LibraryNav, NavEntry} from '../../components/LibraryNav';
+import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {
   getLibraries,
   getLatestItems,
@@ -20,6 +22,8 @@ import {
 } from '../../services/storage';
 
 interface HomeScreenProps {
+  onOpenMusic?: () => void;
+  onOpenPlaylists?: () => void;
   onProfiles?: () => void;
   onSearch?: () => void;
   onSelectLibrary?: (library: JellyfinLibrary) => void;
@@ -29,6 +33,8 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen = ({
+  onOpenMusic,
+  onOpenPlaylists,
   onProfiles,
   onSearch,
   onSelectLibrary,
@@ -42,6 +48,37 @@ export const HomeScreen = ({
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
+  );
+  // Music and Playlists only exist when the user can see a music library AND
+  // has not switched music off.
+  const musicSession = useMemo(
+    () =>
+      serverProfile
+        ? {
+            accessToken: serverProfile.accessToken,
+            serverUrl: serverProfile.serverUrl,
+            userId: serverProfile.userId,
+          }
+        : null,
+    [serverProfile],
+  );
+  const {available: musicAvailable} = useMusicAvailability(musicSession);
+
+  const handleNavSelect = useCallback(
+    (entry: NavEntry) => {
+      if (entry.kind === 'music') {
+        onOpenMusic?.();
+        return;
+      }
+
+      if (entry.kind === 'playlists') {
+        onOpenPlaylists?.();
+        return;
+      }
+
+      onSelectLibrary?.(entry.library);
+    },
+    [onOpenMusic, onOpenPlaylists, onSelectLibrary],
   );
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -222,23 +259,13 @@ export const HomeScreen = ({
         {!isLoading && !errorText && libraries.length === 0 ? (
           <Text style={styles.status}>No libraries found.</Text>
         ) : null}
-        {preferences.homeSections.myMedia && libraries.length ? (
-          <>
-            <Text style={styles.featureTitle}>My Media</Text>
-            <ScrollView horizontal={true} style={styles.libraryScroller}>
-              <TVFocusGuideView style={styles.libraryRow}>
-                {libraries.map((library, index) => (
-                  <LibraryTile
-                    hasTVPreferredFocus={index === 0}
-                    key={library.id}
-                    library={library}
-                    onFocus={() => queueBackdrop(library.imageUrl)}
-                    onPress={() => onSelectLibrary?.(library)}
-                  />
-                ))}
-              </TVFocusGuideView>
-            </ScrollView>
-          </>
+        {libraries.length ? (
+          <LibraryNav
+            hasTVPreferredFocus={true}
+            libraries={libraries}
+            musicAvailable={musicAvailable}
+            onSelect={handleNavSelect}
+          />
         ) : null}
         {preferences.homeSections.continueWatching ? (
           <HomeMediaRow
@@ -276,34 +303,6 @@ export const HomeScreen = ({
     </View>
   );
 };
-
-const LibraryTile = ({
-  hasTVPreferredFocus,
-  library,
-  onFocus,
-  onPress,
-}: {
-  hasTVPreferredFocus?: boolean;
-  library: JellyfinLibrary;
-  onFocus?: () => void;
-  onPress?: () => void;
-}) => (
-  <FocusableItem
-    focusedStyle={styles.libraryTileFocused}
-    hasTVPreferredFocus={hasTVPreferredFocus}
-    onFocus={onFocus}
-    onPress={onPress}
-    style={styles.libraryTile}
-    testID={`home-library-${library.id}`}>
-    {library.imageUrl ? (
-      <Image source={{uri: library.imageUrl}} style={styles.libraryImage} />
-    ) : null}
-    <View style={styles.libraryShade} />
-    <Text numberOfLines={1} style={styles.libraryTitle}>
-      {library.name}
-    </Text>
-  </FocusableItem>
-);
 
 const HomeMediaRow = ({
   loadItems,

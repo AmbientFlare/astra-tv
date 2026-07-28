@@ -1,5 +1,6 @@
 import {buildDeviceProfile} from './deviceProfile';
 import {readPlaybackPreferences} from '../storage';
+import {getServerUrlCandidates, normalizeServerUrl} from '../serverUrl';
 import {APP_VERSION} from '../../config/app';
 import {
   AudioOutputCapabilities,
@@ -7,6 +8,11 @@ import {
 } from '../mediaCapabilities';
 
 export interface JellyfinServerInfo {
+  /**
+   * The URL that actually answered, after http/https resolution. Callers must
+   * persist and reuse this rather than the raw user input.
+   */
+  baseUrl: string;
   id: string;
   name: string;
   version: string;
@@ -50,6 +56,7 @@ export interface JellyfinMediaItem {
   indexNumber?: number;
   isFavorite?: boolean;
   isPlayed?: boolean;
+  unplayedItemCount?: number;
   mediaSources?: JellyfinMediaSource[];
   mediaType?: string;
   mediaStreams?: JellyfinMediaStream[];
@@ -262,15 +269,6 @@ interface DiscoveryOptions {
 
 const AUTH_HEADER = `MediaBrowser Client="Astra", Device="FireTV", DeviceId="astra-device-001", Version="${APP_VERSION}"`;
 
-const normalizeServerUrl = (serverUrl: string) =>
-  serverUrl
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(
-      /^http:\/\/jelly2\.ambientflare\.art$/i,
-      'https://jelly2.ambientflare.art',
-    );
-
 // Jellyfin 10.12 disables the X-Emby-* legacy headers by default and 10.13
 // removes them; send the standard Authorization header alongside them so both
 // old and new servers accept requests.
@@ -279,14 +277,15 @@ const getPreAuthHeaders = () => ({
   'X-Emby-Authorization': AUTH_HEADER,
 });
 
-const getAuthHeaders = (accessToken: string) => ({
+// Exported for the sibling music module; not part of the public surface.
+export const getAuthHeaders = (accessToken: string) => ({
   Authorization: `${AUTH_HEADER}, Token="${accessToken}"`,
   'X-Emby-Authorization': `${AUTH_HEADER}, Token="${accessToken}"`,
   'X-Emby-Token': accessToken,
   'X-MediaBrowser-Token': accessToken,
 });
 
-const buildUrl = (
+export const buildUrl = (
   baseUrl: string,
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
@@ -359,7 +358,7 @@ const buildTranscodingUrl = (
   return url;
 };
 
-const itemFields =
+export const itemFields =
   'Overview,Genres,People,MediaSources,OfficialRating,CommunityRating,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,ProductionYear,UserData,CriticRating,RemoteTrailers';
 
 const qualityCaps: JellyfinQualityOption[] = [
@@ -509,6 +508,7 @@ const mapItem = (
       Played?: boolean;
       PlayCount?: number;
       PlaybackPositionTicks?: number;
+      UnplayedItemCount?: number;
     };
     Overview?: string;
     Genres?: string[];
@@ -571,6 +571,7 @@ const mapItem = (
   resumePositionTicks: item.UserData?.PlaybackPositionTicks,
   isFavorite: item.UserData?.IsFavorite,
   isPlayed: item.UserData?.Played,
+  unplayedItemCount: item.UserData?.UnplayedItemCount,
   overview: item.Overview ?? null,
   genres: item.Genres ?? [],
   people: (item.People ?? []).map((person) => ({
@@ -604,7 +605,7 @@ const mapItem = (
   seriesName: item.SeriesName,
 });
 
-const getJson = async <ResponseBody>(
+export const getJson = async <ResponseBody>(
   url: string,
   options: {
     body?: string;
@@ -626,7 +627,7 @@ const getJson = async <ResponseBody>(
       const failedUrl = new URL(url);
       failedUrl.searchParams.delete('api_key');
       throw new Error(
-        `Jellyfin request failed ${response.status}: ${failedUrl.pathname}`,
+        `Server request failed ${response.status}: ${failedUrl.pathname}`,
       );
     }
 
@@ -638,23 +639,55 @@ const getJson = async <ResponseBody>(
   }
 };
 
+// Each scheme candidate gets a shorter budget than a normal request so that
+// falling back to the alternate scheme stays within the time a single attempt
+// used to take. A server that cannot answer /System/Info/Public inside this
+// window is unreachable for practical purposes.
+const CONNECT_TIMEOUT_MS = 20000;
+
+/**
+ * Probe a server, resolving http/https automatically.
+ *
+ * The returned `baseUrl` is the URL that actually answered and is what callers
+ * must persist and reuse — it may differ in scheme from what the user typed.
+ */
 export const connect = async (
   serverUrl: string,
 ): Promise<JellyfinServerInfo> => {
-  const baseUrl = normalizeServerUrl(serverUrl);
-  const response = await getJson<{
-    Id?: string;
-    ServerName?: string;
-    Version?: string;
-    OperatingSystem?: string;
-  }>(`${baseUrl}/System/Info/Public`);
+  const candidates = getServerUrlCandidates(serverUrl);
 
-  return {
-    id: response.Id ?? baseUrl,
-    name: response.ServerName ?? 'Jellyfin Server',
-    version: response.Version ?? 'unknown',
-    operatingSystem: response.OperatingSystem,
-  };
+  if (!candidates.length) {
+    throw new Error('Enter a server address.');
+  }
+
+  let firstError: unknown;
+
+  for (const baseUrl of candidates) {
+    try {
+      const response = await getJson<{
+        Id?: string;
+        ServerName?: string;
+        Version?: string;
+        OperatingSystem?: string;
+      }>(`${baseUrl}/System/Info/Public`, {}, CONNECT_TIMEOUT_MS);
+
+      return {
+        baseUrl,
+        id: response.Id ?? baseUrl,
+        name: response.ServerName ?? 'Media Server',
+        version: response.Version ?? 'unknown',
+        operatingSystem: response.OperatingSystem,
+      };
+    } catch (error) {
+      // Report the failure for what the user actually typed, not for the
+      // fallback scheme they never asked about.
+      firstError = firstError ?? error;
+    }
+  }
+
+  throw firstError instanceof Error
+    ? firstError
+    : new Error('Unable to reach the server.');
 };
 
 export const authenticate = async (
@@ -679,7 +712,7 @@ export const authenticate = async (
   });
 
   if (!response.User?.Id || !response.AccessToken) {
-    throw new Error('Jellyfin authentication response was missing credentials');
+    throw new Error('Authentication response was missing credentials');
   }
 
   return {
@@ -1047,7 +1080,7 @@ export const getStreamUrl = async (
       sanitizeUrlForLog(url),
     );
   } else {
-    throw new Error('No playable URL returned from Jellyfin.');
+    throw new Error('No playable URL returned from the server.');
   }
   const mapTrack = (track: (typeof streams)[number]): JellyfinMediaTrack => {
     const isSubtitle = track.Type === 'Subtitle';
@@ -1494,7 +1527,7 @@ const scanCandidate = async (
 
     return {
       id: response.Id ?? address,
-      name: response.ServerName ?? 'Jellyfin Server',
+      name: response.ServerName ?? 'Media Server',
       address,
     };
   } catch {

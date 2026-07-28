@@ -4,201 +4,218 @@ exports[`App matches snapshot 1`] = `
 <View
   style={
     Object {
-      "backgroundColor": "#0C1116",
+      "backgroundColor": "#0b0d10",
       "flex": 1,
-      "paddingHorizontal": 144,
-      "paddingVertical": 76,
     }
   }
-  testID="setup-screen"
 >
   <View
     style={
       Object {
-        "marginBottom": 36,
+        "flex": 1,
       }
     }
   >
-    <Text
-      style={
-        Object {
-          "color": "#FFFFFF",
-          "fontSize": 82,
-          "fontWeight": "800",
-          "letterSpacing": 0,
-        }
-      }
-    >
-      Astra
-    </Text>
-    <Text
-      style={
-        Object {
-          "color": "#AAB7C0",
-          "fontSize": 30,
-          "marginTop": 8,
-        }
-      }
-    >
-      Connect your media server
-    </Text>
-  </View>
-  <View
-    style={
-      Object {
-        "width": 840,
-      }
-    }
-  >
-    <Text
-      style={
-        Object {
-          "color": "#FFFFFF",
-          "fontSize": 34,
-          "fontWeight": "700",
-          "marginBottom": 12,
-        }
-      }
-    >
-      What are you connecting to?
-    </Text>
-    <Text
-      style={
-        Object {
-          "color": "#AAB7C0",
-          "fontSize": 26,
-          "lineHeight": 36,
-          "marginBottom": 26,
-          "maxWidth": 840,
-        }
-      }
-    >
-      Choose the media server Astra should connect to.
-    </Text>
     <View
       style={
         Object {
-          "flexDirection": "row",
-          "gap": 16,
+          "backgroundColor": "#0C1116",
+          "flex": 1,
+          "paddingHorizontal": 144,
+          "paddingVertical": 76,
         }
       }
+      testID="setup-screen"
     >
       <View
-        accessibilityLabel="Jellyfin"
-        disabled={false}
-        onPress={[Function]}
         style={
-          Array [
-            Object {
-              "alignItems": "center",
-              "backgroundColor": "#172129",
-              "borderRadius": 8,
-              "height": 100,
-              "justifyContent": "center",
-              "width": 250,
-            },
-            Object {
-              "borderColor": "rgba(255,255,255,0.2)",
-              "borderWidth": 1,
-            },
-            Object {
-              "backgroundColor": "#1B2630",
-              "borderColor": "#7B5EA7",
-              "borderWidth": 2,
-            },
-            false,
-          ]
+          Object {
+            "marginBottom": 36,
+          }
         }
-        testID="setup-server-type-jellyfin"
       >
         <Text
           style={
-            Array [
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-              },
-              false,
-            ]
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 82,
+              "fontWeight": "800",
+              "letterSpacing": 0,
+            }
           }
         >
-          Jellyfin
+          Astra
         </Text>
         <Text
           style={
-            Array [
-              Object {
-                "color": "#9FB0B8",
-                "fontSize": 18,
-                "marginTop": 6,
-              },
-              false,
-            ]
+            Object {
+              "color": "#AAB7C0",
+              "fontSize": 30,
+              "marginTop": 8,
+            }
           }
         >
-          Press Select
+          Connect your media server
         </Text>
       </View>
       <View
-        accessibilityLabel="Emby, coming soon"
-        disabled={true}
         style={
-          Array [
-            Object {
-              "alignItems": "center",
-              "backgroundColor": "#172129",
-              "borderRadius": 8,
-              "height": 100,
-              "justifyContent": "center",
-              "width": 250,
-            },
-            Object {
-              "borderColor": "rgba(255,255,255,0.2)",
-              "borderWidth": 1,
-            },
-            false,
-            Object {
-              "backgroundColor": "#11181E",
-              "borderColor": "rgba(255,255,255,0.08)",
-              "opacity": 0.55,
-            },
-          ]
+          Object {
+            "width": 840,
+          }
         }
-        testID="setup-server-type-emby"
       >
         <Text
           style={
-            Array [
-              Object {
-                "color": "#FFFFFF",
-                "fontSize": 24,
-                "fontWeight": "700",
-              },
-              Object {
-                "color": "#7C8991",
-              },
-            ]
+            Object {
+              "color": "#FFFFFF",
+              "fontSize": 34,
+              "fontWeight": "700",
+              "marginBottom": 12,
+            }
           }
         >
-          Emby
+          What are you connecting to?
         </Text>
         <Text
           style={
-            Array [
-              Object {
-                "color": "#9FB0B8",
-                "fontSize": 18,
-                "marginTop": 6,
-              },
-              Object {
-                "color": "#69757D",
-              },
-            ]
+            Object {
+              "color": "#AAB7C0",
+              "fontSize": 26,
+              "lineHeight": 36,
+              "marginBottom": 26,
+              "maxWidth": 840,
+            }
           }
         >
-          Coming soon
+          Choose the media server Astra should connect to.
         </Text>
+        <View
+          style={
+            Object {
+              "flexDirection": "row",
+              "gap": 16,
+            }
+          }
+        >
+          <View
+            accessibilityLabel="Jellyfin"
+            disabled={false}
+            onPress={[Function]}
+            style={
+              Array [
+                Object {
+                  "alignItems": "center",
+                  "backgroundColor": "#172129",
+                  "borderRadius": 8,
+                  "height": 100,
+                  "justifyContent": "center",
+                  "width": 250,
+                },
+                Object {
+                  "borderColor": "rgba(255,255,255,0.2)",
+                  "borderWidth": 1,
+                },
+                Object {
+                  "backgroundColor": "#1B2630",
+                  "borderColor": "#7B5EA7",
+                  "borderWidth": 2,
+                },
+                false,
+              ]
+            }
+            testID="setup-server-type-jellyfin"
+          >
+            <Text
+              style={
+                Array [
+                  Object {
+                    "color": "#FFFFFF",
+                    "fontSize": 24,
+                    "fontWeight": "700",
+                  },
+                  false,
+                ]
+              }
+            >
+              Jellyfin
+            </Text>
+            <Text
+              style={
+                Array [
+                  Object {
+                    "color": "#9FB0B8",
+                    "fontSize": 18,
+                    "marginTop": 6,
+                  },
+                  false,
+                ]
+              }
+            >
+              Press Select
+            </Text>
+          </View>
+          <View
+            accessibilityLabel="Emby, coming soon"
+            disabled={true}
+            style={
+              Array [
+                Object {
+                  "alignItems": "center",
+                  "backgroundColor": "#172129",
+                  "borderRadius": 8,
+                  "height": 100,
+                  "justifyContent": "center",
+                  "width": 250,
+                },
+                Object {
+                  "borderColor": "rgba(255,255,255,0.2)",
+                  "borderWidth": 1,
+                },
+                false,
+                Object {
+                  "backgroundColor": "#11181E",
+                  "borderColor": "rgba(255,255,255,0.08)",
+                  "opacity": 0.55,
+                },
+              ]
+            }
+            testID="setup-server-type-emby"
+          >
+            <Text
+              style={
+                Array [
+                  Object {
+                    "color": "#FFFFFF",
+                    "fontSize": 24,
+                    "fontWeight": "700",
+                  },
+                  Object {
+                    "color": "#7C8991",
+                  },
+                ]
+              }
+            >
+              Emby
+            </Text>
+            <Text
+              style={
+                Array [
+                  Object {
+                    "color": "#9FB0B8",
+                    "fontSize": 18,
+                    "marginTop": 6,
+                  },
+                  Object {
+                    "color": "#69757D",
+                  },
+                ]
+              }
+            >
+              Coming soon
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   </View>
