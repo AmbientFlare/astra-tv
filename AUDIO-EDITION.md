@@ -6,7 +6,7 @@ someone (or something) picking this up cold.
 **Status:** Music browsing and playback work end to end. Device testing
 confirmed both progressive HTTPS playback and AAC/TS HLS playback from a plain
 `http://192.168.x.x:8096` Jellyfin server. The HLS compatibility fix and remote
-control corrections are implemented on the `music` branch.
+control corrections are implemented in Astra 1.1.0.
 
 ---
 
@@ -17,7 +17,7 @@ Android TV. React Native 0.72 against the `@amazon-devices/*` SDK.
 
 - Repo: `github.com/AmbientFlare/astra-tv` (public)
 - Package id: `com.astra.tv`, component `com.astra.tv.main`
-- Shipping version 1.0.3; this music work is targeting **1.1.0**
+- Shipping target: **1.1.0**, build `2026072904`
 - Video playback already shipped and works
 
 **Vega is not Android.** Do not assume Android TV APIs, `react-native-track-player`,
@@ -40,7 +40,7 @@ tested on device.
 
 ---
 
-## 2. The open problem
+## 2. The resolved problem
 
 ### Symptom
 
@@ -60,7 +60,7 @@ The same track from an `https://` server plays perfectly.
 | Jellyfin could return an https URL | `/System/Info/Public` reports `"LocalAddress": "http://192.168.0.18:8096"`. No TLS on 8920 or 8096. The https address is a **reverse proxy** in front of the same server. |
 | **Cleartext blocks all media** | **WRONG.** Video plays fine over `http://192.168.0.18:8096`. |
 
-### The actual cause (high confidence, not yet proven by fix)
+### The actual cause
 
 **Cleartext is blocked for *native* media fetches, not for media in general.**
 
@@ -142,7 +142,7 @@ be a regression. Pick based on `isCleartextUrl(session.serverUrl)`.
 | Area | Path | Notes |
 |---|---|---|
 | Music API | `src/services/jellyfin/music.ts` | Paginated; validated against a live server |
-| Queue model (pure) | `src/services/audioQueue/index.ts` | 24 tests, no I/O |
+| Playback sequence model (pure) | `src/services/audioQueue/index.ts` | Internal automatic advancement; no editable queue UI |
 | Playback engine | `src/services/audioPlayer/index.ts` | Singleton; outlives screens |
 | Remote input | `src/hooks/useRemoteInput.ts` | Handles three separate Vega input hazards |
 | Music gating | `src/hooks/useMusicAvailability.ts` | Library presence AND user preference |
@@ -150,10 +150,10 @@ be a regression. Pick based on `isCleartextUrl(session.serverUrl)`.
 | Browse | `src/screens/MusicScreen/` | Infinite scroll, A–Z rail with position marker |
 | Artist / Album | `src/screens/ArtistDetailScreen/`, `AlbumDetailScreen/` | |
 | Genre / Playlist | `src/screens/MusicCollectionScreen/` | |
-| Now-playing bar | `src/components/NowPlayingBar/` | Docked; **carries on-screen diagnostics** |
+| Now-playing bar | `src/components/NowPlayingBar/` | Docked; release diagnostics disabled |
 | URL handling | `src/services/serverUrl/index.ts` | Scheme resolution, casing, cleartext detection |
 
-**151 tests passing.** `npm test`, `npm run lint`.
+**158 tests passing across 19 suites.** `npm test`, `npm run lint`.
 
 ### Vega input hazards (all confirmed on device)
 
@@ -219,7 +219,7 @@ export PATH=/home/levi/vega/bin:$KEPLER_SDK_PATH/bin:$PATH
 
 npm run lint && npm test
 npx react-native build-vega --build-type Release --target x86_64 \
-  --build-number <YYYYMMDDNN> --build-version 1.0.4
+  --build-number 2026072904 --build-version 1.1.0
 
 VPKG=build/private/kepler/@amazon-devices/astra/undefined/vega/x86_64/Release/@amazon-devices/astra_x86_64.vpkg
 vega device list
@@ -289,8 +289,8 @@ only so a selected album or playlist can advance automatically.
 
 **There is no way to read the app's JS console from the host.** Every diagnosis
 in this project came from rendering state on screen and photographing the TV.
-The `NowPlayingBar` currently shows `ready=<readyState>` and the stream URL
-(origin + path only) for exactly this reason. Keep that pattern.
+The release UI hides diagnostics, but `NowPlayingBar` retains an opt-in
+diagnostics mode for future device investigations.
 
 The `readyState` values are the highest-signal diagnostic:
 `0 NOTHING · 1 METADATA · 2 CURRENT · 3 FUTURE · 4 ENOUGH`.
@@ -313,28 +313,18 @@ in `metro.config.js` handles this.
 
 ---
 
-## 7. Remaining work
+## 7. Release status and deferred work
 
-**Blocking:**
-1. **HLS audio path for http servers** — section 3 above.
+Astra 1.1.0 build `2026072904` is release-ready. The HTTP HLS path, simplified
+Now Playing controls, idle visual, background playback, and launcher visibility
+have been confirmed on the physical Vega device.
 
-**Feature work (task 9, partly done):**
-2. Device-confirm the simplified Now Playing Left/Right controls.
-4. **In-app idle visual / screensaver.** Required, not polish: the system
-   screensaver does not fire during audio, so a static now-playing screen can
-   burn in. Design agreed: after ~3 min idle, cross-fade artwork from the
-   current album artist with drift; fall back to a single bouncing cover when
-   only one image exists; any input dismisses instantly; never interrupts
-   playback.
+**Optional polish:**
 
-**Known issues:**
-5. **Astra does not appear in the Fire TV "Apps & Channels" list**, though it is
-   installed and launches via CLI. Untriaged. Suspect a launcher cache or a
-   manifest category issue. Note the system log shows a missing
-   `SplashScreenImages.zip` asset.
-6. Playlists have no artwork (Jellyfin rarely sets it) — currently a letter
-   placeholder. Could composite from the first few tracks' album art.
-7. Remove the diagnostics line from `NowPlayingBar` once playback is stable.
+- Playlists commonly lack server artwork and currently use a letter
+  placeholder. A future version could composite the first few tracks' covers.
+- `NowPlayingBar` retains opt-in diagnostics code, but diagnostics are disabled
+  in the release UI.
 
 **Deliberately deferred:**
 - FlashList instead of FlatList — works but adds a native dependency.
