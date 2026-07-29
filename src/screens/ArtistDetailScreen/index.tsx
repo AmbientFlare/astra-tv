@@ -377,6 +377,7 @@ export const ArtistDetailScreen = ({
                 onFocus={() =>
                   setFocusedTrack({index, source: topTracks, track})
                 }
+                onLongPress={() => audioPlayback.addNext([track])}
                 onPress={() => playTracks(topTracks, index)}
                 position={index + 1}
                 track={track}
@@ -423,6 +424,7 @@ export const ArtistDetailScreen = ({
                         track,
                       })
                     }
+                    onLongPress={() => audioPlayback.addNext([track])}
                     onPress={() => playTracks(entry.tracks, index)}
                     track={track}
                   />

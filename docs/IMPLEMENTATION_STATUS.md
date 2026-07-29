@@ -14,12 +14,18 @@ Last updated: 2026-07-28
 - Full now-playing and queue UI is implemented with play-now and remove actions.
 - Track rows are single-focus controls again. D-pad Left/Right is reserved for
   focus navigation and no longer changes tracks globally.
+- Holding D-pad Left or Right for two seconds skips exactly one track backward
+  or forward. Releasing sooner performs only normal focus navigation.
+- Holding Select on a focused song for two seconds inserts it next and shows a
+  temporary `QUEUED NEXT` confirmation; short Select still plays immediately.
 - Menu on a focused album, artist, or playlist track opens an isolated action
   panel with Play now, Play next, Add to end of queue, and View current queue.
   The focused row has a green underline, and no queue action is executed merely
   by navigating.
 - Expanded artist discographies show album artwork beside every album heading.
   Three Up or Down presses within 1.2 seconds jump to the top or bottom.
+- The full queue can be cleared without interrupting the current song and can
+  be saved as a named Jellyfin playlist from the TV keyboard.
 - A three-minute drifting-art idle visual provides burn-in protection while
   Vega suppresses its system screensaver.
 - Temporary audio diagnostics are disabled in the release UI.
@@ -51,7 +57,11 @@ Last updated: 2026-07-28
 
 ## Validation
 
-- Automated tests: 159 passing across 20 suites.
+- Build `2026072902` passed lint, TypeScript checking, all 164 tests across 21 suites, Vega manifest validation, and ABI validation.
+- Build `2026072902` was installed and launched on Vega device `GT533M0752050H4U`.
+- Live-device confirmation is still needed for the two-second remote holds and saving a queue against the user's Jellyfin server.
+
+- Automated tests: 164 passing across 21 suites.
 - Lint: passing.
 - TypeScript (`tsc --noEmit`): passing. `reference/` is excluded because those
   separately cloned sample projects are not part of Astra's compilation.

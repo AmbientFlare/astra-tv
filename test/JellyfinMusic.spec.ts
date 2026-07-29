@@ -1,4 +1,5 @@
 import {
+  createMusicPlaylist,
   getAlbumTracks,
   getArtistAlbums,
   getArtistTopTracks,
@@ -62,6 +63,47 @@ describe('getAudioStreamUrl', () => {
     expect(url).toContain('/Audio/track-9/universal');
     expect(url).toContain('UserId=user-1');
     expect(url).toContain('api_key=token-123');
+  });
+});
+
+describe('createMusicPlaylist', () => {
+  it('posts the ordered queue to Jellyfin', async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({Id: 'playlist-1'}),
+    })) as unknown as typeof fetch;
+
+    await expect(
+      createMusicPlaylist(session, 'Road Trip', [
+        {id: 'track-a', name: 'A'},
+        {id: 'track-b', name: 'B'},
+      ]),
+    ).resolves.toBe('playlist-1');
+
+    const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toContain('/Playlists');
+    expect(new URL(url).searchParams.get('MediaType')).toBe('Audio');
+    expect(new URL(url).searchParams.get('Ids')).toBe('track-a,track-b');
+    expect(options.method).toBe('POST');
+    expect(JSON.parse(options.body)).toEqual({
+      Ids: ['track-a', 'track-b'],
+      MediaType: 'Audio',
+      Name: 'Road Trip',
+      UserId: 'user-1',
+    });
+  });
+
+  it('refuses empty names and queues without contacting the server', async () => {
+    global.fetch = jest.fn() as unknown as typeof fetch;
+
+    await expect(createMusicPlaylist(session, ' ', [])).rejects.toThrow(
+      /playlist name/i,
+    );
+    await expect(createMusicPlaylist(session, 'Empty', [])).rejects.toThrow(
+      /at least one track/i,
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 

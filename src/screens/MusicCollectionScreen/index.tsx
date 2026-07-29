@@ -227,6 +227,7 @@ export const MusicCollectionScreen = ({
                 isPlaying={track.id === playingTrackId}
                 key={track.id}
                 onFocus={() => setFocusedTrackIndex(index)}
+                onLongPress={() => audioPlayback.addNext([track])}
                 onPress={() => playFrom(index)}
                 position={index + 1}
                 showArtist={true}

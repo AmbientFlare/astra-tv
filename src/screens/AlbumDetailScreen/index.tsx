@@ -254,6 +254,7 @@ export const AlbumDetailScreen = ({
               isPlaying={track.id === playingTrackId}
               key={track.id}
               onFocus={() => setFocusedTrackIndex(index)}
+              onLongPress={() => audioPlayback.addNext([track])}
               onPress={() => playFrom(index)}
               track={track}
             />

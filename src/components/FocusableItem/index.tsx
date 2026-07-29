@@ -1,4 +1,4 @@
-import React, {PropsWithChildren, useState} from 'react';
+import React, {PropsWithChildren, useRef, useState} from 'react';
 import {StyleProp, StyleSheet, TouchableOpacity, ViewStyle} from 'react-native';
 import {audioIdleGate} from '../../services/audioIdleGate';
 
@@ -12,6 +12,8 @@ interface FocusableItemProps {
   accessibilityLabel?: string;
   disabled?: boolean;
   hasTVPreferredFocus?: boolean;
+  onLongPress?: () => void;
+  longPressDelayMs?: number;
 }
 
 export const FocusableItem = ({
@@ -20,13 +22,16 @@ export const FocusableItem = ({
   disabled,
   focusedStyle,
   hasTVPreferredFocus,
+  longPressDelayMs = 2000,
   onBlur,
   onFocus,
+  onLongPress,
   onPress,
   style,
   testID,
 }: PropsWithChildren<FocusableItemProps>) => {
   const [isFocused, setFocused] = useState(false);
+  const longPressFired = useRef(false);
 
   return (
     <TouchableOpacity
@@ -43,10 +48,22 @@ export const FocusableItem = ({
         setFocused(true);
         onFocus?.();
       }}
+      delayLongPress={longPressDelayMs}
+      onLongPress={() => {
+        longPressFired.current = true;
+        onLongPress?.();
+      }}
       onPress={() => {
+        if (longPressFired.current) {
+          longPressFired.current = false;
+          return;
+        }
         if (!audioIdleGate.consumeInput()) {
           onPress?.();
         }
+      }}
+      onPressIn={() => {
+        longPressFired.current = false;
       }}
       style={[
         styles.base,
