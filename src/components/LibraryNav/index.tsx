@@ -5,13 +5,14 @@
  * down the page, so the primary sections are the first thing focus lands on.
  */
 import React from 'react';
-import {StyleSheet, Text} from 'react-native';
+import {Image, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../FocusableItem';
 import {JellyfinLibrary} from '../../services/jellyfin';
 import {buildNavEntries, NavEntry} from './entries';
 
 interface LibraryNavProps {
+  artworkByKind?: Partial<Record<NavEntry['kind'], string[]>>;
   hasTVPreferredFocus?: boolean;
   libraries: JellyfinLibrary[];
   musicAvailable: boolean;
@@ -19,6 +20,7 @@ interface LibraryNavProps {
 }
 
 export const LibraryNav = ({
+  artworkByKind = {},
   hasTVPreferredFocus = false,
   libraries,
   musicAvailable,
@@ -40,6 +42,19 @@ export const LibraryNav = ({
           onPress={() => onSelect(entry)}
           style={styles.item}
           testID={`home-nav-${entry.kind}`}>
+          <View style={styles.collage}>
+            {(artworkByKind[entry.kind] ?? [entry.library.imageUrl])
+              .filter((url): url is string => Boolean(url))
+              .slice(0, 6)
+              .map((url, artIndex) => (
+                <Image
+                  key={`${url}-${artIndex}`}
+                  source={{uri: url}}
+                  style={styles.art}
+                />
+              ))}
+          </View>
+          <View style={styles.scrim} />
           <Text style={styles.label}>{entry.label}</Text>
         </FocusableItem>
       ))}
@@ -54,20 +69,44 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 18,
+    gap: 22,
+    marginBottom: 34,
   },
   item: {
-    borderRadius: 8,
-    marginRight: 12,
-    paddingHorizontal: 22,
-    paddingVertical: 10,
+    backgroundColor: '#182027',
+    borderRadius: 12,
+    height: 210,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    width: 340,
   },
   itemFocused: {
-    backgroundColor: '#54d38a',
+    borderColor: '#4CC9F0',
+    borderWidth: 5,
+  },
+  collage: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  art: {
+    height: '50%',
+    resizeMode: 'cover',
+    width: '33.333%',
+  },
+  scrim: {
+    backgroundColor: 'rgba(5, 9, 13, 0.68)',
+    bottom: 0,
+    height: 72,
+    left: 0,
+    position: 'absolute',
+    right: 0,
   },
   label: {
     color: '#f4f6f8',
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: 30,
+    fontWeight: '800',
+    paddingBottom: 17,
+    paddingHorizontal: 22,
   },
 });
