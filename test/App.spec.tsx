@@ -129,6 +129,7 @@ jest.mock('../src/services/jellyfin', () => ({
   isQuickConnectEnabled: jest.fn(async () => false),
   pollQuickConnect: jest.fn(async () => false),
   getLibraries: jest.fn(async () => []),
+  getLatestItems: jest.fn(async () => []),
   getStreamUrl: jest.fn(async () => ({
     itemId: 'test-item',
     playMethod: 'DirectPlay',
@@ -137,6 +138,12 @@ jest.mock('../src/services/jellyfin', () => ({
   reportPlaybackProgress: jest.fn(async () => undefined),
   reportPlaybackStart: jest.fn(async () => undefined),
   reportPlaybackStopped: jest.fn(async () => undefined),
+}));
+
+jest.mock('../src/services/jellyfin/music', () => ({
+  ...jest.requireActual('../src/services/jellyfin/music'),
+  getAlbums: jest.fn(async () => ({items: [], total: 0})),
+  hasMusicLibraries: jest.fn(async () => false),
 }));
 
 jest.mock('../src/services/iap', () => ({

@@ -6,6 +6,7 @@ import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
+import {getAlbums} from '../../services/jellyfin/music';
 import {
   getLibraries,
   getLatestItems,
@@ -46,6 +47,9 @@ export const HomeScreen = ({
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
+  const [libraryArtwork, setLibraryArtwork] = useState<
+    Partial<Record<NavEntry['kind'], string[]>>
+  >({});
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
   );
@@ -146,6 +150,66 @@ export const HomeScreen = ({
   useEffect(() => {
     loadLibraries();
   }, [loadLibraries]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadLibraryArtwork = async () => {
+      if (!serverProfile) {
+        return;
+      }
+
+      const shuffleImages = (items: Array<{imageUrl?: string}>) =>
+        items
+          .map((item) => item.imageUrl)
+          .filter((url): url is string => Boolean(url))
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 6);
+
+      const results = await Promise.allSettled([
+        getLatestItems(
+          serverProfile.serverUrl,
+          serverProfile.accessToken,
+          serverProfile.userId,
+          'Movie',
+        ),
+        getLatestItems(
+          serverProfile.serverUrl,
+          serverProfile.accessToken,
+          serverProfile.userId,
+          'Series',
+        ),
+        musicSession
+          ? getAlbums(musicSession, {limit: 24})
+          : Promise.resolve({items: []}),
+      ]);
+
+      if (!active) {
+        return;
+      }
+
+      setLibraryArtwork({
+        movies:
+          results[0].status === 'fulfilled'
+            ? shuffleImages(results[0].value)
+            : [],
+        tvshows:
+          results[1].status === 'fulfilled'
+            ? shuffleImages(results[1].value)
+            : [],
+        music:
+          results[2].status === 'fulfilled'
+            ? shuffleImages(results[2].value.items)
+            : [],
+      });
+    };
+
+    loadLibraryArtwork();
+
+    return () => {
+      active = false;
+    };
+  }, [musicSession, serverProfile]);
 
   const makeRowLoader = useCallback(
     (kind: 'resume' | 'nextUp' | 'latestMovies' | 'latestShows') =>
@@ -261,6 +325,7 @@ export const HomeScreen = ({
         ) : null}
         {libraries.length ? (
           <LibraryNav
+            artworkByKind={libraryArtwork}
             hasTVPreferredFocus={true}
             libraries={libraries}
             musicAvailable={musicAvailable}

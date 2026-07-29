@@ -26,6 +26,10 @@ Last updated: 2026-07-29
 
 ## TV library polish
 
+- Home library destinations are large 340×210 cards again. Movies and TV Shows
+  use six-poster collages from recent server items; Music uses a randomized
+  sample of album covers. Labels sit on a dark scrim and focus retains the
+  bright Vega-safe outline.
 - Series posters display the Jellyfin `UnplayedItemCount` in a red top-left
   square. Counts above 99 display as `99+`; zero displays no badge.
 
@@ -51,6 +55,9 @@ Last updated: 2026-07-29
 
 ## Validation
 
+- Build `2026072904` passed lint, TypeScript checking, all 158 tests across 19
+  suites, Vega manifest validation, and ABI validation. It was installed and
+  launched on device `GT533M0752050H4U`.
 - Build `2026072903` passed lint, TypeScript checking, all 158 tests across 19
   suites, Vega manifest validation, and ABI validation. It was installed and
   launched on device `GT533M0752050H4U`.
