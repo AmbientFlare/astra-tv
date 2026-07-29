@@ -111,3 +111,31 @@
   20260718.14.
 - Added an in-app What's New section summarizing each release's user-visible
   improvements.
+
+## 1.0.1 - 2026-07-07
+
+### Added
+
+- Astra Source-Available License and third-party notices.
+- Public source and website links on the About page.
+
+### Fixed
+
+- Corrected About-page release information and support links.
+- Replaced the placeholder support QR code with the final asset.
+
+### Changed
+
+- Finalized the first Amazon update package metadata.
+
+## 1.0.0 - 2026-07-05
+
+### Added
+
+- Jellyfin server setup, authentication, and saved server profiles.
+- Movie and television library browsing, search, detail pages, cast pages,
+  seasons, and episodes.
+- Resume playback, watch-progress reporting, and chapter navigation.
+- Vega media playback with Jellyfin direct-play, stream-copy, and transcode
+  fallback.
+- Remote-first Fire TV navigation, settings, and Amazon submission assets.
