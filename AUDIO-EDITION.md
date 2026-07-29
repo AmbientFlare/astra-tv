@@ -254,9 +254,11 @@ the behavior on physical hardware.
 
 ### Audio idle input contract
 
-The audio visual activates after three minutes. Album art, title, and artist
-move as one composition over a broad multi-point path so no metadata remains
-fixed during a long artist or discography session.
+The audio visual activates after three minutes. Album art and the title/artist
+block travel independently over separate broad four-point paths. Each circuit
+takes about one minute and explicitly ends at its own starting coordinate, so
+the native animation loops continuously without a visible reset or teleport.
+Artwork changes every 30 seconds without fading the cover to black.
 
 The first physical remote press is wake-only: it dismisses the overlay without
 performing its normal action. `audioIdleGate` blocks both down/up delivery for

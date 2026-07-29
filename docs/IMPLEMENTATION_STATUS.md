@@ -25,8 +25,10 @@ Last updated: 2026-07-28
 
 - Audio playback and paused video use Astra's three-minute drifting-art idle
   visuals.
-- Album art, song title, and artist now move together across a broad
-  four-point path instead of leaving the text in a fixed location.
+- Album art and metadata now follow separate, continuous four-point paths
+  lasting about one minute each. Both cover broad areas of the screen, return
+  smoothly to their starting coordinates, and never fade or teleport between
+  loops.
 - The first physical remote press only dismisses the audio idle visual. A
   shared 600 ms gate consumes Vega's duplicate key phases, focusable Select,
   and Kepler Media Controls commands, preventing the wake press from pausing,
@@ -68,6 +70,10 @@ Last updated: 2026-07-28
   motion, wake-only first input, and visible per-track queue actions, passed
   lint, TypeScript, 158 tests, manifest validation, and ABI validation. It was
   installed and launched successfully on device `GT533M0752050H4U`.
+- Vega x86_64 build 1.1.0 (2026072802) separates cover and metadata motion into
+  independent minute-long continuous paths and removes artwork fading. It
+  passed the same validation suite and was installed and launched successfully
+  on device `GT533M0752050H4U`.
 
 ## Remaining verification
 

@@ -6,7 +6,7 @@ import {orderedTracks} from '../../services/audioQueue';
 import {audioIdleGate} from '../../services/audioIdleGate';
 
 export const AUDIO_IDLE_DELAY_MS = 3 * 60 * 1000;
-const ART_CHANGE_MS = 18 * 1000;
+const ART_CHANGE_MS = 30 * 1000;
 
 /**
  * Burn-in protection for audio playback.
@@ -20,9 +20,10 @@ export const AudioIdleVisual = () => {
   const [artwork, setArtwork] = useState<string[]>([]);
   const [artIndex, setArtIndex] = useState(0);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const opacity = useRef(new Animated.Value(1)).current;
-  const driftX = useRef(new Animated.Value(-230)).current;
-  const driftY = useRef(new Animated.Value(-85)).current;
+  const artX = useRef(new Animated.Value(-520)).current;
+  const artY = useRef(new Animated.Value(-180)).current;
+  const metadataX = useRef(new Animated.Value(380)).current;
+  const metadataY = useRef(new Animated.Value(330)).current;
   const hasTrack = artwork.length > 0;
 
   const clearIdleTimer = () => {
@@ -94,96 +95,151 @@ export const AudioIdleVisual = () => {
       return;
     }
 
-    driftX.setValue(-230);
-    driftY.setValue(-85);
-    const drift = Animated.loop(
+    artX.setValue(-520);
+    artY.setValue(-180);
+    metadataX.setValue(380);
+    metadataY.setValue(330);
+
+    const artDrift = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(driftX, {
-            duration: 9000,
+          Animated.timing(artX, {
+            duration: 16000,
             easing: Easing.linear,
-            toValue: 210,
+            toValue: 500,
             useNativeDriver: true,
           }),
-          Animated.timing(driftY, {
-            duration: 9000,
+          Animated.timing(artY, {
+            duration: 16000,
             easing: Easing.linear,
-            toValue: -40,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(driftX, {
-            duration: 7500,
-            easing: Easing.linear,
-            toValue: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(driftY, {
-            duration: 7500,
-            easing: Easing.linear,
-            toValue: 90,
+            toValue: -120,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
-          Animated.timing(driftX, {
-            duration: 8500,
+          Animated.timing(artX, {
+            duration: 14000,
             easing: Easing.linear,
-            toValue: -210,
+            toValue: 430,
             useNativeDriver: true,
           }),
-          Animated.timing(driftY, {
-            duration: 8500,
+          Animated.timing(artY, {
+            duration: 14000,
             easing: Easing.linear,
-            toValue: 45,
+            toValue: 180,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
-          Animated.timing(driftX, {
-            duration: 7000,
+          Animated.timing(artX, {
+            duration: 17000,
             easing: Easing.linear,
-            toValue: -230,
+            toValue: -480,
             useNativeDriver: true,
           }),
-          Animated.timing(driftY, {
-            duration: 7000,
+          Animated.timing(artY, {
+            duration: 17000,
             easing: Easing.linear,
-            toValue: -85,
+            toValue: 130,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(artX, {
+            duration: 13000,
+            easing: Easing.linear,
+            toValue: -520,
+            useNativeDriver: true,
+          }),
+          Animated.timing(artY, {
+            duration: 13000,
+            easing: Easing.linear,
+            toValue: -180,
             useNativeDriver: true,
           }),
         ]),
       ]),
     );
-    drift.start();
+
+    const metadataDrift = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(metadataX, {
+            duration: 15000,
+            easing: Easing.linear,
+            toValue: -390,
+            useNativeDriver: true,
+          }),
+          Animated.timing(metadataY, {
+            duration: 15000,
+            easing: Easing.linear,
+            toValue: 280,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(metadataX, {
+            duration: 18000,
+            easing: Easing.linear,
+            toValue: -360,
+            useNativeDriver: true,
+          }),
+          Animated.timing(metadataY, {
+            duration: 18000,
+            easing: Easing.linear,
+            toValue: -330,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(metadataX, {
+            duration: 14000,
+            easing: Easing.linear,
+            toValue: 410,
+            useNativeDriver: true,
+          }),
+          Animated.timing(metadataY, {
+            duration: 14000,
+            easing: Easing.linear,
+            toValue: -270,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(metadataX, {
+            duration: 17000,
+            easing: Easing.linear,
+            toValue: 380,
+            useNativeDriver: true,
+          }),
+          Animated.timing(metadataY, {
+            duration: 17000,
+            easing: Easing.linear,
+            toValue: 330,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
+
+    artDrift.start();
+    metadataDrift.start();
 
     const rotation =
       artwork.length > 1
         ? setInterval(() => {
-            Animated.sequence([
-              Animated.timing(opacity, {
-                duration: 700,
-                toValue: 0,
-                useNativeDriver: true,
-              }),
-              Animated.timing(opacity, {
-                duration: 700,
-                toValue: 1,
-                useNativeDriver: true,
-              }),
-            ]).start();
             setArtIndex((index) => (index + 1) % artwork.length);
           }, ART_CHANGE_MS)
         : null;
 
     return () => {
-      drift.stop();
+      artDrift.stop();
+      metadataDrift.stop();
       if (rotation) {
         clearInterval(rotation);
       }
     };
-  }, [artwork.length, driftX, driftY, hasTrack, opacity, visible]);
+  }, [artX, artY, artwork.length, hasTrack, metadataX, metadataY, visible]);
 
   if (!visible || !hasTrack) {
     return null;
@@ -199,12 +255,18 @@ export const AudioIdleVisual = () => {
       testID="audio-idle-visual">
       <Animated.View
         style={[
-          styles.composition,
-          {transform: [{translateX: driftX}, {translateY: driftY}]},
+          styles.artFrame,
+          {transform: [{translateX: artX}, {translateY: artY}]},
         ]}>
-        <Animated.View style={[styles.artFrame, {opacity}]}>
-          <Image source={{uri: art}} style={styles.art} />
-        </Animated.View>
+        <Image source={{uri: art}} style={styles.art} />
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.metadata,
+          {
+            transform: [{translateX: metadataX}, {translateY: metadataY}],
+          },
+        ]}>
         <Text numberOfLines={1} style={styles.title}>
           {status.track?.name}
         </Text>
@@ -236,12 +298,14 @@ const styles = StyleSheet.create({
     width: 390,
   },
   art: {height: '100%', width: '100%'},
-  composition: {alignItems: 'center'},
+  metadata: {
+    alignItems: 'center',
+    position: 'absolute',
+  },
   title: {
     color: '#eef3f6',
     fontSize: 30,
     fontWeight: '700',
-    marginTop: 42,
     maxWidth: 760,
   },
   artist: {color: '#71808d', fontSize: 20, marginTop: 8, maxWidth: 760},
