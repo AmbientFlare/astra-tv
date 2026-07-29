@@ -267,9 +267,18 @@ Kepler Media Controls handler. This covers D-pad navigation, Select, dedicated
 transport buttons, system transport UI, and voice-driven media commands. The
 next physical press operates the normal playback or navigation control.
 
-Individual track rows on album, playlist, and artist screens expose visible
-`Play next` and `+ Queue` controls. Do not make queue discovery depend on
-Vega's Menu event; its delivery is not consistent across remote models.
+Individual track rows deliberately contain no side-by-side queue buttons.
+Global D-pad Left/Right track skipping was removed because it collided with TV
+focus navigation. Select plays the focused track; Menu opens a modal containing
+`Play now`, `Play next`, `Add to end of queue`, `View current queue`, and
+`Cancel`. While the modal is visible its controls receive focus, so navigating
+inside it cannot play or skip the underlying list. The focused track row has a
+green underline that spans the row.
+
+Expanded artist discographies render a 76px album cover beside each album
+heading. Three Up presses within 1.2 seconds jump to the top; three Down presses
+jump to the bottom. This same counter also makes a held direction accelerate
+once Vega begins emitting repeat events.
 
 ### Debugging workflow — important
 

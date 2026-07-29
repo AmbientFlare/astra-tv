@@ -17,7 +17,9 @@ import {
 } from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {TrackActionMenu} from '../../components/TrackActionMenu';
 import {TrackRow} from '../../components/TrackRow';
+import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {
   getGenreAlbums,
   getPlaylistTracks,
@@ -35,6 +37,7 @@ interface MusicCollectionScreenProps {
   collectionId: string;
   kind: MusicCollectionKind;
   onBack?: () => void;
+  onOpenQueue?: () => void;
   onSelectAlbum?: (albumId: string) => void;
   serverProfile: ServerProfile;
   title: string;
@@ -44,6 +47,7 @@ export const MusicCollectionScreen = ({
   collectionId,
   kind,
   onBack,
+  onOpenQueue,
   onSelectAlbum,
   serverProfile,
   title,
@@ -53,6 +57,10 @@ export const MusicCollectionScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
+  const [focusedTrackIndex, setFocusedTrackIndex] = useState<number | null>(
+    null,
+  );
+  const [actionsVisible, setActionsVisible] = useState(false);
 
   const session: MusicSession = useMemo(
     () => ({
@@ -122,6 +130,24 @@ export const MusicCollectionScreen = ({
     [session, tracks],
   );
 
+  useRemoteInput(
+    (action) => {
+      if (action === 'menu') {
+        if (actionsVisible) {
+          setActionsVisible(false);
+        } else if (kind === 'playlist' && focusedTrackIndex !== null) {
+          setActionsVisible(true);
+        }
+      } else if (action === 'back' && actionsVisible) {
+        setActionsVisible(false);
+      }
+    },
+    {
+      allowWhileDisabled: ['back', 'menu'],
+      enabled: !actionsVisible,
+    },
+  );
+
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -135,111 +161,137 @@ export const MusicCollectionScreen = ({
     0,
   );
 
+  const focusedTrack =
+    focusedTrackIndex === null ? undefined : tracks[focusedTrackIndex];
+
   return (
-    <ScrollView style={styles.root}>
-      <View style={styles.header}>
-        <Text numberOfLines={2} style={styles.title}>
-          {title}
-        </Text>
-        <Text style={styles.meta}>
-          {kind === 'playlist'
-            ? metaLine(
-                tracks.length ? `${tracks.length} tracks` : undefined,
-                formatTotalRuntime(totalTicks),
-              )
-            : metaLine(albums.length ? `${albums.length} albums` : undefined)}
-        </Text>
+    <View style={styles.root}>
+      <ScrollView>
+        <View style={styles.header}>
+          <Text numberOfLines={2} style={styles.title}>
+            {title}
+          </Text>
+          <Text style={styles.meta}>
+            {kind === 'playlist'
+              ? metaLine(
+                  tracks.length ? `${tracks.length} tracks` : undefined,
+                  formatTotalRuntime(totalTicks),
+                )
+              : metaLine(albums.length ? `${albums.length} albums` : undefined)}
+          </Text>
 
-        <TVFocusGuideView style={styles.actions}>
-          {kind === 'playlist' && tracks.length ? (
-            <>
-              <FocusableItem
-                focusedStyle={styles.actionFocused}
-                hasTVPreferredFocus={true}
-                onPress={() => playFrom(0)}
-                style={styles.action}
-                testID="collection-play">
-                <Text style={styles.actionText}>Play</Text>
-              </FocusableItem>
-              <FocusableItem
-                focusedStyle={styles.actionFocused}
-                onPress={() => playFrom(0, true)}
-                style={styles.action}
-                testID="collection-shuffle">
-                <Text style={styles.actionText}>Shuffle</Text>
-              </FocusableItem>
-              <FocusableItem
-                focusedStyle={styles.actionFocused}
-                onPress={() => audioPlayback.addToQueue(tracks)}
-                style={styles.action}
-                testID="collection-queue">
-                <Text style={styles.actionText}>Add to queue</Text>
-              </FocusableItem>
-            </>
-          ) : null}
-          <FocusableItem
-            focusedStyle={styles.actionFocused}
-            hasTVPreferredFocus={kind === 'genre'}
-            onPress={onBack}
-            style={styles.action}
-            testID="collection-back">
-            <Text style={styles.actionText}>Back</Text>
-          </FocusableItem>
-        </TVFocusGuideView>
-      </View>
-
-      {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-
-      {kind === 'playlist' ? (
-        <View style={styles.trackList}>
-          {tracks.map((track, index) => (
-            <TrackRow
-              isPlaying={track.id === playingTrackId}
-              key={track.id}
-              onAddToQueue={() => audioPlayback.addToQueue([track])}
-              onPlayNext={() => audioPlayback.addNext([track])}
-              onPress={() => playFrom(index)}
-              position={index + 1}
-              showArtist={true}
-              track={track}
-            />
-          ))}
-          {!tracks.length && !errorText ? (
-            <Text style={styles.status}>This playlist is empty.</Text>
-          ) : null}
-        </View>
-      ) : (
-        <View style={styles.grid}>
-          {albums.map((album) => (
+          <TVFocusGuideView style={styles.actions}>
+            {kind === 'playlist' && tracks.length ? (
+              <>
+                <FocusableItem
+                  focusedStyle={styles.actionFocused}
+                  hasTVPreferredFocus={true}
+                  onPress={() => playFrom(0)}
+                  style={styles.action}
+                  testID="collection-play">
+                  <Text style={styles.actionText}>Play</Text>
+                </FocusableItem>
+                <FocusableItem
+                  focusedStyle={styles.actionFocused}
+                  onPress={() => playFrom(0, true)}
+                  style={styles.action}
+                  testID="collection-shuffle">
+                  <Text style={styles.actionText}>Shuffle</Text>
+                </FocusableItem>
+                <FocusableItem
+                  focusedStyle={styles.actionFocused}
+                  onPress={() => audioPlayback.addToQueue(tracks)}
+                  style={styles.action}
+                  testID="collection-queue">
+                  <Text style={styles.actionText}>Add to queue</Text>
+                </FocusableItem>
+              </>
+            ) : null}
             <FocusableItem
-              focusedStyle={styles.tileFocused}
-              key={album.id}
-              onPress={() => onSelectAlbum?.(album.id)}
-              style={styles.tile}
-              testID={`collection-album-${album.id}`}>
-              {album.imageUrl ? (
-                <Image source={{uri: album.imageUrl}} style={styles.cover} />
-              ) : (
-                <View style={[styles.cover, styles.placeholder]}>
-                  <Text style={styles.placeholderText}>
-                    {album.name.slice(0, 1).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text numberOfLines={1} style={styles.tileTitle}>
-                {album.name}
-              </Text>
-              <Text numberOfLines={1} style={styles.tileSubtitle}>
-                {album.albumArtist}
-              </Text>
+              focusedStyle={styles.actionFocused}
+              hasTVPreferredFocus={kind === 'genre'}
+              onPress={onBack}
+              style={styles.action}
+              testID="collection-back">
+              <Text style={styles.actionText}>Back</Text>
             </FocusableItem>
-          ))}
-          {!albums.length && !errorText ? (
-            <Text style={styles.status}>No albums in this genre.</Text>
-          ) : null}
+          </TVFocusGuideView>
         </View>
-      )}
-    </ScrollView>
+
+        {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+
+        {kind === 'playlist' ? (
+          <View style={styles.trackList}>
+            {tracks.map((track, index) => (
+              <TrackRow
+                isPlaying={track.id === playingTrackId}
+                key={track.id}
+                onFocus={() => setFocusedTrackIndex(index)}
+                onPress={() => playFrom(index)}
+                position={index + 1}
+                showArtist={true}
+                track={track}
+              />
+            ))}
+            {!tracks.length && !errorText ? (
+              <Text style={styles.status}>This playlist is empty.</Text>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {albums.map((album) => (
+              <FocusableItem
+                focusedStyle={styles.tileFocused}
+                key={album.id}
+                onPress={() => onSelectAlbum?.(album.id)}
+                style={styles.tile}
+                testID={`collection-album-${album.id}`}>
+                {album.imageUrl ? (
+                  <Image source={{uri: album.imageUrl}} style={styles.cover} />
+                ) : (
+                  <View style={[styles.cover, styles.placeholder]}>
+                    <Text style={styles.placeholderText}>
+                      {album.name.slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text numberOfLines={1} style={styles.tileTitle}>
+                  {album.name}
+                </Text>
+                <Text numberOfLines={1} style={styles.tileSubtitle}>
+                  {album.albumArtist}
+                </Text>
+              </FocusableItem>
+            ))}
+            {!albums.length && !errorText ? (
+              <Text style={styles.status}>No albums in this genre.</Text>
+            ) : null}
+          </View>
+        )}
+      </ScrollView>
+      {actionsVisible && focusedTrack ? (
+        <TrackActionMenu
+          onAddToQueue={() => {
+            audioPlayback.addToQueue([focusedTrack]);
+            setActionsVisible(false);
+          }}
+          onClose={() => setActionsVisible(false)}
+          onOpenQueue={() => {
+            setActionsVisible(false);
+            onOpenQueue?.();
+          }}
+          onPlayNext={() => {
+            audioPlayback.addNext([focusedTrack]);
+            setActionsVisible(false);
+          }}
+          onPlayNow={() => {
+            playFrom(focusedTrackIndex!);
+            setActionsVisible(false);
+          }}
+          track={focusedTrack}
+        />
+      ) : null}
+    </View>
   );
 };
 

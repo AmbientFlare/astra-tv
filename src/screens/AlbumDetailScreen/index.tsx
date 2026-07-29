@@ -21,7 +21,9 @@ import {
 } from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {TrackActionMenu} from '../../components/TrackActionMenu';
 import {TrackRow} from '../../components/TrackRow';
+import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {
   getAlbum,
   getAlbumTracks,
@@ -36,6 +38,7 @@ import {formatTotalRuntime, metaLine} from '../../utils/duration';
 interface AlbumDetailScreenProps {
   albumId: string;
   onBack?: () => void;
+  onOpenQueue?: () => void;
   onViewArtist?: (artistId: string, artistName?: string) => void;
   serverProfile: ServerProfile;
 }
@@ -43,6 +46,7 @@ interface AlbumDetailScreenProps {
 export const AlbumDetailScreen = ({
   albumId,
   onBack,
+  onOpenQueue,
   onViewArtist,
   serverProfile,
 }: AlbumDetailScreenProps) => {
@@ -51,6 +55,10 @@ export const AlbumDetailScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
+  const [focusedTrackIndex, setFocusedTrackIndex] = useState<number | null>(
+    null,
+  );
+  const [actionsVisible, setActionsVisible] = useState(false);
 
   const session: MusicSession = useMemo(
     () => ({
@@ -117,6 +125,24 @@ export const AlbumDetailScreen = ({
     [session, tracks],
   );
 
+  useRemoteInput(
+    (action) => {
+      if (action === 'menu') {
+        if (actionsVisible) {
+          setActionsVisible(false);
+        } else if (focusedTrackIndex !== null) {
+          setActionsVisible(true);
+        }
+      } else if (action === 'back' && actionsVisible) {
+        setActionsVisible(false);
+      }
+    },
+    {
+      allowWhileDisabled: ['back', 'menu'],
+      enabled: !actionsVisible,
+    },
+  );
+
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -146,94 +172,120 @@ export const AlbumDetailScreen = ({
     album.runTimeTicks ??
     tracks.reduce((sum, track) => sum + (track.runTimeTicks ?? 0), 0);
 
-  return (
-    <ScrollView style={styles.root}>
-      <View style={styles.hero}>
-        {album.imageUrl ? (
-          <Image source={{uri: album.imageUrl}} style={styles.cover} />
-        ) : (
-          <View style={[styles.cover, styles.placeholder]}>
-            <Text style={styles.placeholderText}>
-              {album.name.slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <View style={styles.heroText}>
-          <Text numberOfLines={2} style={styles.title}>
-            {album.name}
-          </Text>
-          {album.albumArtist ? (
-            <Text style={styles.artist}>{album.albumArtist}</Text>
-          ) : null}
-          <Text style={styles.meta}>
-            {metaLine(
-              trackCount ? `${trackCount} tracks` : undefined,
-              formatTotalRuntime(totalTicks),
-              album.productionYear,
-            )}
-          </Text>
+  const focusedTrack =
+    focusedTrackIndex === null ? undefined : tracks[focusedTrackIndex];
 
-          <TVFocusGuideView style={styles.actions}>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              hasTVPreferredFocus={true}
-              onPress={() => playFrom(0)}
-              style={styles.action}
-              testID="album-play">
-              <Text style={styles.actionText}>Play</Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              onPress={() => playFrom(0, true)}
-              style={styles.action}
-              testID="album-shuffle">
-              <Text style={styles.actionText}>Shuffle</Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              onPress={() => audioPlayback.addToQueue(tracks)}
-              style={styles.action}
-              testID="album-queue">
-              <Text style={styles.actionText}>Add to queue</Text>
-            </FocusableItem>
-            {album.albumArtistId ? (
+  return (
+    <View style={styles.root}>
+      <ScrollView>
+        <View style={styles.hero}>
+          {album.imageUrl ? (
+            <Image source={{uri: album.imageUrl}} style={styles.cover} />
+          ) : (
+            <View style={[styles.cover, styles.placeholder]}>
+              <Text style={styles.placeholderText}>
+                {album.name.slice(0, 1).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.heroText}>
+            <Text numberOfLines={2} style={styles.title}>
+              {album.name}
+            </Text>
+            {album.albumArtist ? (
+              <Text style={styles.artist}>{album.albumArtist}</Text>
+            ) : null}
+            <Text style={styles.meta}>
+              {metaLine(
+                trackCount ? `${trackCount} tracks` : undefined,
+                formatTotalRuntime(totalTicks),
+                album.productionYear,
+              )}
+            </Text>
+
+            <TVFocusGuideView style={styles.actions}>
               <FocusableItem
                 focusedStyle={styles.actionFocused}
-                onPress={() =>
-                  onViewArtist?.(album.albumArtistId!, album.albumArtist)
-                }
+                hasTVPreferredFocus={true}
+                onPress={() => playFrom(0)}
                 style={styles.action}
-                testID="album-view-artist">
-                <Text style={styles.actionText}>View artist</Text>
+                testID="album-play">
+                <Text style={styles.actionText}>Play</Text>
               </FocusableItem>
-            ) : null}
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              onPress={onBack}
-              style={styles.action}
-              testID="album-back">
-              <Text style={styles.actionText}>Back</Text>
-            </FocusableItem>
-          </TVFocusGuideView>
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                onPress={() => playFrom(0, true)}
+                style={styles.action}
+                testID="album-shuffle">
+                <Text style={styles.actionText}>Shuffle</Text>
+              </FocusableItem>
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                onPress={() => audioPlayback.addToQueue(tracks)}
+                style={styles.action}
+                testID="album-queue">
+                <Text style={styles.actionText}>Add to queue</Text>
+              </FocusableItem>
+              {album.albumArtistId ? (
+                <FocusableItem
+                  focusedStyle={styles.actionFocused}
+                  onPress={() =>
+                    onViewArtist?.(album.albumArtistId!, album.albumArtist)
+                  }
+                  style={styles.action}
+                  testID="album-view-artist">
+                  <Text style={styles.actionText}>View artist</Text>
+                </FocusableItem>
+              ) : null}
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                onPress={onBack}
+                style={styles.action}
+                testID="album-back">
+                <Text style={styles.actionText}>Back</Text>
+              </FocusableItem>
+            </TVFocusGuideView>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.trackList}>
-        {tracks.map((track, index) => (
-          <TrackRow
-            isPlaying={track.id === playingTrackId}
-            key={track.id}
-            onAddToQueue={() => audioPlayback.addToQueue([track])}
-            onPlayNext={() => audioPlayback.addNext([track])}
-            onPress={() => playFrom(index)}
-            track={track}
-          />
-        ))}
-        {!tracks.length ? (
-          <Text style={styles.status}>This album has no tracks.</Text>
-        ) : null}
-      </View>
-    </ScrollView>
+        <View style={styles.trackList}>
+          {tracks.map((track, index) => (
+            <TrackRow
+              isPlaying={track.id === playingTrackId}
+              key={track.id}
+              onFocus={() => setFocusedTrackIndex(index)}
+              onPress={() => playFrom(index)}
+              track={track}
+            />
+          ))}
+          {!tracks.length ? (
+            <Text style={styles.status}>This album has no tracks.</Text>
+          ) : null}
+        </View>
+      </ScrollView>
+      {actionsVisible && focusedTrack ? (
+        <TrackActionMenu
+          onAddToQueue={() => {
+            audioPlayback.addToQueue([focusedTrack]);
+            setActionsVisible(false);
+          }}
+          onClose={() => setActionsVisible(false)}
+          onOpenQueue={() => {
+            setActionsVisible(false);
+            onOpenQueue?.();
+          }}
+          onPlayNext={() => {
+            audioPlayback.addNext([focusedTrack]);
+            setActionsVisible(false);
+          }}
+          onPlayNow={() => {
+            playFrom(focusedTrackIndex!);
+            setActionsVisible(false);
+          }}
+          track={focusedTrack}
+        />
+      ) : null}
+    </View>
   );
 };
 

@@ -15,7 +15,7 @@
  *    something meaningful on first run. It is labelled "Popular" only when it
  *    is genuinely play-count based.
  */
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -26,7 +26,9 @@ import {
 } from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {TrackActionMenu} from '../../components/TrackActionMenu';
 import {TrackRow} from '../../components/TrackRow';
+import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {
   getAlbumTracks,
   getArtist,
@@ -44,6 +46,7 @@ import {formatTotalRuntime, metaLine} from '../../utils/duration';
 interface ArtistDetailScreenProps {
   artistId: string;
   onBack?: () => void;
+  onOpenQueue?: () => void;
   onSelectAlbum?: (albumId: string) => void;
   serverProfile: ServerProfile;
 }
@@ -53,9 +56,16 @@ interface AlbumWithTracks {
   tracks: MusicTrack[];
 }
 
+interface FocusedTrack {
+  index: number;
+  source: MusicTrack[];
+  track: MusicTrack;
+}
+
 export const ArtistDetailScreen = ({
   artistId,
   onBack,
+  onOpenQueue,
   onSelectAlbum,
   serverProfile,
 }: ArtistDetailScreenProps) => {
@@ -72,6 +82,10 @@ export const ArtistDetailScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
+  const [focusedTrack, setFocusedTrack] = useState<FocusedTrack | null>(null);
+  const [actionsVisible, setActionsVisible] = useState(false);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const jumpPresses = useRef({action: '', count: 0, time: 0});
 
   const session: MusicSession = useMemo(
     () => ({
@@ -211,6 +225,51 @@ export const ArtistDetailScreen = ({
     [session],
   );
 
+  useRemoteInput(
+    (action) => {
+      if (action === 'menu') {
+        if (actionsVisible) {
+          setActionsVisible(false);
+        } else if (focusedTrack) {
+          setActionsVisible(true);
+        }
+        return;
+      }
+
+      if (action === 'back' && actionsVisible) {
+        setActionsVisible(false);
+        return;
+      }
+
+      if (!expanded || (action !== 'down' && action !== 'up')) {
+        return;
+      }
+
+      const now = Date.now();
+      const previous = jumpPresses.current;
+      const count =
+        previous.action === action && now - previous.time < 1200
+          ? previous.count + 1
+          : 1;
+
+      jumpPresses.current = {action, count, time: now};
+
+      if (count >= 3) {
+        jumpPresses.current = {action: '', count: 0, time: now};
+        if (action === 'down') {
+          scrollRef.current?.scrollToEnd({animated: true});
+        } else {
+          scrollRef.current?.scrollTo({animated: true, y: 0});
+        }
+      }
+    },
+    {
+      allowWhileDisabled: ['back', 'menu'],
+      dedupeMs: 180,
+      enabled: !actionsVisible,
+    },
+  );
+
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -236,158 +295,207 @@ export const ArtistDetailScreen = ({
   }
 
   return (
-    <ScrollView style={styles.root}>
-      <View style={styles.hero}>
-        {artist?.imageUrl ? (
-          <Image source={{uri: artist.imageUrl}} style={styles.portrait} />
-        ) : (
-          <View style={[styles.portrait, styles.placeholder]}>
-            <Text style={styles.placeholderText}>
-              {(artist?.name ?? '?').slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <View style={styles.heroText}>
-          <Text numberOfLines={2} style={styles.title}>
-            {artist?.name}
-          </Text>
-          <Text style={styles.meta}>
-            {metaLine(
-              albums.length ? `${albums.length} albums` : undefined,
-              expanded
-                ? `${expanded.reduce(
-                    (sum, entry) => sum + entry.tracks.length,
-                    0,
-                  )} tracks`
-                : undefined,
-            )}
-          </Text>
-
-          <TVFocusGuideView style={styles.actions}>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              hasTVPreferredFocus={true}
-              onPress={() => playAll(false)}
-              style={styles.action}
-              testID="artist-play-all">
-              <Text style={styles.actionText}>Play all</Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              onPress={() => playAll(true)}
-              style={styles.action}
-              testID="artist-shuffle">
-              <Text style={styles.actionText}>Shuffle</Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              onPress={toggleExpand}
-              style={styles.action}
-              testID="artist-expand">
-              <Text style={styles.actionText}>
-                {isExpanding
-                  ? 'Loading...'
-                  : expanded
-                  ? 'Collapse albums'
-                  : 'Expand all albums'}
+    <View style={styles.root}>
+      <ScrollView ref={scrollRef}>
+        <View style={styles.hero}>
+          {artist?.imageUrl ? (
+            <Image source={{uri: artist.imageUrl}} style={styles.portrait} />
+          ) : (
+            <View style={[styles.portrait, styles.placeholder]}>
+              <Text style={styles.placeholderText}>
+                {(artist?.name ?? '?').slice(0, 1).toUpperCase()}
               </Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.actionFocused}
-              onPress={onBack}
-              style={styles.action}
-              testID="artist-back">
-              <Text style={styles.actionText}>Back</Text>
-            </FocusableItem>
-          </TVFocusGuideView>
-        </View>
-      </View>
-
-      {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-
-      {topTracks.length && !expanded ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {hasPlayCounts ? 'Popular' : 'Tracks'}
-          </Text>
-          {topTracks.map((track, index) => (
-            <TrackRow
-              isPlaying={track.id === playingTrackId}
-              key={track.id}
-              onAddToQueue={() => audioPlayback.addToQueue([track])}
-              onPlayNext={() => audioPlayback.addNext([track])}
-              onPress={() => playTracks(topTracks, index)}
-              position={index + 1}
-              track={track}
-            />
-          ))}
-        </View>
-      ) : null}
-
-      {expanded ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>All tracks</Text>
-          {expanded.map((entry) => (
-            <View key={entry.album.id}>
-              <Text style={styles.albumHeading}>
-                {metaLine(entry.album.name, entry.album.productionYear)}
-              </Text>
-              {entry.tracks.map((track, index) => (
-                <TrackRow
-                  isPlaying={track.id === playingTrackId}
-                  key={track.id}
-                  onAddToQueue={() => audioPlayback.addToQueue([track])}
-                  onPlayNext={() => audioPlayback.addNext([track])}
-                  onPress={() => playTracks(entry.tracks, index)}
-                  track={track}
-                />
-              ))}
             </View>
-          ))}
+          )}
+          <View style={styles.heroText}>
+            <Text numberOfLines={2} style={styles.title}>
+              {artist?.name}
+            </Text>
+            <Text style={styles.meta}>
+              {metaLine(
+                albums.length ? `${albums.length} albums` : undefined,
+                expanded
+                  ? `${expanded.reduce(
+                      (sum, entry) => sum + entry.tracks.length,
+                      0,
+                    )} tracks`
+                  : undefined,
+              )}
+            </Text>
+
+            <TVFocusGuideView style={styles.actions}>
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                hasTVPreferredFocus={true}
+                onPress={() => playAll(false)}
+                style={styles.action}
+                testID="artist-play-all">
+                <Text style={styles.actionText}>Play all</Text>
+              </FocusableItem>
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                onPress={() => playAll(true)}
+                style={styles.action}
+                testID="artist-shuffle">
+                <Text style={styles.actionText}>Shuffle</Text>
+              </FocusableItem>
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                onPress={toggleExpand}
+                style={styles.action}
+                testID="artist-expand">
+                <Text style={styles.actionText}>
+                  {isExpanding
+                    ? 'Loading...'
+                    : expanded
+                    ? 'Collapse albums'
+                    : 'Expand all albums'}
+                </Text>
+              </FocusableItem>
+              <FocusableItem
+                focusedStyle={styles.actionFocused}
+                onPress={onBack}
+                style={styles.action}
+                testID="artist-back">
+                <Text style={styles.actionText}>Back</Text>
+              </FocusableItem>
+            </TVFocusGuideView>
+          </View>
         </View>
-      ) : (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Albums</Text>
-          <ScrollView horizontal={true}>
-            <TVFocusGuideView style={styles.albumRow}>
-              {albums.map((album) => (
-                <FocusableItem
-                  focusedStyle={styles.albumFocused}
-                  key={album.id}
-                  onPress={() => onSelectAlbum?.(album.id)}
-                  style={styles.albumTile}
-                  testID={`artist-album-${album.id}`}>
-                  {album.imageUrl ? (
+
+        {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+
+        {topTracks.length && !expanded ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {hasPlayCounts ? 'Popular' : 'Tracks'}
+            </Text>
+            {topTracks.map((track, index) => (
+              <TrackRow
+                isPlaying={track.id === playingTrackId}
+                key={track.id}
+                onFocus={() =>
+                  setFocusedTrack({index, source: topTracks, track})
+                }
+                onPress={() => playTracks(topTracks, index)}
+                position={index + 1}
+                track={track}
+              />
+            ))}
+          </View>
+        ) : null}
+
+        {expanded ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>All tracks</Text>
+            {expanded.map((entry) => (
+              <View key={entry.album.id}>
+                <View style={styles.albumHeading}>
+                  {entry.album.imageUrl ? (
                     <Image
-                      source={{uri: album.imageUrl}}
-                      style={styles.albumCover}
+                      source={{uri: entry.album.imageUrl}}
+                      style={styles.albumHeadingArt}
                     />
                   ) : (
-                    <View style={[styles.albumCover, styles.placeholder]}>
-                      <Text style={styles.placeholderText}>
-                        {album.name.slice(0, 1).toUpperCase()}
+                    <View style={[styles.albumHeadingArt, styles.placeholder]}>
+                      <Text style={styles.albumHeadingPlaceholder}>
+                        {entry.album.name.slice(0, 1).toUpperCase()}
                       </Text>
                     </View>
                   )}
-                  <Text numberOfLines={1} style={styles.albumName}>
-                    {album.name}
-                  </Text>
-                  <Text style={styles.albumMeta}>
-                    {metaLine(
-                      album.productionYear,
-                      formatTotalRuntime(album.runTimeTicks),
+                  <View>
+                    <Text style={styles.albumHeadingTitle}>
+                      {entry.album.name}
+                    </Text>
+                    <Text style={styles.albumHeadingYear}>
+                      {entry.album.productionYear}
+                    </Text>
+                  </View>
+                </View>
+                {entry.tracks.map((track, index) => (
+                  <TrackRow
+                    isPlaying={track.id === playingTrackId}
+                    key={track.id}
+                    onFocus={() =>
+                      setFocusedTrack({
+                        index,
+                        source: entry.tracks,
+                        track,
+                      })
+                    }
+                    onPress={() => playTracks(entry.tracks, index)}
+                    track={track}
+                  />
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Albums</Text>
+            <ScrollView horizontal={true}>
+              <TVFocusGuideView style={styles.albumRow}>
+                {albums.map((album) => (
+                  <FocusableItem
+                    focusedStyle={styles.albumFocused}
+                    key={album.id}
+                    onPress={() => onSelectAlbum?.(album.id)}
+                    style={styles.albumTile}
+                    testID={`artist-album-${album.id}`}>
+                    {album.imageUrl ? (
+                      <Image
+                        source={{uri: album.imageUrl}}
+                        style={styles.albumCover}
+                      />
+                    ) : (
+                      <View style={[styles.albumCover, styles.placeholder]}>
+                        <Text style={styles.placeholderText}>
+                          {album.name.slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
                     )}
-                  </Text>
-                </FocusableItem>
-              ))}
-            </TVFocusGuideView>
-          </ScrollView>
-          {!albums.length ? (
-            <Text style={styles.status}>No albums for this artist.</Text>
-          ) : null}
-        </View>
-      )}
-    </ScrollView>
+                    <Text numberOfLines={1} style={styles.albumName}>
+                      {album.name}
+                    </Text>
+                    <Text style={styles.albumMeta}>
+                      {metaLine(
+                        album.productionYear,
+                        formatTotalRuntime(album.runTimeTicks),
+                      )}
+                    </Text>
+                  </FocusableItem>
+                ))}
+              </TVFocusGuideView>
+            </ScrollView>
+            {!albums.length ? (
+              <Text style={styles.status}>No albums for this artist.</Text>
+            ) : null}
+          </View>
+        )}
+      </ScrollView>
+      {actionsVisible && focusedTrack ? (
+        <TrackActionMenu
+          onAddToQueue={() => {
+            audioPlayback.addToQueue([focusedTrack.track]);
+            setActionsVisible(false);
+          }}
+          onClose={() => setActionsVisible(false)}
+          onOpenQueue={() => {
+            setActionsVisible(false);
+            onOpenQueue?.();
+          }}
+          onPlayNext={() => {
+            audioPlayback.addNext([focusedTrack.track]);
+            setActionsVisible(false);
+          }}
+          onPlayNow={() => {
+            playTracks(focusedTrack.source, focusedTrack.index);
+            setActionsVisible(false);
+          }}
+          track={focusedTrack.track}
+        />
+      ) : null}
+    </View>
   );
 };
 
@@ -430,12 +538,26 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   albumHeading: {
-    color: '#c8d2dc',
-    fontSize: 19,
-    fontWeight: '600',
+    alignItems: 'center',
+    flexDirection: 'row',
     marginTop: 18,
     paddingHorizontal: 14,
+    paddingVertical: 8,
   },
+  albumHeadingArt: {
+    backgroundColor: '#161b22',
+    borderRadius: 6,
+    height: 76,
+    marginRight: 14,
+    width: 76,
+  },
+  albumHeadingPlaceholder: {
+    color: '#54d38a',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  albumHeadingTitle: {color: '#c8d2dc', fontSize: 21, fontWeight: '700'},
+  albumHeadingYear: {color: '#71808d', fontSize: 15, marginTop: 3},
   albumRow: {flexDirection: 'row'},
   albumTile: {marginRight: 16, width: 200},
   albumFocused: {transform: [{scale: 1.05}]},
