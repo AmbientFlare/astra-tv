@@ -5,9 +5,9 @@
  * Two decisions worth knowing about:
  *
  * 1. EXPAND ALL. Jellyfin's client makes you open each album to reach its
- *    tracks, which is painful when assembling a queue. "Expand all albums"
+ *    tracks, which is painful when browsing a large discography. "Expand all albums"
  *    inlines every track in release order so a whole discography can be
- *    queued, or individual tracks picked, without leaving the screen.
+ *    played without leaving the screen.
  *
  * 2. TOP TRACKS ARE BEST-EFFORT. Jellyfin has no global popularity, only this
  *    user's own play counts — zero across a freshly added library. The API
@@ -26,7 +26,6 @@ import {
 } from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
-import {TrackActionMenu} from '../../components/TrackActionMenu';
 import {TrackRow} from '../../components/TrackRow';
 import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {
@@ -46,7 +45,6 @@ import {formatTotalRuntime, metaLine} from '../../utils/duration';
 interface ArtistDetailScreenProps {
   artistId: string;
   onBack?: () => void;
-  onOpenQueue?: () => void;
   onSelectAlbum?: (albumId: string) => void;
   serverProfile: ServerProfile;
 }
@@ -56,16 +54,9 @@ interface AlbumWithTracks {
   tracks: MusicTrack[];
 }
 
-interface FocusedTrack {
-  index: number;
-  source: MusicTrack[];
-  track: MusicTrack;
-}
-
 export const ArtistDetailScreen = ({
   artistId,
   onBack,
-  onOpenQueue,
   onSelectAlbum,
   serverProfile,
 }: ArtistDetailScreenProps) => {
@@ -82,8 +73,6 @@ export const ArtistDetailScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [focusedTrack, setFocusedTrack] = useState<FocusedTrack | null>(null);
-  const [actionsVisible, setActionsVisible] = useState(false);
   const scrollRef = useRef<ScrollView | null>(null);
   const jumpPresses = useRef({action: '', count: 0, time: 0});
 
@@ -171,7 +160,7 @@ export const ArtistDetailScreen = ({
     }
 
     // Newest first — the user wants recent work at the top when scanning a
-    // discography for something to queue.
+    // discography for something to play.
     const ordered = [...albums].sort(
       (left, right) => (right.productionYear ?? 0) - (left.productionYear ?? 0),
     );
@@ -227,20 +216,6 @@ export const ArtistDetailScreen = ({
 
   useRemoteInput(
     (action) => {
-      if (action === 'menu') {
-        if (actionsVisible) {
-          setActionsVisible(false);
-        } else if (focusedTrack) {
-          setActionsVisible(true);
-        }
-        return;
-      }
-
-      if (action === 'back' && actionsVisible) {
-        setActionsVisible(false);
-        return;
-      }
-
       if (!expanded || (action !== 'down' && action !== 'up')) {
         return;
       }
@@ -264,9 +239,7 @@ export const ArtistDetailScreen = ({
       }
     },
     {
-      allowWhileDisabled: ['back', 'menu'],
       dedupeMs: 180,
-      enabled: !actionsVisible,
     },
   );
 
@@ -374,10 +347,6 @@ export const ArtistDetailScreen = ({
               <TrackRow
                 isPlaying={track.id === playingTrackId}
                 key={track.id}
-                onFocus={() =>
-                  setFocusedTrack({index, source: topTracks, track})
-                }
-                onLongPress={() => audioPlayback.addNext([track])}
                 onPress={() => playTracks(topTracks, index)}
                 position={index + 1}
                 track={track}
@@ -417,14 +386,6 @@ export const ArtistDetailScreen = ({
                   <TrackRow
                     isPlaying={track.id === playingTrackId}
                     key={track.id}
-                    onFocus={() =>
-                      setFocusedTrack({
-                        index,
-                        source: entry.tracks,
-                        track,
-                      })
-                    }
-                    onLongPress={() => audioPlayback.addNext([track])}
                     onPress={() => playTracks(entry.tracks, index)}
                     track={track}
                   />
@@ -475,28 +436,6 @@ export const ArtistDetailScreen = ({
           </View>
         )}
       </ScrollView>
-      {actionsVisible && focusedTrack ? (
-        <TrackActionMenu
-          onAddToQueue={() => {
-            audioPlayback.addToQueue([focusedTrack.track]);
-            setActionsVisible(false);
-          }}
-          onClose={() => setActionsVisible(false)}
-          onOpenQueue={() => {
-            setActionsVisible(false);
-            onOpenQueue?.();
-          }}
-          onPlayNext={() => {
-            audioPlayback.addNext([focusedTrack.track]);
-            setActionsVisible(false);
-          }}
-          onPlayNow={() => {
-            playTracks(focusedTrack.source, focusedTrack.index);
-            setActionsVisible(false);
-          }}
-          track={focusedTrack.track}
-        />
-      ) : null}
     </View>
   );
 };

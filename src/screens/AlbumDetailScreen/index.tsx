@@ -21,9 +21,7 @@ import {
 } from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
-import {TrackActionMenu} from '../../components/TrackActionMenu';
 import {TrackRow} from '../../components/TrackRow';
-import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {
   getAlbum,
   getAlbumTracks,
@@ -38,7 +36,6 @@ import {formatTotalRuntime, metaLine} from '../../utils/duration';
 interface AlbumDetailScreenProps {
   albumId: string;
   onBack?: () => void;
-  onOpenQueue?: () => void;
   onViewArtist?: (artistId: string, artistName?: string) => void;
   serverProfile: ServerProfile;
 }
@@ -46,7 +43,6 @@ interface AlbumDetailScreenProps {
 export const AlbumDetailScreen = ({
   albumId,
   onBack,
-  onOpenQueue,
   onViewArtist,
   serverProfile,
 }: AlbumDetailScreenProps) => {
@@ -55,10 +51,6 @@ export const AlbumDetailScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [focusedTrackIndex, setFocusedTrackIndex] = useState<number | null>(
-    null,
-  );
-  const [actionsVisible, setActionsVisible] = useState(false);
 
   const session: MusicSession = useMemo(
     () => ({
@@ -125,24 +117,6 @@ export const AlbumDetailScreen = ({
     [session, tracks],
   );
 
-  useRemoteInput(
-    (action) => {
-      if (action === 'menu') {
-        if (actionsVisible) {
-          setActionsVisible(false);
-        } else if (focusedTrackIndex !== null) {
-          setActionsVisible(true);
-        }
-      } else if (action === 'back' && actionsVisible) {
-        setActionsVisible(false);
-      }
-    },
-    {
-      allowWhileDisabled: ['back', 'menu'],
-      enabled: !actionsVisible,
-    },
-  );
-
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -171,9 +145,6 @@ export const AlbumDetailScreen = ({
   const totalTicks =
     album.runTimeTicks ??
     tracks.reduce((sum, track) => sum + (track.runTimeTicks ?? 0), 0);
-
-  const focusedTrack =
-    focusedTrackIndex === null ? undefined : tracks[focusedTrackIndex];
 
   return (
     <View style={styles.root}>
@@ -219,13 +190,6 @@ export const AlbumDetailScreen = ({
                 testID="album-shuffle">
                 <Text style={styles.actionText}>Shuffle</Text>
               </FocusableItem>
-              <FocusableItem
-                focusedStyle={styles.actionFocused}
-                onPress={() => audioPlayback.addToQueue(tracks)}
-                style={styles.action}
-                testID="album-queue">
-                <Text style={styles.actionText}>Add to queue</Text>
-              </FocusableItem>
               {album.albumArtistId ? (
                 <FocusableItem
                   focusedStyle={styles.actionFocused}
@@ -253,8 +217,6 @@ export const AlbumDetailScreen = ({
             <TrackRow
               isPlaying={track.id === playingTrackId}
               key={track.id}
-              onFocus={() => setFocusedTrackIndex(index)}
-              onLongPress={() => audioPlayback.addNext([track])}
               onPress={() => playFrom(index)}
               track={track}
             />
@@ -264,28 +226,6 @@ export const AlbumDetailScreen = ({
           ) : null}
         </View>
       </ScrollView>
-      {actionsVisible && focusedTrack ? (
-        <TrackActionMenu
-          onAddToQueue={() => {
-            audioPlayback.addToQueue([focusedTrack]);
-            setActionsVisible(false);
-          }}
-          onClose={() => setActionsVisible(false)}
-          onOpenQueue={() => {
-            setActionsVisible(false);
-            onOpenQueue?.();
-          }}
-          onPlayNext={() => {
-            audioPlayback.addNext([focusedTrack]);
-            setActionsVisible(false);
-          }}
-          onPlayNow={() => {
-            playFrom(focusedTrackIndex!);
-            setActionsVisible(false);
-          }}
-          track={focusedTrack}
-        />
-      ) : null}
     </View>
   );
 };

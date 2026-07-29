@@ -17,9 +17,7 @@ import {
 } from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
-import {TrackActionMenu} from '../../components/TrackActionMenu';
 import {TrackRow} from '../../components/TrackRow';
-import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {
   getGenreAlbums,
   getPlaylistTracks,
@@ -37,7 +35,6 @@ interface MusicCollectionScreenProps {
   collectionId: string;
   kind: MusicCollectionKind;
   onBack?: () => void;
-  onOpenQueue?: () => void;
   onSelectAlbum?: (albumId: string) => void;
   serverProfile: ServerProfile;
   title: string;
@@ -47,7 +44,6 @@ export const MusicCollectionScreen = ({
   collectionId,
   kind,
   onBack,
-  onOpenQueue,
   onSelectAlbum,
   serverProfile,
   title,
@@ -57,10 +53,6 @@ export const MusicCollectionScreen = ({
   const [isLoading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
-  const [focusedTrackIndex, setFocusedTrackIndex] = useState<number | null>(
-    null,
-  );
-  const [actionsVisible, setActionsVisible] = useState(false);
 
   const session: MusicSession = useMemo(
     () => ({
@@ -130,24 +122,6 @@ export const MusicCollectionScreen = ({
     [session, tracks],
   );
 
-  useRemoteInput(
-    (action) => {
-      if (action === 'menu') {
-        if (actionsVisible) {
-          setActionsVisible(false);
-        } else if (kind === 'playlist' && focusedTrackIndex !== null) {
-          setActionsVisible(true);
-        }
-      } else if (action === 'back' && actionsVisible) {
-        setActionsVisible(false);
-      }
-    },
-    {
-      allowWhileDisabled: ['back', 'menu'],
-      enabled: !actionsVisible,
-    },
-  );
-
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -160,9 +134,6 @@ export const MusicCollectionScreen = ({
     (sum, track) => sum + (track.runTimeTicks ?? 0),
     0,
   );
-
-  const focusedTrack =
-    focusedTrackIndex === null ? undefined : tracks[focusedTrackIndex];
 
   return (
     <View style={styles.root}>
@@ -198,13 +169,6 @@ export const MusicCollectionScreen = ({
                   testID="collection-shuffle">
                   <Text style={styles.actionText}>Shuffle</Text>
                 </FocusableItem>
-                <FocusableItem
-                  focusedStyle={styles.actionFocused}
-                  onPress={() => audioPlayback.addToQueue(tracks)}
-                  style={styles.action}
-                  testID="collection-queue">
-                  <Text style={styles.actionText}>Add to queue</Text>
-                </FocusableItem>
               </>
             ) : null}
             <FocusableItem
@@ -226,8 +190,6 @@ export const MusicCollectionScreen = ({
               <TrackRow
                 isPlaying={track.id === playingTrackId}
                 key={track.id}
-                onFocus={() => setFocusedTrackIndex(index)}
-                onLongPress={() => audioPlayback.addNext([track])}
                 onPress={() => playFrom(index)}
                 position={index + 1}
                 showArtist={true}
@@ -270,28 +232,6 @@ export const MusicCollectionScreen = ({
           </View>
         )}
       </ScrollView>
-      {actionsVisible && focusedTrack ? (
-        <TrackActionMenu
-          onAddToQueue={() => {
-            audioPlayback.addToQueue([focusedTrack]);
-            setActionsVisible(false);
-          }}
-          onClose={() => setActionsVisible(false)}
-          onOpenQueue={() => {
-            setActionsVisible(false);
-            onOpenQueue?.();
-          }}
-          onPlayNext={() => {
-            audioPlayback.addNext([focusedTrack]);
-            setActionsVisible(false);
-          }}
-          onPlayNow={() => {
-            playFrom(focusedTrackIndex!);
-            setActionsVisible(false);
-          }}
-          track={focusedTrack}
-        />
-      ) : null}
     </View>
   );
 };

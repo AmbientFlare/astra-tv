@@ -366,53 +366,6 @@ export const getPlaylists = (
     MediaTypes: 'Audio',
   });
 
-/** Persist an ordered set of tracks as a Jellyfin audio playlist. */
-export const createMusicPlaylist = async (
-  session: MusicSession,
-  name: string,
-  tracks: MusicTrack[],
-): Promise<string> => {
-  const trimmedName = name.trim();
-  if (!trimmedName) {
-    throw new Error('Enter a playlist name.');
-  }
-
-  const ids = tracks.map((track) => track.id).filter(Boolean);
-  if (!ids.length) {
-    throw new Error('Add at least one track before saving a playlist.');
-  }
-
-  const result = await getJson<{Id?: string; id?: string}>(
-    buildUrl(session.serverUrl, '/Playlists', {
-      Ids: ids.join(','),
-      MediaType: 'Audio',
-      Name: trimmedName,
-      UserId: session.userId,
-      api_key: session.accessToken,
-    }),
-    {
-      body: JSON.stringify({
-        Ids: ids,
-        MediaType: 'Audio',
-        Name: trimmedName,
-        UserId: session.userId,
-      }),
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(session.accessToken),
-      },
-      method: 'POST',
-    },
-  );
-  const playlistId = result?.Id ?? result?.id;
-
-  if (!playlistId) {
-    throw new Error('Jellyfin did not return the saved playlist id.');
-  }
-
-  return playlistId;
-};
-
 export const getSongs = (session: MusicSession, options: PageOptions = {}) =>
   listItems(session, 'Audio', options, 'SortName', mapTrack(session));
 

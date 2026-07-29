@@ -26,7 +26,6 @@ import {audioPlayback} from '../services/audioPlayer';
 import {NowPlayingBar} from '../components/NowPlayingBar';
 import {AudioIdleVisual} from '../components/AudioIdleVisual';
 import {NowPlayingScreen} from '../screens/NowPlayingScreen';
-import {useRemoteLongPress} from '../hooks/useRemoteLongPress';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
 import {
@@ -84,13 +83,6 @@ export const RootNavigator = () => {
   const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
-
-  useRemoteLongPress({
-    enabled:
-      Boolean(audioPlayback.getStatus().track) && current.route !== 'player',
-    onLeft: () => audioPlayback.skipPrevious(),
-    onRight: () => audioPlayback.next(),
-  });
 
   const push = useCallback(
     (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
@@ -385,7 +377,6 @@ export const RootNavigator = () => {
       <ArtistDetailScreen
         artistId={current.artistId}
         onBack={pop}
-        onOpenQueue={() => push({route: 'nowPlaying'})}
         onSelectAlbum={(albumId) => push({route: 'musicAlbum', albumId})}
         serverProfile={serverProfile}
       />,
@@ -397,7 +388,6 @@ export const RootNavigator = () => {
       <AlbumDetailScreen
         albumId={current.albumId}
         onBack={pop}
-        onOpenQueue={() => push({route: 'nowPlaying'})}
         onViewArtist={(artistId) => push({route: 'musicArtist', artistId})}
         serverProfile={serverProfile}
       />,
@@ -410,7 +400,6 @@ export const RootNavigator = () => {
         collectionId={current.collectionId}
         kind={current.kind}
         onBack={pop}
-        onOpenQueue={() => push({route: 'nowPlaying'})}
         onSelectAlbum={(albumId) => push({route: 'musicAlbum', albumId})}
         serverProfile={serverProfile}
         title={current.title}
@@ -419,9 +408,7 @@ export const RootNavigator = () => {
   }
 
   if (current.route === 'nowPlaying') {
-    return withExitPrompt(
-      <NowPlayingScreen onBack={pop} serverProfile={serverProfile} />,
-    );
+    return withExitPrompt(<NowPlayingScreen onBack={pop} />);
   }
 
   if (current.route === 'player' && serverProfile) {

@@ -730,8 +730,8 @@ export const SettingsScreen = ({
                   playlist.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Queue tracks, shuffle, repeat, seek, and keep listening in
-                  the background.
+                  • Play songs and albums, seek, and keep listening in the
+                  background.
                 </Text>
                 <Text style={styles.releaseNotesText}>
                   • Local HTTP servers use HLS audio automatically—no TLS or
