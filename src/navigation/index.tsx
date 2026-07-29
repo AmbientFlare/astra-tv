@@ -26,6 +26,7 @@ import {audioPlayback} from '../services/audioPlayer';
 import {NowPlayingBar} from '../components/NowPlayingBar';
 import {AudioIdleVisual} from '../components/AudioIdleVisual';
 import {NowPlayingScreen} from '../screens/NowPlayingScreen';
+import {useRemoteLongPress} from '../hooks/useRemoteLongPress';
 import {SettingsScreen} from '../screens/SettingsScreen';
 import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
 import {
@@ -83,6 +84,13 @@ export const RootNavigator = () => {
   const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
+
+  useRemoteLongPress({
+    enabled:
+      Boolean(audioPlayback.getStatus().track) && current.route !== 'player',
+    onLeft: () => audioPlayback.skipPrevious(),
+    onRight: () => audioPlayback.next(),
+  });
 
   const push = useCallback(
     (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
@@ -411,7 +419,9 @@ export const RootNavigator = () => {
   }
 
   if (current.route === 'nowPlaying') {
-    return withExitPrompt(<NowPlayingScreen onBack={pop} />);
+    return withExitPrompt(
+      <NowPlayingScreen onBack={pop} serverProfile={serverProfile} />,
+    );
   }
 
   if (current.route === 'player' && serverProfile) {

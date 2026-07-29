@@ -280,6 +280,21 @@ heading. Three Up presses within 1.2 seconds jump to the top; three Down presses
 jump to the bottom. This same counter also makes a held direction accelerate
 once Vega begins emitting repeat events.
 
+### Short/long remote contract
+
+Vega's `eventKeyAction` is used as the authoritative phase signal (`0` down,
+`1` up). A short Left/Right press is not handled by Astra and remains ordinary
+TV focus navigation. A two-second hold fires one previous/next-track command;
+repeat key-down events do not restart or duplicate the timer. Holding Select
+on a track for two seconds calls Play next and replaces its duration briefly
+with `QUEUED NEXT`; FocusableItem suppresses the release-time short action
+after a successful long press.
+
+The Now Playing queue has `Clear queue`, which preserves the current song as a
+one-item queue, and `Save as playlist`. Saving prompts for a name and posts the
+ordered track IDs to Jellyfin's `/Playlists` API so the playlist is available
+to other Jellyfin clients.
+
 ### Debugging workflow — important
 
 **There is no way to read the app's JS console from the host.** Every diagnosis

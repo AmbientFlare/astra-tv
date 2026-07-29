@@ -707,6 +707,15 @@ export class AudioPlaybackService {
       await this.loadCurrent();
     }
   }
+
+  /**
+   * Clear the constructed queue without abruptly stopping the current song.
+   * The playing track becomes a one-item queue.
+   */
+  clearQueue() {
+    const track = this.status.track;
+    this.syncQueue(createQueue(track ? [track] : []));
+  }
 }
 
 /**
