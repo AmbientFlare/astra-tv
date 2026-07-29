@@ -51,68 +51,21 @@ Last updated: 2026-07-29
 - The engagement hint is released on resume and player unmount. It is not held
   while merely browsing Astra, so normal device sleep behavior remains intact.
 - Vega documents engagement as a system-reviewed hint rather than an absolute
-  guarantee; physical-device confirmation is still required.
+  guarantee.
 
 ## Validation
 
 - Build `2026072904` passed lint, TypeScript checking, all 158 tests across 19
   suites, Vega manifest validation, and ABI validation. It was installed and
   launched on device `GT533M0752050H4U`.
-- Build `2026072903` passed lint, TypeScript checking, all 158 tests across 19
-  suites, Vega manifest validation, and ABI validation. It was installed and
-  launched on device `GT533M0752050H4U`.
-- Build `2026072902` passed lint, TypeScript checking, all 164 tests across 21
-  suites, Vega manifest validation, and ABI validation, then was installed and
-  launched on device `GT533M0752050H4U`.
-- Lint: passing.
-- TypeScript (`tsc --noEmit`): passing. `reference/` is excluded because those
-  separately cloned sample projects are not part of Astra's compilation.
-- Vega x86_64 release build 1.0.4 (2026072703): passing.
-- Build 2026072703 installed and launched successfully on device
-  `GT533M0752050H4U`.
-- Device confirmed cleartext HTTP HLS playback and FF/RW seeking.
-- Build 2026072703 restores D-pad Left/Right track changes, makes the
-  now-playing bar focusable for Select-to-pause/play, routes the dedicated
-  Play/Pause event through status-backed state, and clears music when video
-  playback starts. These control changes await device confirmation.
-- Device confirmed D-pad track changes and the audio-to-video handoff. The
-  dedicated Play/Pause button was then observed arriving over both KMC and
-  D-pad: resume played and immediately paused again. Play/Pause is now
-  exclusively KMC-owned in build 2026072704.
-- Vega x86_64 release build 1.0.4 (2026072704) passed validation and was
-  installed and launched on device `GT533M0752050H4U`.
-- Vega x86_64 music-preview build 1.1.0 (2026072705) passed package validation,
-  installed successfully, and launched on device `GT533M0752050H4U`.
-- Vega x86_64 build 1.1.0 (2026072706), including the native User Engagement
-  bridge, passed manifest and ABI validation, then installed and launched
-  successfully on device `GT533M0752050H4U`.
-- Vega x86_64 build 1.1.0 (2026072801), including whole-composition audio idle
-  motion, wake-only first input, and visible per-track queue actions, passed
-  lint, TypeScript, 158 tests, manifest validation, and ABI validation. It was
-  installed and launched successfully on device `GT533M0752050H4U`.
-- Vega x86_64 build 1.1.0 (2026072802) separates cover and metadata motion into
-  independent minute-long continuous paths and removes artwork fading. It
-  passed the same validation suite and was installed and launched successfully
-  on device `GT533M0752050H4U`.
-- Vega x86_64 build 1.1.0 (2026072901) contains the focused-track modal,
-  navigation-safe queue controls, expanded-discography artwork, and accelerated
-  jumps. It passed lint, TypeScript, 159 tests, manifest validation, and ABI
-  validation, then installed and launched successfully on device
-  `GT533M0752050H4U`.
+- Device acceptance confirmed the release is operating correctly, including
+  plain-HTTP music playback, seeking, background playback, Play/Pause,
+  sequential advancement, music-to-video handoff, and the simplified controls.
+- The release artifact is
+  `dist/amazon-submission-1.1.0-20260729/astra-1.1.0-x86_64-release.vpkg`.
 
-## Remaining verification
+## Release status
 
-- Device-test the simplified now-playing controls, idle visual, and series
-  badges when convenient.
-- Confirm every physical remote input dismisses the audio idle visual without
-  also performing its normal action; the second press should act normally.
-- Confirm Left/Right changes tracks on Now Playing but remains normal focus
-  navigation on album, artist, playlist, and general browsing screens.
-- Confirm triple Up/Down jumps and expanded album artwork on a long artist
-  discography.
-- Confirm that Vega's system screensaver does not replace Astra while video is
-  paused, including before and after Astra's three-minute visual appears.
-- Playlist entries without server artwork still use a letter placeholder;
-  composite artwork remains optional polish.
-- Astra reappeared in Apps & Channels after a later full package install, so
-  the launcher-visibility issue is currently considered resolved.
+Astra `1.1.0` build `2026072904` is ready for Amazon Appstore submission.
+Playlist artwork composition remains optional future polish; missing server
+artwork currently uses a letter placeholder.

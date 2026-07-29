@@ -1,20 +1,23 @@
 # Changelog
 
-## 1.1.0 - In development
+## 1.1.0 - 2026-07-29
 
 ### Added
 
 - Music library navigation for artists, albums, genres, and playlists, with
   paginated browsing, remembered poster/list layouts, and an A-Z jump rail.
-- Artist, album, genre, and playlist detail screens with play, shuffle,
-  play-next, and add-to-queue flows.
-- Persistent music playback with queue, shuffle, repeat, seeking, remote media
-  controls, background playback, and a docked now-playing bar.
-- Full now-playing and queue screen with per-track play-now and remove actions.
+- Artist, album, genre, and playlist detail screens with sequential playback
+  and album shuffle.
+- Persistent music playback with seeking, remote media controls, background
+  playback, a docked player, and a simplified Now Playing screen.
 - Three-minute audio idle visual with slowly drifting album art, because Vega
   suppresses its system screensaver while audio is active.
 - Red unwatched-episode count badges on TV series posters, capped at `99+`.
 - Multi-server URL normalization and HTTP/HTTPS connection recovery.
+- Large Movies, TV Shows, and Music home cards backed by poster and album-cover
+  collages from the connected Jellyfin server.
+- Three-minute paused-video idle visual and Vega user-engagement integration to
+  keep burn-in protection inside Astra.
 
 ### Fixed
 
@@ -24,8 +27,8 @@
   silently choose progressive direct play instead of returning a manifest.
 - Remote key down/up duplication, slow-handler duplication, and dual
   D-pad/KMC command delivery no longer double-advance or immediately re-pause.
-- Starting video stops music, unloads its adaptive stream, clears the queue,
-  and removes stale track metadata from the bottom of the screen.
+- Starting video stops music, unloads its adaptive stream, and removes stale
+  track metadata from the bottom of the screen.
 - Auto-capitalized server schemes and host casing no longer invalidate URLs.
 - Video Next/Previous command declarations were restored in the Vega manifest.
 
@@ -35,6 +38,11 @@
   HTTP servers use the compatibility HLS transcode path.
 - Temporary on-screen audio URL and ready-state diagnostics are disabled for
   the release UI.
+- Queue construction, per-track action popups, playlist creation, and
+  music-specific long-press controls were removed after hardware testing showed
+  they conflicted with reliable Vega focus navigation.
+- D-pad Left/Right skips tracks only on Now Playing; it remains ordinary focus
+  navigation everywhere else.
 
 ## 1.0.3 - 2026-07-21
 
