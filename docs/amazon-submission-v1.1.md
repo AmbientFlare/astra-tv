@@ -22,19 +22,35 @@ Expected SHA-256:
 Only x86_64 is included because Amazon's prior device mapping assigned the
 aarch64 and armv7 packages to zero supported devices.
 
-## Release notes
+## Release notes — paste into Amazon
+
+Amazon requires release notes for every language configured for an update.
+These notes appear publicly in the Appstore's Latest updates section and in
+Fire TV update notifications.
 
 ```text
-Astra 1.1.0 adds Jellyfin music browsing and playback for Fire TV. Browse
-artists, albums, genres, and playlists; play songs and albums; seek and control
-playback with the remote; and keep listening while browsing or in the
-background.
+New in Astra 1.1.0:
 
-Local HTTP Jellyfin servers work without TLS setup through automatic HLS audio
-delivery. The update also adds moving burn-in protection for music and paused
-video, unwatched episode badges, and large Movies, TV Shows, and Music cards
-using artwork from the connected server.
+Browse and play music from your personal Jellyfin library by artist, album,
+genre, or playlist. Music can continue while you browse Astra or use another
+Fire TV screen, with remote Play/Pause and seeking controls.
+
+This update also adds larger Movies, TV Shows, and Music cards, unwatched
+episode badges, animated screen protection during music and paused video, and
+improved support for Jellyfin servers on a home network.
+
+We also fixed duplicate remote-button actions, music controls, server address
+handling, and the transition from music to video playback.
 ```
+
+This copy is intentionally customer-facing. It avoids implementation terms
+such as Shaka, AAC/TS, native fetch paths, ABI validation, and queue internals.
+Those details belong in reviewer notes or engineering documentation, not the
+public Latest updates field.
+
+Official Amazon guidance confirms that an update must include release notes
+describing what changed:
+https://developer.amazon.com/docs/app-submission/update-published-app.html
 
 ## Reviewer notes
 
