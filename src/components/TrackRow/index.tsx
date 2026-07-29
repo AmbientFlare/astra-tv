@@ -2,7 +2,7 @@
  * One track in a list. Shared by the album and artist screens so track rows
  * look and behave identically wherever they appear.
  */
-import React, {useEffect, useRef, useState} from 'react';
+import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
 import {MusicTrack} from '../../services/jellyfin/music';
@@ -14,7 +14,6 @@ interface TrackRowProps {
   isPlaying?: boolean;
   onPress: () => void;
   onFocus?: () => void;
-  onLongPress?: () => void;
   /** Overrides the track's own number — used by the artist expand-all view. */
   position?: number;
   /** Shows the artist under the title, for lists spanning multiple artists. */
@@ -27,39 +26,16 @@ export const TrackRow = ({
   isPlaying = false,
   onPress,
   onFocus,
-  onLongPress,
   position,
   showArtist = false,
   track,
 }: TrackRowProps) => {
   const number = position ?? track.indexNumber;
-  const [queuedNext, setQueuedNext] = useState(false);
-  const confirmationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (confirmationTimer.current) {
-        clearTimeout(confirmationTimer.current);
-      }
-    },
-    [],
-  );
-
-  const handleLongPress = () => {
-    onLongPress?.();
-    setQueuedNext(true);
-    if (confirmationTimer.current) {
-      clearTimeout(confirmationTimer.current);
-    }
-    confirmationTimer.current = setTimeout(() => setQueuedNext(false), 2200);
-  };
-
   return (
     <FocusableItem
       focusedStyle={styles.focused}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onFocus={onFocus}
-      onLongPress={onLongPress ? handleLongPress : undefined}
       onPress={onPress}
       style={styles.row}
       testID={`track-row-${track.id}`}>
@@ -78,13 +54,9 @@ export const TrackRow = ({
           </Text>
         ) : null}
       </View>
-      {queuedNext ? (
-        <Text style={styles.queuedNext}>QUEUED NEXT</Text>
-      ) : (
-        <Text style={styles.duration}>
-          {formatTrackDuration(track.runTimeTicks)}
-        </Text>
-      )}
+      <Text style={styles.duration}>
+        {formatTrackDuration(track.runTimeTicks)}
+      </Text>
     </FocusableItem>
   );
 };
@@ -113,11 +85,4 @@ const styles = StyleSheet.create({
   artist: {color: '#8b97a5', fontSize: 14, marginTop: 2},
   duration: {color: '#6f7d8c', fontSize: 15, width: 64, textAlign: 'right'},
   playing: {color: '#54d38a', fontWeight: '700'},
-  queuedNext: {
-    color: '#54d38a',
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'right',
-    width: 120,
-  },
 });

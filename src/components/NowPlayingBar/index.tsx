@@ -44,7 +44,7 @@ export const NowPlayingBar = ({
     return null;
   }
 
-  const {durationSeconds, positionSeconds, queue} = status;
+  const {durationSeconds, positionSeconds} = status;
   const progress =
     durationSeconds > 0
       ? Math.min(Math.max(positionSeconds / durationSeconds, 0), 1)
@@ -96,13 +96,6 @@ export const NowPlayingBar = ({
             {formatSeconds(positionSeconds)}
             {durationSeconds > 0 ? ` / ${formatSeconds(durationSeconds)}` : ''}
           </Text>
-          {queue.tracks.length ? (
-            <Text style={styles.time}>
-              {queue.cursor + 1} of {queue.order.length}
-              {queue.shuffle ? '  shuffle' : ''}
-              {queue.repeat !== 'off' ? `  repeat ${queue.repeat}` : ''}
-            </Text>
-          ) : null}
         </View>
       </View>
 

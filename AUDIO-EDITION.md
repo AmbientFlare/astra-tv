@@ -267,33 +267,23 @@ Kepler Media Controls handler. This covers D-pad navigation, Select, dedicated
 transport buttons, system transport UI, and voice-driven media commands. The
 next physical press operates the normal playback or navigation control.
 
-Individual track rows deliberately contain no side-by-side queue buttons.
-Global D-pad Left/Right track skipping was removed because it collided with TV
-focus navigation. Select plays the focused track; Menu opens a modal containing
-`Play now`, `Play next`, `Add to end of queue`, `View current queue`, and
-`Cancel`. While the modal is visible its controls receive focus, so navigating
-inside it cannot play or skip the underlying list. The focused track row has a
-green underline that spans the row.
+Individual track rows deliberately contain no queue controls or long-press
+actions. Select plays the focused track and playback continues through the
+album or playlist that supplied it. Menu has no music-specific action popup.
 
 Expanded artist discographies render a 76px album cover beside each album
 heading. Three Up presses within 1.2 seconds jump to the top; three Down presses
 jump to the bottom. This same counter also makes a held direction accelerate
 once Vega begins emitting repeat events.
 
-### Short/long remote contract
+### Remote playback contract
 
-Vega's `eventKeyAction` is used as the authoritative phase signal (`0` down,
-`1` up). A short Left/Right press is not handled by Astra and remains ordinary
-TV focus navigation. A two-second hold fires one previous/next-track command;
-repeat key-down events do not restart or duplicate the timer. Holding Select
-on a track for two seconds calls Play next and replaces its duration briefly
-with `QUEUED NEXT`; FocusableItem suppresses the release-time short action
-after a successful long press.
-
-The Now Playing queue has `Clear queue`, which preserves the current song as a
-one-item queue, and `Save as playlist`. Saving prompts for a name and posts the
-ordered track IDs to Jellyfin's `/Playlists` API so the playlist is available
-to other Jellyfin clients.
+Single-press Left/Right changes tracks only while the dedicated Now Playing
+screen is open. The same keys are never claimed on album, artist, playlist, or
+other browsing screens, where they remain ordinary TV focus navigation. There
+are no music long-press commands, editable queue, track action popup, or
+save-as-playlist workflow. Internally the player retains an ordered sequence
+only so a selected album or playlist can advance automatically.
 
 ### Debugging workflow — important
 
@@ -329,8 +319,7 @@ in `metro.config.js` handles this.
 1. **HLS audio path for http servers** — section 3 above.
 
 **Feature work (task 9, partly done):**
-2. Full now-playing screen (the docked bar exists).
-3. Per-track queue actions — the menu button currently does nothing.
+2. Device-confirm the simplified Now Playing Left/Right controls.
 4. **In-app idle visual / screensaver.** Required, not polish: the system
    screensaver does not fire during audio, so a static now-playing screen can
    burn in. Design agreed: after ~3 min idle, cross-fade artwork from the

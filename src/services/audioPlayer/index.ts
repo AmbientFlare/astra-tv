@@ -20,16 +20,10 @@ import {
 import {
   createQueue,
   currentTrack,
-  cycleRepeat,
-  enqueue,
-  jumpTo,
   nextTrack,
-  playNext,
   previousTrack,
   QueueState,
-  removeAt,
   RepeatMode,
-  setShuffle,
 } from '../audioQueue';
 import {audioIdleGate} from '../audioIdleGate';
 import {
@@ -572,11 +566,6 @@ export class AudioPlaybackService {
     await this.loadCurrent();
   }
 
-  async playAtPosition(position: number) {
-    this.syncQueue(jumpTo(this.queue, position));
-    await this.loadCurrent();
-  }
-
   async resume() {
     const player = await this.ensurePlayer();
     player.play();
@@ -651,70 +640,6 @@ export class AudioPlaybackService {
     }
 
     await this.seekTo((player.currentTime ?? 0) + deltaSeconds);
-  }
-
-  // ----------------------------------------------------------- queue edits
-
-  setShuffle(shuffle: boolean) {
-    this.syncQueue(setShuffle(this.queue, shuffle));
-  }
-
-  toggleShuffle() {
-    this.setShuffle(!this.queue.shuffle);
-  }
-
-  cycleRepeat() {
-    this.syncQueue(cycleRepeat(this.queue));
-  }
-
-  setRepeat(repeat: RepeatMode) {
-    this.syncQueue({...this.queue, repeat});
-  }
-
-  /** Append to the end of the queue. Starts playback if nothing is queued. */
-  async addToQueue(tracks: MusicTrack[]) {
-    const wasEmpty = this.queue.tracks.length === 0;
-
-    this.syncQueue(enqueue(this.queue, tracks));
-
-    if (wasEmpty && tracks.length) {
-      await this.loadCurrent();
-    }
-  }
-
-  async addNext(tracks: MusicTrack[]) {
-    const wasEmpty = this.queue.tracks.length === 0;
-
-    this.syncQueue(playNext(this.queue, tracks));
-
-    if (wasEmpty && tracks.length) {
-      await this.loadCurrent();
-    }
-  }
-
-  async removeFromQueue(position: number) {
-    const removingCurrent = position === this.queue.cursor;
-    const nextQueue = removeAt(this.queue, position);
-
-    this.syncQueue(nextQueue);
-    if (!removingCurrent) {
-      return;
-    }
-
-    if (!nextQueue.order.length) {
-      await this.stop();
-    } else {
-      await this.loadCurrent();
-    }
-  }
-
-  /**
-   * Clear the constructed queue without abruptly stopping the current song.
-   * The playing track becomes a one-item queue.
-   */
-  clearQueue() {
-    const track = this.status.track;
-    this.syncQueue(createQueue(track ? [track] : []));
   }
 }
 

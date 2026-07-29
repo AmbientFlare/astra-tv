@@ -1,31 +1,25 @@
 # Implementation Status
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## Audio edition
 
-- Music browsing, queueing, remote controls, and progressive HTTPS playback are
+- Music browsing, sequential playback, remote controls, and progressive HTTPS playback are
   implemented.
 - Cleartext HTTP audio now selects an AAC/TS HLS URL and loads it through
   ShakaPlayer. HTTPS servers retain progressive direct play.
 - URL regression coverage verifies that the HLS request excludes source
   containers such as MP3, because advertising them makes Jellyfin silently
   direct-play the source instead of returning an HLS manifest.
-- Full now-playing and queue UI is implemented with play-now and remove actions.
-- Track rows are single-focus controls again. D-pad Left/Right is reserved for
-  focus navigation and no longer changes tracks globally.
-- Holding D-pad Left or Right for two seconds skips exactly one track backward
-  or forward. Releasing sooner performs only normal focus navigation.
-- Holding Select on a focused song for two seconds inserts it next and shows a
-  temporary `QUEUED NEXT` confirmation; short Select still plays immediately.
-- Menu on a focused album, artist, or playlist track opens an isolated action
-  panel with Play now, Play next, Add to end of queue, and View current queue.
-  The focused row has a green underline, and no queue action is executed merely
-  by navigating.
+- Queue construction, per-track action popups, long-press controls, and
+  save-as-playlist were removed after proving unreliable on Vega hardware.
+- Selecting a song plays it and continues through the source album or playlist.
+  Album Play and Shuffle still replace the current playback sequence.
+- Single-press D-pad Left/Right skips previous/next only on the dedicated Now
+  Playing screen. On every browsing screen those keys remain ordinary focus
+  navigation and cannot accidentally change the playing track.
 - Expanded artist discographies show album artwork beside every album heading.
   Three Up or Down presses within 1.2 seconds jump to the top or bottom.
-- The full queue can be cleared without interrupting the current song and can
-  be saved as a named Jellyfin playlist from the TV keyboard.
 - A three-minute drifting-art idle visual provides burn-in protection while
   Vega suppresses its system screensaver.
 - Temporary audio diagnostics are disabled in the release UI.
@@ -57,11 +51,12 @@ Last updated: 2026-07-28
 
 ## Validation
 
-- Build `2026072902` passed lint, TypeScript checking, all 164 tests across 21 suites, Vega manifest validation, and ABI validation.
-- Build `2026072902` was installed and launched on Vega device `GT533M0752050H4U`.
-- Live-device confirmation is still needed for the two-second remote holds and saving a queue against the user's Jellyfin server.
-
-- Automated tests: 164 passing across 21 suites.
+- Build `2026072903` passed lint, TypeScript checking, all 158 tests across 19
+  suites, Vega manifest validation, and ABI validation. It was installed and
+  launched on device `GT533M0752050H4U`.
+- Build `2026072902` passed lint, TypeScript checking, all 164 tests across 21
+  suites, Vega manifest validation, and ABI validation, then was installed and
+  launched on device `GT533M0752050H4U`.
 - Lint: passing.
 - TypeScript (`tsc --noEmit`): passing. `reference/` is excluded because those
   separately cloned sample projects are not part of Astra's compilation.
@@ -100,13 +95,12 @@ Last updated: 2026-07-28
 
 ## Remaining verification
 
-- Device-test the full now-playing screen, queue actions, idle visual, and
-  series badges when convenient.
+- Device-test the simplified now-playing controls, idle visual, and series
+  badges when convenient.
 - Confirm every physical remote input dismisses the audio idle visual without
   also performing its normal action; the second press should act normally.
-- Confirm Menu opens the focused-track modal without changing playback, each
-  modal queue action affects only that track, and View current queue navigates
-  to the full queue.
+- Confirm Left/Right changes tracks on Now Playing but remains normal focus
+  navigation on album, artist, playlist, and general browsing screens.
 - Confirm triple Up/Down jumps and expanded album artwork on a long artist
   discography.
 - Confirm that Vega's system screensaver does not replace Astra while video is
