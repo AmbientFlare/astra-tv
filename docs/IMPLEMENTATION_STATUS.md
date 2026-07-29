@@ -12,6 +12,14 @@ Last updated: 2026-07-28
   containers such as MP3, because advertising them makes Jellyfin silently
   direct-play the source instead of returning an HLS manifest.
 - Full now-playing and queue UI is implemented with play-now and remove actions.
+- Track rows are single-focus controls again. D-pad Left/Right is reserved for
+  focus navigation and no longer changes tracks globally.
+- Menu on a focused album, artist, or playlist track opens an isolated action
+  panel with Play now, Play next, Add to end of queue, and View current queue.
+  The focused row has a green underline, and no queue action is executed merely
+  by navigating.
+- Expanded artist discographies show album artwork beside every album heading.
+  Three Up or Down presses within 1.2 seconds jump to the top or bottom.
 - A three-minute drifting-art idle visual provides burn-in protection while
   Vega suppresses its system screensaver.
 - Temporary audio diagnostics are disabled in the release UI.
@@ -43,7 +51,7 @@ Last updated: 2026-07-28
 
 ## Validation
 
-- Automated tests: 158 passing across 19 suites.
+- Automated tests: 159 passing across 20 suites.
 - Lint: passing.
 - TypeScript (`tsc --noEmit`): passing. `reference/` is excluded because those
   separately cloned sample projects are not part of Astra's compilation.
@@ -74,6 +82,11 @@ Last updated: 2026-07-28
   independent minute-long continuous paths and removes artwork fading. It
   passed the same validation suite and was installed and launched successfully
   on device `GT533M0752050H4U`.
+- Vega x86_64 build 1.1.0 (2026072901) contains the focused-track modal,
+  navigation-safe queue controls, expanded-discography artwork, and accelerated
+  jumps. It passed lint, TypeScript, 159 tests, manifest validation, and ABI
+  validation, then installed and launched successfully on device
+  `GT533M0752050H4U`.
 
 ## Remaining verification
 
@@ -81,8 +94,11 @@ Last updated: 2026-07-28
   series badges when convenient.
 - Confirm every physical remote input dismisses the audio idle visual without
   also performing its normal action; the second press should act normally.
-- Confirm the broader whole-composition motion looks natural on the panel and
-  all `Play next` / `+ Queue` controls work on album, artist, and playlist rows.
+- Confirm Menu opens the focused-track modal without changing playback, each
+  modal queue action affects only that track, and View current queue navigates
+  to the full queue.
+- Confirm triple Up/Down jumps and expanded album artwork on a long artist
+  discography.
 - Confirm that Vega's system screensaver does not replace Astra while video is
   paused, including before and after Astra's three-minute visual appears.
 - Playlist entries without server artwork still use a letter placeholder;
