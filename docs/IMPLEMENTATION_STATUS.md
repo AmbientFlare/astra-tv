@@ -1,6 +1,18 @@
 # Implementation Status
 
-Last updated: 2026-07-29
+Last updated: 2026-08-04
+
+## Astra 1.1.1 stability patch
+
+- TVTextInput teardown blurs the native input, dismisses the keyboard, and
+  cancels delayed focus before unmount. Search and Setup also dismiss every
+  accessible input before navigation or wizard-step changes.
+- ShakaPlayer gates SourceBuffer `appendBuffer`, `remove`, and `abort` calls
+  through a serialized queue. Seeks, loads, and unloads wait for the queue to
+  settle before touching the media pipeline.
+- Player and Library timer callbacks snapshot native references and cleanup
+  clears timers before releasing refs, preventing stale callbacks from
+  reaching replaced Vega objects.
 
 ## Audio edition
 
@@ -55,8 +67,16 @@ Last updated: 2026-07-29
 
 ## Validation
 
-- Build `2026072904` passed lint, TypeScript checking, all 158 tests across 19
-  suites, Vega manifest validation, and ABI validation. It was installed and
+- Astra 1.1.1 local validation passed ESLint, TypeScript checking, and all 158
+  Jest tests across 19 suites.
+- Release build generated the 1.1.1 JS/Hermes bundle, validated `manifest.toml`
+  and ABI compatibility, and created the x86_64 VPKG. The build targets
+  x86_64 because the existing `@astra/user-engagement` release artifact is
+  x86_64 and prior Amazon submissions used that target. No native C++ code was
+  changed.
+
+- Astra 1.1.0 build `2026072904` passed lint, TypeScript checking, all 158 tests
+  across 19 suites, Vega manifest validation, and ABI validation. It was installed and
   launched on device `GT533M0752050H4U`.
 - Device acceptance confirmed the release is operating correctly, including
   plain-HTTP music playback, seeking, background playback, Play/Pause,
@@ -66,6 +86,9 @@ Last updated: 2026-07-29
 
 ## Release status
 
-Astra `1.1.0` build `2026072904` is ready for Amazon Appstore submission.
+Astra `1.1.1` build `2026080401` is prepared as a stability patch. The upload
+package is `dist/amazon-submission-1.1.1-20260804/astra-1.1.1-x86_64-release.vpkg`.
+A new physical-device acceptance pass and Amazon Appstore upload remain to be
+run.
 Playlist artwork composition remains optional future polish; missing server
 artwork currently uses a letter placeholder.

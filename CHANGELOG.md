@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1 - 2026-08-04
+
+### Fixed
+
+- Text inputs now blur and dismiss the Vega keyboard before Search or Setup
+  navigates away or unmounts.
+- Shaka SourceBuffer appends, removes, and aborts are serialized before seeks
+  and player teardown.
+- Player and Library timers snapshot references and are cleared before those
+  references are released.
+
 ## 1.1.0 - 2026-07-29
 
 ### Added

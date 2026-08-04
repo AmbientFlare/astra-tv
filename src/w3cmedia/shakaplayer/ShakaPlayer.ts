@@ -49,6 +49,11 @@ export class ShakaPlayer implements PlayerInterface {
   player: shaka.Player;
   private setting_: ShakaPlayerSettings;
   private mediaElement: HTMLMediaElement | null;
+  private isAppending: boolean = false;
+  private appendQueue: Array<() => Promise<void>> = [];
+  private appendDrainPromise: Promise<void> | null = null;
+  private appendHooksCleanup: (() => void) | null = null;
+  private lifecycleQueue: Promise<void> = Promise.resolve();
 
   static readonly enableNativeParsing = false;
   static readonly enableNativeXmlParsing = false;
@@ -59,6 +64,201 @@ export class ShakaPlayer implements PlayerInterface {
   ) {
     this.mediaElement = mediaElement;
     this.setting_ = setting;
+  }
+
+  private enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.lifecycleQueue.then(operation, operation);
+    this.lifecycleQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
+  private enqueueBufferOperation(
+    operation: () => Promise<void>,
+    append: boolean,
+  ): void {
+    this.appendQueue.push(async () => {
+      if (append) {
+        this.isAppending = true;
+      }
+
+      try {
+        await operation();
+      } finally {
+        if (append) {
+          this.isAppending = false;
+        }
+      }
+    });
+
+    if (!this.appendDrainPromise) {
+      this.appendDrainPromise = this.drainAppendQueue();
+    }
+  }
+
+  private async drainAppendQueue(): Promise<void> {
+    while (this.appendQueue.length > 0) {
+      const operation = this.appendQueue.shift();
+      if (!operation) {
+        continue;
+      }
+
+      try {
+        await operation();
+      } catch (error) {
+        // Shaka still receives the SourceBuffer error event. Continue draining
+        // so a failed segment cannot strand teardown or a later seek.
+        console.warn('[Astra] Serialized MSE operation failed:', error);
+      }
+    }
+
+    this.appendDrainPromise = null;
+  }
+
+  /** Wait for all SourceBuffer work already handed to the native pipeline. */
+  async waitForAppendComplete(): Promise<void> {
+    while (this.appendDrainPromise || this.appendQueue.length > 0) {
+      const drain = this.appendDrainPromise;
+      if (drain) {
+        await drain;
+      } else {
+        await Promise.resolve();
+      }
+    }
+  }
+
+  private waitForSourceBufferUpdate(sourceBuffer: any, action: () => void) {
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const cleanup = () => {
+        sourceBuffer.removeEventListener?.('updateend', onUpdateEnd);
+        sourceBuffer.removeEventListener?.('abort', onAbort);
+        sourceBuffer.removeEventListener?.('error', onError);
+      };
+      const finish = (error?: unknown) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+      const onUpdateEnd = () => finish();
+      const onAbort = () => finish();
+      const onError = (error: unknown) =>
+        finish(error ?? new Error('SourceBuffer error'));
+
+      sourceBuffer.addEventListener?.('updateend', onUpdateEnd);
+      sourceBuffer.addEventListener?.('abort', onAbort);
+      sourceBuffer.addEventListener?.('error', onError);
+
+      try {
+        action();
+      } catch (error) {
+        finish(error);
+        return;
+      }
+
+      // Some Vega SourceBuffer operations complete synchronously. Defer this
+      // check one turn so appendBuffer can set `updating` first.
+      Promise.resolve().then(() => {
+        if (!sourceBuffer.updating) {
+          finish();
+        }
+      });
+    });
+  }
+
+  private wrapSourceBuffer(sourceBuffer: any): void {
+    if (!sourceBuffer || sourceBuffer.__astraAppendGate) {
+      return;
+    }
+
+    sourceBuffer.__astraAppendGate = true;
+    const originalAppendBuffer = sourceBuffer.appendBuffer?.bind(sourceBuffer);
+    const originalRemove = sourceBuffer.remove?.bind(sourceBuffer);
+    const originalAbort = sourceBuffer.abort?.bind(sourceBuffer);
+
+    if (originalAppendBuffer) {
+      sourceBuffer.appendBuffer = (data: ArrayBuffer | ArrayBufferView) => {
+        this.enqueueBufferOperation(
+          () =>
+            this.waitForSourceBufferUpdate(sourceBuffer, () =>
+              originalAppendBuffer(data),
+            ),
+          true,
+        );
+      };
+    }
+
+    if (originalRemove) {
+      sourceBuffer.remove = (start: number, end: number) => {
+        this.enqueueBufferOperation(
+          () =>
+            this.waitForSourceBufferUpdate(sourceBuffer, () =>
+              originalRemove(start, end),
+            ),
+          false,
+        );
+      };
+    }
+
+    if (originalAbort) {
+      sourceBuffer.abort = () => {
+        this.enqueueBufferOperation(
+          () =>
+            this.waitForSourceBufferUpdate(sourceBuffer, () => originalAbort()),
+          false,
+        );
+      };
+    }
+  }
+
+  private installAppendHooks(): void {
+    const constructors = [
+      global.MediaSource,
+      global.window?.MediaSource,
+      global.ManagedMediaSource,
+      global.window?.ManagedMediaSource,
+    ].filter(Boolean);
+    const restorers: Array<() => void> = [];
+
+    Array.from(new Set(constructors)).forEach((MediaSourceConstructor: any) => {
+      const prototype = MediaSourceConstructor.prototype;
+      const addSourceBuffer =
+        prototype?.__astraOriginalAddSourceBuffer ?? prototype?.addSourceBuffer;
+      if (typeof addSourceBuffer !== 'function') {
+        return;
+      }
+
+      prototype.__astraOriginalAddSourceBuffer = addSourceBuffer;
+
+      const player = this;
+      const wrappedAddSourceBuffer = function (...args: any[]) {
+        const sourceBuffer = addSourceBuffer.apply(this, args);
+        player.wrapSourceBuffer(sourceBuffer);
+        return sourceBuffer;
+      };
+      prototype.addSourceBuffer = wrappedAddSourceBuffer;
+      restorers.push(() => {
+        if (prototype.addSourceBuffer === wrappedAddSourceBuffer) {
+          prototype.addSourceBuffer = addSourceBuffer;
+          delete prototype.__astraOriginalAddSourceBuffer;
+        }
+      });
+    });
+
+    this.appendHooksCleanup = () => {
+      restorers.forEach((restore) => restore());
+      this.appendHooksCleanup = null;
+    };
   }
 
   // Custom callbacks {{{
@@ -199,6 +399,13 @@ export class ShakaPlayer implements PlayerInterface {
   // End custom callbacks }}}
 
   async load(content: any, _autoplay: boolean): Promise<void> {
+    return this.enqueueLifecycle(() => this.loadInternal(content, _autoplay));
+  }
+
+  private async loadInternal(content: any, _autoplay: boolean): Promise<void> {
+    await this.waitForAppendComplete();
+    this.installAppendHooks();
+
     // Native HLS parsing setup
     if (ShakaPlayer.enableNativeParsing) {
       if (
@@ -465,6 +672,7 @@ export class ShakaPlayer implements PlayerInterface {
     }
 
     await this.internalLoad(content);
+    await this.waitForAppendComplete();
     console.log('shakaplayer: load() OUT');
   }
   private async internalLoad(content: any) {
@@ -479,15 +687,33 @@ export class ShakaPlayer implements PlayerInterface {
   pause(): void {
     this.mediaElement?.pause();
   }
-  seekBack(): void {
-    const time = this.mediaElement.currentTime;
+  async seekBack(): Promise<void> {
+    if (this.isAppending || this.appendDrainPromise) {
+      await this.waitForAppendComplete();
+    }
+    const mediaElement = this.mediaElement;
+    if (!mediaElement) {
+      return;
+    }
+    const time = mediaElement.currentTime;
     console.log('shakaplayer: seekBack to ', time - 10);
-    this.mediaElement.currentTime = time - 10;
+    if (this.mediaElement === mediaElement) {
+      mediaElement.currentTime = time - 10;
+    }
   }
-  seekFront(): void {
-    const time = this.mediaElement.currentTime;
+  async seekFront(): Promise<void> {
+    if (this.isAppending || this.appendDrainPromise) {
+      await this.waitForAppendComplete();
+    }
+    const mediaElement = this.mediaElement;
+    if (!mediaElement) {
+      return;
+    }
+    const time = mediaElement.currentTime;
     console.log('shakaplayer: seekFront to ', time + 10);
-    this.mediaElement.currentTime = time + 10;
+    if (this.mediaElement === mediaElement) {
+      mediaElement.currentTime = time + 10;
+    }
   }
 
   getDebugStats() {
@@ -512,13 +738,20 @@ export class ShakaPlayer implements PlayerInterface {
   }
 
   async unload(): Promise<void> {
+    return this.enqueueLifecycle(() => this.unloadInternal());
+  }
+
+  private async unloadInternal(): Promise<void> {
     console.log('shakaplayer:unload');
 
     const player = this.player;
     this.player = null;
     this.mediaElement = null;
 
+    await this.waitForAppendComplete();
+
     if (!player) {
+      this.appendHooksCleanup?.();
       return;
     }
 
@@ -543,9 +776,13 @@ export class ShakaPlayer implements PlayerInterface {
     try {
       await player.detach();
     } finally {
-      // Shaka cleanup is asynchronous. Awaiting destroy is essential before
-      // another player attaches to the same Vega media element.
-      await player.destroy();
+      try {
+        // Shaka cleanup is asynchronous. Awaiting destroy is essential before
+        // another player attaches to the same Vega media element.
+        await player.destroy();
+      } finally {
+        this.appendHooksCleanup?.();
+      }
     }
   }
 }

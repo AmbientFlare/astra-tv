@@ -1,6 +1,7 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
-import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {TextInput, TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {Keyboard} from 'react-native';
 import {FocusableItem} from '../../components/FocusableItem';
 import {MediaCard} from '../../components/MediaCard';
 import {TVTextInput} from '../../components/TVTextInput';
@@ -22,6 +23,27 @@ export const SearchScreen = ({
   const [results, setResults] = useState<JellyfinMediaItem[]>([]);
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const searchInputRef = useRef<TextInput>(null);
+
+  const dismissSearchInput = useCallback(() => {
+    searchInputRef.current?.blur?.();
+    Keyboard.dismiss();
+  }, []);
+
+  useEffect(() => dismissSearchInput, [dismissSearchInput]);
+
+  const handleBack = useCallback(() => {
+    dismissSearchInput();
+    onBack?.();
+  }, [dismissSearchInput, onBack]);
+
+  const handleSelectItem = useCallback(
+    (item: JellyfinMediaItem) => {
+      dismissSearchInput();
+      onSelectItem?.(item);
+    },
+    [dismissSearchInput, onSelectItem],
+  );
 
   const runSearch = useCallback(
     async (searchTerm: string, mounted = true) => {
@@ -79,7 +101,7 @@ export const SearchScreen = ({
       <Text style={styles.title}>Search</Text>
       <FocusableItem
         focusedStyle={styles.backFocused}
-        onPress={onBack}
+        onPress={handleBack}
         style={styles.backButton}
         testID="search-back-button">
         <Text style={styles.backText}>Back</Text>
@@ -94,6 +116,7 @@ export const SearchScreen = ({
         onChangeText={setQuery}
         placeholder="Movie, show, or episode"
         placeholderTextColor="#7E9098"
+        ref={searchInputRef}
         style={styles.input}
         testID="search-input"
         value={query}
@@ -122,7 +145,7 @@ export const SearchScreen = ({
           renderItem={({item}) => (
             <MediaCard
               imageUrl={item.imageUrl}
-              onPress={() => onSelectItem?.(item)}
+              onPress={() => handleSelectItem(item)}
               subtitle={
                 item.productionYear ? String(item.productionYear) : item.type
               }

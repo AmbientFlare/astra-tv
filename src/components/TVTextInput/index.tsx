@@ -1,5 +1,12 @@
-import React, {forwardRef, useImperativeHandle, useRef, useState} from 'react';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import {
+  Keyboard,
   StyleProp,
   StyleSheet,
   TextInputProps,
@@ -39,7 +46,10 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
     },
     forwardedRef,
   ) => {
-    const inputRef = useRef<TextInput>(null);
+    const inputRef = useRef<TextInput | null>(null);
+    const delayedFocusTimer = useRef<ReturnType<typeof setTimeout> | null>(
+      null,
+    );
     const [isFocused, setFocused] = useState(false);
     const vegaKeyboardProps = {
       auxOptions: props.auxOptions ?? keyboardTitle(placeholder),
@@ -47,12 +57,32 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
 
     useImperativeHandle(forwardedRef, () => inputRef.current as TextInput);
 
+    useEffect(
+      () => () => {
+        if (delayedFocusTimer.current) {
+          clearTimeout(delayedFocusTimer.current);
+          delayedFocusTimer.current = null;
+        }
+
+        inputRef.current?.blur?.();
+        Keyboard.dismiss();
+        inputRef.current = null;
+      },
+      [],
+    );
+
     const requestTVFocus = () => {
       inputRef.current?.requestTVFocus?.();
     };
 
     const requestDelayedFocus = () => {
-      setTimeout(requestTVFocus, focusDelayMs);
+      if (delayedFocusTimer.current) {
+        clearTimeout(delayedFocusTimer.current);
+      }
+      delayedFocusTimer.current = setTimeout(() => {
+        delayedFocusTimer.current = null;
+        requestTVFocus();
+      }, focusDelayMs);
     };
 
     return (
