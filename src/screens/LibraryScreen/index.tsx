@@ -107,6 +107,7 @@ export const LibraryScreen = ({
     null,
   );
   const focusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
   const queueBackdrop = useCallback((url?: string) => {
     if (!url) {
@@ -117,7 +118,13 @@ export const LibraryScreen = ({
       clearTimeout(backdropTimer.current);
     }
 
-    backdropTimer.current = setTimeout(() => setBackdropUrl(url), 150);
+    backdropTimer.current = setTimeout(() => {
+      backdropTimer.current = null;
+      if (!mountedRef.current) {
+        return;
+      }
+      setBackdropUrl(url);
+    }, 150);
   }, []);
 
   useEffect(() => {
@@ -145,17 +152,21 @@ export const LibraryScreen = ({
     };
   }, []);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
       if (backdropTimer.current) {
         clearTimeout(backdropTimer.current);
+        backdropTimer.current = null;
       }
       if (focusDebounceRef.current) {
         clearTimeout(focusDebounceRef.current);
+        focusDebounceRef.current = null;
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   useEffect(() => {
     if (!focusedItem && items.length > 0) {
@@ -246,7 +257,12 @@ export const LibraryScreen = ({
     if (focusDebounceRef.current) {
       clearTimeout(focusDebounceRef.current);
     }
-    focusDebounceRef.current = setTimeout(() => setFocusedItem(item), 150);
+    focusDebounceRef.current = setTimeout(() => {
+      focusDebounceRef.current = null;
+      if (mountedRef.current) {
+        setFocusedItem(item);
+      }
+    }, 150);
   };
 
   useTVEventHandler((event) => {

@@ -134,9 +134,9 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.1.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260729.4')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.1.0")).toBeTruthy();
+    expect(screen.getByText('Astra 1.1.1')).toBeTruthy();
+    expect(screen.getByText('Build: 20260804.1')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.1.1")).toBeTruthy();
     expect(
       screen.getByText(
         '• Local HTTP servers use HLS audio automatically—no TLS or reverse proxy required.',

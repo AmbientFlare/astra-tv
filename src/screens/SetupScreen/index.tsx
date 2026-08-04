@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
-import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {Keyboard, StyleSheet, Text, View} from 'react-native';
+import {TextInput, TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {TVTextInput} from '../../components/TVTextInput';
 import {
@@ -59,6 +59,26 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   const [quickConnectEnabled, setQuickConnectEnabled] = useState(false);
   const [quickConnectCode, setQuickConnectCode] = useState<string | null>(null);
   const quickConnectSecret = useRef<string | null>(null);
+  const serverUrlInputRef = useRef<TextInput>(null);
+  const usernameInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
+
+  const dismissTextInput = useCallback(() => {
+    serverUrlInputRef.current?.blur?.();
+    usernameInputRef.current?.blur?.();
+    passwordInputRef.current?.blur?.();
+    Keyboard.dismiss();
+  }, []);
+
+  useEffect(() => dismissTextInput, [dismissTextInput]);
+
+  const changeStep = useCallback(
+    (nextStep: WizardStep) => {
+      dismissTextInput();
+      setStep(nextStep);
+    },
+    [dismissTextInput],
+  );
 
   const scanForServers = useCallback(async () => {
     setScanning(true);
@@ -131,9 +151,10 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       };
 
       await upsertServerProfile(profile);
+      dismissTextInput();
       onConnected?.(profile);
     },
-    [onConnected, serverType, username],
+    [dismissTextInput, onConnected, serverType, username],
   );
 
   const handleServerConnect = async () => {
@@ -154,7 +175,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         serverType === 'jellyfin' &&
         (await isQuickConnectEnabled(info.baseUrl));
       setQuickConnectEnabled(enabled);
-      setStep(enabled ? 'authMethod' : 'password');
+      changeStep(enabled ? 'authMethod' : 'password');
     } catch (error) {
       setErrorText(
         error instanceof Error ? error.message : 'Unable to reach the server.',
@@ -173,6 +194,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     setErrorText(null);
 
     try {
+      dismissTextInput();
       const info = serverInfo ?? (await connect(serverUrl));
       const authResult = await authenticate(info.baseUrl, username, password);
       await saveProfile(authResult, info);
@@ -199,7 +221,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       );
       quickConnectSecret.current = secret;
       setQuickConnectCode(code);
-      setStep('code');
+      changeStep('code');
     } catch (error) {
       setErrorText(
         error instanceof Error
@@ -215,7 +237,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     quickConnectSecret.current = null;
     setQuickConnectCode(null);
     setErrorText(null);
-    setStep('authMethod');
+    changeStep('authMethod');
   };
 
   useEffect(() => {
@@ -258,7 +280,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           setErrorText(
             'Quick Connect expired or lost contact with the server.',
           );
-          setStep('authMethod');
+          changeStep('authMethod');
         }
         return;
       }
@@ -286,7 +308,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               ? error.message
               : 'Quick Connect sign-in failed.',
           );
-          setStep('authMethod');
+          changeStep('authMethod');
         }
       }
     };
@@ -299,7 +321,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         clearTimeout(timeout);
       }
     };
-  }, [saveProfile, serverInfo, serverUrl, step]);
+  }, [changeStep, saveProfile, serverInfo, serverUrl, step]);
 
   const backButton = (label: string, onPress: () => void) => (
     <FocusableItem
@@ -339,7 +361,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
                       : () => {
                           setServerType(type);
                           setErrorText(null);
-                          setStep('server');
+                          changeStep('server');
                         }
                   }
                   style={[
@@ -426,6 +448,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               style={inputStyle('serverUrl')}
               testID="setup-server-url-input"
               value={serverUrl}
+              ref={serverUrlInputRef}
             />
             <Text style={styles.helperText}>
               Enter an IP address, domain, or Tailscale address.
@@ -435,7 +458,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           <View style={styles.buttonRow}>
             {backButton('Back', () => {
               setErrorText(null);
-              setStep('serverType');
+              changeStep('serverType');
             })}
             <FocusableItem
               accessibilityLabel="Connect"
@@ -483,7 +506,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               focusedStyle={styles.methodFocused}
               onPress={() => {
                 setErrorText(null);
-                setStep('password');
+                changeStep('password');
               }}
               style={styles.methodButton}
               testID="setup-method-password">
@@ -495,7 +518,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           </View>
           {backButton('Back', () => {
             setErrorText(null);
-            setStep('server');
+            changeStep('server');
           })}
         </>
       );
@@ -556,6 +579,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             style={inputStyle('username')}
             testID="setup-username-input"
             value={username}
+            ref={usernameInputRef}
           />
         </View>
         <View style={styles.field}>
@@ -577,12 +601,13 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             style={inputStyle('password')}
             testID="setup-password-input"
             value={password}
+            ref={passwordInputRef}
           />
         </View>
         <View style={styles.buttonRow}>
           {backButton('Back', () => {
             setErrorText(null);
-            setStep(quickConnectEnabled ? 'authMethod' : 'server');
+            changeStep(quickConnectEnabled ? 'authMethod' : 'server');
           })}
           <FocusableItem
             accessibilityLabel="Sign in"

@@ -121,7 +121,10 @@ export const PlayerScreen = ({
   const trackReloadInProgress = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
   const initialSeekApplied = useRef(false);
+  const initialSeekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
+  const isPausedRef = useRef(false);
+  const unmountedRef = useRef(false);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHandledKeyEvent = useRef<{
     time: number;
@@ -234,7 +237,11 @@ export const PlayerScreen = ({
   );
 
   const currentPositionTicks = useCallback(() => {
-    const currentTime = videoRef.current?.currentTime;
+    const video = videoRef.current;
+    if (!video) {
+      return latestPositionTicks.current;
+    }
+    const currentTime = video.currentTime;
     // A freshly created or failed video element reports currentTime 0;
     // trusting it would wipe a real resume position during error retries.
     // Deliberate seeks to 0 update latestPositionTicks directly, so a zero
@@ -262,7 +269,11 @@ export const PlayerScreen = ({
   const scheduleControlsHide = useCallback(() => {
     clearControlsHideTimer();
     controlsHideTimer.current = setTimeout(() => {
-      if (!videoRef.current?.paused) {
+      const video = videoRef.current;
+      if (!video || unmountedRef.current) {
+        return;
+      }
+      if (!video.paused) {
         setShowControls(false);
       }
     }, CONTROL_HIDE_DELAY_MS);
@@ -288,7 +299,23 @@ export const PlayerScreen = ({
     }
 
     initialSeekApplied.current = true;
-    setTimeout(() => {
+    if (initialSeekTimer.current) {
+      clearTimeout(initialSeekTimer.current);
+    }
+    initialSeekTimer.current = setTimeout(async () => {
+      initialSeekTimer.current = null;
+      if (unmountedRef.current || videoRef.current !== video) {
+        return;
+      }
+
+      const shakaPlayer = shakaPlayerRef.current;
+      if (shakaPlayer) {
+        await shakaPlayer.waitForAppendComplete();
+      }
+      if (unmountedRef.current || videoRef.current !== video) {
+        return;
+      }
+
       const duration =
         typeof video.duration === 'number' && Number.isFinite(video.duration)
           ? video.duration
@@ -313,13 +340,14 @@ export const PlayerScreen = ({
   }, []);
 
   const reportStopped = useCallback(async () => {
-    if (stoppedReported.current || !streamInfo.current) {
+    const stream = streamInfo.current;
+    if (stoppedReported.current || !stream) {
       return;
     }
 
     stoppedReported.current = true;
     await reportPlaybackStopped(serverUrl, accessToken, {
-      ...streamInfo.current,
+      ...stream,
       audioStreamIndex: selectedAudioIndex.current,
       positionTicks: currentPositionTicks(),
       subtitleStreamIndex: selectedSubtitleIndex.current,
@@ -333,10 +361,18 @@ export const PlayerScreen = ({
   }, [onBack, reportStopped]);
 
   const seekToSeconds = useCallback(
-    (targetSeconds: number, closeSettings = false) => {
+    async (targetSeconds: number, closeSettings = false) => {
       const video = videoRef.current;
 
       if (!video) {
+        return;
+      }
+
+      const shakaPlayer = shakaPlayerRef.current;
+      if (shakaPlayer) {
+        await shakaPlayer.waitForAppendComplete();
+      }
+      if (videoRef.current !== video) {
         return;
       }
 
@@ -393,20 +429,20 @@ export const PlayerScreen = ({
   );
 
   const seek = useCallback(
-    (seconds: number) => {
+    async (seconds: number) => {
       const video = videoRef.current;
 
       if (!video || typeof video.currentTime !== 'number') {
         return;
       }
 
-      seekToSeconds(video.currentTime + seconds);
+      await seekToSeconds(video.currentTime + seconds);
     },
     [seekToSeconds],
   );
 
   const jumpChapter = useCallback(
-    (direction: 1 | -1) => {
+    async (direction: 1 | -1) => {
       const video = videoRef.current;
 
       if (!video || typeof video.currentTime !== 'number') {
@@ -422,7 +458,7 @@ export const PlayerScreen = ({
             TICKS_PER_SECOND;
 
       if (duration <= 0) {
-        seek(direction * preferredSeekSeconds);
+        await seek(direction * preferredSeekSeconds);
         return;
       }
 
@@ -447,14 +483,14 @@ export const PlayerScreen = ({
 
       if (target === undefined) {
         if (direction < 0) {
-          seekToSeconds(0);
+          await seekToSeconds(0);
         }
         // Already in the last chapter: do nothing rather than jump to the
         // end and accidentally finish the movie.
         return;
       }
 
-      seekToSeconds(target);
+      await seekToSeconds(target);
     },
     [item, preferredSeekSeconds, seek, seekToSeconds],
   );
@@ -1070,24 +1106,43 @@ export const PlayerScreen = ({
   });
 
   useEffect(() => {
+    unmountedRef.current = false;
+
     return () => {
       const handle = surfaceHandle.current;
+      const video = videoRef.current;
+      const shakaPlayer = shakaPlayerRef.current;
+      const stoppedPromise = reportStopped();
 
-      reportStopped().finally(async () => {
-        clearControlsHideTimer();
-        try {
-          await unloadAdaptivePlayer();
-        } catch (error) {
-          console.warn('[Astra] Failed to unload player during exit:', error);
-        } finally {
-          if (handle) {
-            videoRef.current?.clearSurfaceHandle(handle);
+      unmountedRef.current = true;
+      clearControlsHideTimer();
+      surfaceHandle.current = null;
+      videoRef.current = null;
+      shakaPlayerRef.current = null;
+      streamInfo.current = null;
+      if (initialSeekTimer.current) {
+        clearTimeout(initialSeekTimer.current);
+        initialSeekTimer.current = null;
+      }
+
+      stoppedPromise
+        .catch((error) => {
+          console.warn('[Astra] Failed to report stopped playback:', error);
+        })
+        .finally(async () => {
+          try {
+            await shakaPlayer?.unload();
+          } catch (error) {
+            console.warn('[Astra] Failed to unload player during exit:', error);
+          } finally {
+            if (handle) {
+              video?.clearSurfaceHandle(handle);
+            }
+            await video?.deinitialize();
           }
-          await videoRef.current?.deinitialize();
-        }
-      });
+        });
     };
-  }, [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer]);
+  }, [clearControlsHideTimer, reportStopped]);
 
   useEffect(() => {
     const subscription = keplerAppStateManager.addAppStateListener(
@@ -1102,9 +1157,10 @@ export const PlayerScreen = ({
             setPaused(true);
           }
 
-          if (streamInfo.current) {
+          const stream = streamInfo.current;
+          if (stream) {
             reportPlaybackProgress(serverUrl, accessToken, {
-              ...streamInfo.current,
+              ...stream,
               audioStreamIndex: selectedAudioIndex.current,
               isPaused: true,
               positionTicks: currentPositionTicks(),
@@ -1125,18 +1181,21 @@ export const PlayerScreen = ({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (typeof videoRef.current?.currentTime === 'number') {
-        setPositionSeconds(videoRef.current.currentTime);
-      }
-
-      if (!streamInfo.current) {
+      const video = videoRef.current;
+      const stream = streamInfo.current;
+      if (!video || !stream || unmountedRef.current) {
         return;
       }
 
+      const currentTime = video.currentTime;
+      if (typeof currentTime === 'number') {
+        setPositionSeconds(currentTime);
+      }
+
       reportPlaybackProgress(serverUrl, accessToken, {
-        ...streamInfo.current,
+        ...stream,
         audioStreamIndex: selectedAudioIndex.current,
-        isPaused,
+        isPaused: isPausedRef.current,
         positionTicks: currentPositionTicks(),
         subtitleStreamIndex: selectedSubtitleIndex.current,
       }).catch((error) => {
@@ -1145,7 +1204,11 @@ export const PlayerScreen = ({
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [accessToken, currentPositionTicks, isPaused, serverUrl]);
+  }, [accessToken, currentPositionTicks, serverUrl]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   useEffect(() => {
     if (!showPlaybackStats) {
@@ -1154,7 +1217,13 @@ export const PlayerScreen = ({
     }
 
     const updateStats = () => {
-      const diagnostics = shakaPlayerRef.current?.getDebugStats() as
+      const shakaPlayer = shakaPlayerRef.current;
+      const video = videoRef.current;
+      if (!shakaPlayer || !video || unmountedRef.current) {
+        return;
+      }
+
+      const diagnostics = shakaPlayer.getDebugStats() as
         | {
             activeVariant?: {
               height?: number | null;
@@ -1166,13 +1235,16 @@ export const PlayerScreen = ({
             stats?: Record<string, number>;
           }
         | undefined;
-      const currentTime = videoRef.current?.currentTime ?? 0;
-      const currentRange = diagnostics?.buffered?.total?.find(
+      const currentTime = video.currentTime ?? 0;
+      const bufferedRanges = diagnostics?.buffered?.total
+        ? [...diagnostics.buffered.total]
+        : [];
+      const currentRange = bufferedRanges.find(
         (range) =>
           range.end >= currentTime && range.start <= currentTime + 0.25,
       );
       const stats = diagnostics?.stats;
-      const nativeVideo = videoRef.current as
+      const nativeVideo = video as
         | (VideoPlayer & {videoHeight?: number; videoWidth?: number})
         | null;
       let nativeVideoFrames:
@@ -1180,7 +1252,7 @@ export const PlayerScreen = ({
         | undefined;
 
       try {
-        nativeVideoFrames = videoRef.current?.getVideoPlaybackQuality();
+        nativeVideoFrames = video.getVideoPlaybackQuality();
       } catch (error) {
         console.warn('[Astra] Unable to read native frame diagnostics:', error);
       }
@@ -1266,27 +1338,38 @@ export const PlayerScreen = ({
 
   const onSurfaceViewDestroyed = useCallback(
     (handle: string) => {
+      const video = videoRef.current;
+      const shakaPlayer = shakaPlayerRef.current;
+      const stoppedPromise = reportStopped();
+
       surfaceHandle.current = null;
+      videoRef.current = null;
+      shakaPlayerRef.current = null;
+      streamInfo.current = null;
       clearControlsHideTimer();
-      reportStopped()
+      if (initialSeekTimer.current) {
+        clearTimeout(initialSeekTimer.current);
+        initialSeekTimer.current = null;
+      }
+      stoppedPromise
         .finally(async () => {
           try {
-            await unloadAdaptivePlayer();
+            await shakaPlayer?.unload();
           } catch (error) {
             console.warn(
               '[Astra] Failed to unload player after surface removal:',
               error,
             );
           } finally {
-            videoRef.current?.clearSurfaceHandle(handle);
-            await videoRef.current?.deinitialize();
+            video?.clearSurfaceHandle(handle);
+            await video?.deinitialize();
           }
         })
         .catch((error) => {
           console.warn('[Astra] Failed to tear down video surface:', error);
         });
     },
-    [clearControlsHideTimer, reportStopped, unloadAdaptivePlayer],
+    [clearControlsHideTimer, reportStopped],
   );
 
   const durationSeconds =

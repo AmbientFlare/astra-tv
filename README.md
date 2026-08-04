@@ -10,15 +10,15 @@ Jellyfin or Amazon.
 
 ## Project status
 
-The current release is Astra `1.1.0`, build `20260729.4`, for x86_64 Fire TV
+The current release is Astra `1.1.1`, build `20260804.1`, for x86_64 Fire TV
 devices running Vega OS.
 
 - Package ID: `com.astra.tv`
 - Main component: `com.astra.tv.main`
 - Supported backend: Jellyfin
 - Supported server connections: local HTTP and remote HTTPS
-- Release validation: 158 tests, ESLint, TypeScript, Vega manifest, Vega ABI,
-  and physical-device installation
+- Release validation: 158 tests, ESLint, TypeScript, Vega manifest, and Vega
+  ABI; physical-device acceptance is pending for 1.1.1
 - Future backends: Emby and Kodi are planned but are not supported today
 
 The exact Amazon upload package and checksum are documented in
@@ -65,6 +65,13 @@ creation on Vega.
 
 ## Release history
 
+### 1.1.1 — Playback stability hardening — 2026-08-04
+
+- Fixed keyboard teardown races when leaving Search or Setup.
+- Serialized Shaka MSE buffer operations with seeks and teardown.
+- Added defensive timer snapshots and native-reference cleanup on Player and
+  Library unmount.
+
 ### 1.1.0 — Music and living-room polish — 2026-07-29
 
 - Added Jellyfin artist, album, genre, and playlist browsing.
@@ -109,7 +116,7 @@ creation on Vega.
 
 The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md). Release
 notes for the current version are in
-[docs/release-1.1.0.md](docs/release-1.1.0.md).
+[docs/release-1.1.1.md](docs/release-1.1.1.md).
 
 ## Development
 
@@ -132,7 +139,7 @@ Build the current release target with:
 
 ```sh
 npx react-native build-vega --build-type Release --target x86_64 \
-  --build-number 2026072904 --build-version 1.1.0
+  --build-number 2026080401 --build-version 1.1.1
 ```
 
 Install a VPKG on a Vega device with:
@@ -142,13 +149,13 @@ vega run-app <packageFile> com.astra.tv.main --deviceId <deviceId>
 ```
 
 Amazon Appstore upload instructions and console-ready update text are in
-[docs/amazon-submission-v1.1.md](docs/amazon-submission-v1.1.md).
+[docs/amazon-submission-v1.1.1.md](docs/amazon-submission-v1.1.1.md).
 
 ## Documentation
 
 - [Current release build](docs/release-build.md)
-- [Astra 1.1.0 release notes](docs/release-1.1.0.md)
-- [Amazon 1.1.0 submission packet](docs/amazon-submission-v1.1.md)
+- [Astra 1.1.1 release notes](docs/release-1.1.1.md)
+- [Amazon 1.1.1 submission packet](docs/amazon-submission-v1.1.1.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 - [Audio and Vega engineering handoff](AUDIO-EDITION.md)
 - [Deferred work](docs/deferred-work.md)
