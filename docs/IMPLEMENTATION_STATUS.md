@@ -2,9 +2,11 @@
 
 Last updated: 2026-08-22
 
-- Added root `START_HERE.md` as the persistent operational entry point for the
-  exact validation, build, artifact, device-install, logging, and playback
-  acceptance workflow. README links it before the project description.
+- Added local-only root `START_HERE.md` as the persistent operational entry
+  point for exact validation, build, device-install, logging, and playback
+  acceptance commands. It is intentionally ignored by Git because it contains
+  machine-specific operator details; the public README links release-build
+  documentation instead.
 - The hidden-network connection issue was resolved on the Fire TV Stick by
   selecting WPA3 instead of WPA2 while entering the network. No router
   encryption change was required. For future profile recreation, select WPA3

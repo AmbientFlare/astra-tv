@@ -1,7 +1,7 @@
 # Astra
 
-**Working on the project? Start with [START_HERE.md](START_HERE.md) for the
-exact validation, build, device, logging, and release-candidate workflow.**
+Development, validation, and release-package details are documented in
+[docs/release-build.md](docs/release-build.md).
 
 Astra is a couch-first Jellyfin client for Amazon Fire TV devices running Vega
 OS. It connects directly to a server supplied by the user and brings personal
