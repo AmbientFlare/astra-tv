@@ -114,6 +114,13 @@ export interface JellyfinChapter {
   startPositionTicks: number;
 }
 
+export interface JellyfinMediaSegment {
+  endTicks: number;
+  id?: string;
+  startTicks: number;
+  type: string;
+}
+
 export interface JellyfinMediaTrack {
   id: string;
   index?: number;
@@ -1268,6 +1275,68 @@ export const getNextUp = (
     EnableImageTypes: 'Primary,Backdrop',
     Limit: 24,
   });
+
+export const getNextEpisode = async (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  seriesId: string,
+  currentItemId: string,
+): Promise<JellyfinMediaItem | null> => {
+  const items = await getItemCollection(
+    serverUrl,
+    accessToken,
+    '/Shows/NextUp',
+    {
+      UserId: userId,
+      SeriesId: seriesId,
+      Fields: itemFields,
+      ImageTypeLimit: 1,
+      EnableImageTypes: 'Primary,Backdrop',
+      EnableResumable: false,
+      Limit: 2,
+    },
+  );
+
+  return items.find((candidate) => candidate.id !== currentItemId) ?? null;
+};
+
+export const getMediaSegments = async (
+  serverUrl: string,
+  accessToken: string,
+  itemId: string,
+): Promise<JellyfinMediaSegment[]> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{
+    Items?: Array<{
+      EndTicks?: number;
+      Id?: string;
+      StartTicks?: number;
+      Type?: string;
+    }>;
+  }>(
+    buildUrl(baseUrl, `/MediaSegments/${itemId}`, {
+      IncludeSegmentTypes: 'Outro',
+      api_key: accessToken,
+    }),
+    {headers: getAuthHeaders(accessToken)},
+  );
+
+  return (response.Items ?? []).flatMap((segment) =>
+    typeof segment.StartTicks === 'number' &&
+    typeof segment.EndTicks === 'number' &&
+    segment.EndTicks > segment.StartTicks
+      ? [
+          {
+            endTicks: segment.EndTicks,
+            id: segment.Id,
+            startTicks: segment.StartTicks,
+            type: segment.Type ?? '',
+          },
+        ]
+      : [],
+  );
+};
 
 export const getLatestItems = async (
   serverUrl: string,

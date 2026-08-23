@@ -10,8 +10,11 @@ import {
 } from '@amazon-devices/react-native-w3cmedia';
 import {FocusableItem} from '../../components/FocusableItem';
 import {
+  getMediaSegments,
+  getNextEpisode,
   getStreamUrl,
   JellyfinMediaItem,
+  JellyfinMediaSegment,
   JellyfinMediaTrack,
   JellyfinStreamInfo,
   reportPlaybackProgress,
@@ -31,7 +34,10 @@ import {
 } from '../../w3cmedia/playerLifecycle';
 import {
   defaultPlaybackPrefs,
+  defaultUserPreferences,
+  getUserPreferences,
   readPlaybackPreferences,
+  UserPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
 import {audioPlayback} from '../../services/audioPlayer';
@@ -42,6 +48,11 @@ import {
   WebVttCue,
 } from '../../services/subtitles';
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
+import {
+  findActiveOutro,
+  mediaSegmentKey,
+  shouldAutoAdvanceEpisode,
+} from '../../services/episodePlayback';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -90,6 +101,7 @@ interface PlayerScreenProps {
   accessToken: string;
   item: JellyfinMediaItem;
   onBack?: () => void;
+  onPlayNext?: (item: JellyfinMediaItem) => void;
   serverUrl: string;
   userId?: string;
 }
@@ -135,6 +147,7 @@ export const PlayerScreen = ({
   accessToken,
   item,
   onBack,
+  onPlayNext,
   serverUrl,
   userId,
 }: PlayerScreenProps) => {
@@ -165,6 +178,13 @@ export const PlayerScreen = ({
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const isPausedRef = useRef(false);
   const unmountedRef = useRef(false);
+  const userPreferencesRef = useRef<UserPreferences>(defaultUserPreferences);
+  const endedHandler = useRef<() => void>(() => undefined);
+  const autoAdvanceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoAdvanceActive = useRef(false);
+  const autoAdvanceCancelled = useRef(false);
+  const autoAdvanceStarted = useRef(false);
+  const handledOutroSegment = useRef<string | null>(null);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHandledKeyEvent = useRef<{
     time: number;
@@ -203,6 +223,19 @@ export const PlayerScreen = ({
   const [preferredMaxBitrate, setPreferredMaxBitrate] = useState<
     number | undefined
   >(undefined);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>(
+    defaultUserPreferences,
+  );
+  const [mediaSegments, setMediaSegments] = useState<JellyfinMediaSegment[]>(
+    [],
+  );
+  const [activeOutro, setActiveOutro] = useState<JellyfinMediaSegment | null>(
+    null,
+  );
+  const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<{
+    item: JellyfinMediaItem;
+    remainingSeconds: number;
+  } | null>(null);
 
   // Audio browsing intentionally survives navigation, but starting a movie is
   // an explicit media handoff. Stop and clear the music queue before the video
@@ -229,6 +262,42 @@ export const PlayerScreen = ({
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    handledOutroSegment.current = null;
+    setActiveOutro(null);
+    setMediaSegments([]);
+
+    getUserPreferences()
+      .then((preferences) => {
+        if (!mounted) {
+          return;
+        }
+        userPreferencesRef.current = preferences;
+        setUserPreferences(preferences);
+      })
+      .catch((error) => {
+        console.warn('[Astra] Unable to load episode preferences:', error);
+      });
+
+    if (item.type.toLowerCase() === 'episode') {
+      getMediaSegments(serverUrl, accessToken, item.id)
+        .then((segments) => {
+          if (mounted) {
+            setMediaSegments(segments);
+          }
+        })
+        .catch((error) => {
+          console.warn('[Astra] Unable to load media segments:', error);
+        });
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [accessToken, item.id, item.type, serverUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -396,11 +465,135 @@ export const PlayerScreen = ({
     });
   }, [accessToken, currentPositionTicks, serverUrl]);
 
+  const clearAutoAdvanceTimer = useCallback(() => {
+    if (autoAdvanceTimer.current) {
+      clearInterval(autoAdvanceTimer.current);
+      autoAdvanceTimer.current = null;
+    }
+  }, []);
+
+  const cancelAutoAdvance = useCallback(
+    (updateStatus = true) => {
+      autoAdvanceCancelled.current = true;
+      autoAdvanceActive.current = false;
+      clearAutoAdvanceTimer();
+      if (updateStatus && !unmountedRef.current) {
+        setNextEpisodeCountdown(null);
+        setStatusText('Finished');
+      }
+    },
+    [clearAutoAdvanceTimer],
+  );
+
+  const handlePlaybackEnded = useCallback(async () => {
+    if (autoAdvanceStarted.current) {
+      return;
+    }
+
+    autoAdvanceStarted.current = true;
+    autoAdvanceActive.current = true;
+    autoAdvanceCancelled.current = false;
+    latestPositionTicks.current =
+      streamInfo.current?.runTimeTicks ??
+      item.runTimeTicks ??
+      latestPositionTicks.current;
+    setActiveOutro(null);
+    revealControls(false);
+    setStatusText('Finished');
+
+    try {
+      await reportStopped();
+    } catch (error) {
+      console.warn('[Astra] Failed to report completed playback:', error);
+    }
+
+    const preferences = userPreferencesRef.current;
+    if (
+      autoAdvanceCancelled.current ||
+      unmountedRef.current ||
+      !onPlayNext ||
+      !shouldAutoAdvanceEpisode({
+        enabled: preferences.nextEpisodeAutoplay,
+        itemType: item.type,
+        seriesId: item.seriesId,
+        userId,
+      })
+    ) {
+      autoAdvanceActive.current = false;
+      return;
+    }
+
+    setStatusText('Finding next episode...');
+    try {
+      const nextEpisode = await getNextEpisode(
+        serverUrl,
+        accessToken,
+        userId!,
+        item.seriesId!,
+        item.id,
+      );
+      if (
+        !nextEpisode ||
+        autoAdvanceCancelled.current ||
+        unmountedRef.current
+      ) {
+        autoAdvanceActive.current = false;
+        setStatusText('Finished');
+        return;
+      }
+
+      let remainingSeconds = preferences.nextEpisodeCountdownSeconds;
+      setNextEpisodeCountdown({item: nextEpisode, remainingSeconds});
+      setStatusText(`Next episode in ${remainingSeconds}s`);
+      autoAdvanceTimer.current = setInterval(() => {
+        if (autoAdvanceCancelled.current || unmountedRef.current) {
+          clearAutoAdvanceTimer();
+          return;
+        }
+
+        remainingSeconds -= 1;
+        if (remainingSeconds <= 0) {
+          clearAutoAdvanceTimer();
+          autoAdvanceActive.current = false;
+          setNextEpisodeCountdown(null);
+          onPlayNext(nextEpisode);
+          return;
+        }
+
+        setNextEpisodeCountdown({item: nextEpisode, remainingSeconds});
+        setStatusText(`Next episode in ${remainingSeconds}s`);
+      }, 1000);
+    } catch (error) {
+      autoAdvanceActive.current = false;
+      console.warn('[Astra] Unable to load the next episode:', error);
+      setStatusText('Finished');
+    }
+  }, [
+    accessToken,
+    clearAutoAdvanceTimer,
+    item.id,
+    item.runTimeTicks,
+    item.seriesId,
+    item.type,
+    onPlayNext,
+    reportStopped,
+    revealControls,
+    serverUrl,
+    userId,
+  ]);
+
+  endedHandler.current = () => {
+    handlePlaybackEnded().catch((error) => {
+      console.warn('[Astra] Unable to finish episode playback:', error);
+    });
+  };
+
   const handleBack = useCallback(() => {
+    cancelAutoAdvance(false);
     reportStopped().finally(() => {
       onBack?.();
     });
-  }, [onBack, reportStopped]);
+  }, [cancelAutoAdvance, onBack, reportStopped]);
 
   const seekToSeconds = useCallback(
     async (targetSeconds: number, closeSettings = false) => {
@@ -485,6 +678,48 @@ export const PlayerScreen = ({
     },
     [accessToken, item.runTimeTicks, scheduleControlsHide, serverUrl],
   );
+
+  const skipActiveOutro = useCallback(() => {
+    if (!activeOutro) {
+      return;
+    }
+
+    handledOutroSegment.current = mediaSegmentKey(activeOutro);
+    setActiveOutro(null);
+    seekToSeconds(activeOutro.endTicks / TICKS_PER_SECOND).catch((error) => {
+      console.warn('[Astra] Unable to skip credits:', error);
+    });
+  }, [activeOutro, seekToSeconds]);
+
+  useEffect(() => {
+    const outro = findActiveOutro(
+      mediaSegments,
+      Math.round(positionSeconds * TICKS_PER_SECOND),
+    );
+    const skipMode = userPreferences.skipIntroCredits;
+
+    if (!outro || skipMode === 'ignore') {
+      setActiveOutro(null);
+      return;
+    }
+
+    const key = mediaSegmentKey(outro);
+    if (handledOutroSegment.current === key) {
+      setActiveOutro(null);
+      return;
+    }
+
+    if (skipMode === 'auto') {
+      handledOutroSegment.current = key;
+      setActiveOutro(null);
+      seekToSeconds(outro.endTicks / TICKS_PER_SECOND).catch((error) => {
+        console.warn('[Astra] Unable to auto-skip credits:', error);
+      });
+      return;
+    }
+
+    setActiveOutro(outro);
+  }, [mediaSegments, positionSeconds, seekToSeconds, userPreferences]);
 
   const seek = useCallback(
     async (seconds: number) => {
@@ -812,8 +1047,7 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('ended');
-        revealControls(false);
-        setStatusText('Finished');
+        endedHandler.current();
       });
     },
     [applyPendingInitialSeek, revealControls, scheduleControlsHide],
@@ -1184,6 +1418,12 @@ export const PlayerScreen = ({
     }
     lastHandledKeyEvent.current = {time: now, type: key};
 
+    if (key === 'back' && autoAdvanceActive.current) {
+      cancelAutoAdvance();
+      revealControls(false);
+      return;
+    }
+
     // Back dismisses one layer at a time and must not reveal the controls
     // it is about to dismiss.
     if (key !== 'back') {
@@ -1225,11 +1465,18 @@ export const PlayerScreen = ({
         togglePlayPause();
         break;
       case 'select':
+        if (activeOutro) {
+          skipActiveOutro();
+          break;
+        }
         if (!showControls) {
           revealControls(true);
           break;
         }
         togglePlayPause();
+        break;
+      case 'stop':
+        handleBack();
         break;
       case 'right':
         seek(preferredSeekSeconds);
@@ -1255,6 +1502,7 @@ export const PlayerScreen = ({
       const handle = surfaceHandle.current;
       const video = videoRef.current;
       const shakaPlayer = shakaPlayerRef.current;
+      cancelAutoAdvance(false);
       const stoppedPromise = reportStopped();
 
       unmountedRef.current = true;
@@ -1285,7 +1533,7 @@ export const PlayerScreen = ({
           }
         });
     };
-  }, [clearControlsHideTimer, reportStopped]);
+  }, [cancelAutoAdvance, clearControlsHideTimer, reportStopped]);
 
   useEffect(() => {
     const subscription = keplerAppStateManager.addAppStateListener(
@@ -1508,6 +1756,7 @@ export const PlayerScreen = ({
     (handle: string) => {
       const video = videoRef.current;
       const shakaPlayer = shakaPlayerRef.current;
+      cancelAutoAdvance(false);
       const stoppedPromise = reportStopped();
 
       surfaceHandle.current = null;
@@ -1537,7 +1786,7 @@ export const PlayerScreen = ({
           console.warn('[Astra] Failed to tear down video surface:', error);
         });
     },
-    [clearControlsHideTimer, reportStopped],
+    [cancelAutoAdvance, clearControlsHideTimer, reportStopped],
   );
 
   const durationSeconds =
@@ -1572,6 +1821,23 @@ export const PlayerScreen = ({
           style={styles.subtitleOverlay}
           testID="player-external-subtitle">
           <Text style={styles.subtitleText}>{activeSubtitleText}</Text>
+        </View>
+      ) : null}
+      {activeOutro ? (
+        <View style={styles.skipPrompt} testID="player-skip-credits">
+          <Text style={styles.skipPromptTitle}>Skip credits</Text>
+          <Text style={styles.skipPromptHint}>Press Select</Text>
+        </View>
+      ) : null}
+      {nextEpisodeCountdown ? (
+        <View style={styles.nextEpisodePrompt} testID="player-next-episode">
+          <Text style={styles.nextEpisodeTitle}>Up next</Text>
+          <Text numberOfLines={1} style={styles.nextEpisodeName}>
+            {nextEpisodeCountdown.item.name}
+          </Text>
+          <Text style={styles.nextEpisodeHint}>
+            {`Playing in ${nextEpisodeCountdown.remainingSeconds}s  •  Back to cancel`}
+          </Text>
         </View>
       ) : null}
       {controlsVisible ? (
@@ -1971,6 +2237,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     textAlign: 'center',
+  },
+  skipPrompt: {
+    position: 'absolute',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12,17,22,0.94)',
+    borderRadius: 8,
+    bottom: 118,
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+    right: 72,
+    zIndex: 3,
+  },
+  skipPromptTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  skipPromptHint: {
+    color: '#4CC9F0',
+    fontSize: 18,
+    marginTop: 4,
+  },
+  nextEpisodePrompt: {
+    position: 'absolute',
+    backgroundColor: 'rgba(12,17,22,0.96)',
+    borderRadius: 8,
+    bottom: 112,
+    paddingHorizontal: 28,
+    paddingVertical: 20,
+    right: 72,
+    width: 410,
+    zIndex: 4,
+  },
+  nextEpisodeTitle: {
+    color: '#4CC9F0',
+    fontSize: 18,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  nextEpisodeName: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  nextEpisodeHint: {
+    color: '#B8C5CC',
+    fontSize: 18,
+    marginTop: 8,
   },
   overlay: {
     position: 'absolute',
