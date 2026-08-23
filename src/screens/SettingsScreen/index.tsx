@@ -485,8 +485,7 @@ export const SettingsScreen = ({
       case 'playback':
         return (
           <Page title="Playback" onBack={pop}>
-            {/* Wired now: max bitrate and seek duration. Other playback
-                choices persist as UI state until player support exists. */}
+            {/* Playback choices on this page are consumed by PlayerScreen. */}
             <ToggleRow
               title="Stats for Nerds"
               subtitle="Show live codecs, audio track, bitrate, buffer, and frames"

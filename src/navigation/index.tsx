@@ -97,6 +97,15 @@ export const RootNavigator = () => {
     [],
   );
 
+  const replace = useCallback(
+    (entry: RouteEntry) =>
+      setStack((entries) => [
+        ...entries.slice(0, Math.max(0, entries.length - 1)),
+        entry,
+      ]),
+    [],
+  );
+
   const resetStack = useCallback(
     (entry: RouteEntry = {route: 'home'}) => setStack([entry]),
     [],
@@ -416,7 +425,9 @@ export const RootNavigator = () => {
       <PlayerScreen
         accessToken={serverProfile.accessToken}
         item={current.item}
+        key={current.item.id}
         onBack={pop}
+        onPlayNext={(item) => replace({route: 'player', item})}
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
       />,
