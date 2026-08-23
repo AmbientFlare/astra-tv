@@ -2,22 +2,9 @@
 
 Last updated: 2026-08-22
 
-- Added local-only root `START_HERE.md` as the persistent operational entry
-  point for exact validation, build, device-install, logging, and playback
-  acceptance commands. It is intentionally ignored by Git because it contains
-  machine-specific operator details; the public README links release-build
-  documentation instead.
-- The hidden-network connection issue was resolved on the Fire TV Stick by
-  selecting WPA3 instead of WPA2 while entering the network. No router
-  encryption change was required. For future profile recreation, select WPA3
-  and use the existing hidden SSID and credential. Local temporary screen
-  captures were removed; any device-side `/tmp/firestick-*.png` files are inert
-  temporary artifacts that can be removed during later connected maintenance.
-- The router's physical WPS button now has a visibility-only action for devices
-  that struggle to join a hidden network: hold it for three seconds to advertise
-  both bands for 90 seconds. Short presses do nothing, another hold restarts the
-  timer, and the saved Wi-Fi configuration remains hidden. No WPS enrollment,
-  encryption, credential, reset-button, or package change was made.
+This document preserves reusable implementation findings, rejected hypotheses,
+and physical-device validation results. Release operations and local
+infrastructure details are intentionally excluded.
 
 ## Issue #9: HLS/fMP4 playback stutter
 
@@ -47,14 +34,13 @@ Last updated: 2026-08-22
   not eliminate visible micro-stutter. Repeated PTS/ghost-frame pairs recur at
   an approximately 10.427-second interval, equal to about 250 frames at the
   file's 23.976 fps.
-- A read-only `ffprobe` inventory of the GPU VM covered all 988 library video
+- A read-only `ffprobe` inventory covered all 988 reference-library video
   files without probe failures (896 MKV, 91 MP4, and one M2TS). The affected
-  *Star Trek: Generations* source has monotonic DTS, unique PTS, and constant
-  frame duration, so the source file is not timestamp-corrupt. *Star Trek:
-  Nemesis* and *First Contact* are the closest positive controls: both use the
-  same RBG x265 encode family, HEVC Main 10 `hev1`, 23.976 fps, a 1/24000 time
-  base, AAC 5.1, and nearly identical bitrate. Their only material metadata
-  difference is 1920x816 video versus Generations at 1920x800.
+  source has monotonic DTS, unique PTS, and constant frame duration, so the
+  source file is not timestamp-corrupt. Two comparison sources use the same
+  x265 encode family, HEVC Main 10 `hev1`, 23.976 fps, a 1/24000 time base, AAC
+  5.1, and nearly identical bitrate. Their only material metadata difference is
+  1920x816 video versus the affected source at 1920x800.
 - Jellyfin's retained FFmpeg command and generated playlist show that the
   requested six-second target actually begins with a 14.889875-second segment
   and then repeatedly emits 10.427083-second segments. Stream copy can cut only
@@ -72,17 +58,16 @@ Last updated: 2026-08-22
   and adding HLS `independent_segments` did not prevent the collision. An
   otherwise equivalent HLS/MPEG-TS remux preserved every source PTS (zero
   duplicates), making MPEG-TS delivery the next narrow hardware experiment.
-  Nemesis is the preferred same-encode positive control; it produced 14
-  collisions in a synthetic 5.5-minute Jellyfin-style fMP4 remux, while First
-  Contact produced 10.
-- Physical playback of Nemesis reproduced the same micro-stutter once the
+  The closest same-encode positive control produced 14 collisions in a
+  synthetic 5.5-minute Jellyfin-style fMP4 remux; a second produced 10.
+- Physical playback of the closest control reproduced the same micro-stutter once the
   low-detail opening star field gave way to detailed motion. This confirms the
-  symptom across the closest same-encode control and rules out Generations'
+  symptom across the closest same-encode control and rules out the affected source's
   1920x800 crop as the primary cause.
 - Diagnostic build `20260813.5` routes HEVC alone through HLS/MPEG-TS while
   retaining HLS/fMP4 for h264. It is installed on the physical device for the
-  next Generations/Nemesis comparison; no buffering or codec policy changed.
-- Generations playback on that candidate was reported approximately 99.9%
+  next affected/control comparison; no buffering or codec policy changed.
+- Playback on that candidate was approximately 99.9%
   free of micro-stutter, including a smooth action scene. A forward chapter
   jump then took roughly 20 seconds to resume. The trace rules out network or
   server remux latency: Jellyfin had completed the VOD remux minutes earlier,
@@ -179,7 +164,7 @@ Last updated: 2026-08-22
   explicit choice reaches both video HLS profiles, the choice persists, and
   the new delivery/health context is rendered in player diagnostics.
 - Segment-duration A/B testing did not remove micro-stutter. The subsequent
-  HLS/MPEG-TS experiment on Generations and Nemesis did: physical testing
+  HLS/MPEG-TS experiment on the affected and comparison sources did: physical testing
   reported approximately 99.9% of the micro-stutter gone, and the accepted
   resume test retained zero dropped frames, stalls, or playback errors.
 - A separate follow-up experiment is recorded in `docs/deferred-work.md`: move
@@ -218,16 +203,15 @@ Last updated: 2026-08-22
   current affected HEVC title already carries AAC 5.1 and the new variable is
   MPEG-TS delivery, so blindly reapplying the old audio-codec fix is not
   justified.
-- After restoring the Fire Stick's network and Jellyfin login, build
-  `20260822.1` resumed *Star Trek: Generations* at its saved `1:40:00` position
-  within seconds. Initial telemetry showed one continuous 12-second buffered
+- Build `20260822.1` resumed the affected title at a saved position within
+  seconds. Initial telemetry showed one continuous 12-second buffered
   range, zero dropped frames, zero stalls, and zero errors. Three consecutive
   forward/back/forward ten-second seeks all returned to playback; afterward the
   buffer remained one range at 16.2 seconds with zero dropped, stalled, or
   error events. Waiting events rose from two to seven during those deliberate
   seeks, with 2.7 seconds cumulative buffering.
-- The required continuous drift test restarted Generations from `0:00` at
-  2026-08-22 17:45 PDT with Stats for Nerds enabled. At position `0:21`, the
+- The required continuous drift test restarted the title from `0:00` with Stats
+  for Nerds enabled. At position `0:21`, the
   MPEG-TS sequence-mode candidate reported one 15.1-second range, zero dropped
   frames, zero stalls, zero errors, and one startup wait. This established the
   clean starting point for the completed one-hour observation below.
@@ -242,10 +226,8 @@ Last updated: 2026-08-22
   and segment targeting remain unchanged.
 - The generated release manifest requests
   `/com.amazon.kepler.w3cmedia_2@IW3cmedia_2`, and Vega ABI validation passed.
-  Build `.2` installed in place and launched on the physical stick with the
-  signed-in Jellyfin profile intact. Generations started successfully from
-  `0:00`; the next one-hour A/V-sync observation began at approximately 18:06
-  PDT.
+  Build `.2` installed in place and launched on the physical stick with its
+  saved profile intact. The affected title started successfully from `0:00`.
 - Hardware rejected build `.2` after obvious A/V drift had returned by
   position `42:39`, approximately 46 minutes of wall-clock playback. Its
   captured diagnostics showed one continuous 10.0-second buffer, 68.1 Mbps
@@ -267,45 +249,28 @@ Last updated: 2026-08-22
 - The exact `.3` server session confirmed the intended narrow route: FFmpeg
   copied HEVC video and converted AAC 5.1 to six-channel AC3 at 640 kbps in the
   MPEG-TS HLS output.
-- Vega's `run-app` command was found to call uninstall before install, which
-  deletes Astra's saved profile. The profile was restored through Jellyfin
-  Quick Connect without handling the user's password. The supported upgrade
-  workflow is now `device install-app` followed by `device launch-app`; an
-  exact `.3` reinstall through that path retained the signed-in `levi` profile,
-  and Generations began playing from `0:00` at approximately 20:08 PDT.
-- At the 38-minute uninterrupted-playback checkpoint, the user reported build
-  `.3` audio and video remained perfectly synchronized. This is encouraging
-  improvement over `.2`, whose drift was obvious by approximately 46 minutes,
-  but the 50- and 60-minute checkpoints remain required before accepting the
-  codec change.
-- At 56 minutes of uninterrupted playback, the user again reported no A/V
-  drift. Build `.3` has therefore passed the approximately 46-minute failure
-  point of `.2` while remaining synchronized. The formal 60-minute checkpoint
-  remains before long-run A/V-sync acceptance.
-- At 60 minutes of uninterrupted playback, the user reported audio and video
-  were still perfectly synchronized. Build `.3` therefore passes the long-run
-  A/V-sync gate and the HEVC/MPEG-TS AAC-to-AC3 change is accepted for that
-  symptom. Repeat-seek and saved-position resume checks remain before release
-  promotion.
+- Vega's `run-app` command calls uninstall before install, which deletes saved
+  application data. The data-preserving upgrade workflow is `device
+  install-app` followed by `device launch-app`; an in-place `.3` installation
+  retained the saved profile.
+- Build `.3` remained synchronized at 38, 56, and 60 minutes of uninterrupted
+  playback, passing the approximately 46-minute failure point of `.2`. The
+  HEVC/MPEG-TS AAC-to-AC3 change therefore passed the long-run A/V-sync gate.
 - After the one-hour gate, forward/back/forward ten-second seeks all returned
   to playback. Stats at `63:12` showed one continuous 12.8-second range, 71.5
   Mbps estimated bandwidth for a 5.6 Mbps stream, zero dropped frames, zero
   stalls, zero errors, and four waits including the three deliberate seeks.
 - Exit-and-resume then passed. Astra displayed the saved Resume action and
-  returned to the correct scene at logical position `64:31`. Jellyfin's server
-  log independently confirms FFmpeg started at `-ss 01:04:24.500`, copied HEVC,
-  converted the audio to six-channel 640 kbps AC3, and began with numbered HLS
-  segment 644. Build `.3` has now passed long-run A/V sync, repeat-seek, and
-  saved-position resume acceptance on the physical stick.
+  returned to the correct scene. The server log independently confirmed the
+  input seek, HEVC stream copy, six-channel 640 kbps AC3 conversion, and the
+  expected numbered HLS segment. Build `.3` passed long-run A/V sync,
+  repeat-seek, and saved-position resume acceptance on the physical stick.
 - The auto-next request mentioned in issue #9 is a separate feature gap, not
   part of the playback regression candidate. Live TV issue #10 is out of scope
   because Astra does not currently provide live TV.
-- Posted evidence-backed completion updates to GitHub issues #9, #11, and #12
-  after `.3` passed physical acceptance. The reports remain open until 1.1.2 is
-  distributed and the affected users confirm the fixes on their own devices.
-  Automatic next-episode playback was split from the #9 comment into dedicated
-  issue #13 so the unimplemented feature is not mistaken for part of this
-  playback patch. Live TV issue #10 was intentionally left unchanged.
+- GitHub issues #9, #11, and #12 received the physical-acceptance findings.
+  Automatic next-episode playback remains separate issue #13; live TV issue
+  #10 is outside Astra's current feature scope.
 
 ## Crash and ANR investigation
 
@@ -392,10 +357,9 @@ Last updated: 2026-08-22
 - The issue #9/#11/#12 build `20260822.3` passes ESLint, TypeScript checking,
   all 175 Jest tests across 22 suites, Vega manifest validation, and
   `IW3cmedia_2` ABI validation. The exact x86_64 VPKG was generated, installed
-  with the data-preserving device upgrade command, launched, retained the
-  Jellyfin profile, and began Generations playback on the Fire TV Stick 4K
-  Select. The one-hour A/V-sync run, three-direction repeat seek, and saved-
-  position resume subsequently passed on that exact package.
+  with the data-preserving device upgrade command, and launched with its saved
+  Jellyfin profile intact. The one-hour A/V-sync run, three-direction repeat
+  seek, and saved-position resume passed on that exact package.
 
 - Astra 1.1.1 local validation passed ESLint, TypeScript checking, and all 158
   Jest tests across 19 suites.
@@ -406,61 +370,25 @@ Last updated: 2026-08-22
   changed.
 
 - Astra 1.1.0 build `2026072904` passed lint, TypeScript checking, all 158 tests
-  across 19 suites, Vega manifest validation, and ABI validation. It was installed and
-  launched on device `GT533M0752050H4U`.
+  across 19 suites, Vega manifest validation, and ABI validation. It was
+  installed and launched on physical x86_64 hardware.
 - Device acceptance confirmed the release is operating correctly, including
   plain-HTTP music playback, seeking, background playback, Play/Pause,
   sequential advancement, music-to-video handoff, and the simplified controls.
-- The release artifact is
-  `dist/amazon-submission-1.1.0-20260729/astra-1.1.0-x86_64-release.vpkg`.
 
 ## Release status
 
-Astra `1.1.2` build `20260822.4` is the Amazon submission build. The upload
-package is
-`dist/amazon-submission-1.1.2-20260822/astra-1.1.2-x86_64-release.vpkg` with
-SHA-256 `5dbb766f89547aa4af0eb61c3c3612e7141da6a221df5ba376dbe09f8403f754`.
-ESLint, TypeScript, all 175 Jest tests across 22 suites, manifest validation,
-and `IW3cmedia_2` ABI validation passed. Build `.2` proved that the long-run
-drift occurs despite continuous future buffering and bounded server A/V
-timestamps. Build `.3` therefore keeps the complete `.2` video, container,
-resume, and buffering policy while changing HEVC/MPEG-TS audio to AC3 only when
-the device reports support. It was installed with `device install-app`,
-launched on Vega device `GT533M0752050H4U`, retained the signed-in Jellyfin
-profile, and began Generations playback from `0:00`; the server log confirms
-HEVC copy plus AC3 output. It remained perfectly synchronized through 60
-minutes, passed forward/back/forward ten-second seeks with no drops, stalls, or
-errors, and resumed the saved `01:04:24.500` position within seconds. Physical
-acceptance is complete. The owner uploaded 1.1.2 to Amazon with the prepared
-release notes on 2026-08-22.
+Astra `1.1.2` build `20260822.4` is the submitted release. ESLint, TypeScript,
+all 175 Jest tests across 22 suites, manifest validation, and `IW3cmedia_2` ABI
+validation passed. Build `.2` established that the long-run drift occurred
+despite continuous future buffering and bounded server A/V timestamps. Build
+`.3` retained that video, container, resume, and buffering policy while changing
+only HEVC/MPEG-TS audio to AC3 on capable devices; it passed one-hour sync,
+repeat-seek, and saved-position resume acceptance. Build `.4` changes only the
+display build identity and static release text from the accepted `.3` playback
+implementation.
 
-Build `.4` changes only the display build identity and static in-app release
-notes from the hardware-accepted `.3` playback implementation. It passed the
-full validation/build gates, installed with `device install-app`, retained the
-signed-in Jellyfin profile, and loaded Home normally. Its test-candidate and
-Amazon-submission copies are byte-identical. The Amazon submission packet is
-`docs/amazon-submission-v1.1.2.md`.
-
-The `watchastra.com` release material was moved from the top of the page to a
-bottom release-history section. It now lists every public update from 1.0.0
-through 1.1.2 with dates and concise change summaries, and labels 1.1.2 as
-submitted to Amazon. The deployed page was verified over HTTPS. The original
-pre-release-history page and the intermediate top-panel version are recoverable
-on the web host at `.deploy-backups/index.html.20260822-2208` and
-`.deploy-backups/index.html.20260822-2225`, respectively.
-
-GitHub branch cleanup is complete. Fully merged release, fix, and agent
-branches were deleted locally and from GitHub after confirming their tips were
-reachable from `main`. The abandoned, unmerged July 1.0.5 playback experiment
-was intentionally not merged into current code; its tip remains recoverable as
-tag `archive/wip-1.0.5-20260713`. GitHub now has only the active `main` branch
-and no open pull requests.
-
-The previously prepared release remains:
-
-Astra `1.1.1` build `2026080401` is prepared as a stability patch. The upload
-package is `dist/amazon-submission-1.1.1-20260804/astra-1.1.1-x86_64-release.vpkg`.
-A new physical-device acceptance pass and Amazon Appstore upload remain to be
-run.
-Playlist artwork composition remains optional future polish; missing server
-artwork currently uses a letter placeholder.
+Amazon submission packets, artifact paths and checksums, console checklists,
+and deployment records are maintained locally rather than in public project
+documentation. Playlist artwork composition remains optional future polish;
+missing server artwork currently uses a letter placeholder.

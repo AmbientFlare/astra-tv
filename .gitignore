@@ -12,6 +12,12 @@ logs
 tmp
 START_HERE.md
 
+# Local engineering, release-operations, and submission notes. These files are
+# intentionally retained in the working copy but are not public documentation.
+docs/amazon-submission-*.md
+docs/release-build.md
+docs/store-listing.md
+
 # Throwaway audio playback spike (2026-07-27). Contains hardcoded credentials
 # by design. Delete the directory and revert src/App.tsx when finished.
 src/spike

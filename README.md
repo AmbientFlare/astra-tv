@@ -1,8 +1,5 @@
 # Astra
 
-Development, validation, and release-package details are documented in
-[docs/release-build.md](docs/release-build.md).
-
 Astra is a couch-first Jellyfin client for Amazon Fire TV devices running Vega
 OS. It connects directly to a server supplied by the user and brings personal
 movie, television, and music libraries into a remote-friendly TV interface.
@@ -24,9 +21,6 @@ Fire TV devices running Vega OS.
   ABI; one-hour A/V sync, repeat-seek, and saved-position resume passed on the
   physical Fire TV Stick for 1.1.2
 - Future backends: Emby and Kodi are planned but are not supported today
-
-The exact test package and checksum are documented in
-[docs/release-build.md](docs/release-build.md).
 
 ## What Astra supports
 
@@ -153,7 +147,7 @@ npm test -- --runInBand
 Build the current release target with:
 
 ```sh
-PATH=/home/levi/vega/bin:$PATH npx react-native build-vega \
+PATH=/path/to/vega/bin:$PATH npx react-native build-vega \
   --build-type Release --target x86_64 \
   --build-number 2026082204 --build-version 1.1.2
 ```
@@ -161,9 +155,9 @@ PATH=/home/levi/vega/bin:$PATH npx react-native build-vega \
 Install a VPKG on a Vega device with:
 
 ```sh
-/home/levi/vega/bin/vega device install-app \
+vega device install-app \
   --device <deviceId> --packagePath <packageFile>
-/home/levi/vega/bin/vega device launch-app \
+vega device launch-app \
   --device <deviceId> --appName com.astra.tv.main
 ```
 
@@ -173,13 +167,21 @@ its Amazon upload package is prepared.
 
 ## Documentation
 
-- [Current release build](docs/release-build.md)
+- [Changelog](CHANGELOG.md)
 - [Astra 1.1.2 release notes](docs/release-1.1.2.md)
 - [Astra 1.1.1 release notes](docs/release-1.1.1.md)
-- [Amazon 1.1.2 submission packet](docs/amazon-submission-v1.1.2.md)
-- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
-- [Audio and Vega engineering handoff](AUDIO-EDITION.md)
-- [Deferred work](docs/deferred-work.md)
+- [Astra 1.1.0 release notes](docs/release-1.1.0.md)
+- [Astra 1.0.2 release notes](docs/release-1.0.2.md)
+
+Reusable engineering references:
+
+- [Implementation status and playback findings](docs/IMPLEMENTATION_STATUS.md)
+- [Vega audio and music playback](AUDIO-EDITION.md)
+- [Music playback research](docs/music-support-notes.md)
+- [Crash and ANR analysis](docs/crash-investigation-2026-08-13.md)
+- [Emby compatibility analysis](docs/emby-support-notes.md)
+- [Deferred engineering work](docs/deferred-work.md)
+- [Jellyfin Android TV reference inventory](docs/reference-inventory.md)
 
 Reference repositories are kept outside this project under
 `~/projects/reference`. They are for study only and are not incorporated into

@@ -217,9 +217,9 @@ the estimate is irrelevant because the feature changes shape or dies.
 
 ## Pre-existing issues found during this investigation
 
-1. **Personal infrastructure hardcoded in shipping code.**
-   `normalizeServerUrl` (`index.ts:269-272`) contains an `http→https` redirect
-   for `jelly2.ambientflare.art`. Should be a general rule or removed.
+1. **Server-specific infrastructure hardcoded in shipping code.**
+   `normalizeServerUrl` contained an HTTP-to-HTTPS redirect for one hostname.
+   It should be a general rule or removed.
 
 2. **Jellyfin-specific user-visible strings.** `"Jellyfin request failed"`
    (`:629`), `"No playable URL returned from Jellyfin."` (`:1050`), and the

@@ -1,8 +1,7 @@
-# Astra — Audio Edition: Handoff Notes
+# Astra — Vega Audio Engineering Notes
 
 **Date:** 2026-07-27
-**Purpose:** Complete context for adding music playback to Astra, written for
-someone (or something) picking this up cold.
+**Purpose:** Reusable implementation notes for music playback on Vega OS.
 **Status:** Music browsing and playback work end to end. Device testing
 confirmed both progressive HTTPS playback and AAC/TS HLS playback from a plain
 `http://192.168.x.x:8096` Jellyfin server. The HLS compatibility fix and remote
@@ -57,8 +56,8 @@ The same track from an `https://` server plays perfectly.
 | `%2C`-encoded commas in `Container` | The working https playback uses the identical encoding. |
 | Wrong `Container` list | Server direct-plays correctly with it; verified 206 responses. |
 | Missing media control focus | Added `setMediaControlFocus()` before `initialize()`. Did not fix it. (Kept anyway — required for remote control.) |
-| Jellyfin could return an https URL | `/System/Info/Public` reports `"LocalAddress": "http://192.168.0.18:8096"`. No TLS on 8920 or 8096. The https address is a **reverse proxy** in front of the same server. |
-| **Cleartext blocks all media** | **WRONG.** Video plays fine over `http://192.168.0.18:8096`. |
+| Jellyfin could return an https URL | `/System/Info/Public` reports a plain-HTTP LAN address. No TLS was available on the tested server's media ports; its HTTPS address was supplied by a separate reverse proxy. |
+| **Cleartext blocks all media** | **WRONG.** Video plays fine over a plain-HTTP LAN server. |
 
 ### The actual cause
 
@@ -211,25 +210,20 @@ UI labels the section "Popular" only when play counts actually exist.
 
 ---
 
-## 6. Build, deploy, debug
+## 6. Build and debug
 
 ```bash
-export KEPLER_SDK_PATH=/home/levi/vega/sdk/0.23.8358
-export PATH=/home/levi/vega/bin:$KEPLER_SDK_PATH/bin:$PATH
+export KEPLER_SDK_PATH=/path/to/vega/sdk
+export PATH=/path/to/vega/bin:$KEPLER_SDK_PATH/bin:$PATH
 
 npm run lint && npm test
 npx react-native build-vega --build-type Release --target x86_64 \
   --build-number 2026072904 --build-version 1.1.0
 
-VPKG=build/private/kepler/@amazon-devices/astra/undefined/vega/x86_64/Release/@amazon-devices/astra_x86_64.vpkg
-vega device list
-vega run-app "$VPKG" com.astra.tv.main
-vega device installed-packages
-vega device uninstall-app --appName com.astra.tv.main   # note: --appName, takes the COMPONENT id
 ```
 
-Target device: Fire TV stick `GT533M0752050H4U`, x86_64. Only x86_64 is needed —
-aarch64/armv7 mapped to zero supported devices at submission.
+The validated release target was an x86_64 Fire TV Stick. Confirm the target
+architectures reported by the current store/device matrix before release.
 
 ### Paused-video system idle suppression
 
@@ -342,7 +336,7 @@ have been confirmed on the physical Vega device.
   Emby Premiere transcoding question.
 - `docs/deferred-work.md` — smaller deferred items with context.
 
-## 9. A note on method
+## 9. Diagnostic method
 
 Three wrong conclusions were reached and corrected during this work:
 

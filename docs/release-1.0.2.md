@@ -18,8 +18,7 @@ position. This fixes the previous audio-switch buffering hang and gives subtitle
 changes the same reliable lifecycle.
 
 Physical-device testing confirmed audio switching and both subtitle delivery
-paths. Each operation briefly pauses and clears the video surface, then resumes
-with the requested track.
+paths. Each operation briefly pauses, then resumes with the requested track.
 
 ## Subtitle compatibility
 
@@ -34,10 +33,8 @@ those images over direct-play video, so Astra now explicitly asks Jellyfin to
 burn them into the video. ASS/SSA and other bitmap subtitle formats use the same
 safe encode policy rather than being advertised as external text tracks.
 
-The separate paths were verified on physical Fire TV hardware using:
-
-- *Star Trek: Picard* — "Remembrance" for SubRip and PGS burn-in; and
-- *Star Trek: Enterprise* — "Broken Bow" for an additional SubRip test.
+The separate paths were verified on physical Fire TV hardware with both SubRip
+and PGS subtitle sources.
 
 ## Stream policy and audio compatibility
 
@@ -102,22 +99,5 @@ soon so users cannot enter a nonfunctional setup path.
 
 ## Verification
 
-- `npm run lint`: passed.
-- `npm test -- --watchAll=false`: 8 suites, 41 tests, 1 snapshot passed.
-- Manifest validation: 0 errors.
-- Vega x86_64 Release build: passed.
-- Audio switching: passed on physical Fire TV hardware.
-- SubRip/WebVTT rendering and on/off switching: passed on physical Fire TV
-  hardware.
-- PGS burn-in and on/off switching: passed on physical Fire TV hardware.
-- Jellyfin Quick Connect: passed on physical Fire TV hardware.
-- Password login remained available and covered by the setup tests.
-
-## Amazon artifact
-
-The Amazon submission artifact is local-only because `dist/` is ignored by Git:
-
-`dist/amazon-submission-1.0.2-20260718/astra-1.0.2-x86_64-release.vpkg`
-
-SHA-256:
-`e12f01a25ebed5304b2278792c71b9039b92a53e1ac9a18fda5bd368e459f91a`
+Automated tests, linting, manifest validation, the Vega x86_64 release build,
+and physical-device acceptance passed for this release.
