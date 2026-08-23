@@ -447,6 +447,13 @@ pre-release-history page and the intermediate top-panel version are recoverable
 on the web host at `.deploy-backups/index.html.20260822-2208` and
 `.deploy-backups/index.html.20260822-2225`, respectively.
 
+GitHub branch cleanup is complete. Fully merged release, fix, and agent
+branches were deleted locally and from GitHub after confirming their tips were
+reachable from `main`. The abandoned, unmerged July 1.0.5 playback experiment
+was intentionally not merged into current code; its tip remains recoverable as
+tag `archive/wip-1.0.5-20260713`. GitHub now has only the active `main` branch
+and no open pull requests.
+
 The previously prepared release remains:
 
 Astra `1.1.1` build `2026080401` is prepared as a stability patch. The upload
