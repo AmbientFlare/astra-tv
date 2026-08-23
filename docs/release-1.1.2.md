@@ -81,5 +81,7 @@ Version 1.1.2 is a focused playback patch for Fire TV devices running Vega OS.
 SHA-256: `5dbb766f89547aa4af0eb61c3c3612e7141da6a221df5ba376dbe09f8403f754`
 
 The required physical one-hour A/V-sync, repeat-seek, and saved-position resume
-acceptance gates passed. The release package is prepared but has not been
-uploaded to Amazon.
+acceptance gates passed. Build `.4` changes only build identity and static
+release text from the accepted `.3` playback implementation. The owner uploaded
+it to Amazon with the prepared release notes on 2026-08-22; Amazon review and
+publication remain.

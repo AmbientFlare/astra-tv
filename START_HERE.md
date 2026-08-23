@@ -165,8 +165,9 @@ The playback-identical `.3` build remained perfectly synchronized at 38, 56,
 and 60 minutes, passed forward/back/forward ten-second seeks, and resumed at
 the saved `64:31` scene within seconds. The `.4` release build is installed via
 the data-preserving upgrade path; the signed-in profile remained available and
-Home loaded normally. Physical and release-build acceptance are complete. No
-1.1.2 package has been uploaded.
+Home loaded normally. Physical and release-build acceptance are complete. The
+owner uploaded 1.1.2 to Amazon with the prepared release notes on 2026-08-22;
+Amazon review and publication remain external.
 
 The `.2` buffer map already ruled out late fetching, so do not change buffer
 goals for this symptom.
