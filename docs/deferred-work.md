@@ -50,8 +50,8 @@ are no worse.
 
 ## Scheme recovery for stored server profiles
 
-**Deferred from:** the 2026-07-27 removal of the hardcoded
-`jelly2.ambientflare.art` http→https rewrite.
+**Deferred from:** the 2026-07-27 removal of a server-specific HTTP-to-HTTPS
+rewrite.
 
 **What exists now.** `connect()` resolves http/https once at setup time via
 `getServerUrlCandidates` (`src/services/serverUrl/index.ts`) and the URL that
@@ -61,8 +61,8 @@ scheme probing.
 
 **The gap.** Resolution happens _only_ at connect/setup. If a server later moves
 from HTTP to HTTPS (or a reverse proxy starts redirecting), an already-saved
-profile keeps the stale scheme and every request fails. The user's only recourse
-is deleting and re-adding the server, which is not discoverable.
+profile keeps the stale scheme and every request fails. The only current
+recovery is deleting and re-adding the server, which is not discoverable.
 
 This is exactly the situation the old hardcode was papering over, so it is a real
 scenario, not a hypothetical.

@@ -55,6 +55,3 @@ manifest.
 - ESLint and TypeScript: passing
 - Vega manifest and ABI validation: passing
 - Exact package installed and launched on physical device
-
-The Amazon upload file and checksum are documented in
-[release-build.md](release-build.md).

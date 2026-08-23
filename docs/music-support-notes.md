@@ -1,8 +1,8 @@
 # Music Support — Research Notes
 
 Date: 2026-07-27
-Status: research complete, no code written
-Target: Astra 1.1.0 (see "Scope" — this is not a 1.0.3 patch)
+Status: historical research and implementation findings
+Target: Astra 1.1.0
 
 ## Reference material
 
@@ -18,7 +18,7 @@ Three Vega sample apps now sit in `reference/` (gitignored, safe to clone into):
 `src/screens`, `src/navigation`, `src/w3cmedia/shakaplayer`), so its patterns
 port directly rather than needing translation.
 
-What it already implements, and we can crib from:
+Relevant patterns implemented by the sample:
 
 - `src/utils/AudioHandler.ts` (516 lines) — the `useAudioHandler` hook: player
   init, track transitions, next/previous, buffering state, time updates
@@ -81,7 +81,7 @@ before use. The sports app does this in `initializeGlobalVariables()`.
 
 ## RESOLVED: background audio works. Use architecture A.
 
-**Device spike, 2026-07-27, Fire TV `GT533M0752050H4U`, Jellyfin 10.11.11.**
+**Device spike, 2026-07-27, x86_64 Fire TV, Jellyfin 10.11.11.**
 Throwaway spike app (`com.astra.tv.spike`), `AudioPlayer` only — no headless
 service, no Shaka.
 
@@ -358,10 +358,10 @@ Real player must, on `ended`, either advance the queue or reset
 `currentTime` to 0 before re-arming play. A duplicate `ended` also fired, so the
 handler needs to be idempotent — guard against double-advancing the queue.
 
-## Requirements captured from the 2026-07-27 discussion
+## Product requirements captured during research
 
-Reference point is Jellyfin's Android TV client, which the user finds
-serviceable but improvable.
+The reference point was Jellyfin's Android TV client, adapted for Vega and
+remote-first navigation.
 
 ### Library organization
 
@@ -423,8 +423,7 @@ way.
 
 ## Album art: do not build a local cache
 
-The user's instinct was to store all 821 covers locally so they render fast.
-Two reasons not to:
+A proposed local cache of all 821 covers was rejected for two reasons:
 
 1. **There is no filesystem API.** The available Amazon modules are
    `kepler-media-controls`, `keplerscript-netmgr-lib`, `react-native-kepler`,
@@ -463,7 +462,7 @@ fetches everything. That is a latent problem for large video libraries too.
 
 **An earlier revision of this section claimed Vega cannot play any media over
 cleartext HTTP, and that it affected video too. That was wrong.** Video plays
-fine from `http://192.168.0.18:8096` — verified on device by resuming a film.
+fine from a plain-HTTP LAN server — verified on device by resuming a film.
 The claim was drawn from a comparison of two servers differing in scheme, host,
 port and reverse-proxying all at once.
 
@@ -515,8 +514,8 @@ The same track, same server, same credentials:
 
 | Stream URL | Result |
 |---|---|
-| `http://192.168.0.18:8096/Audio/<id>/universal` | `readyState 0 (HAVE_NOTHING)`, immediate error, no bytes |
-| `https://jelly2.ambientflare.art/Audio/<id>/universal` | `readyState 3 (HAVE_FUTURE_DATA)`, plays normally |
+| `http://192.168.x.x:8096/Audio/<id>/universal` | `readyState 0 (HAVE_NOTHING)`, immediate error, no bytes |
+| `https://media.example.com/Audio/<id>/universal` | `readyState 3 (HAVE_FUTURE_DATA)`, plays normally |
 
 The URL was not at fault. Fetching the exact failing URL from a machine on the
 same LAN returned `206 Partial Content`, `audio/mpeg`, `accept-ranges: bytes`.
@@ -532,7 +531,7 @@ navigation — and then fails the instant you press play, with no clue why.
 ### This explains the hardcode removed earlier the same day
 
 `normalizeServerUrl` used to contain a rewrite of
-`http://jelly2.ambientflare.art` to `https://…`. That existed because playback
+one specific HTTP hostname to its HTTPS equivalent. That existed because playback
 failed over http. It was the correct workaround for the wrong reason, applied to
 one hostname. The general rule is now understood and handled properly.
 
@@ -541,7 +540,7 @@ one hostname. The general rule is now understood and handled properly.
 `/System/Info/Public` on the LAN server reports:
 
 ```json
-{"LocalAddress": "http://192.168.0.18:8096", "ServerName": "Vm", ...}
+{"LocalAddress": "http://192.168.x.x:8096", "ServerName": "Media", ...}
 ```
 
 It advertises http because http is all it serves. Probing found no TLS at all —
