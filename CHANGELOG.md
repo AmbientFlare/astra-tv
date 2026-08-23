@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.1.2 - 2026-08-22
+
+### Added
+
+- Stats for Nerds now reports the HLS segment target, minimum segment count,
+  exact app/build identity, and cumulative waiting, stalled, and error events.
+- Stats for Nerds now distinguishes the current contiguous buffer from all
+  buffered ranges and reports the next gap, so boundary gaps are not mistaken
+  for late segment downloads.
+- Playback health events emit privacy-safe structured container and delivery
+  metadata without URLs, credentials, item IDs, or media titles.
+
+### Fixed
+
+- Playback settings now offer opt-in four-, three-, and two-second Jellyfin HLS
+  segment targets on both fMP4 and MPEG-TS paths. Auto remains the default, so
+  existing playback behavior is unchanged unless compatibility mode is chosen.
+- HEVC video on Vega now uses Jellyfin HLS/MPEG-TS delivery, avoiding the
+  duplicate open-GOP timestamps that caused visible MP4/MOV micro-stutter.
+- Resuming an HLS/MPEG-TS title starts at the numbered Jellyfin segment that
+  contains the saved position instead of processing every preceding segment.
+
+### Changed
+
+- The Vega W3C Media dependency moves from 2.1.99 / `IW3cmedia_1` to 2.2.21 /
+  `IW3cmedia_2` for the next isolated long-playback stability and A/V-sync
+  candidate.
+- HLS/MPEG-TS returns to the previously accepted segments mode after a
+  one-hour physical sequence-mode test still accumulated a roughly
+  0.75–1.5-second audio lead. HLS/fMP4 remains in segments mode.
+- HEVC/MPEG-TS requests AC3 audio when the device reports AC3 support. Two
+  long AAC/TS hardware runs drifted while the generated transport-stream A/V
+  timestamps remained stable; H.264/fMP4 retains the normal audio policy.
+
 ## 1.1.1 - 2026-08-04
 
 ### Fixed

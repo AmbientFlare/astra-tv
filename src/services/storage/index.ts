@@ -33,6 +33,7 @@ export interface DisplayPreferences {
 
 export interface PlaybackPreferences {
   version: 1;
+  hlsSegmentLengthSeconds: 0 | 2 | 3 | 4;
   maxBitrateBps: number;
   maxAudioChannels: 2 | 6 | 8;
   preferredAudioLanguage: string;
@@ -117,6 +118,7 @@ export const defaultUserPreferences: UserPreferences = {
 
 export const defaultPlaybackPrefs: PlaybackPreferences = {
   version: 1,
+  hlsSegmentLengthSeconds: 0,
   maxBitrateBps: 80000000,
   maxAudioChannels: 6,
   preferredAudioLanguage: 'en',
@@ -353,12 +355,16 @@ export const updateUserPreferences = async (
 };
 
 const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
+  const hlsSegmentLengthSeconds = Number(parsed.hlsSegmentLengthSeconds);
   const maxBitrateBps = Number(parsed.maxBitrateBps);
   const maxAudioChannels = Number(parsed.maxAudioChannels);
   const seekDurationSeconds = Number(parsed.seekDurationSeconds);
 
   const preferences: PlaybackPreferences = {
     version: 1,
+    hlsSegmentLengthSeconds: [0, 2, 3, 4].includes(hlsSegmentLengthSeconds)
+      ? (hlsSegmentLengthSeconds as PlaybackPreferences['hlsSegmentLengthSeconds'])
+      : defaultPlaybackPrefs.hlsSegmentLengthSeconds,
     maxBitrateBps: [40000000, 80000000, 120000000, 200000000].includes(
       maxBitrateBps,
     )

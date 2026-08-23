@@ -9,6 +9,7 @@ dist
 build
 reference
 logs
+tmp
 
 # Throwaway audio playback spike (2026-07-27). Contains hardcoded credentials
 # by design. Delete the directory and revert src/App.tsx when finished.

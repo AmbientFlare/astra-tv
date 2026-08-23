@@ -5,6 +5,11 @@ import {
   defaultAudioOutputCapabilities,
 } from '../mediaCapabilities';
 
+const segmentLengthPreference = (prefs: PlaybackPreferences) =>
+  prefs.hlsSegmentLengthSeconds
+    ? {SegmentLength: prefs.hlsSegmentLengthSeconds}
+    : {};
+
 export const buildTranscodingAudioCodecs = (
   capabilities: AudioOutputCapabilities,
   enableUnverifiedDtsRemuxTrial = ENABLE_UNVERIFIED_DTS_REMUX_TRIAL,
@@ -32,6 +37,13 @@ export const buildDeviceProfile = (
     audioCapabilities,
     enableUnverifiedDtsRemuxTrial,
   );
+  // Long physical runs show Vega gradually renders AAC ahead of HEVC when
+  // both are delivered in MPEG-TS, even though the server's A/V timestamps
+  // remain stable within roughly 40-82 ms for the entire movie. A seek or
+  // pause/resume re-anchors the native clocks, matching the older AAC drift
+  // that AC3 delivery fixed. Isolate that codec variable only on the HEVC/TS
+  // route; safely retain the normal capability policy when AC3 is unavailable.
+  const mpegTsAudioCodecs = audioCapabilities.ac3 ? 'ac3' : audioCodecs;
 
   return {
     DirectPlayProfiles: [
@@ -58,32 +70,35 @@ export const buildDeviceProfile = (
       },
     ],
     TranscodingProfiles: [
-      // Primary delivery: HLS with fMP4 segments. Listing both codecs lets
-      // the server STREAM-COPY compatible sources into segments (full source
-      // quality, no GPU) and only re-encode when a CodecProfile condition
-      // fails — HDR10 becomes tonemapped 4K HEVC, oversized h264 becomes
-      // HEVC. HEVC is first so re-encodes target it (this device's h264
-      // decoder tops out at 1080p, HEVC decodes at 4K).
+      // HEVC physical-device trial: use MPEG-TS HLS segments. Jellyfin's
+      // fMP4 muxer rewrites open-GOP keyframe PTS onto a following B-frame,
+      // producing duplicate timestamps that Vega renders as micro-stutter.
+      // An equivalent MPEG-TS remux preserves every source timestamp. Keep
+      // HEVC first so incompatible/HDR sources still transcode to HEVC.
       {
         Type: 'Video',
-        Container: 'mp4',
-        VideoCodec: 'hevc,h264',
-        AudioCodec: audioCodecs,
+        Container: 'ts',
+        VideoCodec: 'hevc',
+        AudioCodec: mpegTsAudioCodecs,
         Protocol: 'hls',
         Context: 'Streaming',
         MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
         MinSegments: 1,
+        ...segmentLengthPreference(prefs),
         BreakOnNonKeyFrames: true,
       },
+      // Keep compatible h264 on the established fMP4 path so this experiment
+      // changes only HEVC delivery.
       {
         Type: 'Video',
-        Container: 'ts',
+        Container: 'mp4',
         VideoCodec: 'h264',
         AudioCodec: audioCodecs,
         Protocol: 'hls',
         Context: 'Streaming',
         MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
         MinSegments: 1,
+        ...segmentLengthPreference(prefs),
         BreakOnNonKeyFrames: true,
       },
       {

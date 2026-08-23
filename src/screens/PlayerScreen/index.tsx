@@ -21,6 +21,11 @@ import {
 } from '../../services/jellyfin';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
+  calibrateTimelineOffset,
+  logicalToMediaTime,
+  mediaToLogicalTime,
+} from '../../w3cmedia/mediaTimeline';
+import {
   getNextPlaybackRecovery,
   unloadPlayer,
 } from '../../w3cmedia/playerLifecycle';
@@ -36,6 +41,7 @@ import {
   parseWebVtt,
   WebVttCue,
 } from '../../services/subtitles';
+import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -45,12 +51,40 @@ interface PlaybackDebugInfo {
   activeVideoHeight?: number;
   activeVideoWidth?: number;
   bufferedAheadSeconds?: number;
+  bufferedRangeCount?: number;
   bufferingTimeSeconds?: number;
   decodedFrames?: number;
   droppedFrames?: number;
   estimatedBandwidth?: number;
+  errorEventCount: number;
+  furthestBufferedAheadSeconds?: number;
+  lastPlaybackEvent?: string;
+  lastPlaybackEventSeconds?: number;
+  nextBufferedGapSeconds?: number;
+  stalledEventCount: number;
   streamBandwidth?: number;
+  waitingEventCount: number;
 }
+
+interface PlaybackEventDiagnostics {
+  errorEventCount: number;
+  lastPlaybackEvent?: string;
+  lastPlaybackEventSeconds?: number;
+  stalledEventCount: number;
+  waitingEventCount: number;
+}
+
+const emptyPlaybackEventDiagnostics = (): PlaybackEventDiagnostics => ({
+  errorEventCount: 0,
+  stalledEventCount: 0,
+  waitingEventCount: 0,
+});
+
+// The physical one-hour MPEG-TS test rejected sequence mode: audio accumulated
+// a clearly visible lead over video, while pause/resume partially restored
+// sync. Keep every video route in the previously accepted segments mode while
+// the native W3C Media 2.2 interface is evaluated independently.
+export const shouldUseHlsSequenceMode = (_outputContainer?: string) => false;
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -116,10 +150,16 @@ export const PlayerScreen = ({
   const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
   const playbackGeneration = useRef(0);
+  const playbackDiagnosticsStartedAt = useRef(Date.now());
+  const playbackEventDiagnostics = useRef<PlaybackEventDiagnostics>(
+    emptyPlaybackEventDiagnostics(),
+  );
   const playbackErrorHandler = useRef<() => void>(() => undefined);
   const playbackRecoveryAttempt = useRef(0);
   const trackReloadInProgress = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
+  const pendingAdaptiveResumeSeconds = useRef<number | null>(null);
+  const mediaTimelineOffsetSeconds = useRef(0);
   const initialSeekApplied = useRef(false);
   const initialSeekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
@@ -252,7 +292,9 @@ export const PlayerScreen = ({
       (currentTime > 0 || latestPositionTicks.current === 0);
 
     latestPositionTicks.current = toTicks(
-      isTrustworthy ? currentTime : undefined,
+      isTrustworthy
+        ? mediaToLogicalTime(currentTime, mediaTimelineOffsetSeconds.current)
+        : undefined,
       latestPositionTicks.current / TICKS_PER_SECOND,
     );
 
@@ -368,31 +410,47 @@ export const PlayerScreen = ({
         return;
       }
 
-      const shakaPlayer = shakaPlayerRef.current;
-      if (shakaPlayer) {
-        await shakaPlayer.waitForAppendComplete();
-      }
+      const requestedAtMs = Date.now();
+      const fromSeconds = mediaToLogicalTime(
+        video.currentTime,
+        mediaTimelineOffsetSeconds.current,
+      );
       if (videoRef.current !== video) {
         return;
       }
 
       const duration =
-        typeof video.duration === 'number' && Number.isFinite(video.duration)
-          ? video.duration
-          : 0;
+        (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+        TICKS_PER_SECOND;
       const target = Math.max(
         0,
         duration > 0 ? Math.min(duration, targetSeconds) : targetSeconds,
       );
+      const mediaTarget = logicalToMediaTime(
+        target,
+        mediaTimelineOffsetSeconds.current,
+      );
+      const mediaDuration =
+        typeof video.duration === 'number' && Number.isFinite(video.duration)
+          ? video.duration
+          : 0;
+      const clampedMediaTarget =
+        mediaDuration > 0 ? Math.min(mediaDuration, mediaTarget) : mediaTarget;
       const seekableVideo = video as VideoPlayer & {
         fastSeek?: (time: number) => void;
       };
 
       if (typeof seekableVideo.fastSeek === 'function') {
-        seekableVideo.fastSeek(target);
+        seekableVideo.fastSeek(clampedMediaTarget);
       } else {
-        video.currentTime = target;
+        video.currentTime = clampedMediaTarget;
       }
+      console.info('[Astra] Seek applied:', {
+        dispatchMs: Date.now() - requestedAtMs,
+        fromSeconds: Math.round(fromSeconds * 1000) / 1000,
+        mediaTargetSeconds: Math.round(clampedMediaTarget * 1000) / 1000,
+        targetSeconds: Math.round(target * 1000) / 1000,
+      });
 
       const positionTicks = toTicks(target);
       latestPositionTicks.current = positionTicks;
@@ -425,7 +483,7 @@ export const PlayerScreen = ({
         });
       }
     },
-    [accessToken, scheduleControlsHide, serverUrl],
+    [accessToken, item.runTimeTicks, scheduleControlsHide, serverUrl],
   );
 
   const seek = useCallback(
@@ -436,7 +494,12 @@ export const PlayerScreen = ({
         return;
       }
 
-      await seekToSeconds(video.currentTime + seconds);
+      await seekToSeconds(
+        mediaToLogicalTime(
+          video.currentTime,
+          mediaTimelineOffsetSeconds.current,
+        ) + seconds,
+      );
     },
     [seekToSeconds],
   );
@@ -473,7 +536,10 @@ export const PlayerScreen = ({
               {length: SYNTHETIC_CHAPTER_COUNT},
               (_, index) => (duration * index) / SYNTHETIC_CHAPTER_COUNT,
             );
-      const current = video.currentTime;
+      const current = mediaToLogicalTime(
+        video.currentTime,
+        mediaTimelineOffsetSeconds.current,
+      );
       // Backward uses a small grace window so a quick double-press crosses
       // into the previous chapter instead of re-snapping to the current one.
       const target =
@@ -522,6 +588,8 @@ export const PlayerScreen = ({
       startTimeSeconds?: number,
     ) => {
       if (!isAdaptiveStream(stream.url)) {
+        pendingAdaptiveResumeSeconds.current = null;
+        mediaTimelineOffsetSeconds.current = 0;
         await unloadAdaptivePlayer();
         video.src = stream.url;
         video.load();
@@ -536,9 +604,23 @@ export const PlayerScreen = ({
         abrEnabled: false,
         abrMaxWidth: 3840,
         abrMaxHeight: 2160,
+        // Physical testing rejected sequence mode for MPEG-TS because A/V
+        // drift still accumulated over an hour. Retain the accepted
+        // segments-mode path while evaluating W3C Media 2.2 in isolation.
+        hlsSequenceMode: shouldUseHlsSequenceMode(stream.outputContainer),
+        hlsIgnoreManifestTimestampsInSegmentsMode: !shouldUseHlsSequenceMode(
+          stream.outputContainer,
+        ),
+        hlsResumePositionSeconds:
+          startTimeSeconds && startTimeSeconds > 0
+            ? startTimeSeconds
+            : undefined,
       };
 
       await unloadAdaptivePlayer();
+      pendingAdaptiveResumeSeconds.current =
+        startTimeSeconds && startTimeSeconds > 0 ? startTimeSeconds : null;
+      mediaTimelineOffsetSeconds.current = 0;
       const shakaPlayer = new ShakaPlayer(video, settings);
       shakaPlayerRef.current = shakaPlayer;
       try {
@@ -549,7 +631,12 @@ export const PlayerScreen = ({
             secure: settings.secure,
             drm_scheme: '',
             drm_license_uri: '',
-            startTime: startTimeSeconds,
+            // Jellyfin's dynamic HLS URL is already positioned at the saved
+            // movie time. Passing that absolute time again makes Shaka append
+            // every shortened-playlist segment until it reaches the same
+            // number. Start at the playlist edge and map its relative media
+            // clock back to logical movie time once playback begins.
+            startTime: 0,
           },
           false,
         );
@@ -589,10 +676,53 @@ export const PlayerScreen = ({
   const attachPlaybackEvents = useCallback(
     (video: VideoPlayer, generation: number) => {
       const isCurrentPlayer = () => playbackGeneration.current === generation;
+      const recordPlaybackEvent = (
+        event: string,
+        counter?: 'errorEventCount' | 'stalledEventCount' | 'waitingEventCount',
+      ) => {
+        const diagnostics = playbackEventDiagnostics.current;
+        diagnostics.lastPlaybackEvent = event;
+        diagnostics.lastPlaybackEventSeconds = Math.max(
+          0,
+          (Date.now() - playbackDiagnosticsStartedAt.current) / 1000,
+        );
+        if (counter) {
+          diagnostics[counter] += 1;
+          const stream = streamInfo.current;
+          console.info('[Astra] Playback health event:', {
+            event,
+            generation,
+            hlsSegmentTargetSeconds: stream?.hlsSegmentTargetSeconds,
+            outputContainer: stream?.outputContainer,
+            sourceContainer: stream?.sourceContainer,
+            videoDeliveryMethod: stream?.videoDeliveryMethod,
+          });
+        }
+      };
 
       video.addEventListener('playing', () => {
         if (!isCurrentPlayer()) {
           return;
+        }
+        recordPlaybackEvent('playing');
+        const resumeTarget = pendingAdaptiveResumeSeconds.current;
+        if (
+          resumeTarget !== null &&
+          typeof video.currentTime === 'number' &&
+          Number.isFinite(video.currentTime)
+        ) {
+          mediaTimelineOffsetSeconds.current = calibrateTimelineOffset(
+            resumeTarget,
+            video.currentTime,
+          );
+          pendingAdaptiveResumeSeconds.current = null;
+          latestPositionTicks.current = toTicks(resumeTarget);
+          setPositionSeconds(resumeTarget);
+          console.info('[Astra] Calibrated server-positioned HLS timeline:', {
+            logicalStartSeconds: resumeTarget,
+            mediaStartSeconds: video.currentTime,
+            timelineOffsetSeconds: mediaTimelineOffsetSeconds.current,
+          });
         }
         setPaused(false);
         const videoWithDimensions = video as VideoPlayer & {
@@ -618,6 +748,7 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('pause');
         setPaused(true);
         revealControls(false);
       });
@@ -625,6 +756,7 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('loadedmetadata');
         setStatusText('Stream loaded');
         applyPendingInitialSeek(video);
       });
@@ -632,6 +764,7 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('canplay');
         setStatusText('Ready to play');
         applyPendingInitialSeek(video);
       });
@@ -639,6 +772,7 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('waiting', 'waitingEventCount');
         revealControls(false);
         setStatusText('Buffering...');
       });
@@ -646,6 +780,7 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('stalled', 'stalledEventCount');
         revealControls(false);
         setStatusText('Playback stalled. Buffering...');
       });
@@ -654,14 +789,21 @@ export const PlayerScreen = ({
           return;
         }
         if (typeof video.currentTime === 'number') {
-          latestPositionTicks.current = toTicks(video.currentTime);
-          setPositionSeconds(video.currentTime);
+          const logicalTime =
+            pendingAdaptiveResumeSeconds.current ??
+            mediaToLogicalTime(
+              video.currentTime,
+              mediaTimelineOffsetSeconds.current,
+            );
+          latestPositionTicks.current = toTicks(logicalTime);
+          setPositionSeconds(logicalTime);
         }
       });
       video.addEventListener('error', () => {
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('error', 'errorEventCount');
         revealControls(false);
         playbackErrorHandler.current();
       });
@@ -669,6 +811,7 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
+        recordPlaybackEvent('ended');
         revealControls(false);
         setStatusText('Finished');
       });
@@ -1189,7 +1332,10 @@ export const PlayerScreen = ({
 
       const currentTime = video.currentTime;
       if (typeof currentTime === 'number') {
-        setPositionSeconds(currentTime);
+        setPositionSeconds(
+          pendingAdaptiveResumeSeconds.current ??
+            mediaToLogicalTime(currentTime, mediaTimelineOffsetSeconds.current),
+        );
       }
 
       reportPlaybackProgress(serverUrl, accessToken, {
@@ -1243,6 +1389,18 @@ export const PlayerScreen = ({
         (range) =>
           range.end >= currentTime && range.start <= currentTime + 0.25,
       );
+      const currentRangeIndex = currentRange
+        ? bufferedRanges.indexOf(currentRange)
+        : -1;
+      const nextRange =
+        currentRangeIndex >= 0
+          ? bufferedRanges[currentRangeIndex + 1]
+          : bufferedRanges.find((range) => range.start > currentTime);
+      const furthestBufferedEnd = bufferedRanges.reduce(
+        (furthest, range) =>
+          range.end >= currentTime ? Math.max(furthest, range.end) : furthest,
+        currentTime,
+      );
       const stats = diagnostics?.stats;
       const nativeVideo = video as
         | (VideoPlayer & {videoHeight?: number; videoWidth?: number})
@@ -1271,11 +1429,21 @@ export const PlayerScreen = ({
         bufferedAheadSeconds: currentRange
           ? Math.max(0, currentRange.end - currentTime)
           : undefined,
+        bufferedRangeCount: bufferedRanges.length,
         bufferingTimeSeconds: stats?.bufferingTime,
         decodedFrames: nativeVideoFrames?.totalVideoFrames,
         droppedFrames: nativeVideoFrames?.droppedVideoFrames,
         estimatedBandwidth: stats?.estimatedBandwidth,
+        furthestBufferedAheadSeconds:
+          furthestBufferedEnd > currentTime
+            ? furthestBufferedEnd - currentTime
+            : undefined,
+        nextBufferedGapSeconds:
+          currentRange && nextRange
+            ? Math.max(0, nextRange.start - currentRange.end)
+            : undefined,
         streamBandwidth: stats?.streamBandwidth,
+        ...playbackEventDiagnostics.current,
       });
     };
 
@@ -1617,6 +1785,19 @@ export const PlaybackStatsOverlay = ({
         }`}
       </Text>
       <Text style={styles.statsLine}>
+        {`Buffer map  ranges ${
+          diagnostics?.bufferedRangeCount ?? '—'
+        }   total ahead ${
+          diagnostics?.furthestBufferedAheadSeconds !== undefined
+            ? `${diagnostics.furthestBufferedAheadSeconds.toFixed(1)}s`
+            : '—'
+        }   next gap ${
+          diagnostics?.nextBufferedGapSeconds !== undefined
+            ? `${diagnostics.nextBufferedGapSeconds.toFixed(3)}s`
+            : '—'
+        }`}
+      </Text>
+      <Text style={styles.statsLine}>
         {`Video  ${formatDiagnosticCodec(
           streamInfo.sourceVideoCodec,
         )} → ${formatDiagnosticCodec(
@@ -1686,6 +1867,15 @@ export const PlaybackStatsOverlay = ({
         }   Overall ${streamInfo.playMethod}`}
       </Text>
       <Text style={styles.statsLine}>
+        {`Delivery  HLS target ${
+          streamInfo.hlsSegmentTargetSeconds !== undefined
+            ? `${streamInfo.hlsSegmentTargetSeconds}s`
+            : '—'
+        }   min segments ${
+          streamInfo.hlsMinimumSegmentCount ?? '—'
+        }   Astra ${APP_VERSION} (${BUILD_NUMBER})`}
+      </Text>
+      <Text style={styles.statsLine}>
         {`Bandwidth  stream ${formatDiagnosticMbps(
           diagnostics?.streamBandwidth ?? streamInfo.bitrate,
         )}   network ${formatDiagnosticMbps(diagnostics?.estimatedBandwidth)}`}
@@ -1697,6 +1887,17 @@ export const PlaybackStatsOverlay = ({
           diagnostics?.bufferingTimeSeconds !== undefined
             ? `${diagnostics.bufferingTimeSeconds.toFixed(1)}s`
             : '—'
+        }`}
+      </Text>
+      <Text style={styles.statsLine}>
+        {`Events  waiting ${diagnostics?.waitingEventCount ?? 0} / stalled ${
+          diagnostics?.stalledEventCount ?? 0
+        } / errors ${diagnostics?.errorEventCount ?? 0}   last ${
+          diagnostics?.lastPlaybackEvent ?? '—'
+        }${
+          diagnostics?.lastPlaybackEventSeconds !== undefined
+            ? ` @ ${formatDiagnosticTime(diagnostics.lastPlaybackEventSeconds)}`
+            : ''
         }`}
       </Text>
       {streamInfo.transcodeReasons?.length ? (

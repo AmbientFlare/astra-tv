@@ -1,10 +1,10 @@
-# Astra 1.1.1 Release Build
+# Astra 1.1.2 Amazon submission build
 
-Build date: 2026-08-04
+Build date: 2026-08-22
 
-App version: `1.1.1`
+App version: `1.1.2`
 
-Build number: `2026080401`
+Build number: `20260822.4` (app display), `2026082204` (Vega package build)
 
 Package ID: `com.astra.tv`
 Main component: `com.astra.tv.main`
@@ -12,29 +12,64 @@ Main component: `com.astra.tv.main`
 ## Build command
 
 ```bash
-npx react-native build-vega --build-type Release --target x86_64 \
-  --build-number 2026080401 --build-version 1.1.1
+PATH=/home/levi/vega/bin:$PATH npx react-native build-vega \
+  --build-type Release --target x86_64 \
+  --build-number 2026082204 --build-version 1.1.2
 ```
 
 ## Amazon upload artifact
 
-Upload this generated package to the Amazon Appstore:
+Upload this single file:
 
-`dist/amazon-submission-1.1.1-20260804/astra-1.1.1-x86_64-release.vpkg`
+`dist/amazon-submission-1.1.2-20260822/astra-1.1.2-x86_64-release.vpkg`
 
-SHA-256: `dacefabe1d431718b004e370cf02e1665f401b3d03a71b649b9aac05dd0adb0e`
+SHA-256: `5dbb766f89547aa4af0eb61c3c3612e7141da6a221df5ba376dbe09f8403f754`
 
-Amazon currently maps the x86_64 package to supported Fire TV Vega devices.
-Earlier submissions mapped aarch64 and armv7 packages to zero supported
-devices, so this update intentionally contains one x86_64 VPKG.
+The release is x86_64 because Amazon currently maps that package to the
+supported Fire TV Vega devices.
 
 ## Verification
 
 - ESLint passed.
 - TypeScript `tsc --noEmit` passed.
-- All 158 Jest tests across 19 suites passed.
-- Vega manifest and ABI validation passed, and the VPKG was generated.
-- Physical-device acceptance and Amazon Appstore upload are still pending.
+- All 175 Jest tests across 22 suites passed.
+- Vega manifest validation passed. The generated manifest requests
+  `/com.amazon.kepler.w3cmedia_2@IW3cmedia_2`, and ABI validation passed.
+- The versioned x86_64 VPKG was generated and its checksum recorded.
+- Build `20260822.3` was updated and launched successfully on Vega device
+  `GT533M0752050H4U` with `device install-app` and `device launch-app`; the
+  signed-in Jellyfin profile was retained. Do not use `run-app` for upgrades,
+  because the CLI uninstalls the existing package and deletes app data first.
+- The preceding build `20260813.11` installed and launched successfully on
+  Vega device `GT533M0752050H4U`; HEVC HLS/TS playback was approximately 99.9%
+  free of the reported micro-stutter and resume reached the correct scene
+  within a few seconds.
+- The new candidate started *Star Trek: Generations* from `0:00` successfully.
+  The Jellyfin FFmpeg log confirms HEVC stream copy plus AAC-to-AC3 conversion,
+  isolating the audio codec while retaining W3C Media 2.2 and MPEG-TS segments
+  mode.
+- The user reported perfect A/V sync at 38, 56, and 60 minutes of uninterrupted
+  playback. The preceding AAC build had obvious drift by approximately 46
+  minutes.
+- Forward/back/forward ten-second seeks returned to playback with one continuous
+  12.8-second buffer, zero dropped frames, zero stalls, and zero errors.
+- Exit-and-resume returned to the correct scene at `64:31`; Jellyfin started
+  the resumed stream at `-ss 01:04:24.500` with numbered segment 644.
+- Build `20260822.4` changes only the build identity and static in-app release
+  notes from the accepted `.3` playback code. It passed the same 175 tests,
+  manifest and ABI validation, installed through the data-preserving upgrade
+  path, retained the signed-in profile, and loaded Home normally.
+- The `.4` VPKG was copied byte-for-byte into the Amazon submission directory;
+  both copies match the checksum above. It has not been uploaded.
 
-See [release-1.1.1.md](release-1.1.1.md) for functional changes and
-[amazon-submission-v1.1.1.md](amazon-submission-v1.1.1.md) for upload notes.
+The first build attempt produced the JS bundle but stopped before native
+packaging because the Vega CLI directory was absent from `PATH`:
+
+```bash
+error Vega CLI was not found in ambient environment, nor could be found within
+$KEPLER_SDK_PATH (value = '/home/levi/vega/sdk/0.23.8358').
+```
+
+Retrying the same build with `PATH=/home/levi/vega/bin:$PATH` succeeded.
+
+See [release-1.1.2.md](release-1.1.2.md) for the acceptance checklist.
