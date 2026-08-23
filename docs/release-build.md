@@ -60,7 +60,9 @@ supported Fire TV Vega devices.
   manifest and ABI validation, installed through the data-preserving upgrade
   path, retained the signed-in profile, and loaded Home normally.
 - The `.4` VPKG was copied byte-for-byte into the Amazon submission directory;
-  both copies match the checksum above. It has not been uploaded.
+  both copies match the checksum above.
+- The owner uploaded this VPKG to Amazon and entered the prepared release notes
+  on 2026-08-22. Amazon review and publication remain.
 
 The first build attempt produced the JS bundle but stopped before native
 packaging because the Vega CLI directory was absent from `PATH`:

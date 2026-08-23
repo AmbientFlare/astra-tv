@@ -429,7 +429,8 @@ profile, and began Generations playback from `0:00`; the server log confirms
 HEVC copy plus AC3 output. It remained perfectly synchronized through 60
 minutes, passed forward/back/forward ten-second seeks with no drops, stalls, or
 errors, and resumed the saved `01:04:24.500` position within seconds. Physical
-acceptance is complete; no 1.1.2 package has been uploaded.
+acceptance is complete. The owner uploaded 1.1.2 to Amazon with the prepared
+release notes on 2026-08-22.
 
 Build `.4` changes only the display build identity and static in-app release
 notes from the hardware-accepted `.3` playback implementation. It passed the
@@ -438,12 +439,13 @@ signed-in Jellyfin profile, and loaded Home normally. Its test-candidate and
 Amazon-submission copies are byte-identical. The Amazon submission packet is
 `docs/amazon-submission-v1.1.2.md`.
 
-The public `watchastra.com` home page now includes an Astra 1.1.2 section that
-describes the stutter, resume, long-watch synchronization, and diagnostic
-improvements while accurately labeling the update as prepared for Amazon
-review. The previous production page is recoverable at
-`/home/newlevi/watchastra/.deploy-backups/index.html.20260822-2208` on the web
-host, and the deployed page was verified over HTTPS.
+The `watchastra.com` release material was moved from the top of the page to a
+bottom release-history section. It now lists every public update from 1.0.0
+through 1.1.2 with dates and concise change summaries, and labels 1.1.2 as
+submitted to Amazon. The deployed page was verified over HTTPS. The original
+pre-release-history page and the intermediate top-panel version are recoverable
+on the web host at `.deploy-backups/index.html.20260822-2208` and
+`.deploy-backups/index.html.20260822-2225`, respectively.
 
 The previously prepared release remains:
 

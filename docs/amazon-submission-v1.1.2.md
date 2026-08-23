@@ -83,4 +83,7 @@ scene within a few seconds and continue smoothly.
 6. Use the reviewer notes above if a testing-instructions field is shown.
 7. Review Amazon validation results, then submit the update for review.
 
-The package was prepared locally and has not yet been uploaded or submitted.
+## Submission status
+
+The owner uploaded the package to Amazon and entered the release notes on
+2026-08-22. Amazon review and publication remain external to this repository.
