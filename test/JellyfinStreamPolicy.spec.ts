@@ -4,7 +4,10 @@ import {
 } from '../src/services/jellyfin/deviceProfile';
 import {defaultPlaybackPrefs} from '../src/services/storage';
 import type {AudioOutputCapabilities} from '../src/services/mediaCapabilities';
-import {subtitleMimeForDelivery} from '../src/services/jellyfin';
+import {
+  sanitizeUrlForLog,
+  subtitleMimeForDelivery,
+} from '../src/services/jellyfin';
 
 const capabilities = (
   overrides: Partial<AudioOutputCapabilities> = {},
@@ -18,6 +21,24 @@ const capabilities = (
   preferredTranscodeCodec: 'aac',
   probeSucceeded: true,
   ...overrides,
+});
+
+describe('Jellyfin diagnostic URL privacy', () => {
+  it('drops the complete query and redacts media IDs from absolute URLs', () => {
+    expect(
+      sanitizeUrlForLog(
+        'http://media.example:8096/videos/2f38ff46-b851-75a1-4be6-e80b2d093b94/master.m3u8?ApiKey=secret&PlaySessionId=session',
+      ),
+    ).toBe('http://media.example:8096/videos/[id]/master.m3u8');
+  });
+
+  it('does not leak queries when handed a relative or malformed URL', () => {
+    expect(
+      sanitizeUrlForLog(
+        '/videos/2f38ff46b85175a14be6e80b2d093b94/master.m3u8?api_key=secret',
+      ),
+    ).toBe('/videos/[id]/master.m3u8');
+  });
 });
 
 describe('Jellyfin audio delivery policy', () => {
@@ -78,7 +99,8 @@ describe('Jellyfin audio delivery policy', () => {
     expect(profile.DirectPlayProfiles[0].AudioCodec).toBe(
       'aac,opus,mp3,ac3,dts',
     );
-    expect(profile.TranscodingProfiles[0].AudioCodec).toBe(
+    expect(profile.TranscodingProfiles[0].AudioCodec).toBe('ac3');
+    expect(profile.TranscodingProfiles[1].AudioCodec).toBe(
       'ac3,aac,opus,mp3,dts',
     );
   });
@@ -95,8 +117,95 @@ describe('Jellyfin audio delivery policy', () => {
     );
 
     expect(profile.DirectPlayProfiles[0].AudioCodec).toContain('dts');
-    expect(profile.TranscodingProfiles[0].AudioCodec).toContain('dts');
+    expect(profile.TranscodingProfiles[0].AudioCodec).toBe('ac3');
+    expect(profile.TranscodingProfiles[1].AudioCodec).toContain('dts');
   });
+});
+
+describe('Jellyfin HLS delivery policy', () => {
+  const hlsVideoProfiles = (
+    hlsSegmentLengthSeconds: 0 | 2 | 3 | 4,
+  ): Array<Record<string, unknown>> => {
+    const profile = buildDeviceProfile(
+      {...defaultPlaybackPrefs, hlsSegmentLengthSeconds},
+      capabilities(),
+      false,
+    );
+
+    return profile.TranscodingProfiles.filter(
+      (candidate) => candidate.Type === 'Video' && candidate.Protocol === 'hls',
+    );
+  };
+
+  it('preserves Jellyfin segment defaults unless compatibility mode is selected', () => {
+    const profiles = hlsVideoProfiles(0);
+
+    expect(profiles).toHaveLength(2);
+    expect(profiles.every((profile) => !('SegmentLength' in profile))).toBe(
+      true,
+    );
+  });
+
+  it('routes HEVC through MPEG-TS while retaining fMP4 for h264', () => {
+    expect(hlsVideoProfiles(0)).toEqual([
+      expect.objectContaining({Container: 'ts', VideoCodec: 'hevc'}),
+      expect.objectContaining({Container: 'mp4', VideoCodec: 'h264'}),
+    ]);
+  });
+
+  it('forces AC3 only for HEVC/MPEG-TS when Vega reports AC3 support', () => {
+    const profile = buildDeviceProfile(
+      defaultPlaybackPrefs,
+      capabilities({ac3: true, preferredTranscodeCodec: 'ac3'}),
+      false,
+    );
+
+    expect(profile.TranscodingProfiles[0]).toEqual(
+      expect.objectContaining({
+        Container: 'ts',
+        VideoCodec: 'hevc',
+        AudioCodec: 'ac3',
+      }),
+    );
+    expect(profile.TranscodingProfiles[1]).toEqual(
+      expect.objectContaining({
+        Container: 'mp4',
+        VideoCodec: 'h264',
+        AudioCodec: 'ac3,aac',
+      }),
+    );
+  });
+
+  it('retains AAC fallback for HEVC/MPEG-TS when AC3 is unavailable', () => {
+    expect(hlsVideoProfiles(0)[0]).toEqual(
+      expect.objectContaining({AudioCodec: 'aac'}),
+    );
+  });
+
+  it.each([4, 3, 2] as const)(
+    'requests %i-second segments for every video HLS profile',
+    (segmentLength) => {
+      const profiles = hlsVideoProfiles(segmentLength);
+
+      expect(profiles).toHaveLength(2);
+      expect(profiles).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            Container: 'ts',
+            VideoCodec: 'hevc',
+            MinSegments: 1,
+            SegmentLength: segmentLength,
+          }),
+          expect.objectContaining({
+            Container: 'mp4',
+            VideoCodec: 'h264',
+            MinSegments: 1,
+            SegmentLength: segmentLength,
+          }),
+        ]),
+      );
+    },
+  );
 });
 
 describe('Jellyfin subtitle delivery policy', () => {

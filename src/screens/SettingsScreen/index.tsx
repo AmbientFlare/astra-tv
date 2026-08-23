@@ -45,6 +45,7 @@ type SettingsRoute =
   | {route: 'displayPreferences'}
   | {route: 'maxBitrate'}
   | {route: 'connectionTest'}
+  | {route: 'hlsSegmentLength'}
   | {route: 'audioChannels'}
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
@@ -77,6 +78,16 @@ const audioChannelOptions: Array<{
   {label: 'Stereo (2.0)', value: 2},
   {label: '5.1 Surround', value: 6},
   {label: '7.1 Surround', value: 8},
+];
+
+const hlsSegmentLengthOptions: Array<{
+  label: string;
+  value: PlaybackPreferences['hlsSegmentLengthSeconds'];
+}> = [
+  {label: 'Auto (recommended)', value: 0},
+  {label: '4 seconds', value: 4},
+  {label: '3 seconds', value: 3},
+  {label: '2 seconds', value: 2},
 ];
 
 const languageOptions: Array<{label: string; value: string}> = [
@@ -555,6 +566,16 @@ export const SettingsScreen = ({
               onPress={() => push({route: 'seekDuration'})}
             />
             <MenuRow
+              icon="⋮"
+              title="HLS segment length"
+              subtitle={
+                playbackPrefs.hlsSegmentLengthSeconds
+                  ? `${playbackPrefs.hlsSegmentLengthSeconds}s compatibility mode`
+                  : 'Auto (recommended)'
+              }
+              onPress={() => push({route: 'hlsSegmentLength'})}
+            />
+            <MenuRow
               icon="⊘"
               title="Skip intro/credits"
               subtitle={labelForSkip(preferences.skipIntroCredits)}
@@ -674,6 +695,22 @@ export const SettingsScreen = ({
             }
           />
         );
+      case 'hlsSegmentLength':
+        return (
+          <Page title="HLS segment length" onBack={pop}>
+            <Text style={styles.description}>
+              Leave this on Auto unless MP4 or MOV playback stutters. Shorter
+              segments increase network requests and player append operations.
+            </Text>
+            <PreferenceRadioGroup
+              options={hlsSegmentLengthOptions}
+              selectedValue={playbackPrefs.hlsSegmentLengthSeconds}
+              onSelect={(hlsSegmentLengthSeconds) =>
+                savePlaybackPrefs({hlsSegmentLengthSeconds})
+              }
+            />
+          </Page>
+        );
       case 'skipIntro':
         return (
           <RadioPage
@@ -726,20 +763,18 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Browse and play Jellyfin music by artist, album, genre, and
-                  playlist.
+                  • Smoothed affected MP4/MOV playback by avoiding problematic
+                  HEVC fragment boundaries on Vega OS.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Play songs and albums, seek, and keep listening in the
-                  background.
+                  • Fixed saved-position resume skipping through earlier video.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Local HTTP servers use HLS audio automatically—no TLS or
-                  reverse proxy required.
+                  • Improved audio/video sync during long playback sessions.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Added burn-in protection for music and paused video, plus
-                  unwatched counts on series posters.
+                  • Expanded Stats for Nerds with HLS delivery details, build
+                  identity, and playback waiting, stalled, and error counters.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>

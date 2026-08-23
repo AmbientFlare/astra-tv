@@ -154,6 +154,7 @@ jest.mock('../src/services/iap', () => ({
 
 jest.mock('../src/services/storage', () => ({
   defaultPlaybackPrefs: {
+    hlsSegmentLengthSeconds: 0,
     maxAudioChannels: 6,
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
@@ -206,6 +207,7 @@ jest.mock('../src/services/storage', () => ({
   })),
   incrementLaunchCount: jest.fn(async () => 1),
   readPlaybackPreferences: jest.fn(async () => ({
+    hlsSegmentLengthSeconds: 0,
     maxAudioChannels: 6,
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',

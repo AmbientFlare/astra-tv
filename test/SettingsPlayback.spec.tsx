@@ -4,6 +4,7 @@ import {fireEvent, render, waitFor} from '@testing-library/react-native';
 import {
   PlaybackSettingsOverlay,
   PlaybackStatsOverlay,
+  shouldUseHlsSequenceMode,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
 import {writePlaybackPreferences} from '../src/services/storage';
@@ -37,6 +38,7 @@ jest.mock('../src/services/jellyfin', () => ({
 
 jest.mock('../src/services/storage', () => ({
   defaultPlaybackPrefs: {
+    hlsSegmentLengthSeconds: 0,
     maxAudioChannels: 6,
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
@@ -71,6 +73,7 @@ jest.mock('../src/services/storage', () => ({
     subtitleMode: 'default',
   })),
   readPlaybackPreferences: jest.fn(async () => ({
+    hlsSegmentLengthSeconds: 0,
     maxAudioChannels: 6,
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
@@ -84,6 +87,7 @@ jest.mock('../src/services/storage', () => ({
   signOutServerProfile: jest.fn(async () => undefined),
   updateUserPreferences: jest.fn(async (patch) => patch),
   writePlaybackPreferences: jest.fn(async (patch) => ({
+    hlsSegmentLengthSeconds: patch.hlsSegmentLengthSeconds ?? 0,
     maxAudioChannels: 6,
     maxBitrateBps: 80000000,
     preferredAudioLanguage: 'en',
@@ -126,6 +130,21 @@ describe('playback diagnostics entry points', () => {
     );
   });
 
+  it('keeps shorter HLS segments opt-in and persists compatibility choices', async () => {
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    expect(screen.getByText('Auto (recommended)')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('settings-HLS segment length'));
+    fireEvent.press(screen.getByText('3 seconds'));
+
+    await waitFor(() =>
+      expect(mockWritePlaybackPreferences).toHaveBeenCalledWith({
+        hlsSegmentLengthSeconds: 3,
+      }),
+    );
+  });
+
   it('shows the release version and build number on the About page', async () => {
     const screen = render(<SettingsScreen serverProfile={serverProfile} />);
 
@@ -134,12 +153,22 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.1.1')).toBeTruthy();
-    expect(screen.getByText('Build: 20260804.1')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.1.1")).toBeTruthy();
+    expect(screen.getByText('Astra 1.1.2')).toBeTruthy();
+    expect(screen.getByText('Build: 20260822.4')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.1.2")).toBeTruthy();
     expect(
       screen.getByText(
-        '• Local HTTP servers use HLS audio automatically—no TLS or reverse proxy required.',
+        '• Smoothed affected MP4/MOV playback by avoiding problematic HEVC fragment boundaries on Vega OS.',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        '• Fixed saved-position resume skipping through earlier video.',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        '• Improved audio/video sync during long playback sessions.',
       ),
     ).toBeTruthy();
   });
@@ -175,10 +204,18 @@ describe('playback diagnostics entry points', () => {
           activeVideoHeight: 2160,
           activeVideoWidth: 3840,
           bufferedAheadSeconds: 12.5,
+          bufferedRangeCount: 2,
           decodedFrames: 240,
           droppedFrames: 0,
           estimatedBandwidth: 100000000,
+          errorEventCount: 0,
+          furthestBufferedAheadSeconds: 25.25,
+          lastPlaybackEvent: 'playing',
+          lastPlaybackEventSeconds: 14,
+          nextBufferedGapSeconds: 0.083,
+          stalledEventCount: 0,
           streamBandwidth: 22700000,
+          waitingEventCount: 1,
         }}
         positionSeconds={15}
         streamInfo={{
@@ -198,6 +235,8 @@ describe('playback diagnostics entry points', () => {
           ],
           deliveredAudioStreamIndex: 1,
           height: 2160,
+          hlsMinimumSegmentCount: 1,
+          hlsSegmentTargetSeconds: 2,
           itemId: 'item-1',
           outputAudioBitrate: 448000,
           outputAudioCodec: 'aac',
@@ -226,6 +265,27 @@ describe('playback diagnostics entry points', () => {
       screen.getByText(/Resolution {2}source 3840x2160 → active 3840x2160/),
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
+    expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.1\.2 \(20260822\.4\)/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Events {2}waiting 1 \/ stalled 0 \/ errors 0 {3}last playing @ 0:14/,
+      ),
+    ).toBeTruthy();
     expect(screen.getByText(/AudioCodecNotSupported/)).toBeTruthy();
+  });
+
+  it('keeps every HLS output in segments mode after the MPEG-TS rejection', () => {
+    expect(shouldUseHlsSequenceMode('ts')).toBe(false);
+    expect(shouldUseHlsSequenceMode(' MPEG-TS ')).toBe(false);
+    expect(shouldUseHlsSequenceMode('mp2t')).toBe(false);
+    expect(shouldUseHlsSequenceMode('mp4')).toBe(false);
+    expect(shouldUseHlsSequenceMode('fMP4 HLS')).toBe(false);
+    expect(shouldUseHlsSequenceMode(undefined)).toBe(false);
   });
 });

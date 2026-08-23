@@ -26,6 +26,8 @@ import Element from '../polyfills/ElementPolyfill';
 import MiscPolyfill from '../polyfills/MiscPolyfill';
 import TextDecoderPolyfill from '../polyfills/TextDecoderPolyfill';
 import W3CMediaPolyfill from '../polyfills/W3CMediaPolyfill';
+import {BufferOperationTracker} from '../bufferOperationTracker';
+import {trimHlsMediaPlaylistForResume} from '../hlsResumePlaylist';
 
 // install polyfills
 Document.install();
@@ -43,15 +45,16 @@ export interface ShakaPlayerSettings {
   abrEnabled: boolean;
   abrMaxWidth?: number;
   abrMaxHeight?: number;
+  hlsSequenceMode?: boolean;
+  hlsIgnoreManifestTimestampsInSegmentsMode?: boolean;
+  hlsResumePositionSeconds?: number;
 }
 
 export class ShakaPlayer implements PlayerInterface {
   player: shaka.Player;
   private setting_: ShakaPlayerSettings;
   private mediaElement: HTMLMediaElement | null;
-  private isAppending: boolean = false;
-  private appendQueue: Array<() => Promise<void>> = [];
-  private appendDrainPromise: Promise<void> | null = null;
+  private bufferOperations = new BufferOperationTracker();
   private appendHooksCleanup: (() => void) | null = null;
   private lifecycleQueue: Promise<void> = Promise.resolve();
 
@@ -75,105 +78,9 @@ export class ShakaPlayer implements PlayerInterface {
     return next;
   }
 
-  private enqueueBufferOperation(
-    operation: () => Promise<void>,
-    append: boolean,
-  ): void {
-    this.appendQueue.push(async () => {
-      if (append) {
-        this.isAppending = true;
-      }
-
-      try {
-        await operation();
-      } finally {
-        if (append) {
-          this.isAppending = false;
-        }
-      }
-    });
-
-    if (!this.appendDrainPromise) {
-      this.appendDrainPromise = this.drainAppendQueue();
-    }
-  }
-
-  private async drainAppendQueue(): Promise<void> {
-    while (this.appendQueue.length > 0) {
-      const operation = this.appendQueue.shift();
-      if (!operation) {
-        continue;
-      }
-
-      try {
-        await operation();
-      } catch (error) {
-        // Shaka still receives the SourceBuffer error event. Continue draining
-        // so a failed segment cannot strand teardown or a later seek.
-        console.warn('[Astra] Serialized MSE operation failed:', error);
-      }
-    }
-
-    this.appendDrainPromise = null;
-  }
-
-  /** Wait for all SourceBuffer work already handed to the native pipeline. */
+  /** Wait for SourceBuffer work already handed to the native pipeline. */
   async waitForAppendComplete(): Promise<void> {
-    while (this.appendDrainPromise || this.appendQueue.length > 0) {
-      const drain = this.appendDrainPromise;
-      if (drain) {
-        await drain;
-      } else {
-        await Promise.resolve();
-      }
-    }
-  }
-
-  private waitForSourceBufferUpdate(sourceBuffer: any, action: () => void) {
-    return new Promise<void>((resolve, reject) => {
-      let settled = false;
-
-      const cleanup = () => {
-        sourceBuffer.removeEventListener?.('updateend', onUpdateEnd);
-        sourceBuffer.removeEventListener?.('abort', onAbort);
-        sourceBuffer.removeEventListener?.('error', onError);
-      };
-      const finish = (error?: unknown) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        cleanup();
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      };
-      const onUpdateEnd = () => finish();
-      const onAbort = () => finish();
-      const onError = (error: unknown) =>
-        finish(error ?? new Error('SourceBuffer error'));
-
-      sourceBuffer.addEventListener?.('updateend', onUpdateEnd);
-      sourceBuffer.addEventListener?.('abort', onAbort);
-      sourceBuffer.addEventListener?.('error', onError);
-
-      try {
-        action();
-      } catch (error) {
-        finish(error);
-        return;
-      }
-
-      // Some Vega SourceBuffer operations complete synchronously. Defer this
-      // check one turn so appendBuffer can set `updating` first.
-      Promise.resolve().then(() => {
-        if (!sourceBuffer.updating) {
-          finish();
-        }
-      });
-    });
+    await this.bufferOperations.waitForComplete();
   }
 
   private wrapSourceBuffer(sourceBuffer: any): void {
@@ -188,11 +95,9 @@ export class ShakaPlayer implements PlayerInterface {
 
     if (originalAppendBuffer) {
       sourceBuffer.appendBuffer = (data: ArrayBuffer | ArrayBufferView) => {
-        this.enqueueBufferOperation(
-          () =>
-            this.waitForSourceBufferUpdate(sourceBuffer, () =>
-              originalAppendBuffer(data),
-            ),
+        this.bufferOperations.track(
+          sourceBuffer,
+          () => originalAppendBuffer(data),
           true,
         );
       };
@@ -200,11 +105,9 @@ export class ShakaPlayer implements PlayerInterface {
 
     if (originalRemove) {
       sourceBuffer.remove = (start: number, end: number) => {
-        this.enqueueBufferOperation(
-          () =>
-            this.waitForSourceBufferUpdate(sourceBuffer, () =>
-              originalRemove(start, end),
-            ),
+        this.bufferOperations.track(
+          sourceBuffer,
+          () => originalRemove(start, end),
           false,
         );
       };
@@ -212,9 +115,9 @@ export class ShakaPlayer implements PlayerInterface {
 
     if (originalAbort) {
       sourceBuffer.abort = () => {
-        this.enqueueBufferOperation(
-          () =>
-            this.waitForSourceBufferUpdate(sourceBuffer, () => originalAbort()),
+        this.bufferOperations.track(
+          sourceBuffer,
+          () => originalAbort(),
           false,
         );
       };
@@ -520,6 +423,46 @@ export class ShakaPlayer implements PlayerInterface {
     netEngine.registerRequestFilter(this.uplynkRequestFilter);
     netEngine.registerResponseFilter(this.uplynkResponseFilter);
 
+    if (
+      this.setting_.hlsResumePositionSeconds &&
+      this.setting_.hlsResumePositionSeconds > 0
+    ) {
+      let resumePlaylistTrimmed = false;
+      netEngine.registerResponseFilter((type, response) => {
+        if (
+          resumePlaylistTrimmed ||
+          type !== shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+          !response?.data
+        ) {
+          return;
+        }
+
+        try {
+          const body = new TextDecoder('utf-8').decode(response.data);
+          const trimmed = trimHlsMediaPlaylistForResume(
+            body,
+            this.setting_.hlsResumePositionSeconds!,
+          );
+          if (!trimmed) {
+            return;
+          }
+
+          response.data = new Uint8Array(
+            Array.from(trimmed.playlist).map((character) =>
+              character.charCodeAt(0),
+            ),
+          ).buffer;
+          resumePlaylistTrimmed = true;
+          console.info('[Astra] Trimmed Jellyfin HLS resume playlist:', {
+            skippedDurationSeconds: trimmed.skippedDurationSeconds,
+            skippedSegments: trimmed.skippedSegments,
+          });
+        } catch (error) {
+          console.warn('[Astra] Unable to trim HLS resume playlist:', error);
+        }
+      });
+    }
+
     // This filter is needed for Axinom streams.
     if (content.hasOwnProperty('drm_license_header')) {
       let header_map: Map<string, string> = new Map();
@@ -598,7 +541,18 @@ export class ShakaPlayer implements PlayerInterface {
           disableXlinkProcessing: true,
         },
         hls: {
-          sequenceMode: false,
+          // Vega's MP4 demuxer can pass overlapping decode timestamps from
+          // adjacent Jellyfin fMP4 fragments through to the hardware decoder.
+          // Sequence mode places each fragment directly after the previous
+          // one, avoiding the repeated/backward DTS at fragment boundaries.
+          // Callers opt in because cleartext music also shares this player.
+          sequenceMode: this.setting_.hlsSequenceMode ?? false,
+          // In segments mode, Jellyfin's fMP4 media timestamps are more
+          // trustworthy than Shaka's duration-derived correction on Vega.
+          // Opting in prevents large timestampOffset adjustments while still
+          // retaining the source's natural audio/video cadence.
+          ignoreManifestTimestampsInSegmentsMode:
+            this.setting_.hlsIgnoreManifestTimestampsInSegmentsMode ?? false,
         },
       },
       abr: {
@@ -688,7 +642,7 @@ export class ShakaPlayer implements PlayerInterface {
     this.mediaElement?.pause();
   }
   async seekBack(): Promise<void> {
-    if (this.isAppending || this.appendDrainPromise) {
+    if (this.bufferOperations.hasPendingOperations()) {
       await this.waitForAppendComplete();
     }
     const mediaElement = this.mediaElement;
@@ -702,7 +656,7 @@ export class ShakaPlayer implements PlayerInterface {
     }
   }
   async seekFront(): Promise<void> {
-    if (this.isAppending || this.appendDrainPromise) {
+    if (this.bufferOperations.hasPendingOperations()) {
       await this.waitForAppendComplete();
     }
     const mediaElement = this.mediaElement;

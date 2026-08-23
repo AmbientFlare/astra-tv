@@ -168,6 +168,8 @@ export interface JellyfinStreamInfo {
   audioOutputCapabilities?: AudioOutputCapabilities;
   audioTranscodePolicy?: string;
   height?: number;
+  hlsMinimumSegmentCount?: number;
+  hlsSegmentTargetSeconds?: number;
   width?: number;
   mediaSourceId?: string;
   playSessionId?: string;
@@ -207,6 +209,11 @@ const permitsStreamCopy = (url: string, parameter: string) =>
     .some((value) => value.trim().toLowerCase() === 'true');
 
 const isAdaptiveStreamUrl = (url: string) => /\.m3u8(?:$|\?)/i.test(url);
+
+const getPositiveUrlNumber = (url: string, name: string) => {
+  const value = Number(getUrlParameter(url, name));
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+};
 
 const describeDelivery = (
   url: string,
@@ -308,28 +315,21 @@ export const sanitizeUrlForLog = (rawUrl?: string) => {
 
   try {
     const parsed = new URL(rawUrl);
-    const sensitiveParams = [
-      'api_key',
-      'access_token',
-      'token',
-      'password',
-      'pw',
-    ];
-
-    sensitiveParams.forEach((paramName) => {
-      parsed.searchParams.forEach((_, key) => {
-        if (key.toLowerCase() === paramName) {
-          parsed.searchParams.set(key, '[redacted]');
-        }
-      });
-    });
-
-    return parsed.toString();
-  } catch {
-    return rawUrl.replace(
-      /([?&](?:api_key|access_token|token|password|pw)=)[^&]*/gi,
-      '$1[redacted]',
+    const redactedPath = parsed.pathname.replace(
+      /\b(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\b/gi,
+      '[id]',
     );
+    // No query parameter is useful enough to justify logging it. Jellyfin
+    // URLs contain access tokens, play-session IDs, media-source IDs and item
+    // IDs, sometimes duplicated with different casing.
+    return `${parsed.origin}${redactedPath}`;
+  } catch {
+    return rawUrl
+      .split(/[?#]/, 1)[0]
+      .replace(
+        /\b(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\b/gi,
+        '[id]',
+      );
   }
 };
 
@@ -1169,6 +1169,7 @@ export const getStreamUrl = async (
     audioDelivery.method === 'Copy'
       ? deliveredAudioStream?.BitRate
       : Number(getUrlParameter(url, 'AudioBitrate')) || undefined;
+  const adaptiveStream = isAdaptiveStreamUrl(url);
 
   return {
     itemId,
@@ -1199,6 +1200,13 @@ export const getStreamUrl = async (
     audioOutputCapabilities,
     audioTranscodePolicy: deviceProfile.TranscodingProfiles[0].AudioCodec,
     height: sourceHeight,
+    hlsMinimumSegmentCount: adaptiveStream
+      ? getPositiveUrlNumber(url, 'MinSegments') ?? 1
+      : undefined,
+    hlsSegmentTargetSeconds: adaptiveStream
+      ? getPositiveUrlNumber(url, 'SegmentLength') ??
+        (prefs.hlsSegmentLengthSeconds || undefined)
+      : undefined,
     width: sourceWidth,
     mediaSourceId: mediaSource?.Id,
     playSessionId: response.PlaySessionId,

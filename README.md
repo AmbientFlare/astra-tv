@@ -1,5 +1,8 @@
 # Astra
 
+**Working on the project? Start with [START_HERE.md](START_HERE.md) for the
+exact validation, build, device, logging, and release-candidate workflow.**
+
 Astra is a couch-first Jellyfin client for Amazon Fire TV devices running Vega
 OS. It connects directly to a server supplied by the user and brings personal
 movie, television, and music libraries into a remote-friendly TV interface.
@@ -10,18 +13,19 @@ Jellyfin or Amazon.
 
 ## Project status
 
-The current release is Astra `1.1.1`, build `20260804.1`, for x86_64 Fire TV
-devices running Vega OS.
+The current release is Astra `1.1.2`, build `20260822.4`, for x86_64
+Fire TV devices running Vega OS.
 
 - Package ID: `com.astra.tv`
 - Main component: `com.astra.tv.main`
 - Supported backend: Jellyfin
 - Supported server connections: local HTTP and remote HTTPS
-- Release validation: 158 tests, ESLint, TypeScript, Vega manifest, and Vega
-  ABI; physical-device acceptance is pending for 1.1.1
+- Release validation: 175 tests, ESLint, TypeScript, Vega manifest, and Vega
+  ABI; one-hour A/V sync, repeat-seek, and saved-position resume passed on the
+  physical Fire TV Stick for 1.1.2
 - Future backends: Emby and Kodi are planned but are not supported today
 
-The exact Amazon upload package and checksum are documented in
+The exact test package and checksum are documented in
 [docs/release-build.md](docs/release-build.md).
 
 ## What Astra supports
@@ -64,6 +68,17 @@ creation on Vega.
   metadata to the video player.
 
 ## Release history
+
+### 1.1.2 — HLS playback compatibility and diagnostics — 2026-08-22
+
+- Playback settings offer optional four-, three-, and two-second Jellyfin HLS
+  segments for intermittent MP4/MOV stutter. Auto remains the default.
+- Stats for Nerds shows HLS segment settings, app/build identity, and playback
+  waiting, stalled, and error counters, plus discontinuous buffered ranges.
+- HEVC uses HLS/MPEG-TS segments to avoid fMP4 open-GOP timestamp collisions;
+  when the device reports AC3 support, this route also requests AC3 audio to
+  isolate Vega's accumulating AAC/TS drift. H.264/fMP4 retains its established
+  container and audio policy.
 
 ### 1.1.1 — Playback stability hardening — 2026-08-04
 
@@ -116,7 +131,7 @@ creation on Vega.
 
 The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md). Release
 notes for the current version are in
-[docs/release-1.1.1.md](docs/release-1.1.1.md).
+[docs/release-1.1.2.md](docs/release-1.1.2.md).
 
 ## Development
 
@@ -138,24 +153,30 @@ npm test -- --runInBand
 Build the current release target with:
 
 ```sh
-npx react-native build-vega --build-type Release --target x86_64 \
-  --build-number 2026080401 --build-version 1.1.1
+PATH=/home/levi/vega/bin:$PATH npx react-native build-vega \
+  --build-type Release --target x86_64 \
+  --build-number 2026082204 --build-version 1.1.2
 ```
 
 Install a VPKG on a Vega device with:
 
 ```sh
-vega run-app <packageFile> com.astra.tv.main --deviceId <deviceId>
+/home/levi/vega/bin/vega device install-app \
+  --device <deviceId> --packagePath <packageFile>
+/home/levi/vega/bin/vega device launch-app \
+  --device <deviceId> --appName com.astra.tv.main
 ```
 
-Amazon Appstore upload instructions and console-ready update text are in
-[docs/amazon-submission-v1.1.1.md](docs/amazon-submission-v1.1.1.md).
+Never use `vega run-app` for an upgrade: it uninstalls the existing package and
+deletes app data before installing. Build 1.1.2 passed physical acceptance and
+its Amazon upload package is prepared.
 
 ## Documentation
 
 - [Current release build](docs/release-build.md)
+- [Astra 1.1.2 release notes](docs/release-1.1.2.md)
 - [Astra 1.1.1 release notes](docs/release-1.1.1.md)
-- [Amazon 1.1.1 submission packet](docs/amazon-submission-v1.1.1.md)
+- [Amazon 1.1.2 submission packet](docs/amazon-submission-v1.1.2.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 - [Audio and Vega engineering handoff](AUDIO-EDITION.md)
 - [Deferred work](docs/deferred-work.md)
