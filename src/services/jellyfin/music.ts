@@ -105,8 +105,10 @@ export const DEFAULT_PAGE_SIZE = 60;
 export const NATIVE_AUDIO_CONTAINERS =
   'mp3,m4a,aac,flac,alac,ogg,opus,wav,webma,mp4';
 
-const musicItemFields =
-  'Genres,MediaSources,ParentId,PrimaryImageAspectRatio,ProductionYear,UserData,ChildCount';
+// Same rule as itemFields: enum members only. ProductionYear and UserData
+// arrive as ordinary item properties.
+export const musicItemFields =
+  'Genres,MediaSources,ParentId,PrimaryImageAspectRatio,ChildCount';
 
 interface RawItem {
   Album?: string;
