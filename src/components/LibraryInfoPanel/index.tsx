@@ -102,14 +102,21 @@ export const LibraryInfoPanel = ({
   const container = source?.Container?.toUpperCase() ?? null;
   const bitrate = formatBitrate(source?.Bitrate ?? null);
   const fileSize = formatFileSize(source?.Size ?? null);
-  const fileCells = [
-    {label: 'Quality', value: resolution},
-    {label: 'Video Codec', value: videoCodec},
-    {label: 'Audio', value: audioLabel},
-    {label: 'Container', value: container},
-    {label: 'Bitrate', value: bitrate},
-    {label: 'File Size', value: fileSize},
-  ].filter((cell) => cell.value);
+  // An item the server resolves at playback time has no file behind it yet,
+  // so anything file-shaped would be a guess. Everything else about it —
+  // artwork, synopsis, cast, genres — is real and still shown.
+  const fileCells = (
+    item.locationType === 'Remote'
+      ? []
+      : [
+          {label: 'Quality', value: resolution},
+          {label: 'Video Codec', value: videoCodec},
+          {label: 'Audio', value: audioLabel},
+          {label: 'Container', value: container},
+          {label: 'Bitrate', value: bitrate},
+          {label: 'File Size', value: fileSize},
+        ]
+  ).filter((cell) => cell.value);
   const isMovie = item.type === 'Movie';
   const isSeries = item.type === 'Series';
 

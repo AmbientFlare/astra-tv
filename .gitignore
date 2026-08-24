@@ -25,3 +25,6 @@ buildinfo.json
 node_modules
 CMakeUserPresets.json
 npm-debug.log
+
+# agent handoffs / working notes (never publish)
+docs/handoffs/

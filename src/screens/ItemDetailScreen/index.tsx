@@ -1,13 +1,17 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Image, Linking, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {LoadingOrError} from '../../components/LoadingOrError';
 import {MediaCard} from '../../components/MediaCard';
 import {
+  CHILD_ITEMS_MAX_RETRIES,
+  CHILD_ITEMS_RETRY_MS,
   getEpisodes,
   getItemDetails,
   getSeasons,
   getSimilarItems,
+  isIncompleteSeasonList,
   JellyfinMediaItem,
   setFavorite,
   setPlayed,
@@ -52,56 +56,153 @@ export const ItemDetailScreen = ({
   const [selectedSeason, setSelectedSeason] =
     useState<JellyfinMediaItem | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [episodesError, setEpisodesError] = useState<string | null>(null);
   const [isLoading, setLoading] = useState(false);
+  const [isLoadingChildren, setLoadingChildren] = useState(false);
   const [isUpdatingUserData, setUpdatingUserData] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [isAwaitingServerTree, setAwaitingServerTree] = useState(false);
+  const mountedRef = useRef(true);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadDetail = useCallback(
-    async (mounted = true) => {
-      setLoading(true);
-      setErrorText(null);
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimer.current) {
+      clearTimeout(retryTimer.current);
+      retryTimer.current = null;
+    }
+    setAwaitingServerTree(false);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current);
+        retryTimer.current = null;
+      }
+    };
+  }, []);
+
+  /**
+   * A server may build a series' season and episode tree while a client is
+   * browsing it, so an empty or single stub season is not necessarily the
+   * final answer. Ask again a moment later before calling it empty, and fall
+   * back to the series' full episode list when no season ever appears.
+   */
+  const loadSeriesChildren = useCallback(
+    async (seriesId: string, attempt = 0) => {
+      clearRetryTimer();
+      setLoadingChildren(true);
+
       try {
-        const result = await getItemDetails(
+        const seasonResults = await getSeasons(
           serverProfile.serverUrl,
           serverProfile.accessToken,
           serverProfile.userId,
-          item.id,
+          seriesId,
         );
 
-        if (!mounted) {
+        if (!mountedRef.current) {
           return;
         }
 
-        setDetail(result);
+        setSeasons(seasonResults);
+        setSelectedSeason(seasonResults[0] ?? null);
 
-        if (result.type === 'Series') {
-          const seasonResults = await getSeasons(
+        if (
+          isIncompleteSeasonList(seasonResults) &&
+          attempt < CHILD_ITEMS_MAX_RETRIES
+        ) {
+          setAwaitingServerTree(true);
+          retryTimer.current = setTimeout(() => {
+            retryTimer.current = null;
+            loadSeriesChildren(seriesId, attempt + 1);
+          }, CHILD_ITEMS_RETRY_MS);
+          return;
+        }
+
+        setLoadingChildren(false);
+        setAwaitingServerTree(false);
+
+        if (!seasonResults.length) {
+          // No season list at all: the episodes may still be reachable
+          // directly, so show them flat rather than a dead end.
+          const allEpisodes = await getEpisodes(
             serverProfile.serverUrl,
             serverProfile.accessToken,
             serverProfile.userId,
-            result.id,
+            seriesId,
           );
 
-          if (mounted) {
-            setSeasons(seasonResults);
-            setSelectedSeason(seasonResults[0] ?? null);
+          if (mountedRef.current) {
+            setEpisodes(allEpisodes);
           }
         }
       } catch (error) {
-        if (mounted) {
-          setErrorText(
+        if (mountedRef.current) {
+          setLoadingChildren(false);
+          setAwaitingServerTree(false);
+          setEpisodesError(
             error instanceof Error
               ? error.message
-              : 'Unable to load item details.',
+              : 'Unable to load episodes for this show.',
           );
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
         }
       }
     },
-    [item.id, serverProfile],
+    [clearRetryTimer, serverProfile],
   );
+
+  const retryChildren = useCallback(() => {
+    setEpisodesError(null);
+
+    if (detail.type === 'Series') {
+      loadSeriesChildren(detail.id);
+      return;
+    }
+
+    // A Season reloads through its own episode list, which the reload token
+    // re-triggers.
+    setReloadToken((token) => token + 1);
+  }, [detail.id, detail.type, loadSeriesChildren]);
+
+  const loadDetail = useCallback(async () => {
+    setLoading(true);
+    setErrorText(null);
+    setEpisodesError(null);
+    try {
+      const result = await getItemDetails(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+        serverProfile.userId,
+        item.id,
+      );
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      setDetail(result);
+
+      if (result.type === 'Series') {
+        await loadSeriesChildren(result.id);
+      }
+    } catch (error) {
+      if (mountedRef.current) {
+        setErrorText(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load item details.',
+        );
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [item.id, loadSeriesChildren, serverProfile]);
 
   useEffect(() => {
     loadDetail();
@@ -140,18 +241,33 @@ export const ItemDetailScreen = ({
     let mounted = true;
 
     const loadEpisodes = async () => {
-      if (!selectedSeason || detail.type !== 'Series') {
-        setEpisodes([]);
+      // A season card can be tapped while the season object itself is still
+      // a stub, so the episodes are always fetched by id rather than read off
+      // the season. A Season opened directly reaches its episodes the same
+      // way, via the series it belongs to.
+      const seriesId =
+        detail.type === 'Series'
+          ? detail.id
+          : detail.type === 'Season'
+          ? detail.seriesId
+          : undefined;
+      const seasonId =
+        detail.type === 'Season' ? detail.id : selectedSeason?.id;
+
+      if (!seriesId || !seasonId) {
         return;
       }
+
+      setEpisodesError(null);
+      setLoadingChildren(true);
 
       try {
         const results = await getEpisodes(
           serverProfile.serverUrl,
           serverProfile.accessToken,
           serverProfile.userId,
-          detail.id,
-          selectedSeason.id,
+          seriesId,
+          seasonId,
         );
 
         if (mounted) {
@@ -159,9 +275,13 @@ export const ItemDetailScreen = ({
         }
       } catch (error) {
         if (mounted) {
-          setErrorText(
+          setEpisodesError(
             error instanceof Error ? error.message : 'Unable to load episodes.',
           );
+        }
+      } finally {
+        if (mounted) {
+          setLoadingChildren(false);
         }
       }
     };
@@ -171,8 +291,16 @@ export const ItemDetailScreen = ({
     return () => {
       mounted = false;
     };
-  }, [detail.id, detail.type, selectedSeason, serverProfile]);
+  }, [
+    detail.id,
+    detail.seriesId,
+    detail.type,
+    reloadToken,
+    selectedSeason,
+    serverProfile,
+  ]);
 
+  const hasChildren = detail.type === 'Series' || detail.type === 'Season';
   const runtime = formatRuntime(detail.runTimeTicks);
   const meta = [
     detail.productionYear,
@@ -255,23 +383,39 @@ export const ItemDetailScreen = ({
             {detail.genres?.length ? (
               <Text style={styles.genres}>{detail.genres.join(' / ')}</Text>
             ) : null}
-            {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-            {isLoading ? (
-              <Text style={styles.status}>Loading details...</Text>
-            ) : null}
+            <LoadingOrError
+              errorText={errorText}
+              isLoading={isLoading}
+              loadingText="Loading details..."
+              onRetry={loadDetail}
+              testID="detail-status"
+            />
             <TVFocusGuideView style={styles.actions}>
               <FocusableItem
                 focusedStyle={styles.actionFocused}
                 hasTVPreferredFocus={true}
-                onPress={() =>
-                  detail.type === 'Series'
-                    ? episodes[0] && onPlay?.(episodes[0])
-                    : onPlay?.(detail)
-                }
+                onPress={() => {
+                  if (!hasChildren) {
+                    onPlay?.(detail);
+                    return;
+                  }
+
+                  if (episodes[0]) {
+                    onPlay?.(episodes[0]);
+                    return;
+                  }
+
+                  // Never swallow the press: say why nothing started.
+                  setEpisodesError(
+                    isLoadingChildren || isAwaitingServerTree
+                      ? 'Still loading episodes for this show.'
+                      : 'No episodes are available to play yet.',
+                  );
+                }}
                 style={styles.actionButton}
                 testID="detail-play-button">
                 <Text style={styles.actionText}>
-                  {detail.type === 'Series'
+                  {hasChildren
                     ? 'Play All'
                     : detail.resumePositionTicks
                     ? 'Resume'
@@ -287,7 +431,7 @@ export const ItemDetailScreen = ({
                   <Text style={styles.actionText}>Play from Start</Text>
                 </FocusableItem>
               ) : null}
-              {detail.type === 'Series' && episodes.length ? (
+              {hasChildren && episodes.length ? (
                 <FocusableItem
                   focusedStyle={styles.actionFocused}
                   onPress={() => {
@@ -335,15 +479,6 @@ export const ItemDetailScreen = ({
                   <Text style={styles.actionText}>Trailer</Text>
                 </FocusableItem>
               ) : null}
-              {errorText ? (
-                <FocusableItem
-                  focusedStyle={styles.actionFocused}
-                  onPress={() => loadDetail()}
-                  style={styles.actionButton}
-                  testID="detail-retry-button">
-                  <Text style={styles.actionText}>Retry</Text>
-                </FocusableItem>
-              ) : null}
               <FocusableItem
                 focusedStyle={styles.actionFocused}
                 onPress={onBack}
@@ -380,9 +515,29 @@ export const ItemDetailScreen = ({
         </>
       ) : null}
 
+      {hasChildren && !episodes.length ? (
+        <>
+          <Text style={styles.sectionTitle}>Episodes</Text>
+          <LoadingOrError
+            emptyText="This show has no episodes to show yet."
+            errorText={episodesError}
+            isEmpty={true}
+            isLoading={isLoadingChildren || isAwaitingServerTree}
+            loadingText="Loading episodes..."
+            onRetry={retryChildren}
+            testID="detail-episodes-status"
+          />
+        </>
+      ) : null}
+
       {episodes.length ? (
         <>
           <Text style={styles.sectionTitle}>Episodes</Text>
+          <LoadingOrError
+            errorText={episodesError}
+            onRetry={retryChildren}
+            testID="detail-episodes-error"
+          />
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {episodes.map((episode) => (

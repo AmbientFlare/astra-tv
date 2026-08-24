@@ -1,5 +1,11 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -187,6 +193,13 @@ export const PlayerScreen = ({
     number | undefined
   >(undefined);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  // Resolving a stream can take two server round trips, so startup gets its
+  // own always-visible state rather than borrowing the auto-hiding controls.
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [isStarting, setStarting] = useState(true);
+  const onSurfaceViewCreatedRef = useRef<
+    ((handle: string) => Promise<void>) | null
+  >(null);
   const [showPlaybackStats, setShowPlaybackStats] = useState(false);
   const [playbackDebugInfo, setPlaybackDebugInfo] =
     useState<PlaybackDebugInfo | null>(null);
@@ -395,6 +408,18 @@ export const PlayerScreen = ({
       subtitleStreamIndex: selectedSubtitleIndex.current,
     });
   }, [accessToken, currentPositionTicks, serverUrl]);
+
+  const retryStartup = useCallback(() => {
+    const handle = surfaceHandle.current;
+
+    if (!handle) {
+      return;
+    }
+
+    setStartupError(null);
+    setStarting(true);
+    onSurfaceViewCreatedRef.current?.(handle);
+  }, []);
 
   const handleBack = useCallback(() => {
     reportStopped().finally(() => {
@@ -913,6 +938,9 @@ export const PlayerScreen = ({
           alwaysBurnInSubtitleWhenTranscoding: selectedSubtitleBurnIn.current,
           forceTranscode: selectedForceTranscode.current,
           maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
+          // On a reload the server has already named its source; reusing that
+          // id keeps a track change pointed at the same one.
+          mediaSourceId: streamInfo.current?.mediaSourceId,
           sourceHeight: sourceVideoStream?.height,
           sourceWidth: sourceVideoStream?.width,
           subtitleStreamIndex: selectedSubtitleIndex.current,
@@ -1459,6 +1487,8 @@ export const PlayerScreen = ({
       const startSeconds = startTicks / TICKS_PER_SECOND;
 
       try {
+        setStarting(true);
+        setStartupError(null);
         setStatusText('Preparing playback...');
         const video = await createFreshVideoPlayer();
 
@@ -1476,6 +1506,7 @@ export const PlayerScreen = ({
         await loadVideoSource(video, stream, startSeconds);
         video.play();
         setPaused(false);
+        setStarting(false);
         scheduleControlsHide();
         setStatusText('Starting video...');
 
@@ -1487,6 +1518,11 @@ export const PlayerScreen = ({
           subtitleStreamIndex: selectedSubtitleIndex.current,
         });
       } catch (error) {
+        console.warn('[Astra] Unable to start playback:', error);
+        setStarting(false);
+        setStartupError(
+          error instanceof Error ? error.message : 'Unable to start playback.',
+        );
         setStatusText(
           error instanceof Error ? error.message : 'Unable to start playback.',
         );
@@ -1503,6 +1539,8 @@ export const PlayerScreen = ({
       serverUrl,
     ],
   );
+
+  onSurfaceViewCreatedRef.current = onSurfaceViewCreated;
 
   const onSurfaceViewDestroyed = useCallback(
     (handle: string) => {
@@ -1556,6 +1594,12 @@ export const PlayerScreen = ({
   const progressWidth = progressPercent as `${number}%`;
   const controlsVisible =
     showControls || Boolean(settingsPanel) || showExitConfirm;
+  const startupItemLabel =
+    item.type === 'Episode'
+      ? 'episode'
+      : item.type === 'Movie'
+      ? 'movie'
+      : 'item';
 
   return (
     <View style={styles.screen} testID="player-screen">
@@ -1572,6 +1616,43 @@ export const PlayerScreen = ({
           style={styles.subtitleOverlay}
           testID="player-external-subtitle">
           <Text style={styles.subtitleText}>{activeSubtitleText}</Text>
+        </View>
+      ) : null}
+      {isStarting || startupError ? (
+        <View style={styles.startupOverlay} testID="player-startup-state">
+          <Text numberOfLines={1} style={styles.startupTitle}>
+            {item.name}
+          </Text>
+          {isStarting ? (
+            <View style={styles.startupRow}>
+              <ActivityIndicator color="#4CC9F0" size="large" />
+              <Text style={styles.startupText}>Starting playback...</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.startupText}>
+                Couldn't start this {startupItemLabel}.
+              </Text>
+              <Text style={styles.startupDetail}>{startupError}</Text>
+              <View style={styles.startupButtons}>
+                <FocusableItem
+                  focusedStyle={styles.focusedButton}
+                  hasTVPreferredFocus={true}
+                  onPress={retryStartup}
+                  style={styles.button}
+                  testID="player-startup-retry">
+                  <Text style={styles.buttonText}>Retry</Text>
+                </FocusableItem>
+                <FocusableItem
+                  focusedStyle={styles.focusedButton}
+                  onPress={handleBack}
+                  style={styles.button}
+                  testID="player-startup-back">
+                  <Text style={styles.buttonText}>Back</Text>
+                </FocusableItem>
+              </View>
+            </>
+          )}
         </View>
       ) : null}
       {controlsVisible ? (
@@ -2034,6 +2115,39 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(12,17,22,0.94)',
     padding: 24,
+  },
+  startupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    backgroundColor: 'rgba(5, 9, 13, 0.86)',
+    gap: 18,
+    justifyContent: 'center',
+    paddingHorizontal: 80,
+  },
+  startupTitle: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+  },
+  startupRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 18,
+  },
+  startupText: {
+    color: '#E4EBF0',
+    fontSize: 28,
+    textAlign: 'center',
+  },
+  startupDetail: {
+    color: '#B8C5CC',
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  startupButtons: {
+    flexDirection: 'row',
+    gap: 20,
+    marginTop: 10,
   },
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,
