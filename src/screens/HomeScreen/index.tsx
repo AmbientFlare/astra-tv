@@ -5,11 +5,13 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
+import {LoadingOrError} from '../../components/LoadingOrError';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
 import {
   getLibraries,
   getLatestItems,
+  getLatestItemsInLibrary,
   getNextUp,
   getResumeItems,
   JellyfinLibrary,
@@ -258,6 +260,37 @@ export const HomeScreen = ({
     }),
     [makeRowLoader],
   );
+  /**
+   * A row per library the built-in rows do not already cover, so a view the
+   * server only just started returning still surfaces on the home screen
+   * without the app knowing anything about it. Rows that come back empty
+   * remove themselves, so this costs nothing when there is nothing to show.
+   */
+  const extraLibraryRows = useMemo(() => {
+    if (!serverProfile) {
+      return [];
+    }
+
+    const {accessToken, serverUrl, userId} = serverProfile;
+
+    return libraries
+      .filter((library) => {
+        const type = library.type?.toLowerCase();
+
+        return (
+          type !== 'movies' &&
+          type !== 'tvshows' &&
+          type !== 'music' &&
+          type !== 'playlists'
+        );
+      })
+      .map((library) => ({
+        key: library.id,
+        title: `Latest in ${library.name}`,
+        loadItems: () =>
+          getLatestItemsInLibrary(serverUrl, accessToken, userId, library.id),
+      }));
+  }, [libraries, serverProfile]);
 
   return (
     <View style={styles.screen} testID="home-screen">
@@ -307,22 +340,15 @@ export const HomeScreen = ({
             </FocusableItem>
           </TVFocusGuideView>
         </View>
-        {isLoading ? (
-          <Text style={styles.status}>Loading libraries...</Text>
-        ) : null}
-        {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-        {errorText ? (
-          <FocusableItem
-            focusedStyle={styles.actionFocused}
-            onPress={loadLibraries}
-            style={styles.retryButton}
-            testID="home-libraries-retry">
-            <Text style={styles.actionText}>Retry</Text>
-          </FocusableItem>
-        ) : null}
-        {!isLoading && !errorText && libraries.length === 0 ? (
-          <Text style={styles.status}>No libraries found.</Text>
-        ) : null}
+        <LoadingOrError
+          emptyText="No libraries found on this server."
+          errorText={errorText}
+          isEmpty={libraries.length === 0}
+          isLoading={isLoading}
+          loadingText="Loading libraries..."
+          onRetry={loadLibraries}
+          testID="home-libraries"
+        />
         {libraries.length ? (
           <LibraryNav
             artworkByKind={libraryArtwork}
@@ -364,6 +390,15 @@ export const HomeScreen = ({
             title="Latest Shows"
           />
         ) : null}
+        {extraLibraryRows.map((row) => (
+          <HomeMediaRow
+            key={row.key}
+            loadItems={row.loadItems}
+            onFocusBackdrop={queueBackdrop}
+            onSelectItem={onSelectItem}
+            title={row.title}
+          />
+        ))}
       </ScrollView>
     </View>
   );
@@ -410,21 +445,13 @@ const HomeMediaRow = ({
   return (
     <>
       <Text style={styles.rowTitle}>{title}</Text>
-      {isLoading ? (
-        <Text style={styles.rowStatus}>Loading {title}...</Text>
-      ) : null}
-      {errorText ? (
-        <View style={styles.rowErrorLine}>
-          <Text style={styles.error}>{errorText}</Text>
-          <FocusableItem
-            focusedStyle={styles.actionFocused}
-            onPress={load}
-            style={styles.rowRetryButton}
-            testID={`home-${title}-retry`}>
-            <Text style={styles.actionText}>Retry</Text>
-          </FocusableItem>
-        </View>
-      ) : null}
+      <LoadingOrError
+        errorText={errorText}
+        isLoading={isLoading}
+        loadingText={`Loading ${title}...`}
+        onRetry={load}
+        testID={`home-row-${title}`}
+      />
       <ScrollView horizontal={true} style={styles.mediaScroller}>
         <TVFocusGuideView style={styles.libraryRow}>
           {items.map((item) => (

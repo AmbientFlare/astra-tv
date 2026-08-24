@@ -22,6 +22,7 @@ import {
   MusicCollectionKind,
   MusicCollectionScreen,
 } from '../screens/MusicCollectionScreen';
+import {detailRouteForItem} from './itemRoute';
 import {audioPlayback} from '../services/audioPlayer';
 import {NowPlayingBar} from '../components/NowPlayingBar';
 import {AudioIdleVisual} from '../components/AudioIdleVisual';
@@ -87,6 +88,27 @@ export const RootNavigator = () => {
   const push = useCallback(
     (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
     [],
+  );
+
+  // Every place a media card can be tapped routes through here, so an item's
+  // own type picks the screen. Without this an episode surfaced outside a
+  // series — Continue Watching, Next Up, a search result, a view that mixes
+  // types — lands on the series screen and looks like the tap did nothing.
+  const openItem = useCallback(
+    (item: JellyfinMediaItem) => {
+      const target = detailRouteForItem(item);
+
+      if (target === 'library') {
+        push({
+          route: target,
+          library: {id: item.id, imageUrl: item.imageUrl, name: item.name},
+        });
+        return;
+      }
+
+      push({route: target, item});
+    },
+    [push],
   );
 
   const pop = useCallback(
@@ -306,7 +328,7 @@ export const RootNavigator = () => {
           onProfiles={() => setProfileSwitcherVisible(true)}
           onSearch={() => push({route: 'search'})}
           onSelectLibrary={(library) => push({route: 'library', library})}
-          onSelectItem={(item) => push({route: 'detail', item})}
+          onSelectItem={openItem}
           onSettings={() => push({route: 'settings'})}
           serverProfile={serverProfile}
         />
@@ -325,7 +347,7 @@ export const RootNavigator = () => {
         onMenuVisibleChange={setLibraryMenuVisible}
         onSelectItem={(item) => {
           setLibraryMenuVisible(false);
-          push({route: 'detail', item});
+          openItem(item);
         }}
         serverProfile={serverProfile}
       />,
@@ -339,7 +361,7 @@ export const RootNavigator = () => {
         onBack={pop}
         onPlay={(item) => push({route: 'player', item})}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
-        onSelectItem={(item) => push({route: 'detail', item})}
+        onSelectItem={openItem}
         onSelectPerson={(personId, personName) =>
           push({route: 'personDetail', personId, personName})
         }
@@ -443,7 +465,7 @@ export const RootNavigator = () => {
     return withExitPrompt(
       <SearchScreen
         onBack={pop}
-        onSelectItem={(item) => push({route: 'detail', item})}
+        onSelectItem={openItem}
         serverProfile={serverProfile}
       />,
     );
@@ -454,7 +476,7 @@ export const RootNavigator = () => {
       <PersonDetailScreen
         onBack={pop}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
-        onSelectItem={(item) => push({route: 'detail', item})}
+        onSelectItem={openItem}
         personId={current.personId}
         personName={current.personName}
         serverProfile={serverProfile}
@@ -504,7 +526,7 @@ export const RootNavigator = () => {
         onProfiles={() => setProfileSwitcherVisible(true)}
         onSearch={() => push({route: 'search'})}
         onSelectLibrary={(library) => push({route: 'library', library})}
-        onSelectItem={(item) => push({route: 'detail', item})}
+        onSelectItem={openItem}
         onSettings={() => push({route: 'settings'})}
         serverProfile={serverProfile}
       />

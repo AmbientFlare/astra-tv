@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
+import {LoadingOrError} from '../../components/LoadingOrError';
 import {MediaCard} from '../../components/MediaCard';
 import {
   getEpisodes,
@@ -169,12 +170,19 @@ export const EpisodeDetailScreen = ({
   const audioStream = detail.mediaStreams?.find(
     (stream) => stream.type === 'Audio',
   );
-  const badges = [
-    videoStream?.height ? `${videoStream.height}p` : null,
-    videoStream?.codec?.toUpperCase(),
-    audioStream?.codec?.toUpperCase(),
-    audioLayout(audioStream?.channels),
-  ].filter(Boolean);
+  // Resolution and codec badges describe a file. An item whose source the
+  // server resolves at playback time has none yet, so claiming one would be
+  // wrong; the badges reappear once there is something real to report.
+  const badges = (
+    detail.locationType === 'Remote'
+      ? []
+      : [
+          videoStream?.height ? `${videoStream.height}p` : null,
+          videoStream?.codec?.toUpperCase(),
+          audioStream?.codec?.toUpperCase(),
+          audioLayout(audioStream?.channels),
+        ]
+  ).filter(Boolean);
   const meta = [
     detail.officialRating,
     detail.parentIndexNumber && detail.indexNumber
@@ -269,7 +277,11 @@ export const EpisodeDetailScreen = ({
           <Text numberOfLines={5} style={styles.overview}>
             {detail.overview ?? 'No synopsis available.'}
           </Text>
-          {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
+          <LoadingOrError
+            errorText={errorText}
+            onRetry={() => loadDetail()}
+            testID="episode-status"
+          />
           <TVFocusGuideView style={styles.actions}>
             <FocusableItem
               focusedStyle={styles.actionFocused}

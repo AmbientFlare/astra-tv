@@ -48,6 +48,13 @@ export interface JellyfinMediaItem {
   backdropImageTags?: string[];
   chapters?: JellyfinChapter[];
   childCount?: number | null;
+  isFolder?: boolean;
+  /**
+   * Standard Jellyfin field. 'Remote' means the server has no local file for
+   * this item and resolves a media source when playback is requested, so any
+   * file-shaped detail (path, size, container) is unknown until then.
+   */
+  locationType?: string;
   imageUrl?: string;
   backdropUrl?: string;
   communityRating?: number | null;
@@ -245,7 +252,11 @@ export type JellyfinImageType = 'Primary' | 'Thumb' | 'Banner';
 export interface GetItemsOptions {
   filters?: Array<'IsFavorite' | 'IsUnplayed'>;
   imageType?: JellyfinImageType;
-  includeItemTypes?: string;
+  /**
+   * null asks the server for whatever it puts at the top of the view, with no
+   * type filter. Use it for views whose CollectionType we do not recognise.
+   */
+  includeItemTypes?: string | null;
   recursive?: boolean;
   sortBy?: JellyfinSortBy;
   sortDescending?: boolean;
@@ -332,6 +343,58 @@ export const sanitizeUrlForLog = (rawUrl?: string) => {
       );
   }
 };
+
+/**
+ * How long to wait before asking a server a second time for something it may
+ * still be assembling. Long enough to be worth doing, short enough that a
+ * viewer reads it as loading rather than as a hang.
+ */
+export const PLAYBACK_INFO_RETRY_MS = 1500;
+export const CHILD_ITEMS_RETRY_MS = 1200;
+
+/** Maximum automatic re-requests before a screen offers a manual Retry. */
+export const CHILD_ITEMS_MAX_RETRIES = 2;
+
+export const wait = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/**
+ * A media source is only useful if the server gave us a way to fetch it. An
+ * item whose source is resolved on demand can report an empty list, or a
+ * placeholder source with nothing to stream, while it is still working.
+ */
+export const hasPlayableMediaSource = (response: {
+  MediaSources?: Array<{
+    Id?: string;
+    Path?: string;
+    SupportsDirectPlay?: boolean;
+    SupportsDirectStream?: boolean;
+    SupportsTranscoding?: boolean;
+    TranscodingUrl?: string;
+  }>;
+}) =>
+  (response.MediaSources ?? []).some(
+    (source) =>
+      Boolean(source.TranscodingUrl) ||
+      source.SupportsDirectPlay === true ||
+      source.SupportsDirectStream === true ||
+      source.SupportsTranscoding === true,
+  );
+
+/**
+ * True when a series' season list looks like the server has not finished
+ * building it. Some servers materialise a season/episode tree during the
+ * first browse, so the honest answer to "no seasons yet" is to ask again
+ * rather than to show a dead end.
+ */
+export const isIncompleteSeasonList = (
+  seasons: Array<{childCount?: number | null}>,
+) =>
+  seasons.length === 0 ||
+  (seasons.length === 1 &&
+    (seasons[0].childCount === 0 || seasons[0].childCount === null));
 
 const hasQueryParam = (url: string, paramName: string) =>
   new RegExp(`[?&]${paramName}=`, 'i').test(url);
@@ -502,6 +565,8 @@ const mapItem = (
     BackdropImageTags?: string[];
     ChildCount?: number;
     Chapters?: Array<{Name?: string; StartPositionTicks?: number}>;
+    IsFolder?: boolean;
+    LocationType?: string;
     RunTimeTicks?: number;
     UserData?: {
       IsFavorite?: boolean;
@@ -531,6 +596,8 @@ const mapItem = (
   type: item.Type ?? 'Media',
   backdropImageTags: item.BackdropImageTags ?? [],
   childCount: item.ChildCount ?? null,
+  isFolder: item.IsFolder,
+  locationType: item.LocationType,
   mediaSources: item.MediaSources ?? [],
   mediaType: item.MediaType,
   mediaStreams: item.MediaSources?.[0]?.MediaStreams?.map((stream) => ({
@@ -861,6 +928,8 @@ export const getItems = async (
       ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
       BackdropImageTags?: string[];
       ChildCount?: number;
+      IsFolder?: boolean;
+      LocationType?: string;
       MediaSources?: JellyfinMediaSource[];
       RunTimeTicks?: number;
       UserData?: {PlaybackPositionTicks?: number};
@@ -887,7 +956,9 @@ export const getItems = async (
       ParentId: libraryId,
       Recursive: options.recursive ?? true,
       IncludeItemTypes:
-        options.includeItemTypes ?? 'Movie,Series,Episode,Video',
+        options.includeItemTypes === null
+          ? undefined
+          : options.includeItemTypes ?? 'Movie,Series,Episode,Video',
       Fields: itemFields,
       ImageTypeLimit: 1,
       EnableImageTypes: `${options.imageType ?? 'Primary'},Backdrop`,
@@ -918,6 +989,7 @@ export const getStreamUrl = async (
     audioStreamIndex?: number;
     forceTranscode?: boolean;
     maxStreamingBitrate?: number;
+    mediaSourceId?: string;
     sourceHeight?: number;
     sourceWidth?: number;
     subtitleStreamIndex?: number;
@@ -970,7 +1042,10 @@ export const getStreamUrl = async (
       }>;
     }>;
   };
-  const postPlaybackInfo = (audioStreamIndex?: number) =>
+  const postPlaybackInfo = (
+    audioStreamIndex?: number,
+    mediaSourceId?: string,
+  ) =>
     getJson<PlaybackInfoResponse>(playbackInfoUrl, {
       method: 'POST',
       headers: {
@@ -981,8 +1056,11 @@ export const getStreamUrl = async (
         DeviceProfile: deviceProfile,
         // Jellyfin may silently choose a different compatible audio stream
         // unless the selected media source is pinned alongside the stream
-        // index. For single-file items the media source id is the item id.
-        MediaSourceId: itemId,
+        // index. The id is only known once the server has reported its media
+        // sources, so the first request is left unpinned and lets the server
+        // pick: an item whose sources are resolved on demand has no source id
+        // a client could guess, and sending a wrong one returns nothing.
+        MediaSourceId: mediaSourceId,
         UserId: userId,
         StartTimeTicks: startPositionTicks,
         AudioStreamIndex: audioStreamIndex,
@@ -1005,7 +1083,31 @@ export const getStreamUrl = async (
       }),
     });
 
-  let response = await postPlaybackInfo(options.audioStreamIndex);
+  let response = await postPlaybackInfo(
+    options.audioStreamIndex,
+    options.mediaSourceId,
+  );
+
+  // A server may resolve an item's media source only once playback is asked
+  // for, in which case the first response can come back with nothing playable
+  // while it is still working. Give it one more chance before giving up.
+  if (!hasPlayableMediaSource(response)) {
+    console.log(
+      '[Astra] PlaybackInfo returned no media source; retrying once.',
+    );
+    await wait(PLAYBACK_INFO_RETRY_MS);
+    response = await postPlaybackInfo(
+      options.audioStreamIndex,
+      options.mediaSourceId,
+    );
+  }
+
+  if (!hasPlayableMediaSource(response)) {
+    throw new Error(
+      'The server has no playable source for this item right now.',
+    );
+  }
+
   const firstMediaStreams = response.MediaSources?.[0]?.MediaStreams?.map(
     (stream): JellyfinMediaStream => ({
       channels: stream.Channels,
@@ -1029,7 +1131,16 @@ export const getStreamUrl = async (
     options.audioStreamIndex === undefined &&
     selectedAudioStreamIndex !== null
   ) {
-    response = await postPlaybackInfo(selectedAudioStreamIndex);
+    // Now that the server has named its source, pin the re-request to it so
+    // the chosen audio stream index refers to the same source.
+    const resolved = await postPlaybackInfo(
+      selectedAudioStreamIndex,
+      response.MediaSources?.[0]?.Id ?? options.mediaSourceId,
+    );
+
+    if (hasPlayableMediaSource(resolved)) {
+      response = resolved;
+    }
   }
   const mediaSource = response.MediaSources?.[0];
   const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
@@ -1406,12 +1517,16 @@ export const getSeasons = (
     EnableImageTypes: 'Primary,Backdrop',
   });
 
+/**
+ * Omitting seasonId asks for every episode in the series, which is the only
+ * way to reach the episodes of a series whose season list has not been built.
+ */
 export const getEpisodes = (
   serverUrl: string,
   accessToken: string,
   userId: string,
   seriesId: string,
-  seasonId: string,
+  seasonId?: string,
 ) =>
   getItemCollection(serverUrl, accessToken, `/Shows/${seriesId}/Episodes`, {
     UserId: userId,
@@ -1419,6 +1534,28 @@ export const getEpisodes = (
     Fields: itemFields,
     ImageTypeLimit: 1,
     EnableImageTypes: 'Primary,Backdrop',
+  });
+
+/**
+ * The newest items inside one view. Lets the home screen surface a library
+ * the server only just started returning, without the app knowing its name.
+ */
+export const getLatestItemsInLibrary = (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  libraryId: string,
+) =>
+  getItemCollection(serverUrl, accessToken, `/Users/${userId}/Items`, {
+    ParentId: libraryId,
+    Recursive: true,
+    IsFolder: false,
+    SortBy: 'DateCreated',
+    SortOrder: 'Descending',
+    Fields: itemFields,
+    ImageTypeLimit: 1,
+    EnableImageTypes: 'Primary,Backdrop',
+    Limit: 24,
   });
 
 const reportPlayback = async (

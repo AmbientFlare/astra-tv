@@ -9,7 +9,12 @@ import {Image, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../FocusableItem';
 import {JellyfinLibrary} from '../../services/jellyfin';
-import {buildNavEntries, NavEntry} from './entries';
+import {
+  buildNavEntries,
+  buildNavSections,
+  NavEntry,
+  NavSection,
+} from './entries';
 
 interface LibraryNavProps {
   artworkByKind?: Partial<Record<NavEntry['kind'], string[]>>;
@@ -26,44 +31,57 @@ export const LibraryNav = ({
   musicAvailable,
   onSelect,
 }: LibraryNavProps) => {
-  const entries = buildNavEntries(libraries, {musicAvailable});
+  const sections = buildNavSections(libraries, {musicAvailable});
 
-  if (!entries.length) {
+  if (!sections.length) {
     return null;
   }
 
   return (
-    <TVFocusGuideView style={styles.row}>
-      {entries.map((entry, index) => (
-        <FocusableItem
-          focusedStyle={styles.itemFocused}
-          hasTVPreferredFocus={hasTVPreferredFocus && index === 0}
-          key={entry.id}
-          onPress={() => onSelect(entry)}
-          style={styles.item}
-          testID={`home-nav-${entry.kind}`}>
-          <View style={styles.collage}>
-            {(artworkByKind[entry.kind] ?? [entry.library.imageUrl])
-              .filter((url): url is string => Boolean(url))
-              .slice(0, 6)
-              .map((url, artIndex) => (
-                <Image
-                  key={`${url}-${artIndex}`}
-                  source={{uri: url}}
-                  style={styles.art}
-                />
-              ))}
-          </View>
-          <View style={styles.scrim} />
-          <Text style={styles.label}>{entry.label}</Text>
-        </FocusableItem>
+    <View>
+      {sections.map((section, sectionIndex) => (
+        <View key={section.id}>
+          {section.title ? (
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+          ) : null}
+          <TVFocusGuideView style={styles.row}>
+            {section.entries.map((entry, index) => (
+              <FocusableItem
+                focusedStyle={styles.itemFocused}
+                hasTVPreferredFocus={
+                  hasTVPreferredFocus && sectionIndex === 0 && index === 0
+                }
+                key={entry.id}
+                onPress={() => onSelect(entry)}
+                style={styles.item}
+                testID={`home-nav-${entry.kind}`}>
+                <View style={styles.collage}>
+                  {(artworkByKind[entry.kind] ?? [entry.library.imageUrl])
+                    .filter((url): url is string => Boolean(url))
+                    .slice(0, 6)
+                    .map((url, artIndex) => (
+                      <Image
+                        key={`${url}-${artIndex}`}
+                        source={{uri: url}}
+                        style={styles.art}
+                      />
+                    ))}
+                </View>
+                <View style={styles.scrim} />
+                <Text numberOfLines={2} style={styles.label}>
+                  {entry.label}
+                </Text>
+              </FocusableItem>
+            ))}
+          </TVFocusGuideView>
+        </View>
       ))}
-    </TVFocusGuideView>
+    </View>
   );
 };
 
-export {buildNavEntries};
-export type {NavEntry};
+export {buildNavEntries, buildNavSections};
+export type {NavEntry, NavSection};
 
 const styles = StyleSheet.create({
   row: {
@@ -71,6 +89,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 22,
     marginBottom: 34,
+  },
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '800',
+    marginBottom: 14,
   },
   item: {
     backgroundColor: '#182027',

@@ -7,6 +7,7 @@ import {
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {LibraryInfoPanel} from '../../components/LibraryInfoPanel';
+import {LoadingOrError} from '../../components/LoadingOrError';
 import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
@@ -197,16 +198,16 @@ export const LibraryScreen = ({
           {
             filters,
             imageType: displayPreferences.imageType,
+            // A view whose CollectionType we do not recognise is browsed at
+            // its top level with no type filter, so whatever the server
+            // chose to put there is what the grid shows.
             includeItemTypes:
               libraryType === 'tvshows'
                 ? 'Series'
                 : libraryType === 'movies'
                 ? 'Movie'
-                : 'Movie,Series,Episode,Video',
-            recursive:
-              libraryType === 'tvshows' || libraryType === 'movies'
-                ? false
-                : true,
+                : null,
+            recursive: false,
             sortBy,
             sortDescending,
           },
@@ -294,22 +295,15 @@ export const LibraryScreen = ({
               {items.length ? `${focusedIndex + 1} | ${items.length}` : '0 | 0'}
             </Text>
           </View>
-          {isLoading ? (
-            <Text style={styles.status}>Loading items...</Text>
-          ) : null}
-          {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-          {errorText ? (
-            <FocusableItem
-              focusedStyle={styles.retryFocused}
-              onPress={() => loadItems()}
-              style={styles.retryButton}
-              testID="library-retry-button">
-              <Text style={styles.retryText}>Retry</Text>
-            </FocusableItem>
-          ) : null}
-          {!isLoading && !errorText && items.length === 0 ? (
-            <Text style={styles.status}>No playable items found.</Text>
-          ) : null}
+          <LoadingOrError
+            emptyText="Nothing here yet. The server may still be filling this library."
+            errorText={errorText}
+            isEmpty={items.length === 0}
+            isLoading={isLoading}
+            loadingText="Loading items..."
+            onRetry={() => loadItems()}
+            testID="library-status"
+          />
           <TVFocusGuideView style={styles.gridGuide}>
             <FlatList
               columnWrapperStyle={styles.gridRow}
