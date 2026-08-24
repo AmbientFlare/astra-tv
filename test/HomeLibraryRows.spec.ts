@@ -7,6 +7,7 @@
  */
 import {
   isCoveredByBuiltInRows,
+  MAX_EXTRA_LIBRARY_ROWS,
   selectExtraLibraryRows,
 } from '../src/screens/HomeScreen/libraryRows';
 import {JellyfinLibrary} from '../src/services/jellyfin';
@@ -77,5 +78,44 @@ describe('selectExtraLibraryRows', () => {
 
   it('returns nothing for a user with no libraries', () => {
     expect(selectExtraLibraryRows([])).toEqual([]);
+  });
+});
+
+describe('the generated-row cap', () => {
+  const uncovered = (count: number) =>
+    Array.from({length: count}, (_, index) =>
+      library(`view-${index}`, `View ${index}`, 'somethingnew'),
+    );
+
+  it('renders every row while under the cap', () => {
+    expect(
+      selectExtraLibraryRows(uncovered(MAX_EXTRA_LIBRARY_ROWS)),
+    ).toHaveLength(MAX_EXTRA_LIBRARY_ROWS);
+  });
+
+  it('stops at the cap however many libraries the server exposes', () => {
+    const rows = selectExtraLibraryRows(uncovered(30));
+
+    expect(rows).toHaveLength(MAX_EXTRA_LIBRARY_ROWS);
+    expect(rows.map((row) => row.title)).toEqual([
+      'Latest in View 0',
+      'Latest in View 1',
+      'Latest in View 2',
+      'Latest in View 3',
+    ]);
+  });
+
+  it('counts only uncovered libraries towards the cap', () => {
+    // The fixed rows already handle these, so they must not consume slots.
+    const rows = selectExtraLibraryRows([
+      library('m', 'Movies', 'movies'),
+      library('t', 'Shows', 'tvshows'),
+      library('u', 'Music', 'music'),
+      library('p', 'Playlists', 'playlists'),
+      ...uncovered(4),
+    ]);
+
+    expect(rows).toHaveLength(MAX_EXTRA_LIBRARY_ROWS);
+    expect(rows[0].title).toBe('Latest in View 0');
   });
 });
