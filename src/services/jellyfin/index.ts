@@ -421,8 +421,17 @@ const buildTranscodingUrl = (
   return url;
 };
 
+/**
+ * Extra data to ask for alongside an item.
+ *
+ * Every entry must be a member of the server's ItemFields enum: the parameter
+ * is bound as an enum array, so one unrecognised name rejects the whole
+ * request rather than being ignored. Ratings, production year and user data
+ * are plain item properties that come back on their own and must NOT be
+ * listed here — asking for them by name is what breaks the request.
+ */
 export const itemFields =
-  'Overview,Genres,People,MediaSources,OfficialRating,CommunityRating,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,ProductionYear,UserData,CriticRating,RemoteTrailers';
+  'Overview,Genres,People,MediaSources,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,RemoteTrailers';
 
 const qualityCaps: JellyfinQualityOption[] = [
   {id: 'auto', label: 'Auto'},
