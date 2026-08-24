@@ -672,6 +672,25 @@ const mapItem = (
   seriesName: item.SeriesName,
 });
 
+/**
+ * A failed server response, carrying its status so callers can tell "this is
+ * gone" apart from "the server is unhappy". A library scan that drops an item
+ * between a list and a detail request is ordinary, not an app error.
+ */
+export class ServerResponseError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ServerResponseError';
+    this.status = status;
+  }
+}
+
+export const isMissingItemError = (error: unknown) =>
+  error instanceof ServerResponseError &&
+  (error.status === 404 || error.status === 400);
+
 export const getJson = async <ResponseBody>(
   url: string,
   options: {
@@ -693,8 +712,9 @@ export const getJson = async <ResponseBody>(
     if (!response.ok) {
       const failedUrl = new URL(url);
       failedUrl.searchParams.delete('api_key');
-      throw new Error(
+      throw new ServerResponseError(
         `Server request failed ${response.status}: ${failedUrl.pathname}`,
+        response.status,
       );
     }
 
