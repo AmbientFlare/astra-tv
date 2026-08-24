@@ -6,6 +6,8 @@ import {App} from '../src/App';
 import {SearchScreen} from '../src/screens/SearchScreen';
 import {checkAstraProReceipt} from '../src/services/iap';
 import {
+  getItems,
+  getLibraries,
   initiateQuickConnect,
   isQuickConnectEnabled,
 } from '../src/services/jellyfin';
@@ -128,8 +130,20 @@ jest.mock('../src/services/jellyfin', () => ({
   initiateQuickConnect: jest.fn(async () => ({code: '123456', secret: 'sec'})),
   isQuickConnectEnabled: jest.fn(async () => false),
   pollQuickConnect: jest.fn(async () => false),
+  getEpisodes: jest.fn(async () => []),
+  getItemDetails: jest.fn(async (_url, _token, _user, id) => ({
+    id,
+    name: 'Item',
+    type: 'Movie',
+  })),
+  getItems: jest.fn(async () => []),
   getLibraries: jest.fn(async () => []),
   getLatestItems: jest.fn(async () => []),
+  getLatestItemsInLibrary: jest.fn(async () => []),
+  getNextUp: jest.fn(async () => []),
+  getResumeItems: jest.fn(async () => []),
+  getSeasons: jest.fn(async () => []),
+  getSimilarItems: jest.fn(async () => []),
   getStreamUrl: jest.fn(async () => ({
     itemId: 'test-item',
     playMethod: 'DirectPlay',
@@ -395,5 +409,60 @@ describe('App', () => {
 
     fireEvent.press(screen.getByTestId('exit-cancel-button'));
     expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+  });
+
+  it('pops back out of a nested library instead of offering to exit', async () => {
+    // A view can put folders at its top level, and tapping one browses into
+    // it. Back must then unwind the stack a screen at a time; only the home
+    // screen may start the exit count.
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      serverType: 'jellyfin' as const,
+      serverUrl: 'https://example.com',
+      userId: 'test-user',
+    };
+    (readServerProfiles as jest.Mock).mockResolvedValueOnce([serverProfile]);
+    (getLastUsedServerProfile as jest.Mock).mockResolvedValueOnce(
+      serverProfile,
+    );
+    (getLibraries as jest.Mock).mockResolvedValue([
+      {id: 'view-1', name: 'Watchlist', type: 'somethingnew'},
+    ]);
+    (getItems as jest.Mock).mockResolvedValue([
+      {id: 'folder-1', name: 'A Folder', type: 'Folder', isFolder: true},
+    ]);
+
+    const screen = render(<App />);
+    await waitFor(() => expect(screen.getByTestId('home-screen')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('home-nav-other'));
+    await waitFor(() =>
+      expect(screen.getByTestId('library-screen')).toBeTruthy(),
+    );
+
+    fireEvent.press(screen.getByTestId('media-card-A Folder'));
+    await waitFor(() =>
+      expect(screen.getAllByText('A Folder').length).toBeGreaterThan(0),
+    );
+
+    // First back: out of the folder, still inside the library.
+    await act(async () => {
+      mockHardwareBackPressHandler?.();
+    });
+    expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+    await waitFor(() =>
+      expect(screen.getAllByText('Watchlist').length).toBeGreaterThan(0),
+    );
+
+    // Second back: out of the library, home again — still no exit prompt.
+    await act(async () => {
+      mockHardwareBackPressHandler?.();
+    });
+    expect(screen.getByTestId('home-screen')).toBeTruthy();
+    expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+    expect(mockKeplerExitApp).not.toHaveBeenCalled();
   });
 });
