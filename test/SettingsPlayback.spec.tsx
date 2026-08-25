@@ -154,7 +154,7 @@ describe('playback diagnostics entry points', () => {
     fireEvent.press(screen.getByTestId('settings-About'));
 
     expect(screen.getByText('Astra 1.1.2')).toBeTruthy();
-    expect(screen.getByText('Build: 20260824.4')).toBeTruthy();
+    expect(screen.getByText('Build: 20260825.1')).toBeTruthy();
     expect(screen.getByText("What's new in 1.1.2")).toBeTruthy();
     expect(
       screen.getByText(
@@ -266,7 +266,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.1\.2 \(20260824\.4\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.1\.2 \(20260825\.1\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
