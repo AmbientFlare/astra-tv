@@ -940,7 +940,8 @@ export const PlayerScreen = ({
           maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
           // On a reload the server has already named its source; reusing that
           // id keeps a track change pointed at the same one.
-          mediaSourceId: streamInfo.current?.mediaSourceId,
+          mediaSourceId:
+            streamInfo.current?.mediaSourceId ?? item.selectedMediaSourceId,
           sourceHeight: sourceVideoStream?.height,
           sourceWidth: sourceVideoStream?.width,
           subtitleStreamIndex: selectedSubtitleIndex.current,
@@ -999,6 +1000,7 @@ export const PlayerScreen = ({
       accessToken,
       item.id,
       item.mediaStreams,
+      item.selectedMediaSourceId,
       preferredMaxBitrate,
       serverUrl,
       userId,

@@ -7,7 +7,11 @@
  * the server just reported, and an unresolved item must be retried once before
  * failing.
  */
-import {getStreamUrl, PLAYBACK_INFO_RETRY_MS} from '../src/services/jellyfin';
+import {
+  getPlaybackMediaSources,
+  getStreamUrl,
+  PLAYBACK_INFO_RETRY_MS,
+} from '../src/services/jellyfin';
 
 // The device's storage and audio hardware are not part of what these tests
 // are about; both are stood in for so the request sequence is all that varies.
@@ -239,5 +243,51 @@ describe('a locally hosted item', () => {
     expect(stream.mediaSourceId).toBe('source-from-server');
     expect(stream.audioTracks).toHaveLength(1);
     expect(stream.url).toContain('api_key=');
+  });
+});
+
+describe('multiple standard Jellyfin media sources', () => {
+  const multipleSources = {
+    PlaySessionId: 'session-versions',
+    MediaSources: [
+      {
+        ...playableSource().MediaSources[0],
+        Id: 'source-1080p',
+        Name: '1080p WEB-DL',
+        TranscodingUrl: '/videos/item-abc/1080p.m3u8',
+      },
+      {
+        ...playableSource().MediaSources[0],
+        Id: 'source-2160p',
+        Name: '2160p HEVC HDR',
+        TranscodingUrl: '/videos/item-abc/2160p.m3u8',
+      },
+    ],
+  };
+
+  it('plays the requested source instead of assuming array index zero', async () => {
+    const requests = mockPlaybackInfo([multipleSources]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+      mediaSourceId: 'source-2160p',
+    });
+
+    expect(requests[0].body.MediaSourceId).toBe('source-2160p');
+    expect(stream.mediaSourceId).toBe('source-2160p');
+    expect(stream.url).toContain('2160p.m3u8');
+  });
+
+  it('returns the complete PlaybackInfo source list for the Versions menu', async () => {
+    const requests = mockPlaybackInfo([multipleSources]);
+
+    const sources = await getPlaybackMediaSources(SERVER, TOKEN, ITEM, USER);
+
+    expect(sources.map((source) => source.Id)).toEqual([
+      'source-1080p',
+      'source-2160p',
+    ]);
+    expect(requests[0].body.MediaSourceId).toBeUndefined();
+    expect(requests[0].body.AutoOpenLiveStream).toBe(false);
   });
 });

@@ -4,6 +4,8 @@ import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {MediaCard} from '../../components/MediaCard';
+import {MediaSourcePicker} from '../../components/MediaSourcePicker';
+import {usePlaybackMediaSources} from '../../hooks/usePlaybackMediaSources';
 import {
   getEpisodes,
   getItemDetails,
@@ -13,6 +15,7 @@ import {
   setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {hydrateNebulaHierarchy} from '../../services/nebula';
 
 const TICKS_PER_SECOND = 10000000;
 
@@ -88,6 +91,8 @@ export const EpisodeDetailScreen = ({
   const [seriesItem, setSeriesItem] = useState<JellyfinMediaItem | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isUpdatingUserData, setUpdatingUserData] = useState(false);
+  const {selectedMediaSourceId, setSelectedMediaSourceId, sources} =
+    usePlaybackMediaSources(serverProfile, detail);
 
   const loadDetail = useCallback(
     async (mounted = true) => {
@@ -108,6 +113,12 @@ export const EpisodeDetailScreen = ({
         setDetail(result);
 
         if (result.seriesId && result.parentId) {
+          await hydrateNebulaHierarchy(serverProfile, {
+            id: result.parentId,
+            name: result.seriesName ?? 'Season',
+            seriesId: result.seriesId,
+            type: 'Season',
+          });
           const episodes = await getEpisodes(
             serverProfile.serverUrl,
             serverProfile.accessToken,
@@ -290,7 +301,7 @@ export const EpisodeDetailScreen = ({
             <FocusableItem
               focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={true}
-              onPress={() => onPlay?.(detail)}
+              onPress={() => onPlay?.({...detail, selectedMediaSourceId})}
               style={styles.actionButton}
               testID="episode-play-button">
               <Text style={styles.actionText}>Play</Text>
@@ -341,6 +352,11 @@ export const EpisodeDetailScreen = ({
               <Text style={styles.actionText}>Back</Text>
             </FocusableItem>
           </TVFocusGuideView>
+          <MediaSourcePicker
+            onSelect={setSelectedMediaSourceId}
+            selectedMediaSourceId={selectedMediaSourceId}
+            sources={sources}
+          />
         </View>
       </View>
 

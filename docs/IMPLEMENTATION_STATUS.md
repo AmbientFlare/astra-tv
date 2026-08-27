@@ -1,6 +1,34 @@
 # Implementation Status
 
-Last updated: 2026-08-22
+Last updated: 2026-08-25
+
+## Optional Nebula Bridge integration and Jellyfin Versions — complete
+
+- [x] Preserved Astra's standard Jellyfin data path: seasons still come from
+  `/Shows/{seriesId}/Seasons`, episodes from `/Shows/{seriesId}/Episodes`, and playback from
+  `/Items/{itemId}/PlaybackInfo`.
+- [x] Added a short, failure-isolated probe for Nebula Bridge capability API version 1 when a
+  server profile becomes active. Missing endpoints, timeouts, unsupported revisions, and
+  failures leave Astra behaving as an ordinary Jellyfin client.
+- [x] Added non-blocking hierarchy prefetch on Series/Season TV focus, with ten-minute client
+  deduplication. Detail screens use the optional hydration request as an open-time second
+  chance and then retrieve children through the normal Jellyfin endpoints.
+- [x] Kept provider knowledge out of Astra. The integration handles only Jellyfin item IDs,
+  capability flags, hierarchy hydration, and standard PlaybackInfo MediaSources.
+- [x] Implemented a Versions menu for movies and episodes whenever fresh PlaybackInfo contains
+  more than one distinct source ID. Labels use standard source name, resolution, container,
+  bitrate, and size fields.
+- [x] Fixed playback to select the requested `MediaSourceId` instead of always consuming array
+  index zero. Audio selection and subsequent playback requests stay pinned to the same source.
+- [x] PlaybackInfo used to populate the Versions menu sets `AutoOpenLiveStream: false`; merely
+  showing the menu does not open a provider stream.
+
+### Nebula/Versions verification
+
+- TypeScript typecheck and ESLint pass.
+- Full Jest suite: 280 passing tests across 33 suites.
+- Regression coverage includes absent/unsupported Nebula capability APIs, rapid-request
+  deduplication, complete MediaSource discovery, and selecting a non-default source.
 
 This document preserves reusable implementation findings, rejected hypotheses,
 and physical-device validation results. Release operations and local
