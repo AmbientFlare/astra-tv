@@ -21,6 +21,7 @@ import {
   ServerProfile,
   setDisplayPreferences,
 } from '../../services/storage';
+import {prefetchNebulaHierarchy} from '../../services/nebula';
 
 interface LibraryScreenProps {
   libraryId: string;
@@ -327,6 +328,7 @@ export const LibraryScreen = ({
                     setFocusedIndex(index);
                     handleCardFocus(item);
                     queueBackdrop(item.backdropUrl ?? item.imageUrl);
+                    prefetchNebulaHierarchy(serverProfile, item);
                   }}
                   onPress={() => onSelectItem?.(item)}
                   subtitle={

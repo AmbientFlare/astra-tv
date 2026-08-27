@@ -4,6 +4,8 @@ import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {MediaCard} from '../../components/MediaCard';
+import {MediaSourcePicker} from '../../components/MediaSourcePicker';
+import {usePlaybackMediaSources} from '../../hooks/usePlaybackMediaSources';
 import {
   CHILD_ITEMS_MAX_RETRIES,
   CHILD_ITEMS_RETRY_MS,
@@ -18,6 +20,10 @@ import {
   setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {
+  hydrateNebulaHierarchy,
+  prefetchNebulaHierarchy,
+} from '../../services/nebula';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -65,6 +71,8 @@ export const ItemDetailScreen = ({
   const [isAwaitingServerTree, setAwaitingServerTree] = useState(false);
   const mountedRef = useRef(true);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {selectedMediaSourceId, setSelectedMediaSourceId, sources} =
+    usePlaybackMediaSources(serverProfile, detail);
 
   const clearRetryTimer = useCallback(() => {
     if (retryTimer.current) {
@@ -188,6 +196,7 @@ export const ItemDetailScreen = ({
       setDetail(result);
 
       if (result.type === 'Series') {
+        await hydrateNebulaHierarchy(serverProfile, result);
         await loadSeriesChildren(result.id);
       }
     } catch (error) {
@@ -268,6 +277,11 @@ export const ItemDetailScreen = ({
       setLoadingChildren(true);
 
       try {
+        const hydrationItem =
+          detail.type === 'Season' ? detail : selectedSeason;
+        if (hydrationItem) {
+          await hydrateNebulaHierarchy(serverProfile, hydrationItem);
+        }
         const results = await getEpisodes(
           serverProfile.serverUrl,
           serverProfile.accessToken,
@@ -298,6 +312,7 @@ export const ItemDetailScreen = ({
       mounted = false;
     };
   }, [
+    detail,
     detail.id,
     detail.seriesId,
     detail.type,
@@ -402,7 +417,7 @@ export const ItemDetailScreen = ({
                 hasTVPreferredFocus={true}
                 onPress={() => {
                   if (!hasChildren) {
-                    onPlay?.(detail);
+                    onPlay?.({...detail, selectedMediaSourceId});
                     return;
                   }
 
@@ -431,7 +446,13 @@ export const ItemDetailScreen = ({
               {detail.type === 'Movie' && detail.resumePositionTicks ? (
                 <FocusableItem
                   focusedStyle={styles.actionFocused}
-                  onPress={() => onPlay?.({...detail, resumePositionTicks: 0})}
+                  onPress={() =>
+                    onPlay?.({
+                      ...detail,
+                      resumePositionTicks: 0,
+                      selectedMediaSourceId,
+                    })
+                  }
                   style={styles.actionButton}
                   testID="detail-play-from-start-button">
                   <Text style={styles.actionText}>Play from Start</Text>
@@ -493,6 +514,13 @@ export const ItemDetailScreen = ({
                 <Text style={styles.actionText}>Back</Text>
               </FocusableItem>
             </TVFocusGuideView>
+            {!hasChildren ? (
+              <MediaSourcePicker
+                onSelect={setSelectedMediaSourceId}
+                selectedMediaSourceId={selectedMediaSourceId}
+                sources={sources}
+              />
+            ) : null}
             {director ? (
               <Text style={styles.director}>Directed by {director.name}</Text>
             ) : null}
@@ -509,6 +537,7 @@ export const ItemDetailScreen = ({
                 <MediaCard
                   imageUrl={season.imageUrl}
                   key={season.id}
+                  onFocus={() => prefetchNebulaHierarchy(serverProfile, season)}
                   onPress={() => setSelectedSeason(season)}
                   subtitle={
                     selectedSeason?.id === season.id ? 'Selected' : 'Season'
@@ -550,6 +579,9 @@ export const ItemDetailScreen = ({
                 <MediaCard
                   imageUrl={episode.imageUrl}
                   key={episode.id}
+                  onFocus={() =>
+                    prefetchNebulaHierarchy(serverProfile, episode)
+                  }
                   onPress={() => onSelectEpisode?.(episode)}
                   subtitle={
                     episode.indexNumber
@@ -594,6 +626,9 @@ export const ItemDetailScreen = ({
                 <MediaCard
                   imageUrl={similarItem.imageUrl}
                   key={similarItem.id}
+                  onFocus={() =>
+                    prefetchNebulaHierarchy(serverProfile, similarItem)
+                  }
                   onPress={() => onSelectItem?.(similarItem)}
                   subtitle={
                     similarItem.productionYear

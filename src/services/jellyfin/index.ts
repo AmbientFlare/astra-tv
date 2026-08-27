@@ -90,18 +90,38 @@ export interface JellyfinMediaItem {
   remoteTrailers?: Array<{name?: string; url: string}>;
   seriesId?: string;
   seriesName?: string;
+  /** Client-side playback preference; never sent as item metadata. */
+  selectedMediaSourceId?: string;
 }
 
 export interface JellyfinMediaSource {
+  Id?: string;
+  Name?: string;
   Bitrate?: number;
   Container?: string;
+  ETag?: string;
+  Height?: number;
   MediaStreams?: Array<{
+    BitRate?: number;
     Channels?: number;
     Codec?: string;
+    DisplayTitle?: string;
     Height?: number;
+    Index?: number;
+    IsDefault?: boolean;
+    Language?: string;
+    Profile?: string;
     Type?: string;
+    Width?: number;
   }>;
+  Path?: string;
+  RunTimeTicks?: number;
   Size?: number;
+  SupportsDirectPlay?: boolean;
+  SupportsDirectStream?: boolean;
+  SupportsTranscoding?: boolean;
+  TranscodingUrl?: string;
+  Width?: number;
 }
 
 export interface JellyfinMediaStream {
@@ -555,19 +575,7 @@ const mapItem = (
     Name?: string;
     Type?: string;
     MediaType?: string;
-    MediaSources?: Array<{
-      MediaStreams?: Array<{
-        Channels?: number;
-        Codec?: string;
-        DisplayTitle?: string;
-        Height?: number;
-        Index?: number;
-        IsDefault?: boolean;
-        Language?: string;
-        Type?: string;
-        Width?: number;
-      }>;
-    }>;
+    MediaSources?: JellyfinMediaSource[];
     ProductionYear?: number;
     PremiereDate?: string;
     ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
@@ -1006,6 +1014,57 @@ export const getItems = async (
   );
 };
 
+/**
+ * Retrieves standard Jellyfin PlaybackInfo sources for a Versions menu without opening a
+ * live stream. Provider-specific discovery, if any, remains entirely on the server.
+ */
+export const getPlaybackMediaSources = async (
+  serverUrl: string,
+  accessToken: string,
+  itemId: string,
+  userId?: string,
+): Promise<JellyfinMediaSource[]> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const prefs = await readPlaybackPreferences();
+  const audioOutputCapabilities = await getAudioOutputCapabilities();
+  const deviceProfile = buildDeviceProfile(prefs, audioOutputCapabilities);
+  const response = await getJson<{MediaSources?: JellyfinMediaSource[]}>(
+    buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
+      api_key: accessToken,
+    }),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(accessToken),
+      },
+      body: JSON.stringify({
+        DeviceProfile: deviceProfile,
+        UserId: userId,
+        MaxStreamingBitrate: prefs.maxBitrateBps,
+        MaxAudioChannels: prefs.maxAudioChannels,
+        EnableDirectPlay: false,
+        EnableDirectStream: false,
+        AllowVideoStreamCopy: true,
+        AllowAudioStreamCopy: true,
+        AutoOpenLiveStream: false,
+      }),
+    },
+  );
+
+  return (response.MediaSources ?? []).filter(
+    (source) => source.Id && hasPlayableMediaSource({MediaSources: [source]}),
+  );
+};
+
+const selectPlaybackMediaSource = <Source extends {Id?: string}>(
+  sources: Source[] | undefined,
+  requestedId?: string,
+) =>
+  (requestedId
+    ? sources?.find((source) => source.Id === requestedId)
+    : undefined) ?? sources?.[0];
+
 export const getStreamUrl = async (
   serverUrl: string,
   accessToken: string,
@@ -1137,7 +1196,11 @@ export const getStreamUrl = async (
     );
   }
 
-  const firstMediaStreams = response.MediaSources?.[0]?.MediaStreams?.map(
+  let mediaSource = selectPlaybackMediaSource(
+    response.MediaSources,
+    options.mediaSourceId,
+  );
+  const selectedMediaStreams = mediaSource?.MediaStreams?.map(
     (stream): JellyfinMediaStream => ({
       channels: stream.Channels,
       codec: stream.Codec,
@@ -1151,7 +1214,7 @@ export const getStreamUrl = async (
   const selectedAudioStreamIndex =
     options.audioStreamIndex ??
     selectAudioStreamIndex(
-      firstMediaStreams ?? [],
+      selectedMediaStreams ?? [],
       prefs.preferredAudioLanguage,
       prefs.maxAudioChannels,
     );
@@ -1164,14 +1227,17 @@ export const getStreamUrl = async (
     // the chosen audio stream index refers to the same source.
     const resolved = await postPlaybackInfo(
       selectedAudioStreamIndex,
-      response.MediaSources?.[0]?.Id ?? options.mediaSourceId,
+      mediaSource?.Id ?? options.mediaSourceId,
     );
 
     if (hasPlayableMediaSource(resolved)) {
       response = resolved;
+      mediaSource = selectPlaybackMediaSource(
+        response.MediaSources,
+        mediaSource?.Id ?? options.mediaSourceId,
+      );
     }
   }
-  const mediaSource = response.MediaSources?.[0];
   const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
   const streams = mediaSource?.MediaStreams ?? [];
   const selectedVideoStream = streams.find((stream) => stream.Type === 'Video');

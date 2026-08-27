@@ -9,6 +9,7 @@ import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
+import {prefetchNebulaHierarchy} from '../../services/nebula';
 import {
   getLibraries,
   getLatestItems,
@@ -352,6 +353,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.resume}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
+            serverProfile={serverProfile}
             title="Continue Watching"
           />
         ) : null}
@@ -360,6 +362,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.nextUp}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
+            serverProfile={serverProfile}
             title="Next Up"
           />
         ) : null}
@@ -368,6 +371,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.latestMovies}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
+            serverProfile={serverProfile}
             title="Latest Movies"
           />
         ) : null}
@@ -376,6 +380,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.latestShows}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
+            serverProfile={serverProfile}
             title="Latest Shows"
           />
         ) : null}
@@ -385,6 +390,7 @@ export const HomeScreen = ({
             loadItems={row.loadItems}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
+            serverProfile={serverProfile}
             title={row.title}
           />
         ))}
@@ -397,11 +403,13 @@ const HomeMediaRow = ({
   loadItems,
   onFocusBackdrop,
   onSelectItem,
+  serverProfile,
   title,
 }: {
   loadItems: () => Promise<JellyfinMediaItem[]>;
   onFocusBackdrop?: (url?: string) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
+  serverProfile: ServerProfile | null;
   title: string;
 }) => {
   const [items, setItems] = useState<JellyfinMediaItem[]>([]);
@@ -447,9 +455,12 @@ const HomeMediaRow = ({
             <MediaCard
               imageUrl={item.imageUrl}
               key={item.id}
-              onFocus={() =>
-                onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl)
-              }
+              onFocus={() => {
+                onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl);
+                if (serverProfile) {
+                  prefetchNebulaHierarchy(serverProfile, item);
+                }
+              }}
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.seriesName ??

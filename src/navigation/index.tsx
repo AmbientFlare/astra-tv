@@ -36,6 +36,10 @@ import {
   ServerProfile,
   upsertServerProfile,
 } from '../services/storage';
+import {
+  prefetchNebulaHierarchy,
+  probeNebulaCapabilities,
+} from '../services/nebula';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -96,6 +100,9 @@ export const RootNavigator = () => {
   // types — lands on the series screen and looks like the tap did nothing.
   const openItem = useCallback(
     (item: JellyfinMediaItem) => {
+      if (serverProfile) {
+        prefetchNebulaHierarchy(serverProfile, item);
+      }
       const target = detailRouteForItem(item);
 
       if (target === 'library') {
@@ -108,8 +115,14 @@ export const RootNavigator = () => {
 
       push({route: target, item});
     },
-    [push],
+    [push, serverProfile],
   );
+
+  useEffect(() => {
+    if (serverProfile?.accessToken) {
+      probeNebulaCapabilities(serverProfile);
+    }
+  }, [serverProfile]);
 
   const pop = useCallback(
     () =>
