@@ -10,6 +10,19 @@ Package ID: `com.astra.tv`
 
 Minimum / target Vega OS: `1.2`
 
+## Build command
+
+The submission package must be built with explicit version and build-number
+flags. `npm run build:release` omits them and leaves `build_number` at 0, which
+Amazon rejects with "build_number must be greater than 0, found: 0".
+
+```bash
+npm run build:submission
+```
+
+That derives both numbers from `src/config/app.ts`, refuses to finish if no
+package was produced, and verifies the package's `build_number` matches.
+
 ## Upload file
 
 Upload this single package:
@@ -18,7 +31,7 @@ Upload this single package:
 
 Expected SHA-256:
 
-`71932933562acbc9bb3eddc631d97d30b31b21db72cce6266e64ef36ed10730a`
+`3540d41f526b2bb28e33d2b32136172801baaa290894ee638e219119b88f6d5b`
 
 Only x86_64 is included because Amazon currently maps Astra to supported
 x86_64 Vega Fire TV devices; prior aarch64 and armv7 submissions mapped to zero
