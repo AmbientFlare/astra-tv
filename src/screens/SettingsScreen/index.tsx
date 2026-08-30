@@ -773,18 +773,21 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Smoothed affected MP4/MOV playback by avoiding problematic
-                  HEVC fragment boundaries on Vega OS.
+                  • Fixed resuming a title, switching audio tracks, and turning
+                  on burned-in subtitles, which could all exit to Home on Vega
+                  OS 1.2.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Fixed saved-position resume skipping through earlier video.
+                  • Made seeking and startup much faster: a long jump that took
+                  most of a minute now takes seconds.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Improved audio/video sync during long playback sessions.
+                  • Updated for Vega OS 1.2 and the current Amazon device
+                  libraries.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Expanded Stats for Nerds with HLS delivery details, build
-                  identity, and playback waiting, stalled, and error counters.
+                  • Added an optional Stats for Nerds with logs view showing
+                  playback timings.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
