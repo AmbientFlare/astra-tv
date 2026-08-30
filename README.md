@@ -8,11 +8,15 @@ Astra does not include a hosted catalog, subscription service, public channels,
 or bundled media. It is an independent client and is not affiliated with
 Jellyfin or Amazon.
 
+Website and install instructions: <https://watchastra.com>
+
 ## Project status
 
 The current release is Astra `1.2.0`, build `20260829.12`, for x86_64
 Fire TV devices running Vega OS 1.2 or later.
 
+- Website: <https://watchastra.com> (screenshots, setup, and the
+  [full release history](https://watchastra.com/releases/))
 - Package ID: `com.astra.tv`
 - Main component: `com.astra.tv.main`
 - Supported backend: Jellyfin
