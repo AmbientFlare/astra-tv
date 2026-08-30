@@ -27,7 +27,10 @@ import MiscPolyfill from '../polyfills/MiscPolyfill';
 import TextDecoderPolyfill from '../polyfills/TextDecoderPolyfill';
 import W3CMediaPolyfill from '../polyfills/W3CMediaPolyfill';
 import {BufferOperationTracker} from '../bufferOperationTracker';
-import {trimHlsMediaPlaylistForResume} from '../hlsResumePlaylist';
+import {
+  byteOffsetOfLine,
+  trimHlsMediaPlaylistForResume,
+} from '../hlsResumePlaylist';
 import {trace} from '../../services/logging/trace';
 
 // install polyfills
@@ -463,22 +466,46 @@ export class ShakaPlayer implements PlayerInterface {
           }
 
           const encodeStart = Date.now();
-          // Device measurement: the previous `Array.from(playlist).map(...)`
-          // spent 5,008 ms here on a 1.33 M-character Jellyfin playlist,
-          // because it allocated two 1.3 M-element JS arrays on a 1 GB device.
-          // That single synchronous block is what tripped the Fire TV thread
-          // monitor on a mid-playback reload. Filling a preallocated byte array
-          // produces identical bytes — Uint8Array truncates to 8 bits exactly
-          // as charCodeAt did — with one allocation instead of two.
-          const playlistText = trimmed.playlist;
-          const playlistBytes = new Uint8Array(playlistText.length);
-          for (let index = 0; index < playlistText.length; index += 1) {
-            playlistBytes[index] = playlistText.charCodeAt(index);
+          // The trim only rewrites a short header and drops a prefix of
+          // segments: the rest is a verbatim suffix of what Jellyfin already
+          // sent. Rebuilding all of it character by character cost 1,323 ms on
+          // device for a 1.33 M-character playlist (and 5,008 ms before that,
+          // when it also allocated two 1.3 M-element JS arrays). Copying the
+          // untouched suffix with Uint8Array.set is a native memcpy instead.
+          const sourceBytes = new Uint8Array(response.data);
+          const cutOffset = trimmed.suffixCopyable
+            ? byteOffsetOfLine(sourceBytes, trimmed.firstKeptLineIndex)
+            : -1;
+
+          let encodeMode: string;
+          if (cutOffset >= 0) {
+            const headerText = trimmed.header;
+            const headerBytes = new Uint8Array(headerText.length);
+            for (let index = 0; index < headerText.length; index += 1) {
+              headerBytes[index] = headerText.charCodeAt(index);
+            }
+            const suffix = sourceBytes.subarray(cutOffset);
+            const out = new Uint8Array(headerBytes.length + suffix.length);
+            out.set(headerBytes, 0);
+            out.set(suffix, headerBytes.length);
+            response.data = out.buffer;
+            encodeMode = 'copy';
+          } else {
+            // CRLF sources are normalised by the trim, so their bytes no
+            // longer match the original and the suffix cannot be copied.
+            const playlistText = trimmed.playlist;
+            const playlistBytes = new Uint8Array(playlistText.length);
+            for (let index = 0; index < playlistText.length; index += 1) {
+              playlistBytes[index] = playlistText.charCodeAt(index);
+            }
+            response.data = playlistBytes.buffer;
+            encodeMode = 'rebuild';
           }
-          response.data = playlistBytes.buffer;
           trace(
             'manifest.encode',
-            `chars=${trimmed.playlist.length} ms=${Date.now() - encodeStart}`,
+            `mode=${encodeMode} chars=${trimmed.playlist.length} ms=${
+              Date.now() - encodeStart
+            }`,
           );
           resumePlaylistTrimmed = true;
           console.info('[Astra] Trimmed Jellyfin HLS resume playlist:', {
