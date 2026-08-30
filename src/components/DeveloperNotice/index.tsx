@@ -15,9 +15,12 @@ export const NOTICE_BODY = [
   "I'm sorry for the trouble over the last couple of weeks. The Vega OS 1.2 " +
     'update caught me flat-footed, and playback problems slipped through as a ' +
     'result.',
-  'I believe this version has them sorted. Resuming a title, switching audio ' +
-    'tracks and turning on burned-in subtitles all work again, and seeking is ' +
-    'a great deal faster.',
+  'The worst of it is addressed here. Standard playback, resuming a title, ' +
+    'switching audio tracks and turning on burned-in subtitles all work ' +
+    'again, and seeking is far quicker than it was.',
+  'Two things are still rough. A double-arrow jump takes much longer than it ' +
+    'should, and subtitles can drift out of sync after one. Both are top of ' +
+    'the list for the next small patch.',
   'Astra is built and maintained by one person. I will do my best to stay ' +
     'ahead of platform changes, but this one got away from me, and I ' +
     'apologise for the rough stretch.',
