@@ -447,11 +447,19 @@ export class ShakaPlayer implements PlayerInterface {
             return;
           }
 
-          response.data = new Uint8Array(
-            Array.from(trimmed.playlist).map((character) =>
-              character.charCodeAt(0),
-            ),
-          ).buffer;
+          // Device measurement: the previous `Array.from(playlist).map(...)`
+          // spent 5,008 ms here on a 1.33 M-character Jellyfin playlist,
+          // because it allocated two 1.3 M-element JS arrays on a 1 GB device.
+          // That single synchronous block is what tripped the Fire TV thread
+          // monitor on a mid-playback reload. Filling a preallocated byte array
+          // produces identical bytes — Uint8Array truncates to 8 bits exactly
+          // as charCodeAt did — with one allocation instead of two.
+          const playlistText = trimmed.playlist;
+          const playlistBytes = new Uint8Array(playlistText.length);
+          for (let index = 0; index < playlistText.length; index += 1) {
+            playlistBytes[index] = playlistText.charCodeAt(index);
+          }
+          response.data = playlistBytes.buffer;
           resumePlaylistTrimmed = true;
           console.info('[Astra] Trimmed Jellyfin HLS resume playlist:', {
             skippedDurationSeconds: trimmed.skippedDurationSeconds,
