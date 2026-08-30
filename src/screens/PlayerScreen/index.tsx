@@ -108,6 +108,19 @@ const toTicks = (seconds?: number, fallback = 0) =>
 // many evenly spaced synthetic chapters instead.
 const SYNTHETIC_CHAPTER_COUNT = 12;
 
+/**
+ * Jumps at least this far reload the stream at the target instead of seeking
+ * within it.
+ *
+ * An in-place seek makes Vega drain and refill the decoder, which was measured
+ * at 36 s for a ten-minute jump and close to two minutes on a high-bitrate
+ * title. Reloading asks Jellyfin to start at the target segment, the same route
+ * resume takes, which lands in about three seconds. Short D-pad seeks stay
+ * in-place because they are already near-instant and a reload would be a
+ * visible interruption for no gain.
+ */
+const RELOAD_JUMP_THRESHOLD_SECONDS = 60;
+
 const isAdaptiveStream = (url: string) =>
   url.includes('.m3u8') || url.includes('.mpd');
 
@@ -162,6 +175,11 @@ export const PlayerScreen = ({
     emptyPlaybackEventDiagnostics(),
   );
   const playbackErrorHandler = useRef<() => void>(() => undefined);
+  // Assigned once the reload machinery below exists. jumpChapter is defined
+  // before it, so it cannot take the function as a dependency directly.
+  const reloadAtSecondsRef = useRef<
+    ((targetSeconds: number) => Promise<void>) | null
+  >(null);
   const playbackRecoveryAttempt = useRef(0);
   const trackReloadInProgress = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
@@ -584,6 +602,15 @@ export const PlayerScreen = ({
         return;
       }
 
+      const reloadAtSeconds = reloadAtSecondsRef.current;
+      if (
+        reloadAtSeconds &&
+        Math.abs(target - current) >= RELOAD_JUMP_THRESHOLD_SECONDS
+      ) {
+        await reloadAtSeconds(target);
+        return;
+      }
+
       await seekToSeconds(target);
     },
     [item, preferredSeekSeconds, seek, seekToSeconds],
@@ -907,20 +934,15 @@ export const PlayerScreen = ({
     unloadAdaptivePlayer,
   ]);
 
+  // Every subtitle is burned in by the server, so there is nothing to attach to
+  // the media element and no per-track announcement worth making: saying
+  // "burned-in subtitles" on every selection tells the viewer nothing they can
+  // act on, and the reload already reports its own progress.
+  //
+  // Retained as the hook point both callers use, and because restoring in-app
+  // rendering means restoring behaviour here.
   const addSelectedSubtitleTrack = useCallback(
-    (_video: VideoPlayer, stream: JellyfinStreamInfo) => {
-      const selectedSubtitle = stream.subtitleTracks.find(
-        (track) => track.index === selectedSubtitleIndex.current,
-      );
-
-      // External timed text is fetched and rendered by Astra. Vega's native
-      // caption view is gated by a device-wide accessibility flag that apps
-      // cannot enable, so relying on VideoPlayer.addTextTrack silently hides
-      // SRT/SubRip for users whose system caption renderer is disabled.
-      if (selectedSubtitle?.burnInRequired || selectedSubtitleBurnIn.current) {
-        setStatusText('Playing with burned-in subtitles');
-      }
-    },
+    (_video: VideoPlayer, _stream: JellyfinStreamInfo) => undefined,
     [],
   );
 
@@ -1144,6 +1166,93 @@ export const PlayerScreen = ({
       serverUrl,
     ],
   );
+
+  // Reloads the stream positioned at a target, leaving track selections alone.
+  //
+  // Deliberately mirrors reloadWithTrack rather than refactoring it: that path
+  // is the one proven on hardware for track changes, and this runs on a
+  // different trigger. Keeping them separate means a problem here cannot break
+  // audio or subtitle switching.
+  reloadAtSecondsRef.current = async (targetSeconds: number) => {
+    if (trackReloadInProgress.current) {
+      return;
+    }
+    trackReloadInProgress.current = true;
+
+    const runTimeSeconds =
+      (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+      TICKS_PER_SECOND;
+    const clamped = Math.max(
+      0,
+      runTimeSeconds > 0
+        ? Math.min(runTimeSeconds - 1, targetSeconds)
+        : targetSeconds,
+    );
+    const targetTicks = toTicks(clamped);
+
+    const replacedStream = streamInfo.current;
+    const replacedPositionTicks = currentPositionTicks();
+    trace('jump.reload.start', `toSeconds=${clamped.toFixed(1)}`);
+
+    videoRef.current?.pause();
+    setPaused(true);
+    setStatusText('Jumping...');
+
+    try {
+      // A repositioning reload ends one playback session and starts another,
+      // exactly as a track change does. Reusing the Vega media element leaves
+      // its old SourceBuffers alive and eventually deadlocks the new timeline.
+      stoppedReported.current = true;
+      if (replacedStream) {
+        try {
+          await reportPlaybackStopped(serverUrl, accessToken, {
+            ...replacedStream,
+            audioStreamIndex: selectedAudioIndex.current,
+            positionTicks: replacedPositionTicks,
+            subtitleStreamIndex: selectedSubtitleIndex.current,
+          });
+        } catch (error) {
+          console.warn(
+            '[Astra] Failed to close playback session before jump:',
+            error,
+          );
+        }
+      }
+
+      const video = await createFreshVideoPlayer();
+      const stream = await loadStream(targetTicks);
+      pendingInitialSeekSeconds.current = null;
+      initialSeekApplied.current = true;
+      addSelectedSubtitleTrack(video, stream);
+      await loadVideoSource(video, stream, clamped);
+      stoppedReported.current = false;
+
+      latestPositionTicks.current = targetTicks;
+      setPositionSeconds(clamped);
+
+      await reportPlaybackStart(serverUrl, accessToken, {
+        ...stream,
+        audioStreamIndex: selectedAudioIndex.current,
+        isPaused: false,
+        positionTicks: targetTicks,
+        subtitleStreamIndex: selectedSubtitleIndex.current,
+      });
+      video.play();
+      setPaused(false);
+      scheduleControlsHide();
+      setStatusText('');
+      trace('jump.reload.done', `atSeconds=${clamped.toFixed(1)}`);
+    } catch (error) {
+      console.error('[Astra] Failed to jump by reloading:', error);
+      setStatusText(
+        error instanceof Error
+          ? `Unable to jump: ${error.message}`
+          : 'Unable to jump.',
+      );
+    } finally {
+      trackReloadInProgress.current = false;
+    }
+  };
 
   playbackErrorHandler.current = () => {
     const recovery = getNextPlaybackRecovery({
@@ -1810,7 +1919,9 @@ export const PlaybackSettingsOverlay = ({
         {streamInfo.subtitleTracks.map((track) => (
           <SettingsButton
             key={track.id}
-            label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
+            // Every subtitle is burned in now, so the old "(burn-in)" suffix
+            // would appear on every entry and tell the viewer nothing.
+            label={track.title}
             onPress={() => onSelectSubtitle(track)}
             selected={track.index === selectedSubtitleIndex}
           />

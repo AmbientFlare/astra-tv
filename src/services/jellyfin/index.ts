@@ -1223,7 +1223,14 @@ export const getStreamUrl = async (
       isDefault: track.IsDefault,
       isExternal: track.IsExternal,
       deliveryUrl,
-      burnInRequired: isSubtitle && (!deliveryUrl || !textTrackSupported),
+      // Every subtitle is burned in by the server. Astra used to render text
+      // tracks itself and leave picture-based ones to Jellyfin, which meant two
+      // code paths, two failure modes, and app-rendered subtitles that drifted
+      // out of sync after a long seek. One path costs a reload on each subtitle
+      // change and is worth it. Revert this single expression to
+      // `isSubtitle && (!deliveryUrl || !textTrackSupported)` to restore
+      // app-side rendering; nothing else was removed.
+      burnInRequired: isSubtitle,
       mimeType: isSubtitle
         ? subtitleMimeForDelivery(deliveryUrl, track.Codec)
         : undefined,
