@@ -44,6 +44,7 @@ jest.mock('../src/services/storage', () => ({
     preferredAudioLanguage: 'en',
     seekDurationSeconds: 10,
     showPlaybackStats: false,
+    showPlaybackTraces: false,
     version: 1,
   },
   defaultUserPreferences: {
@@ -93,6 +94,7 @@ jest.mock('../src/services/storage', () => ({
     preferredAudioLanguage: 'en',
     seekDurationSeconds: 10,
     showPlaybackStats: Boolean(patch.showPlaybackStats),
+    showPlaybackTraces: Boolean(patch.showPlaybackTraces),
     version: 1,
   })),
 }));
@@ -153,24 +155,59 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.1.2')).toBeTruthy();
-    expect(screen.getByText('Build: 20260822.4')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.1.2")).toBeTruthy();
+    expect(screen.getByText('Astra 1.2.0')).toBeTruthy();
+    expect(screen.getByText('Build: 20260829.12')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.2.0")).toBeTruthy();
     expect(
       screen.getByText(
-        '• Smoothed affected MP4/MOV playback by avoiding problematic HEVC fragment boundaries on Vega OS.',
+        '• Fixed resuming a title, switching audio tracks, and turning on burned-in subtitles, which could all exit to Home on Vega OS 1.2.',
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Fixed saved-position resume skipping through earlier video.',
+        '• Made seeking and startup much faster: a long jump that took most of a minute now takes seconds.',
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Improved audio/video sync during long playback sessions.',
+        '• Updated for Vega OS 1.2 and the current Amazon device libraries.',
       ),
     ).toBeTruthy();
+  });
+
+  it('persists the separate with-logs toggle from Settings > Playback', async () => {
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+
+    expect(
+      screen.getByTestId('settings-toggle-Stats for Nerds with logs'),
+    ).toBeTruthy();
+    fireEvent.press(
+      screen.getByTestId('settings-toggle-Stats for Nerds with logs'),
+    );
+
+    await waitFor(() =>
+      expect(mockWritePlaybackPreferences).toHaveBeenCalledWith({
+        showPlaybackTraces: true,
+      }),
+    );
+  });
+
+  it('keeps the two diagnostics toggles independent', async () => {
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    fireEvent.press(screen.getByTestId('settings-toggle-Stats for Nerds'));
+
+    await waitFor(() =>
+      expect(mockWritePlaybackPreferences).toHaveBeenCalledWith({
+        showPlaybackStats: true,
+      }),
+    );
+    expect(mockWritePlaybackPreferences).not.toHaveBeenCalledWith(
+      expect.objectContaining({showPlaybackTraces: expect.anything()}),
+    );
   });
 
   it('also renders diagnostics in the separate in-player options overlay', () => {
@@ -179,8 +216,10 @@ describe('playback diagnostics entry points', () => {
         onSelectAudio={jest.fn()}
         onSelectSubtitle={jest.fn()}
         onToggleStats={jest.fn()}
+        onToggleTraces={jest.fn()}
         selectedAudioIndex={1}
         showStats={false}
+        showTraces={false}
         streamInfo={{
           audioStreamIndex: 1,
           audioTracks: [],
@@ -266,7 +305,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.1\.2 \(20260822\.4\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.2\.0 \(20260829\.12\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,

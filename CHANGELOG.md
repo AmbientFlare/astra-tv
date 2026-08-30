@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.2.0 - 2026-08-29
+
+Repairs playback on Fire TV devices that have taken the Vega OS 1.2 update.
+Nothing in the app changed to cause the failures: the published 1.1.2 package
+reproduces all of them on an updated device.
+
+### Fixed
+
+- Resuming a title from a saved position no longer exits to Home.
+- Switching audio tracks during playback no longer exits to Home.
+- Turning on burned-in subtitles during playback no longer exits to Home.
+- Release logging no longer blocks the JavaScript thread. On Vega OS 1.2 the
+  native logging bridge stalled the thread until the Fire TV thread monitor
+  terminated the app; console output now goes to a bounded in-memory buffer,
+  with `console.error` retained.
+- The HLS resume trim copies the untouched playlist suffix with a native copy
+  instead of rebuilding a 1.4-2.2 MB playlist character by character, removing
+  about 5 seconds of synchronous work from every stream load.
+
+### Changed
+
+- Requires Vega OS `1.2`, as declared in the manifest and required by Vega
+  SDK 0.24. Devices on an earlier Vega OS remain on 1.1.2.
+- Built with Vega SDK `0.24.9914`; Amazon device libraries updated to the
+  SDK 0.24 pins for the React Native 0.72 line. React and React Native are
+  unchanged.
+
+### Added
+
+- Optional "Stats for Nerds with logs" view showing manifest handling and load
+  timings, in Settings > Playback and the in-player Diagnostics column. Off by
+  default. Vega exposes no JS console output to any retrievable log artifact,
+  so this is the only on-device playback diagnostic.
+- A one-time developer notice acknowledging the disruption, dismissed with a
+  single OK.
+- `npm run build:submission`, which sets the Vega package build number from
+  `src/config/app.ts`. `npm run build:release` leaves it at 0, which sideloads
+  but fails Amazon validation.
+
+### Known limitations
+
+- A double-arrow chapter jump still takes roughly 38 seconds. This predates the
+  OS update and sits below the JavaScript thread.
+- Subtitles rendered by the app can drift out of sync after a long seek that
+  requires buffering.
+
 ## 1.1.2 - 2026-08-22
 
 ### Added

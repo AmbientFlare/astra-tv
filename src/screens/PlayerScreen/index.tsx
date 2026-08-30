@@ -25,6 +25,7 @@ import {
   reportPlaybackStopped,
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
+import {getTraces, resetTraces, trace} from '../../services/logging/trace';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
   calibrateTimelineOffset,
@@ -201,6 +202,7 @@ export const PlayerScreen = ({
     ((handle: string) => Promise<void>) | null
   >(null);
   const [showPlaybackStats, setShowPlaybackStats] = useState(false);
+  const [showPlaybackTraces, setShowPlaybackTraces] = useState(false);
   const [playbackDebugInfo, setPlaybackDebugInfo] =
     useState<PlaybackDebugInfo | null>(null);
   const [externalSubtitleCues, setExternalSubtitleCues] = useState<WebVttCue[]>(
@@ -236,6 +238,7 @@ export const PlayerScreen = ({
       setPreferredSeekSeconds(preferences.seekDurationSeconds);
       setPreferredMaxBitrate(preferences.maxBitrateBps);
       setShowPlaybackStats(preferences.showPlaybackStats);
+      setShowPlaybackTraces(preferences.showPlaybackTraces);
     });
 
     return () => {
@@ -1034,6 +1037,16 @@ export const PlayerScreen = ({
 
       trackReloadInProgress.current = true;
       const positionTicks = currentPositionTicks();
+      trace(
+        'reload.start',
+        `positionSeconds=${(positionTicks / TICKS_PER_SECOND).toFixed(1)} ` +
+          `subtitle=${
+            subtitleTrack === undefined
+              ? 'unchanged'
+              : subtitleTrack?.index ?? 'off'
+          } ` +
+          `burnIn=${subtitleTrack?.burnInRequired ?? 'n/a'}`,
+      );
       const replacedStream = streamInfo.current;
       const replacedAudioIndex = selectedAudioIndex.current;
       const replacedSubtitleIndex = selectedSubtitleIndex.current;
@@ -1485,6 +1498,10 @@ export const PlayerScreen = ({
       surfaceHandle.current = handle;
       const startTicks = item.resumePositionTicks ?? 0;
       const startSeconds = startTicks / TICKS_PER_SECOND;
+      // Traces are per playback session: without this the overlay keeps the
+      // previous title's timings and its T+ origin, which is misleading after
+      // moving between titles.
+      resetTraces();
 
       try {
         setStarting(true);
@@ -1686,11 +1703,14 @@ export const PlayerScreen = ({
           selectedAudioIndex={selectedAudioTrackIndex}
           selectedSubtitleIndex={selectedSubtitleTrackIndex}
           showStats={showPlaybackStats}
+          showTraces={showPlaybackTraces}
+          onToggleTraces={() => setShowPlaybackTraces((value) => !value)}
           streamInfo={currentStream}
         />
       ) : null}
       {showPlaybackStats && currentStream ? (
         <PlaybackStatsOverlay
+          showTraces={showPlaybackTraces}
           diagnostics={playbackDebugInfo}
           positionSeconds={positionSeconds}
           streamInfo={currentStream}
@@ -1737,6 +1757,8 @@ export const PlaybackSettingsOverlay = ({
   selectedAudioIndex,
   selectedSubtitleIndex,
   showStats,
+  showTraces,
+  onToggleTraces,
   streamInfo,
 }: {
   onSelectAudio: (track: JellyfinMediaTrack) => void;
@@ -1745,6 +1767,8 @@ export const PlaybackSettingsOverlay = ({
   selectedAudioIndex?: number;
   selectedSubtitleIndex?: number;
   showStats: boolean;
+  showTraces: boolean;
+  onToggleTraces: () => void;
   streamInfo: JellyfinStreamInfo;
 }) => (
   <View style={styles.settingsOverlay} testID="player-settings-overlay">
@@ -1798,9 +1822,15 @@ export const PlaybackSettingsOverlay = ({
           onPress={onToggleStats}
           selected={showStats}
         />
+        <SettingsButton
+          label={`Stats for Nerds with logs: ${showTraces ? 'On' : 'Off'}`}
+          onPress={onToggleTraces}
+          selected={showTraces}
+        />
         <Text style={styles.settingsHint}>
           Shows the stream actually delivered by Jellyfin and live player
-          health.
+          health. With logs adds playback timings for manifest handling and load
+          duration.
         </Text>
       </SettingsColumn>
     </View>
@@ -1829,10 +1859,12 @@ const formatDiagnosticTime = (seconds: number) =>
 export const PlaybackStatsOverlay = ({
   diagnostics,
   positionSeconds,
+  showTraces = false,
   streamInfo,
 }: {
   diagnostics: PlaybackDebugInfo | null;
   positionSeconds: number;
+  showTraces?: boolean;
   streamInfo: JellyfinStreamInfo;
 }) => {
   const deliveredAudioIndex =
@@ -1986,6 +2018,16 @@ export const PlaybackStatsOverlay = ({
           {`Reason  ${streamInfo.transcodeReasons.join(', ')}`}
         </Text>
       ) : null}
+      {/* Playback traces. JS console output reaches no artifact that
+          `vega device copy-logs` can retrieve, so timings for the reload path
+          have to be read here on the device. */}
+      {(showTraces ? getTraces() : []).slice(-8).map((entry, index) => (
+        <Text key={`${entry.label}-${index}`} style={styles.statsLine}>
+          {`T+${(entry.sinceStartMs / 1000).toFixed(1)}s  ${entry.label}  ${
+            entry.detail
+          }`}
+        </Text>
+      ))}
     </View>
   );
 };

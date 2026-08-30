@@ -1,6 +1,6 @@
 {
   "name": "@amazon-devices/astra",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
   "files": [
@@ -14,16 +14,17 @@
     "lint": "eslint src test --ext .ts,.tsx",
     "lint:fix": "eslint src test --ext .ts,.tsx --fix",
     "build:release": "react-native build-vega --build-type Release --target x86_64",
+    "build:submission": "bash scripts/build-submission.sh",
     "build:debug": "react-native build-vega --build-type Debug",
     "build:app": "npm-run-all build:release",
     "build": "npm-run-all build:release",
     "release": "npm-run-all lint test build:app"
   },
   "dependencies": {
-    "@amazon-devices/kepler-media-controls": "^1.0.0",
-    "@amazon-devices/keplerscript-netmgr-lib": "~2.0.0",
-    "@amazon-devices/react-native-kepler": "^2.0.0",
-    "@amazon-devices/react-native-w3cmedia": "~2.2.20",
+    "@amazon-devices/kepler-media-controls": "~1.0.25",
+    "@amazon-devices/keplerscript-netmgr-lib": "~2.0.20",
+    "@amazon-devices/react-native-kepler": "~2.1.0+rn0.72.0",
+    "@amazon-devices/react-native-w3cmedia": "~2.3.2",
     "@astra/user-engagement": "file:packages/astra-user-engagement",
     "base-64": "^1.0.0",
     "react": "18.2.0",
