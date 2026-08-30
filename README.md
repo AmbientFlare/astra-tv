@@ -10,16 +10,18 @@ Jellyfin or Amazon.
 
 ## Project status
 
-The current release is Astra `1.1.2`, build `20260822.4`, for x86_64
-Fire TV devices running Vega OS.
+The current release is Astra `1.2.0`, build `20260829.12`, for x86_64
+Fire TV devices running Vega OS 1.2 or later.
 
 - Package ID: `com.astra.tv`
 - Main component: `com.astra.tv.main`
 - Supported backend: Jellyfin
 - Supported server connections: local HTTP and remote HTTPS
-- Release validation: 175 tests, ESLint, TypeScript, Vega manifest, and Vega
-  ABI; one-hour A/V sync, repeat-seek, and saved-position resume passed on the
-  physical Fire TV Stick for 1.1.2
+- Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
+  Vega OS stay on 1.1.2.
+- Release validation: 208 tests, ESLint, TypeScript, Vega manifest, and Vega
+  ABI; resume, audio switching, burned-in subtitles, and a 45-minute A/V sync
+  soak passed on the physical Fire TV Stick for 1.2.0
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -62,6 +64,23 @@ creation on Vega.
   metadata to the video player.
 
 ## Release history
+
+### 1.2.0 — Vega OS 1.2 playback repair — 2026-08-29
+
+- Fixed resume from a saved position, audio track switching, and burned-in
+  subtitle selection, all of which exited to Home on Vega OS 1.2. The cause was
+  the platform, not the app: the previously published 1.1.2 package reproduces
+  every failure on an updated device.
+- Release builds no longer route logging through the native bridge, which was
+  blocking the JS thread until the Fire TV thread monitor killed the app.
+- The HLS resume trim copies the untouched playlist suffix instead of rebuilding
+  it character by character, cutting 5 seconds of synchronous work per load.
+  Stream load fell from about 8 seconds to 2.8, a five-minute seek from roughly
+  a minute to seconds, and short D-pad skips are close to instant.
+- Moved to Vega SDK 0.24, declared Vega OS 1.2 in the manifest, and updated the
+  Amazon device libraries. React Native remains 0.72.
+- Added an optional "Stats for Nerds with logs" view showing playback timings,
+  off by default.
 
 ### 1.1.2 — HLS playback compatibility and diagnostics — 2026-08-22
 
@@ -125,7 +144,7 @@ creation on Vega.
 
 The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md). Release
 notes for the current version are in
-[docs/release-1.1.2.md](docs/release-1.1.2.md).
+[docs/release-1.2.0.md](docs/release-1.2.0.md).
 
 ## Development
 
@@ -149,7 +168,7 @@ Build the current release target with:
 ```sh
 PATH=/path/to/vega/bin:$PATH npx react-native build-vega \
   --build-type Release --target x86_64 \
-  --build-number 2026082204 --build-version 1.1.2
+  --build-number 2026082912 --build-version 1.2.0
 ```
 
 Install a VPKG on a Vega device with:
@@ -162,12 +181,13 @@ vega device launch-app \
 ```
 
 Never use `vega run-app` for an upgrade: it uninstalls the existing package and
-deletes app data before installing. Build 1.1.2 passed physical acceptance and
+deletes app data before installing. Build 1.2.0 passed physical acceptance and
 its Amazon upload package is prepared.
 
 ## Documentation
 
 - [Changelog](CHANGELOG.md)
+- [Astra 1.2.0 release notes](docs/release-1.2.0.md)
 - [Astra 1.1.2 release notes](docs/release-1.1.2.md)
 - [Astra 1.1.1 release notes](docs/release-1.1.1.md)
 - [Astra 1.1.0 release notes](docs/release-1.1.0.md)

@@ -27,7 +27,11 @@ import MiscPolyfill from '../polyfills/MiscPolyfill';
 import TextDecoderPolyfill from '../polyfills/TextDecoderPolyfill';
 import W3CMediaPolyfill from '../polyfills/W3CMediaPolyfill';
 import {BufferOperationTracker} from '../bufferOperationTracker';
-import {trimHlsMediaPlaylistForResume} from '../hlsResumePlaylist';
+import {
+  byteOffsetOfLine,
+  trimHlsMediaPlaylistForResume,
+} from '../hlsResumePlaylist';
+import {trace} from '../../services/logging/trace';
 
 // install polyfills
 Document.install();
@@ -438,20 +442,71 @@ export class ShakaPlayer implements PlayerInterface {
         }
 
         try {
+          const decodeStart = Date.now();
           const body = new TextDecoder('utf-8').decode(response.data);
+          const decodeMs = Date.now() - decodeStart;
+          trace(
+            'manifest.decode',
+            `bytes=${response.data.byteLength} ms=${decodeMs}`,
+          );
+
+          const trimStart = Date.now();
           const trimmed = trimHlsMediaPlaylistForResume(
             body,
             this.setting_.hlsResumePositionSeconds!,
+          );
+          trace(
+            'manifest.trim',
+            `applied=${trimmed ? 'yes' : 'no'} skippedSegments=${
+              trimmed?.skippedSegments ?? 0
+            } ms=${Date.now() - trimStart}`,
           );
           if (!trimmed) {
             return;
           }
 
-          response.data = new Uint8Array(
-            Array.from(trimmed.playlist).map((character) =>
-              character.charCodeAt(0),
-            ),
-          ).buffer;
+          const encodeStart = Date.now();
+          // The trim only rewrites a short header and drops a prefix of
+          // segments: the rest is a verbatim suffix of what Jellyfin already
+          // sent. Rebuilding all of it character by character cost 1,323 ms on
+          // device for a 1.33 M-character playlist (and 5,008 ms before that,
+          // when it also allocated two 1.3 M-element JS arrays). Copying the
+          // untouched suffix with Uint8Array.set is a native memcpy instead.
+          const sourceBytes = new Uint8Array(response.data);
+          const cutOffset = trimmed.suffixCopyable
+            ? byteOffsetOfLine(sourceBytes, trimmed.firstKeptLineIndex)
+            : -1;
+
+          let encodeMode: string;
+          if (cutOffset >= 0) {
+            const headerText = trimmed.header;
+            const headerBytes = new Uint8Array(headerText.length);
+            for (let index = 0; index < headerText.length; index += 1) {
+              headerBytes[index] = headerText.charCodeAt(index);
+            }
+            const suffix = sourceBytes.subarray(cutOffset);
+            const out = new Uint8Array(headerBytes.length + suffix.length);
+            out.set(headerBytes, 0);
+            out.set(suffix, headerBytes.length);
+            response.data = out.buffer;
+            encodeMode = 'copy';
+          } else {
+            // CRLF sources are normalised by the trim, so their bytes no
+            // longer match the original and the suffix cannot be copied.
+            const playlistText = trimmed.playlist;
+            const playlistBytes = new Uint8Array(playlistText.length);
+            for (let index = 0; index < playlistText.length; index += 1) {
+              playlistBytes[index] = playlistText.charCodeAt(index);
+            }
+            response.data = playlistBytes.buffer;
+            encodeMode = 'rebuild';
+          }
+          trace(
+            'manifest.encode',
+            `mode=${encodeMode} chars=${trimmed.playlist.length} ms=${
+              Date.now() - encodeStart
+            }`,
+          );
           resumePlaylistTrimmed = true;
           console.info('[Astra] Trimmed Jellyfin HLS resume playlist:', {
             skippedDurationSeconds: trimmed.skippedDurationSeconds,
@@ -630,7 +685,10 @@ export class ShakaPlayer implements PlayerInterface {
     console.log('shakaplayer: load() OUT');
   }
   private async internalLoad(content: any) {
+    const loadStart = Date.now();
+    trace('shaka.load.start', `startTime=${content.startTime ?? 0}`);
     await this.player.load(content.uri, content.startTime);
+    trace('shaka.load.done', `ms=${Date.now() - loadStart}`);
     console.log('shakaplayer: setTextTrackVisibility');
     this.player.setTextTrackVisibility(true);
     console.log('shakaplayer: loaded');

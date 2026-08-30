@@ -7,6 +7,11 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../components/FocusableItem';
 import {ProfileSwitcher} from '../components/ProfileSwitcher';
+import {
+  CURRENT_NOTICE_ID,
+  DeveloperNotice,
+} from '../components/DeveloperNotice';
+import {readAppState, writeAppState} from '../services/storage';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
@@ -82,6 +87,30 @@ export const RootNavigator = () => {
   const [stack, setStack] = useState<RouteEntry[]>([{route: 'home'}]);
   const [libraryMenuVisible, setLibraryMenuVisible] = useState(false);
   const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
+  const [noticeVisible, setNoticeVisible] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    readAppState()
+      .then((state) => {
+        if (mounted && state.acknowledgedNoticeId !== CURRENT_NOTICE_ID) {
+          setNoticeVisible(true);
+        }
+      })
+      .catch(() => {
+        // A notice is not worth failing a launch over.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const dismissNotice = useCallback(() => {
+    setNoticeVisible(false);
+    writeAppState({acknowledgedNoticeId: CURRENT_NOTICE_ID}).catch(() => {
+      // Dismissed for this session even if the write fails.
+    });
+  }, []);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
 
@@ -270,6 +299,16 @@ export const RootNavigator = () => {
     />
   ) : null;
 
+  // Rendered in the app shell rather than inside a route: mounted inside the
+  // home route, navigating away unmounted it, so a press that landed on the
+  // screen behind looked like a dismissal while never acknowledging anything.
+  // Held back until a profile exists so it cannot cover first-run setup, and
+  // suppressed during playback.
+  const developerNotice =
+    noticeVisible && serverProfile && current.route !== 'player' ? (
+      <DeveloperNotice onDismiss={dismissNotice} />
+    ) : null;
+
   const exitPrompt = exitPromptVisible ? (
     <ExitPrompt
       onCancel={() => setExitPromptVisible(false)}
@@ -280,9 +319,14 @@ export const RootNavigator = () => {
   // The now-playing bar is mounted globally, below whatever screen is showing,
   // so music keeps its transport visible while browsing — including while
   // browsing video. It renders nothing when there is no queue.
+  // The notice replaces the screen rather than covering it. Requesting focus
+  // was not enough on device: the screen behind kept it, so the first centre
+  // press went to whatever was focused there. With nothing focusable rendered
+  // behind, focus has to land on the dismiss button, and navigation cannot
+  // occur while the notice is up.
   const withExitPrompt = (screen: React.ReactElement) => (
     <View style={styles.appShell}>
-      <View style={styles.appScreen}>{screen}</View>
+      <View style={styles.appScreen}>{developerNotice ?? screen}</View>
       <NowPlayingBar
         onOpen={() => {
           if (

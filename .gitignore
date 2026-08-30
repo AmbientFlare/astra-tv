@@ -26,5 +26,13 @@ node_modules
 CMakeUserPresets.json
 npm-debug.log
 
+# Closed-caption investigation notes. Held back deliberately: the current
+# revision names local infrastructure. Publish a sanitised revision once the
+# caption work is settled, then drop this entry.
+docs/CLOSED_CAPTION_NOTES.md
+
+# Device test notes: local working log, same reason.
+docs/DEVICE_TEST_NOTES.md
+
 # agent handoffs / working notes (never publish)
 docs/handoffs/

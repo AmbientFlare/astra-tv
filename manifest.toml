@@ -2,9 +2,13 @@ schema-version = 1
 
 [package]
 title = "Astra"
-version = "1.1.2"
+version = "1.2.0"
 id = "com.astra.tv"
 icon = "@image/icon_512x512.png"
+
+[os.version]
+min = "1.2"
+target = "1.2"
 
 [components]
 [[components.interactive]]
@@ -79,3 +83,7 @@ command_options = [
 ]
 attribute_options = ["AudioAdvanceMuted"]
 features = ["AdvancedSeek", "VariableSpeed", "AudioTracks", "TextTracks"]
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
