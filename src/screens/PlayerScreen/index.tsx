@@ -1924,7 +1924,9 @@ export const PlaybackSettingsOverlay = ({
         {streamInfo.subtitleTracks.map((track) => (
           <SettingsButton
             key={track.id}
-            label={`${track.title}${track.burnInRequired ? ' (burn-in)' : ''}`}
+            // Every subtitle is burned in now, so the old "(burn-in)" suffix
+            // would appear on every entry and tell the viewer nothing.
+            label={track.title}
             onPress={() => onSelectSubtitle(track)}
             selected={track.index === selectedSubtitleIndex}
           />
