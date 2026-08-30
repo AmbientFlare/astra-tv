@@ -34,3 +34,6 @@ docs/handoffs/
 # Publish a sanitised revision once the caption work is settled, then drop
 # this entry.
 docs/CLOSED_CAPTION_NOTES.md
+
+# Device test notes: local working log, same reason as the caption notes.
+docs/DEVICE_TEST_NOTES.md
