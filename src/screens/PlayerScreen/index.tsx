@@ -19,6 +19,7 @@ import {
   reportPlaybackStopped,
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
+import {getTraces, trace} from '../../services/logging/trace';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
   calibrateTimelineOffset,
@@ -1006,6 +1007,16 @@ export const PlayerScreen = ({
 
       trackReloadInProgress.current = true;
       const positionTicks = currentPositionTicks();
+      trace(
+        'reload.start',
+        `positionSeconds=${(positionTicks / TICKS_PER_SECOND).toFixed(1)} ` +
+          `subtitle=${
+            subtitleTrack === undefined
+              ? 'unchanged'
+              : subtitleTrack?.index ?? 'off'
+          } ` +
+          `burnIn=${subtitleTrack?.burnInRequired ?? 'n/a'}`,
+      );
       const replacedStream = streamInfo.current;
       const replacedAudioIndex = selectedAudioIndex.current;
       const replacedSubtitleIndex = selectedSubtitleIndex.current;
@@ -1905,6 +1916,18 @@ export const PlaybackStatsOverlay = ({
           {`Reason  ${streamInfo.transcodeReasons.join(', ')}`}
         </Text>
       ) : null}
+      {/* Playback traces. JS console output reaches no artifact that
+          `vega device copy-logs` can retrieve, so timings for the reload path
+          have to be read here on the device. */}
+      {getTraces()
+        .slice(-8)
+        .map((entry, index) => (
+          <Text key={`${entry.label}-${index}`} style={styles.statsLine}>
+            {`T+${(entry.sinceStartMs / 1000).toFixed(1)}s  ${entry.label}  ${
+              entry.detail
+            }`}
+          </Text>
+        ))}
     </View>
   );
 };

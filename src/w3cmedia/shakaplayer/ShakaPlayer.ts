@@ -28,6 +28,7 @@ import TextDecoderPolyfill from '../polyfills/TextDecoderPolyfill';
 import W3CMediaPolyfill from '../polyfills/W3CMediaPolyfill';
 import {BufferOperationTracker} from '../bufferOperationTracker';
 import {trimHlsMediaPlaylistForResume} from '../hlsResumePlaylist';
+import {trace} from '../../services/logging/trace';
 
 // install polyfills
 Document.install();
@@ -438,15 +439,30 @@ export class ShakaPlayer implements PlayerInterface {
         }
 
         try {
+          const decodeStart = Date.now();
           const body = new TextDecoder('utf-8').decode(response.data);
+          const decodeMs = Date.now() - decodeStart;
+          trace(
+            'manifest.decode',
+            `bytes=${response.data.byteLength} ms=${decodeMs}`,
+          );
+
+          const trimStart = Date.now();
           const trimmed = trimHlsMediaPlaylistForResume(
             body,
             this.setting_.hlsResumePositionSeconds!,
+          );
+          trace(
+            'manifest.trim',
+            `applied=${trimmed ? 'yes' : 'no'} skippedSegments=${
+              trimmed?.skippedSegments ?? 0
+            } ms=${Date.now() - trimStart}`,
           );
           if (!trimmed) {
             return;
           }
 
+          const encodeStart = Date.now();
           // Device measurement: the previous `Array.from(playlist).map(...)`
           // spent 5,008 ms here on a 1.33 M-character Jellyfin playlist,
           // because it allocated two 1.3 M-element JS arrays on a 1 GB device.
@@ -460,6 +476,10 @@ export class ShakaPlayer implements PlayerInterface {
             playlistBytes[index] = playlistText.charCodeAt(index);
           }
           response.data = playlistBytes.buffer;
+          trace(
+            'manifest.encode',
+            `chars=${trimmed.playlist.length} ms=${Date.now() - encodeStart}`,
+          );
           resumePlaylistTrimmed = true;
           console.info('[Astra] Trimmed Jellyfin HLS resume playlist:', {
             skippedDurationSeconds: trimmed.skippedDurationSeconds,
@@ -638,7 +658,10 @@ export class ShakaPlayer implements PlayerInterface {
     console.log('shakaplayer: load() OUT');
   }
   private async internalLoad(content: any) {
+    const loadStart = Date.now();
+    trace('shaka.load.start', `startTime=${content.startTime ?? 0}`);
     await this.player.load(content.uri, content.startTime);
+    trace('shaka.load.done', `ms=${Date.now() - loadStart}`);
     console.log('shakaplayer: setTextTrackVisibility');
     this.player.setTextTrackVisibility(true);
     console.log('shakaplayer: loaded');
