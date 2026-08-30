@@ -2,7 +2,48 @@ export interface TrimmedHlsPlaylist {
   playlist: string;
   skippedDurationSeconds: number;
   skippedSegments: number;
+  /**
+   * Rewritten header, newline-terminated. Everything after it is a verbatim
+   * suffix of the source, which lets callers copy rather than rebuild.
+   */
+  header: string;
+  /** 0-based index of the first retained line, counting LF-delimited lines. */
+  firstKeptLineIndex: number;
+  /**
+   * True when the source used LF only. The trim joins with '\n', so a CRLF
+   * source would be normalised and its bytes would no longer match the
+   * original; callers must not copy the suffix in that case.
+   */
+  suffixCopyable: boolean;
 }
+
+/**
+ * Byte offset at which a 0-based, LF-delimited line begins.
+ *
+ * Scans with the native `indexOf` rather than a per-byte loop: only the
+ * dropped prefix is traversed, and it stays out of the interpreter. UTF-8
+ * continuation bytes are never 0x0A, so counting newline bytes gives correct
+ * line boundaries whatever the encoding.
+ *
+ * Returns -1 when the line does not exist.
+ */
+export const byteOffsetOfLine = (
+  bytes: Uint8Array,
+  lineIndex: number,
+): number => {
+  if (lineIndex <= 0) {
+    return 0;
+  }
+  let offset = 0;
+  for (let seen = 0; seen < lineIndex; seen += 1) {
+    const next = bytes.indexOf(0x0a, offset);
+    if (next < 0) {
+      return -1;
+    }
+    offset = next + 1;
+  }
+  return offset;
+};
 
 /**
  * Jellyfin exposes dynamic HLS as a virtual VOD playlist. Requesting segment
@@ -93,5 +134,8 @@ export const trimHlsMediaPlaylistForResume = (
     playlist: [...prefix, ...lines.slice(firstKeptLine)].join('\n'),
     skippedDurationSeconds,
     skippedSegments,
+    header: prefix.length ? `${prefix.join('\n')}\n` : '',
+    firstKeptLineIndex: firstKeptLine,
+    suffixCopyable: !playlist.includes('\r'),
   };
 };
