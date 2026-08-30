@@ -46,6 +46,7 @@ export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => {
   return (
     <View style={styles.backdrop} testID="developer-notice">
       <TVFocusGuideView
+        autoFocus
         trapFocusDown
         trapFocusLeft
         trapFocusRight

@@ -12,6 +12,7 @@ import {
 import {
   getLastUsedServerProfile,
   incrementLaunchCount,
+  readAppState,
   readServerProfiles,
 } from '../src/services/storage';
 
@@ -216,7 +217,13 @@ jest.mock('../src/services/storage', () => ({
     version: 1,
   })),
   readServerProfiles: jest.fn(async () => []),
-  readAppState: jest.fn(async () => ({isPro: false, launchCount: 0})),
+  // Notice already acknowledged: these tests exercise navigation and the exit
+  // prompt, and an unacknowledged notice deliberately replaces the screen.
+  readAppState: jest.fn(async () => ({
+    acknowledgedNoticeId: 'vega-os-1.2-apology-2026-08',
+    isPro: false,
+    launchCount: 0,
+  })),
   setProStatus: jest.fn(async () => undefined),
   upsertServerProfile: jest.fn(async () => undefined),
   writeAppState: jest.fn(async () => ({isPro: false, launchCount: 1})),
@@ -226,6 +233,14 @@ describe('App', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockHardwareBackPressHandler = undefined;
+    // clearAllMocks resets calls but not implementations, so a test that makes
+    // the notice unacknowledged would otherwise leak into the next one and
+    // hide the screen it expects.
+    (readAppState as jest.Mock).mockResolvedValue({
+      acknowledgedNoticeId: 'vega-os-1.2-apology-2026-08',
+      isPro: false,
+      launchCount: 0,
+    });
   });
 
   it('matches snapshot', async () => {
@@ -360,6 +375,35 @@ describe('App', () => {
     expect(screen.getByTestId('search-input').props).toMatchObject({
       showSoftInputOnFocus: true,
     });
+  });
+
+  it('replaces the screen with the developer notice until it is acknowledged', async () => {
+    // The notice must not merely overlay the screen: on device the screen
+    // behind kept focus, so the first centre press selected a library item and
+    // navigated away instead of dismissing, leaving the notice unacknowledged.
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      url: 'http://server.local',
+      userId: 'user-1',
+    };
+    (getLastUsedServerProfile as jest.Mock).mockResolvedValue(serverProfile);
+    (readServerProfiles as jest.Mock).mockResolvedValue([serverProfile]);
+    (readAppState as jest.Mock).mockResolvedValue({
+      acknowledgedNoticeId: '',
+      isPro: false,
+      launchCount: 0,
+    });
+
+    const screen = render(<App />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('developer-notice')).toBeTruthy(),
+    );
+    expect(screen.queryByTestId('home-screen')).toBeNull();
+    expect(screen.getByTestId('developer-notice-ok')).toBeTruthy();
   });
 
   it('requires repeated root back presses before showing exit confirmation', async () => {
