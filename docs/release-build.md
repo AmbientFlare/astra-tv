@@ -1,10 +1,10 @@
-# Astra 1.1.2 Amazon submission build
+# Astra 1.2.0 Amazon submission build
 
-Build date: 2026-08-22
+Build date: 2026-08-29
 
-App version: `1.1.2`
+App version: `1.2.0`
 
-Build number: `20260822.4` (app display), `2026082204` (Vega package build)
+Build number: `20260829.12` (app display), `2026082912` (Vega package build)
 
 Package ID: `com.astra.tv`
 Main component: `com.astra.tv.main`
@@ -12,18 +12,31 @@ Main component: `com.astra.tv.main`
 ## Build command
 
 ```bash
+npm run build:submission
+```
+
+That derives the version and build number from `src/config/app.ts` and fails if
+the resulting package does not carry them. It replaces running `build-vega`
+by hand:
+
+```bash
 PATH=/home/levi/vega/bin:$PATH npx react-native build-vega \
   --build-type Release --target x86_64 \
-  --build-number 2026082204 --build-version 1.1.2
+  --build-number 2026082912 --build-version 1.2.0
 ```
+
+Do not use `npm run build:release` for a submission: it omits the build number,
+and Amazon rejects the package with "build_number must be greater than 0".
 
 ## Amazon upload artifact
 
 Upload this single file:
 
-`dist/amazon-submission-1.1.2-20260822/astra-1.1.2-x86_64-release.vpkg`
+`dist/amazon-submission-1.2.0-20260829/astra-1.2.0-x86_64-release.vpkg`
 
-SHA-256: `5dbb766f89547aa4af0eb61c3c3612e7141da6a221df5ba376dbe09f8403f754`
+SHA-256: `3540d41f526b2bb28e33d2b32136172801baaa290894ee638e219119b88f6d5b`
+
+Vega builds are not byte-reproducible, so re-hash any package you rebuild.
 
 The release is x86_64 because Amazon currently maps that package to the
 supported Fire TV Vega devices.
@@ -32,7 +45,7 @@ supported Fire TV Vega devices.
 
 - ESLint passed.
 - TypeScript `tsc --noEmit` passed.
-- All 175 Jest tests across 22 suites passed.
+- All 208 Jest tests across 27 suites passed.
 - Vega manifest validation passed. The generated manifest requests
   `/com.amazon.kepler.w3cmedia_2@IW3cmedia_2`, and ABI validation passed.
 - The versioned x86_64 VPKG was generated and its checksum recorded.

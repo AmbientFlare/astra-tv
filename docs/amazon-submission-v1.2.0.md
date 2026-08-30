@@ -130,4 +130,11 @@ playback should also continue without closing the app.
 
 ## Submission status
 
-Not yet submitted.
+Uploaded to Amazon on 2026-08-29 and accepted by console validation. Amazon
+review and publication remain external to this repository.
+
+The first upload attempt was rejected with "build_number must be greater than
+0, found: 0", because the package had been built with `npm run build:release`,
+which omits `--build-number`. Rebuilding with `npm run build:submission`
+resolved it; that script now derives the value from `src/config/app.ts` and
+fails if the built package does not carry it.
