@@ -20,10 +20,10 @@
     "release": "npm-run-all lint test build:app"
   },
   "dependencies": {
-    "@amazon-devices/kepler-media-controls": "^1.0.0",
-    "@amazon-devices/keplerscript-netmgr-lib": "~2.0.0",
-    "@amazon-devices/react-native-kepler": "^2.0.0",
-    "@amazon-devices/react-native-w3cmedia": "~2.2.20",
+    "@amazon-devices/kepler-media-controls": "~1.0.25",
+    "@amazon-devices/keplerscript-netmgr-lib": "~2.0.20",
+    "@amazon-devices/react-native-kepler": "~2.1.0+rn0.72.0",
+    "@amazon-devices/react-native-w3cmedia": "~2.3.2",
     "@astra/user-engagement": "file:packages/astra-user-engagement",
     "base-64": "^1.0.0",
     "react": "18.2.0",
