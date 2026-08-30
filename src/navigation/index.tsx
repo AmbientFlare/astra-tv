@@ -277,6 +277,16 @@ export const RootNavigator = () => {
     />
   ) : null;
 
+  // Rendered in the app shell rather than inside a route: mounted inside the
+  // home route, navigating away unmounted it, so a press that landed on the
+  // screen behind looked like a dismissal while never acknowledging anything.
+  // Held back until a profile exists so it cannot cover first-run setup, and
+  // suppressed during playback.
+  const developerNotice =
+    noticeVisible && serverProfile && current.route !== 'player' ? (
+      <DeveloperNotice onDismiss={dismissNotice} />
+    ) : null;
+
   const exitPrompt = exitPromptVisible ? (
     <ExitPrompt
       onCancel={() => setExitPromptVisible(false)}
@@ -301,6 +311,7 @@ export const RootNavigator = () => {
         }}
       />
       <AudioIdleVisual />
+      {developerNotice}
       {exitPrompt}
     </View>
   );
@@ -340,7 +351,6 @@ export const RootNavigator = () => {
           serverProfile={serverProfile}
         />
         {profileSwitcher}
-        {noticeVisible ? <DeveloperNotice onDismiss={dismissNotice} /> : null}
       </>,
     );
   }

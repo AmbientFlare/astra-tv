@@ -27,6 +27,21 @@ describe('developer notice', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  it('survives a host element with no requestTVFocus, and cleans up', () => {
+    // The component asks for focus on a timer because the screen behind it
+    // already holds focus; hasTVPreferredFocus alone did not take it back, and
+    // the first centre press navigated away instead of dismissing. This pins
+    // the optional-chaining guard and the timer cleanup only — that focus
+    // actually lands is a device behaviour and is verified on hardware.
+    jest.useFakeTimers();
+    const screen = render(<DeveloperNotice onDismiss={jest.fn()} />);
+
+    expect(() => jest.runAllTimers()).not.toThrow();
+    expect(() => screen.unmount()).not.toThrow();
+
+    jest.useRealTimers();
+  });
+
   it('has a stable notice id, so dismissal is not undone by a rebuild', () => {
     // Changing this value re-shows the notice to every user; that must be a
     // deliberate edit rather than an accident.
