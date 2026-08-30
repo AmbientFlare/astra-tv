@@ -934,20 +934,15 @@ export const PlayerScreen = ({
     unloadAdaptivePlayer,
   ]);
 
+  // Every subtitle is burned in by the server, so there is nothing to attach to
+  // the media element and no per-track announcement worth making: saying
+  // "burned-in subtitles" on every selection tells the viewer nothing they can
+  // act on, and the reload already reports its own progress.
+  //
+  // Retained as the hook point both callers use, and because restoring in-app
+  // rendering means restoring behaviour here.
   const addSelectedSubtitleTrack = useCallback(
-    (_video: VideoPlayer, stream: JellyfinStreamInfo) => {
-      const selectedSubtitle = stream.subtitleTracks.find(
-        (track) => track.index === selectedSubtitleIndex.current,
-      );
-
-      // External timed text is fetched and rendered by Astra. Vega's native
-      // caption view is gated by a device-wide accessibility flag that apps
-      // cannot enable, so relying on VideoPlayer.addTextTrack silently hides
-      // SRT/SubRip for users whose system caption renderer is disabled.
-      if (selectedSubtitle?.burnInRequired || selectedSubtitleBurnIn.current) {
-        setStatusText('Playing with burned-in subtitles');
-      }
-    },
+    (_video: VideoPlayer, _stream: JellyfinStreamInfo) => undefined,
     [],
   );
 
