@@ -7,6 +7,11 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../components/FocusableItem';
 import {ProfileSwitcher} from '../components/ProfileSwitcher';
+import {
+  CURRENT_NOTICE_ID,
+  DeveloperNotice,
+} from '../components/DeveloperNotice';
+import {readAppState, writeAppState} from '../services/storage';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
@@ -81,6 +86,30 @@ export const RootNavigator = () => {
   const [stack, setStack] = useState<RouteEntry[]>([{route: 'home'}]);
   const [libraryMenuVisible, setLibraryMenuVisible] = useState(false);
   const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
+  const [noticeVisible, setNoticeVisible] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    readAppState()
+      .then((state) => {
+        if (mounted && state.acknowledgedNoticeId !== CURRENT_NOTICE_ID) {
+          setNoticeVisible(true);
+        }
+      })
+      .catch(() => {
+        // A notice is not worth failing a launch over.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const dismissNotice = useCallback(() => {
+    setNoticeVisible(false);
+    writeAppState({acknowledgedNoticeId: CURRENT_NOTICE_ID}).catch(() => {
+      // Dismissed for this session even if the write fails.
+    });
+  }, []);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
 
@@ -311,6 +340,7 @@ export const RootNavigator = () => {
           serverProfile={serverProfile}
         />
         {profileSwitcher}
+        {noticeVisible ? <DeveloperNotice onDismiss={dismissNotice} /> : null}
       </>,
     );
   }

@@ -21,6 +21,12 @@ interface ServerProfilesConfig {
 }
 
 interface AppStateConfig {
+  /**
+   * Id of the most recent one-time developer notice the user dismissed. Empty
+   * until one is acknowledged. Comparing against the current notice id means a
+   * later notice shows again without needing another flag.
+   */
+  acknowledgedNoticeId: string;
   isPro: boolean;
   launchCount: number;
   version: 1;
@@ -86,6 +92,7 @@ const emptyConfig: ServerProfilesConfig = {
 };
 
 const emptyAppState: AppStateConfig = {
+  acknowledgedNoticeId: '',
   isPro: false,
   launchCount: 0,
   version: 1,
@@ -225,6 +232,10 @@ const parseAppState = (rawState: string | null): AppStateConfig => {
     }
 
     return {
+      acknowledgedNoticeId:
+        typeof parsed.acknowledgedNoticeId === 'string'
+          ? parsed.acknowledgedNoticeId
+          : '',
       isPro: Boolean(parsed.isPro),
       launchCount: Number(parsed.launchCount) || 0,
       version: 1,
@@ -246,6 +257,8 @@ export const writeAppState = async (
   const nextState: AppStateConfig = {
     ...currentState,
     ...state,
+    acknowledgedNoticeId:
+      state.acknowledgedNoticeId ?? currentState.acknowledgedNoticeId,
     isPro: Boolean(state.isPro ?? currentState.isPro),
     launchCount: Number(state.launchCount ?? currentState.launchCount) || 0,
     version: 1,
