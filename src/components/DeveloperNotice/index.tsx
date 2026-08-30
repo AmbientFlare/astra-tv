@@ -1,7 +1,6 @@
-import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import React, {useEffect, useRef, useState} from 'react';
+import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
-import {FocusableItem} from '../FocusableItem';
 
 /**
  * Id of the notice currently being shown. Bump this to show a new one-time
@@ -26,33 +25,53 @@ interface DeveloperNoticeProps {
   onDismiss: () => void;
 }
 
-export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => (
-  <View style={styles.backdrop}>
-    <TVFocusGuideView
-      trapFocusDown
-      trapFocusLeft
-      trapFocusRight
-      trapFocusUp
-      style={styles.card}>
-      <Text style={styles.title}>{NOTICE_TITLE}</Text>
-      {NOTICE_BODY.map((paragraph) => (
-        <Text key={paragraph.slice(0, 24)} style={styles.body}>
-          {paragraph}
-        </Text>
-      ))}
-      <Text style={styles.signature}>— Levi</Text>
-      <FocusableItem
-        accessibilityLabel="Dismiss developer notice"
-        focusedStyle={styles.buttonFocused}
-        hasTVPreferredFocus
-        onPress={onDismiss}
-        style={styles.button}
-        testID="developer-notice-ok">
-        <Text style={styles.buttonLabel}>OK</Text>
-      </FocusableItem>
-    </TVFocusGuideView>
-  </View>
-);
+export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => {
+  const buttonRef = useRef<any>(null);
+  const [isFocused, setFocused] = useState(false);
+
+  // The notice appears after the screen behind it has already claimed focus,
+  // and hasTVPreferredFocus alone did not take it back: the first centre press
+  // went to the focused item underneath, navigating away instead of
+  // dismissing. Request focus explicitly once mounted, matching TVTextInput.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      buttonRef.current?.requestTVFocus?.();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <View style={styles.backdrop} testID="developer-notice">
+      <TVFocusGuideView
+        trapFocusDown
+        trapFocusLeft
+        trapFocusRight
+        trapFocusUp
+        style={styles.card}>
+        <Text style={styles.title}>{NOTICE_TITLE}</Text>
+        {NOTICE_BODY.map((paragraph) => (
+          <Text key={paragraph.slice(0, 24)} style={styles.body}>
+            {paragraph}
+          </Text>
+        ))}
+        <Text style={styles.signature}>— Levi</Text>
+        <TouchableOpacity
+          accessibilityLabel="Dismiss developer notice"
+          accessibilityRole="button"
+          activeOpacity={1}
+          hasTVPreferredFocus
+          onBlur={() => setFocused(false)}
+          onFocus={() => setFocused(true)}
+          onPress={onDismiss}
+          ref={buttonRef}
+          style={[styles.button, isFocused && styles.buttonFocused]}
+          testID="developer-notice-ok">
+          <Text style={styles.buttonLabel}>OK</Text>
+        </TouchableOpacity>
+      </TVFocusGuideView>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   backdrop: {
