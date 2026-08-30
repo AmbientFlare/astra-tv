@@ -28,3 +28,9 @@ npm-debug.log
 
 # agent handoffs / working notes (never publish)
 docs/handoffs/
+
+# Closed-caption investigation notes. Held back deliberately: the current
+# revision names local infrastructure (GPU VM, Jellyfin container, hardware).
+# Publish a sanitised revision once the caption work is settled, then drop
+# this entry.
+docs/CLOSED_CAPTION_NOTES.md
