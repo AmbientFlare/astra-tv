@@ -1,6 +1,72 @@
 # Implementation Status
 
-Last updated: 2026-08-22
+Last updated: 2026-08-29
+
+## Vega OS 1.2 playback repair — 1.2.0, complete
+
+- [x] Established that the regression is environmental, not a code change. The
+      previously accepted `20260822.4` package was installed unmodified on the
+      device and reproduced the resume failure. Vega OS 1.2 reached the device
+      automatically at an unobserved date during August 2026.
+- [x] Pulled and symbolicated the device ANR rather than continuing to
+      hypothesise. `vega device copy-logs --artifact SYSTEM_TOMBSTONE/acr`
+      yields the crash reports; `<non_native_stack_trace>` symbolicates against
+      `build/lib/rn-bundles/Release/<hash>.bundle.map` using `source-map`
+      `originalPositionFor`.
+- [x] First cause: the JS thread blocks inside
+      `@react-native/js-polyfills/console.js`, reached from Amazon's
+      `keplermediadescriptor` by way of `react-native-w3cmedia` during a Shaka
+      segment append. CPU pressure was `full avg10=0.00` — blocked, not busy —
+      and the Fire TV thread monitor killed the app. Release builds now replace
+      `console.log/info/warn` with a bounded ring buffer, cutting the path for
+      every caller including Amazon's own libraries. `console.error` is
+      retained. Fixed resume and audio track switching.
+- [x] Second cause: the HLS resume trim rebuilt a 1.4-2.2 MB playlist character
+      by character, measured at 5,008 ms of synchronous work inside a 7,960 ms
+      `player.load()`. The filter now copies the untouched suffix with
+      `Uint8Array.set`. Fixed burned-in subtitle switching, and reduced
+      re-encoding to 8 ms and stream load to about 2,800 ms.
+- [x] `byteOffsetOfLine` locates the cut with native `indexOf` rather than a
+      per-byte loop. UTF-8 continuation bytes are never `0x0A`, so counting
+      newline bytes gives correct line boundaries whatever the encoding. CRLF
+      sources fall back to the previous rebuild because the trim normalises
+      their line endings.
+- [x] Moved to Vega SDK `0.24.9914` and declared `[os.version]` 1.2. SDK 0.24
+      refuses to build without the declaration. `vega project doctor` reports
+      OS-version compliance and "Deprecated APIs: None".
+- [x] Updated the Amazon device libraries to the v0.24-RN72 pins. React and
+      React Native are unchanged at 18.2.0 and 0.72.0, so no framework
+      migration was involved. `react-native-w3cmedia` 2.3.2 alone did not fix
+      the regressions; it was taken to stop debugging against a stale stack.
+- [x] Added an opt-in traces overlay. Vega exposes no JS console output to any
+      artifact `vega device copy-logs` can retrieve — `main/var_log` carries
+      system syslog only — so this is the only on-device playback diagnostic.
+- [x] Added a one-time developer notice. It replaces the screen rather than
+      overlaying it: covering the screen left focus behind it, so the first
+      centre press navigated away instead of dismissing, leaving the notice
+      unacknowledged.
+- [x] ESLint, TypeScript, 208 Jest tests across 27 suites, manifest and ABI
+      validation all passed for `20260829.12`.
+- [x] Roughly 45 minutes of uninterrupted playback showed no A/V drift.
+- [ ] A double-arrow chapter jump still takes about 38 seconds. This predates
+      the OS update — a ten-minute jump measured 36 seconds on `20260813.7`,
+      with Vega emitting `seeked` about 35 seconds after Astra applied it — and
+      is below the JS thread, so none of this release's fixes affect it.
+- [ ] Subtitles rendered by the app can drift out of sync after a long seek
+      that requires buffering. The seek-clock correction targeting this was
+      removed during an earlier rollback and has not been reinstated.
+- [ ] Server discovery scans port 8096 only; instances on another port must be
+      added by URL.
+
+### Local tooling
+
+- `vega sdk install` migrated the SDK layout from `~/vega/sdk/<version>/` to
+  `~/vega/sdk/vega-sdk/<channel>/<version>/`, orphaning the hardcoded
+  `KEPLER_SDK_PATH` in `~/.bashrc`. The failure is quiet: the JS bundle builds,
+  Metro reports success and the command exits 0, then packaging fails and no
+  VPKG is produced. Check the artifact timestamp, not the exit code. `.bashrc`
+  now derives the path from `~/vega/config.json` and follows `vega sdk use`.
+
 
 - Added root `START_HERE.md` as the persistent operational entry point for the
   exact validation, build, artifact, device-install, logging, and playback
