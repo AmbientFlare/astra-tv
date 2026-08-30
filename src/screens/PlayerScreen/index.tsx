@@ -19,7 +19,7 @@ import {
   reportPlaybackStopped,
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
-import {getTraces, trace} from '../../services/logging/trace';
+import {getTraces, resetTraces, trace} from '../../services/logging/trace';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
   calibrateTimelineOffset,
@@ -1468,6 +1468,10 @@ export const PlayerScreen = ({
       surfaceHandle.current = handle;
       const startTicks = item.resumePositionTicks ?? 0;
       const startSeconds = startTicks / TICKS_PER_SECOND;
+      // Traces are per playback session: without this the overlay keeps the
+      // previous title's timings and its T+ origin, which is misleading after
+      // moving between titles.
+      resetTraces();
 
       try {
         setStatusText('Preparing playback...');
