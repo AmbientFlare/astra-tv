@@ -1,27 +1,130 @@
 # Implementation Status
 
-Last updated: 2026-08-25
+Last updated: 2026-08-29
+
+## Issue #15: subtitle selection and timeline repair — implementation complete
+
+- [x] PlaybackInfo now resolves subtitle policy from Jellyfin's server default,
+      Astra's preferred subtitle language, forced-track metadata, and explicit
+      manual selections. An explicit overlay Off survives subsequent audio and
+      quality reloads.
+- [x] The final source-pinned PlaybackInfo request carries the resolved subtitle
+      index and requests burn-in only for unsupported bitmap/styled selections.
+      Text tracks remain Astra-rendered; PGS/ASS/SSA retain the existing rebuild,
+      resume, and server burn-in path.
+- [x] Stream metadata and PlayerScreen state use the same resolved subtitle
+      index before playback reporting and external VTT loading begin.
+- [x] Text tracks use Jellyfin's canonical `Stream.vtt` endpoint with
+      `startPositionTicks=0`, keeping cue timestamps on the title's absolute
+      timeline across a nonzero resume.
+- [x] Added pure selection coverage for every user mode, preference fallback,
+      server defaults, forced tracks, no tracks, and explicit Off. PlaybackInfo
+      tests cover source-pinned selection, PGS burn-in, Off persistence, and VTT
+      delivery after a nine-minute reload.
+- [x] ESLint, TypeScript, and the full Jest suite pass: 291 tests across 34
+      suites.
+- [x] Built the non-release Astra `1.1.2` / `20260829.1` x86_64 package with
+      Vega package build number `2026082901`; manifest and ABI validation passed.
+- [x] Installed the VPKG in place on the connected Fire TV Stick,
+      preserving application data; `com.astra.tv.main` is
+      installed and running after launch.
+- [ ] Scene-specific physical checks (Default/Always On SRT overlay, the
+      nine-minute cue and resume, manual Off after an audio/quality reload, PGS
+      burn-in, and ordinary audio switching) require interactive playback against
+      the signed-in Jellyfin library. The available Vega CLI has no UI/input or
+      screen-capture command. A read-only process inspection attempt failed with
+      `vega device ... run-cmd --command 'ps -ef | grep com.astra.tv | grep -v grep'`
+      reporting `Vega operation FAILED ... Incomplete`; no retry variation was
+      attempted. PR #14 remains unmerged.
+- [ ] On 2026-08-29, physical playback of _Central Intelligence_ was blocked
+      before subtitle rendering: Jellyfin returned no HLS segment because its
+      FFmpeg process exited with code 187 at CUDA initialisation
+      (`CUDA_ERROR_NO_DEVICE`). The GPU host still sees the RTX 2060 SUPER, while
+      `docker exec jellyfin nvidia-smi -L` returns `Failed to initialize NVML:
+Unknown Error`; the container retains a GPU DeviceRequest. No server
+      configuration change was made during this subtitle-repair validation.
+- [x] The GPU VM was rebooted by the operator. After the reboot, both the host
+      and the running Jellyfin container again report the RTX 2060 SUPER through
+      `nvidia-smi -L`; retry the title from a fresh Astra playback session.
+- [x] Device tombstones from 2026-08-29 show Astra exiting to Fire TV Home with
+      `SIGQUIT` in the Shaka player path while changing subtitles. Text SRT/VTT
+      changes now update Astra's overlay and playback report in place; no native
+      player teardown occurs. The established reload/resume path is retained only
+      when a bitmap/styled burn-in track is entered or removed.
+- [x] Validated the crash fix with scoped ESLint, TypeScript, and the full Jest
+      suite (292 tests across 34 suites). Rebuilt and installed the x86_64 test
+      package in place on the test stick; its SHA-256 is
+      `89c5c6a1b63ad1c73a4fdca3032e384cd3137b8a48e1efecdb7c0b689c5a65d9`.
+      Astra was launched successfully as `com.astra.tv.main`.
+- [ ] Follow-up PGS transition diagnosis: both the surface rebuild and
+      same-player replacement reproduced the failure. The device ACR identifies
+      it as `AppNotResponding` on `JSReactThread`, not a native crash. Jellyfin's
+      PGS transcode selected 4K HEVC MPEG-TS HLS; Shaka's synchronous JS path is
+      blocked while parsing/transmuxing it, so the Fire TV watchdog terminates
+      Astra. The targeted repair keeps the proven full reload lifecycle but asks
+      Jellyfin for H.264 fMP4 HLS only for burned-in subtitle sessions.
+- [x] Built and installed the ANR-targeted x86_64 package in place on the
+      test stick, then launched Astra successfully. SHA-256:
+      `3e12a9242e59d7206ed97f01f0a03ad4a51b8dc69f22aba58558c9e59ab0e2a3`.
+- [x] Follow-up package adds explicit dynamic-HLS query overrides because the
+      prior profile-only request was ignored by Jellyfin (server evidence still
+      showed `hevc_nvenc` and MPEG-TS). It also holds the external-subtitle clock
+      at a requested seek position until the media element reaches it. Full
+      validation passes (293 tests across 34 suites); the package is installed and
+      running on the stick with SHA-256
+      `060468518ef62746e19507ff1c2e7bf478cb7b9b36a2506b761acb1b8e63eabe`.
+- [x] A malformed-playback-URL startup failure in that package was traced to
+      duplicate query parameter names that differed only by letter casing. The
+      burn-in override now replaces any existing Jellyfin spelling case-insensitively
+      before setting its H.264/fMP4 values; a regression test pins that invariant.
+      The corrected `1.1.2` / `20260829.1` x86_64 package was rebuilt, installed,
+      and launched on the stick. SHA-256:
+      `efc5626f88d64ea01d62ae370041972e33253ad374f8576066abbac4a6654002`.
+      The physical PGS playback test remains pending.
+- [x] A second identical local URL-validation failure showed the previous
+      defensive check was rejecting arbitrary duplicate Jellyfin query keys, not
+      just the three burn-in overrides. Stream URLs now normalize every duplicate
+      key case-insensitively (preserving Jellyfin's last value) before video load,
+      and the startup-blocking diagnostic is removed. The corrective package was
+      installed only after explicitly terminating the already-running process, and
+      then launched successfully. SHA-256:
+      `3208140d1c8de97a6b0211a736d784ae5840ee12b7b3d448db935932492b546a`.
+- [x] The first playlist request from that package reached Jellyfin but was
+      challenged with `Invalid token`, producing Shaka stream-engine error 1001
+      before FFmpeg began. The URL normalizer retained a stale server-supplied
+      `api_key`; the builder now forcibly replaces every casing of that parameter
+      with Astra's active signed-in token. The corrected package was force-stopped,
+      installed, and launched on the stick. SHA-256:
+      `55f0ad91fb962e08a95e52d92215c9381b4a1ccb50b3615188dab48e8b85a4b7`.
+- [x] At the operator's request, the Fire TV package was restored to the last
+      known playable subtitle behavior: text subtitle changes stay in-place,
+      bitmap/styled changes use the pre-existing reload path, and the later
+      forced-delivery, URL-normalization, token-replacement, and seek-clock
+  experiments are removed. See `docs/CLOSED_CAPTION_NOTES.md` for the full
+  handoff and the known remaining bitmap-transition and seek-sync failures.
+  The restored package was force-stopped, installed, and launched on the stick.
+  SHA-256: `509be59a316928ef7a61305f7817c01aaf1ea92b23bfe2e43cd119194476d0e5`.
 
 ## Optional Nebula Bridge integration and Jellyfin Versions — complete
 
 - [x] Preserved Astra's standard Jellyfin data path: seasons still come from
-  `/Shows/{seriesId}/Seasons`, episodes from `/Shows/{seriesId}/Episodes`, and playback from
-  `/Items/{itemId}/PlaybackInfo`.
+      `/Shows/{seriesId}/Seasons`, episodes from `/Shows/{seriesId}/Episodes`, and playback from
+      `/Items/{itemId}/PlaybackInfo`.
 - [x] Added a short, failure-isolated probe for Nebula Bridge capability API version 1 when a
-  server profile becomes active. Missing endpoints, timeouts, unsupported revisions, and
-  failures leave Astra behaving as an ordinary Jellyfin client.
+      server profile becomes active. Missing endpoints, timeouts, unsupported revisions, and
+      failures leave Astra behaving as an ordinary Jellyfin client.
 - [x] Added non-blocking hierarchy prefetch on Series/Season TV focus, with ten-minute client
-  deduplication. Detail screens use the optional hydration request as an open-time second
-  chance and then retrieve children through the normal Jellyfin endpoints.
+      deduplication. Detail screens use the optional hydration request as an open-time second
+      chance and then retrieve children through the normal Jellyfin endpoints.
 - [x] Kept provider knowledge out of Astra. The integration handles only Jellyfin item IDs,
-  capability flags, hierarchy hydration, and standard PlaybackInfo MediaSources.
+      capability flags, hierarchy hydration, and standard PlaybackInfo MediaSources.
 - [x] Implemented a Versions menu for movies and episodes whenever fresh PlaybackInfo contains
-  more than one distinct source ID. Labels use standard source name, resolution, container,
-  bitrate, and size fields.
+      more than one distinct source ID. Labels use standard source name, resolution, container,
+      bitrate, and size fields.
 - [x] Fixed playback to select the requested `MediaSourceId` instead of always consuming array
-  index zero. Audio selection and subsequent playback requests stay pinned to the same source.
+      index zero. Audio selection and subsequent playback requests stay pinned to the same source.
 - [x] PlaybackInfo used to populate the Versions menu sets `AutoOpenLiveStream: false`; merely
-  showing the menu does not open a provider stream.
+      showing the menu does not open a provider stream.
 
 ### Nebula/Versions verification
 
@@ -279,7 +382,7 @@ infrastructure details are intentionally excluded.
   MPEG-TS HLS output.
 - Vega's `run-app` command calls uninstall before install, which deletes saved
   application data. The data-preserving upgrade workflow is `device
-  install-app` followed by `device launch-app`; an in-place `.3` installation
+install-app` followed by `device launch-app`; an in-place `.3` installation
   retained the saved profile.
 - Build `.3` remained synchronized at 38, 56, and 60 minutes of uninterrupted
   playback, passing the approximately 46-minute failure point of `.2`. The

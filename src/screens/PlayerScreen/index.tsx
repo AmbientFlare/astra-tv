@@ -24,6 +24,7 @@ import {
   reportPlaybackStart,
   reportPlaybackStopped,
   sanitizeUrlForLog,
+  subtitleChangeRequiresReload,
 } from '../../services/jellyfin';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
@@ -155,6 +156,7 @@ export const PlayerScreen = ({
   const selectedForceTranscode = useRef(false);
   const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
+  const selectedSubtitleSelectionIsManual = useRef(false);
   const playbackGeneration = useRef(0);
   const playbackDiagnosticsStartedAt = useRef(Date.now());
   const playbackEventDiagnostics = useRef<PlaybackEventDiagnostics>(
@@ -944,6 +946,7 @@ export const PlayerScreen = ({
             streamInfo.current?.mediaSourceId ?? item.selectedMediaSourceId,
           sourceHeight: sourceVideoStream?.height,
           sourceWidth: sourceVideoStream?.width,
+          subtitleSelectionIsManual: selectedSubtitleSelectionIsManual.current,
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
       );
@@ -984,6 +987,16 @@ export const PlayerScreen = ({
         selectedAudioIndex.current = defaultTrack.index;
         setSelectedAudioTrackIndex(defaultTrack.index);
       }
+      // PlaybackInfo has resolved either the user's policy or the overlay's
+      // explicit choice. Initialise both the renderer and reporting state
+      // before the first VTT fetch or playback-start report is possible.
+      selectedSubtitleIndex.current = stream.subtitleStreamIndex;
+      setSelectedSubtitleTrackIndex(stream.subtitleStreamIndex);
+      selectedSubtitleBurnIn.current = Boolean(
+        stream.subtitleTracks.find(
+          (track) => track.index === stream.subtitleStreamIndex,
+        )?.burnInRequired,
+      );
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
       setStatusText(
         stream.playMethod === 'Transcode'
@@ -993,7 +1006,6 @@ export const PlayerScreen = ({
           : 'Loading direct stream...',
       );
       assertPlayableUrl(stream.url);
-
       return stream;
     },
     [
@@ -1034,11 +1046,54 @@ export const PlayerScreen = ({
         return;
       }
 
+      const replacedStream = streamInfo.current;
+      const replacedSubtitleIndex = selectedSubtitleIndex.current;
+      const replacedSubtitleTrack = replacedStream?.subtitleTracks.find(
+        (track) => track.index === replacedSubtitleIndex,
+      );
+      const mustReloadForSubtitle =
+        subtitleTrack !== undefined &&
+        subtitleChangeRequiresReload(replacedSubtitleTrack, subtitleTrack);
+
+      // Text tracks never touch Vega's native caption renderer: Astra fetches
+      // and draws their VTT itself. Rebuilding the Shaka/VideoPlayer pair for
+      // an SRT/VTT on/off change was both unnecessary and the source of the
+      // device crash observed while Shaka was being torn down mid-playback.
+      if (
+        subtitleTrack !== undefined &&
+        audioTrack === undefined &&
+        bitrate === undefined &&
+        forceTranscode === undefined &&
+        !mustReloadForSubtitle
+      ) {
+        const nextSubtitleIndex = subtitleTrack?.index;
+        selectedSubtitleIndex.current = nextSubtitleIndex;
+        selectedSubtitleSelectionIsManual.current = true;
+        selectedSubtitleBurnIn.current = false;
+        setSelectedSubtitleTrackIndex(nextSubtitleIndex);
+        setSettingsPanel(null);
+        setStatusText(
+          subtitleTrack ? `Subtitles: ${subtitleTrack.title}` : 'Subtitles off',
+        );
+
+        if (replacedStream) {
+          reportPlaybackProgress(serverUrl, accessToken, {
+            ...replacedStream,
+            audioStreamIndex: selectedAudioIndex.current,
+            isPaused: isPausedRef.current,
+            positionTicks: currentPositionTicks(),
+            subtitleStreamIndex: nextSubtitleIndex,
+          }).catch((error) => {
+            console.warn('[Astra] Failed to report subtitle selection:', error);
+          });
+        }
+        scheduleControlsHide();
+        return;
+      }
+
       trackReloadInProgress.current = true;
       const positionTicks = currentPositionTicks();
-      const replacedStream = streamInfo.current;
       const replacedAudioIndex = selectedAudioIndex.current;
-      const replacedSubtitleIndex = selectedSubtitleIndex.current;
       setSettingsPanel(null);
       setStatusText('Switching track...');
       videoRef.current?.pause();
@@ -1062,6 +1117,7 @@ export const PlayerScreen = ({
           ? undefined
           : subtitleTrack?.index ?? selectedSubtitleIndex.current;
       if (subtitleTrack === null || subtitleTrack?.index !== undefined) {
+        selectedSubtitleSelectionIsManual.current = true;
         setSelectedSubtitleTrackIndex(subtitleTrack?.index);
       }
       selectedSubtitleBurnIn.current =
