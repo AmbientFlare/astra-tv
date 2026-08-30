@@ -39,6 +39,7 @@ export interface PlaybackPreferences {
   preferredAudioLanguage: string;
   seekDurationSeconds: number;
   showPlaybackStats: boolean;
+  showPlaybackTraces: boolean;
 }
 
 export interface UserPreferences {
@@ -124,6 +125,7 @@ export const defaultPlaybackPrefs: PlaybackPreferences = {
   preferredAudioLanguage: 'en',
   seekDurationSeconds: 10,
   showPlaybackStats: false,
+  showPlaybackTraces: false,
 };
 
 const parseConfig = (rawConfig: string | null): ServerProfilesConfig => {
@@ -384,6 +386,10 @@ const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
       typeof parsed.showPlaybackStats === 'boolean'
         ? parsed.showPlaybackStats
         : defaultPlaybackPrefs.showPlaybackStats,
+    showPlaybackTraces:
+      typeof parsed.showPlaybackTraces === 'boolean'
+        ? parsed.showPlaybackTraces
+        : defaultPlaybackPrefs.showPlaybackTraces,
   };
 
   return preferences;

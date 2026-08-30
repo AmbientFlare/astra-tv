@@ -497,6 +497,16 @@ export const SettingsScreen = ({
                 })
               }
             />
+            <ToggleRow
+              title="Stats for Nerds with logs"
+              subtitle="Also show playback timings: manifest handling and load duration"
+              value={playbackPrefs.showPlaybackTraces}
+              onToggle={() =>
+                savePlaybackPrefs({
+                  showPlaybackTraces: !playbackPrefs.showPlaybackTraces,
+                })
+              }
+            />
             <MenuRow
               icon="↯"
               title="Max streaming bitrate"
