@@ -12,9 +12,12 @@ export const CURRENT_NOTICE_ID = 'vega-os-1.2-apology-2026-08';
 export const NOTICE_TITLE = 'A note from the developer';
 
 export const NOTICE_BODY = [
-  "I'm sorry for the trouble over the last couple of weeks. The update from " +
-    'Vega OS 1.0 to 1.2 caught me flat-footed, and playback problems slipped ' +
-    'through as a result.',
+  "I'm sorry for the trouble over the last couple of weeks. The Vega OS 1.2 " +
+    'update caught me flat-footed, and playback problems slipped through as a ' +
+    'result.',
+  'I believe this version has them sorted. Resuming a title, switching audio ' +
+    'tracks and turning on burned-in subtitles all work again, and seeking is ' +
+    'a great deal faster.',
   'Astra is built and maintained by one person. I will do my best to stay ' +
     'ahead of platform changes, but this one got away from me, and I ' +
     'apologise for the rough stretch.',

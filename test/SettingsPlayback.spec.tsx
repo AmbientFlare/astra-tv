@@ -155,22 +155,22 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.1.2')).toBeTruthy();
-    expect(screen.getByText('Build: 20260829.9')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.1.2")).toBeTruthy();
+    expect(screen.getByText('Astra 1.2.0')).toBeTruthy();
+    expect(screen.getByText('Build: 20260829.10')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.2.0")).toBeTruthy();
     expect(
       screen.getByText(
-        '• Smoothed affected MP4/MOV playback by avoiding problematic HEVC fragment boundaries on Vega OS.',
+        '• Fixed resuming a title, switching audio tracks, and turning on burned-in subtitles, which could all exit to Home on Vega OS 1.2.',
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Fixed saved-position resume skipping through earlier video.',
+        '• Made seeking and startup much faster: a long jump that took most of a minute now takes seconds.',
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Improved audio/video sync during long playback sessions.',
+        '• Updated for Vega OS 1.2 and the current Amazon device libraries.',
       ),
     ).toBeTruthy();
   });
@@ -305,7 +305,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.1\.2 \(20260829\.9\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.2\.0 \(20260829\.10\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
