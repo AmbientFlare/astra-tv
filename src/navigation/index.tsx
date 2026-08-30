@@ -297,9 +297,14 @@ export const RootNavigator = () => {
   // The now-playing bar is mounted globally, below whatever screen is showing,
   // so music keeps its transport visible while browsing — including while
   // browsing video. It renders nothing when there is no queue.
+  // The notice replaces the screen rather than covering it. Requesting focus
+  // was not enough on device: the screen behind kept it, so the first centre
+  // press went to whatever was focused there. With nothing focusable rendered
+  // behind, focus has to land on the dismiss button, and navigation cannot
+  // occur while the notice is up.
   const withExitPrompt = (screen: React.ReactElement) => (
     <View style={styles.appShell}>
-      <View style={styles.appScreen}>{screen}</View>
+      <View style={styles.appScreen}>{developerNotice ?? screen}</View>
       <NowPlayingBar
         onOpen={() => {
           if (
@@ -311,7 +316,6 @@ export const RootNavigator = () => {
         }}
       />
       <AudioIdleVisual />
-      {developerNotice}
       {exitPrompt}
     </View>
   );
