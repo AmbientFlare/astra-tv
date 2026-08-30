@@ -111,6 +111,16 @@ The subtitle selection restore, Nebula Bridge integration and dynamic virtual
 libraries remain on `chore/regression-hardening`. None of that work has ever
 shipped, so excluding it removes nothing users currently have.
 
+## Build
+
+```bash
+npm run build:submission
+```
+
+Derives the version and Vega build number from `src/config/app.ts`. The older
+`npm run build:release` is for device testing only: it leaves `build_number` at
+0, which sideloads but fails Amazon validation.
+
 ## Amazon upload artifact
 
 `dist/amazon-submission-1.2.0-20260829/astra-1.2.0-x86_64-release.vpkg`
