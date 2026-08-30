@@ -12,6 +12,12 @@ import {
   getStreamUrl,
   PLAYBACK_INFO_RETRY_MS,
 } from '../src/services/jellyfin';
+import {activeWebVttText, parseWebVtt} from '../src/services/subtitles';
+
+let mockUserPreferences: {
+  preferredSubtitleLanguage: string;
+  subtitleMode: 'default' | 'alwaysOn' | 'alwaysOff' | 'forcedOnly';
+};
 
 // The device's storage and audio hardware are not part of what these tests
 // are about; both are stood in for so the request sequence is all that varies.
@@ -21,6 +27,10 @@ jest.mock('../src/services/storage', () => {
   return {
     ...actual,
     readPlaybackPreferences: async () => actual.defaultPlaybackPrefs,
+    getUserPreferences: async () => ({
+      ...actual.defaultUserPreferences,
+      ...mockUserPreferences,
+    }),
   };
 });
 
@@ -88,6 +98,7 @@ const playableSource = (overrides: Record<string, unknown> = {}) => ({
           Language: 'eng',
           IsDefault: true,
         },
+        {Index: 3, Type: 'Subtitle', Codec: 'srt', Language: 'eng'},
       ],
       ...overrides,
     },
@@ -103,6 +114,10 @@ const unresolved = () => ({PlaySessionId: 'session-1', MediaSources: []});
  * timeout — keeps its normal behaviour.
  */
 beforeEach(() => {
+  mockUserPreferences = {
+    preferredSubtitleLanguage: 'English',
+    subtitleMode: 'default',
+  };
   const realSetTimeout = global.setTimeout;
 
   jest.spyOn(global, 'setTimeout').mockImplementation(((
@@ -129,10 +144,17 @@ describe('the first PlaybackInfo request', () => {
 
     await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
 
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
     expect(requests[0].url).toContain(`/Items/${ITEM}/PlaybackInfo`);
     expect(requests[0].body.MediaSourceId).toBeUndefined();
     expect(requests[0].body.UserId).toBe(USER);
+    expect(requests[1].body).toEqual(
+      expect.objectContaining({
+        AudioStreamIndex: 1,
+        MediaSourceId: 'source-from-server',
+        SubtitleStreamIndex: -1,
+      }),
+    );
   });
 
   it('sends a caller-supplied media source id when a reload has one', async () => {
@@ -173,15 +195,16 @@ describe('the audio re-request', () => {
     expect(requests[1].body.AudioStreamIndex).toBe(1);
   });
 
-  it('does not fire when the caller already chose a track', async () => {
+  it('still pins the resolved subtitle decision when the caller chose audio', async () => {
     const requests = mockPlaybackInfo([playableSource()]);
 
     await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
 
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].body.MediaSourceId).toBe('source-from-server');
   });
 
-  it('keeps the first response when the re-request comes back empty', async () => {
+  it('keeps the first response when the final pinned request comes back empty', async () => {
     const requests = mockPlaybackInfo([playableSource(), unresolved()]);
 
     const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0);
@@ -200,7 +223,7 @@ describe('an item the server has not resolved yet', () => {
       audioStreamIndex: 1,
     });
 
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(3);
     expect(stream.url).toContain('master.m3u8');
   });
 
@@ -225,24 +248,128 @@ describe('an item the server has not resolved yet', () => {
 
     await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
 
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(3);
   });
 });
 
 describe('a locally hosted item', () => {
-  it('resolves in one request when the caller picked a track', async () => {
-    // The protected path: a local file, a chosen audio track, no retry.
+  it('resolves with a final source-pinned request when the caller picked audio', async () => {
+    // The protected path: a local file and a chosen audio track.
     const requests = mockPlaybackInfo([playableSource()]);
 
     const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
       audioStreamIndex: 1,
     });
 
-    expect(requests).toHaveLength(1);
+    expect(requests).toHaveLength(2);
     expect(stream.playMethod).toBe('Transcode');
     expect(stream.mediaSourceId).toBe('source-from-server');
     expect(stream.audioTracks).toHaveLength(1);
     expect(stream.url).toContain('api_key=');
+  });
+});
+
+describe('the resolved subtitle request', () => {
+  it('pins the preferred text subtitle and exposes it in stream metadata', async () => {
+    mockUserPreferences = {
+      preferredSubtitleLanguage: 'English',
+      subtitleMode: 'alwaysOn',
+    };
+    const requests = mockPlaybackInfo([
+      playableSource({DefaultSubtitleStreamIndex: 3}),
+    ]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+    });
+
+    expect(requests[1].body).toEqual(
+      expect.objectContaining({
+        MediaSourceId: 'source-from-server',
+        SubtitleStreamIndex: 3,
+      }),
+    );
+    expect(requests[1].body.AlwaysBurnInSubtitleWhenTranscoding).toBeFalsy();
+    expect(stream.subtitleStreamIndex).toBe(3);
+  });
+
+  it('requests burn-in for a selected PGS subtitle', async () => {
+    mockUserPreferences = {
+      preferredSubtitleLanguage: 'English',
+      subtitleMode: 'alwaysOn',
+    };
+    const requests = mockPlaybackInfo([
+      playableSource({
+        MediaStreams: [
+          {Index: 0, Type: 'Video', Codec: 'h264'},
+          {Index: 1, Type: 'Audio', Codec: 'aac', IsDefault: true},
+          {Index: 5, Type: 'Subtitle', Codec: 'pgs', Language: 'eng'},
+        ],
+      }),
+    ]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+    });
+
+    expect(requests[1].body).toEqual(
+      expect.objectContaining({
+        SubtitleStreamIndex: 5,
+        AlwaysBurnInSubtitleWhenTranscoding: true,
+      }),
+    );
+    expect(stream.subtitleTracks[0].burnInRequired).toBe(true);
+  });
+
+  it('keeps explicit manual Off disabled through a reload request', async () => {
+    const requests = mockPlaybackInfo([playableSource()]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+      subtitleSelectionIsManual: true,
+    });
+
+    expect(requests[1].body.SubtitleStreamIndex).toBe(-1);
+    expect(stream.subtitleStreamIndex).toBeUndefined();
+  });
+
+  it('uses title-relative VTT delivery after a nonzero-position reload', async () => {
+    mockUserPreferences = {
+      preferredSubtitleLanguage: 'English',
+      subtitleMode: 'alwaysOn',
+    };
+    mockPlaybackInfo([
+      playableSource({
+        MediaStreams: [
+          {Index: 0, Type: 'Video', Codec: 'h264'},
+          {Index: 1, Type: 'Audio', Codec: 'aac', IsDefault: true},
+          {
+            Index: 3,
+            Type: 'Subtitle',
+            Codec: 'srt',
+            Language: 'eng',
+            DeliveryUrl:
+              '/Videos/item-abc/source-from-server/Subtitles/3/Stream.vtt?startPositionTicks=5400000000',
+          },
+        ],
+      }),
+    ]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 5400000000, {
+      audioStreamIndex: 1,
+    });
+    const deliveryUrl = new URL(stream.subtitleTracks[0].deliveryUrl!);
+
+    expect(deliveryUrl.searchParams.get('startPositionTicks')).toBe('0');
+    expect(deliveryUrl.pathname).toBe(
+      '/Videos/item-abc/source-from-server/Subtitles/3/Stream.vtt',
+    );
+    expect(
+      activeWebVttText(
+        parseWebVtt('WEBVTT\n\n00:09:01.000 --> 00:09:03.000\nExact scene'),
+        541,
+      ),
+    ).toBe('Exact scene');
   });
 });
 
