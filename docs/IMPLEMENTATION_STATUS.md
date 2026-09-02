@@ -1,8 +1,8 @@
 # Implementation Status
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
-## Global subtitle preference and credits/next episode — device-accepted, unreleased
+## Global subtitle preference and credits/next episode — released in 1.2.1
 
 Plan recorded before editing. Both features already had persisted settings
 (`subtitleMode`, `preferredSubtitleLanguage`, `nextEpisodeAutoplay`,
@@ -130,8 +130,9 @@ fMP4 sessions to Shaka sequence mode (see `docs/DEVICE_TEST_NOTES.md`).
 
 Build `20260901.4` passed the operator's full run: burn-in resume plays,
 autoplay chains with subtitles on, the cap asks after two automatic
-advances, Back on the card stays put. Handoff for the release write-up:
-`docs/handoffs/fable-subtitles-credits-2026-09-01.md`.
+advances, Back on the card stays put. Released as Astra `1.2.1`, build
+`20260902.1` (Vega build number `2026090201`); see
+`docs/release-1.2.1.md` and `CHANGELOG.md`.
 
 Unresolved facts:
 

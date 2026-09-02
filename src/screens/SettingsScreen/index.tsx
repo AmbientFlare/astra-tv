@@ -776,21 +776,19 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Fixed resuming a title, switching audio tracks, and turning
-                  on burned-in subtitles, which could all exit to Home on Vega
-                  OS 1.2.
+                  • Added a subtitle preference in Settings {'>'} Playback:
+                  leave each video's own default, turn subtitles all on, all
+                  off, or show only forced tracks.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Made seeking and startup much faster: a long jump that took
-                  most of a minute now takes seconds.
+                  • Added Skip Credits and Next Episode, with an optional
+                  automatic skip and an autoplay countdown. Autoplay stops after
+                  three episodes in a row to confirm you're still watching.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Updated for Vega OS 1.2 and the current Amazon device
-                  libraries.
-                </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Added an optional Stats for Nerds with logs view showing
-                  playback timings.
+                  • Fixed playback getting stuck on Buffering when a video with
+                  burned-in subtitles resumed, jumped a long distance, or
+                  switched tracks partway through.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
