@@ -1,6 +1,163 @@
 # Implementation Status
 
-Last updated: 2026-08-29
+Last updated: 2026-09-01
+
+## Global subtitle preference and credits/next episode — device-accepted, unreleased
+
+Plan recorded before editing. Both features already had persisted settings
+(`subtitleMode`, `preferredSubtitleLanguage`, `nextEpisodeAutoplay`,
+`nextEpisodeCountdownSeconds`, `skipIntroCredits`) with Settings pages that
+nothing in the player read. Prior art reviewed: commit `c36aec7` on
+`chore/regression-hardening` (subtitle policy resolved from PlaybackInfo, the
+`-1` wire convention; its in-place text-track switching is superseded by
+burn-in-everything and is not reused) and PR #14 (media-segment credits and
+next-episode countdown; conflicting with `main`, episode-only credits, Next Up
+based lookup, no advance cap; ideas reused, code not merged).
+
+### Expected behaviour
+
+Subtitles are resolved inside `getStreamUrl` after the first PlaybackInfo
+response and before the stream URL is chosen, so the burned-in track and the
+server decision always match:
+
+| mode | decision | wire |
+|---|---|---|
+| Default (per video) | the server's `DefaultSubtitleStreamIndex`, which carries Jellyfin's per-user subtitle mode and its remembered per-item choice | that index with burn-in, or `-1` when none |
+| All subtitles on | preferred subtitle language, then the server default, then the first subtitle; none when the item has no subtitles | index, `AlwaysBurnInSubtitleWhenTranscoding`, `AllowVideoStreamCopy=false` (the same request shape as the hardware-proven in-player switch) |
+| All subtitles off | none | `SubtitleStreamIndex=-1`, no burn-in |
+| Only forced | first `IsForced` track, else none | as above |
+
+- A track or Off chosen in the player overlay pins that playback session:
+  later reloads (audio switch, long jump, error recovery) send the explicit
+  index and skip the policy. The player never writes the global setting.
+- Movies and episodes, start-from-zero and resume all pass through the same
+  `loadStream → getStreamUrl` path, so the policy applies to every new video.
+
+Credits and next episode:
+
+- The credits window comes from Jellyfin media segments of type `Outro`
+  (server 10.10+; a 404 or failure means none), else from a chapter whose
+  name contains "credits" (window = chapter start to the next chapter start or
+  the runtime). No fixed timestamps are assumed.
+- Inside the window, unless the setting is Ignore, a focused card offers Skip
+  Credits; an episode with a resolved next episode also offers Next Episode.
+  Auto-skip seeks to the window end once per window. Back dismisses the card.
+- A movie that ends shows "Finished" as before and never starts another item.
+- An episode that ends with a valid next episode shows an "Up next" countdown
+  (autoplay on, fewer than two consecutive automatic advances so far) or a
+  "Continue watching?" card that needs an explicit press. The cap is two
+  automatic advances, so the episode the viewer started plus two more play
+  before Astra asks (operator's call on 2026-09-01; the brief said three).
+  The consecutive count rides on the navigation entry: any play from a
+  browse screen or a manual Next Episode resets it to zero; an automatic
+  advance adds one.
+- Next episode = same series, type Episode, the item after the current one
+  from `/Shows/{seriesId}/Episodes?AdjacentTo=`; missing metadata means no
+  card and no advance. Series boundaries are never crossed.
+- Advancing awaits the player's own teardown before the navigator replaces
+  the player entry; every credits/countdown timer is cancelled on Back,
+  unmount, player replacement and handoff, and the `ended` handler runs once
+  per player generation because Vega fires it twice.
+
+Intro skipping is out of scope: the setting is still labelled "Skip
+intro/credits" but only credits are handled.
+
+### What changed (2026-09-01)
+
+- `src/services/jellyfin/index.ts`: `selectSubtitleStreamIndex` resolves the
+  global preference against the first PlaybackInfo response
+  (`DefaultSubtitleStreamIndex`, `IsForced`, language aliases). The
+  source-pinned re-request now carries the subtitle decision as well as the
+  audio index, serialises Off as `-1`, and asks for burn-in with
+  `AllowVideoStreamCopy=false` exactly as the in-player switch does. It is
+  skipped when the first answer already plays the wanted track burned in, or
+  none when none is wanted, so reload requests keep their one-request shape.
+  `JellyfinStreamInfo` gains `subtitleStreamIndex` and `subtitleBurnIn`. New
+  `getMediaSegments` (404 → none) and `getAdjacentEpisodes` (`AdjacentTo`).
+  `getUrlParameter` accepts Jellyfin's server-relative `TranscodingUrl`.
+- `src/services/storage/index.ts`: an unknown stored `subtitleMode` reads as
+  `default`.
+- `src/screens/SettingsScreen/index.tsx`: the subtitle page reads "Default
+  (per video)", "All subtitles on", "All subtitles off", "Only forced".
+- `src/services/episodePlayback/index.ts` (new, pure): credits window from
+  Outro segments or a "credits" chapter (post/mid/after-credits names are
+  excluded), next-episode resolution bounded to the series, the end-of-video
+  decision (`finished` / `countdown` / `confirm`), the cap of three, the
+  advance counter, and a cancellable one-second countdown.
+- `src/screens/PlayerScreen/index.tsx`: mirrors the resolved subtitle into
+  the refs the reload paths and reports read and pins the session; fetches
+  segments and the adjacent episode once per item; shows the Credits card
+  (Skip Credits, plus Next Episode for an episode with a successor), the
+  "Up next" countdown and the "Continue watching?" card; `ended` runs the
+  decision once per player generation; the countdown is cancelled on Back,
+  unmount, surface loss and player replacement; advancing awaits
+  `releaseForHandoff` (report stopped → Shaka unload → surface release →
+  deinitialize) and bails if Back unmounted the screen meanwhile.
+- `src/navigation/index.tsx`: `replace` swaps the top entry; the player is
+  keyed by item id and receives `consecutiveAutoAdvances`; a manual Next
+  Episode resets the count, an automatic one adds one.
+- Build marker `20260901.1`.
+
+### Physical device
+
+Build `20260901.1` installed in place on the local Fire TV Stick; profile
+intact. Operator result: the three subtitle modes pass across titles and the
+existing playback paths (resume, audio switch, long jump) still pass. Skip
+Credits and Next Episode did not show on the one episode tried (Star Trek:
+Lower Decks S1E1), which ended on "Buffering" instead of a card. Whether
+that title carries credits data or a resolvable neighbour is not known from
+the device; build `20260901.2` adds trace lines to Stats for Nerds with logs
+(`credits.segments`, `credits.window`, `nextEpisode.*`, `ended`,
+`handoff.*`) and refuses a next episode that is another copy of the same
+episode number. Movie credits, the three-episode cap and Back-during-
+countdown remain unverified on hardware.
+
+Server check (2026-09-01, Jellyfin 10.11.11): Lower Decks S1E1 has no
+chapters and no media segments, so no Credits card was possible there, and
+`AdjacentTo` returns `[S1E1, S1E2]`, so the neighbour lookup is sound. The
+server runs no segment plugin, so credits detection there depends on chapter
+names; six movies and three series carry one. Saved positions just before
+the credits were written for the operator's user on Shaun of the Dead, Star
+Trek (2009) and A Knight of the Seven Kingdoms S1E2–E5 for the next run.
+
+Device results so far: the Credits card with Skip Credits and Next Episode,
+the advance itself, and autoplay chaining all passed on the MPEG-TS
+stream-copy route (Spartacus: House of Ashur S1, subtitles off). The cap was
+changed to two automatic advances at the operator's request (`20260901.3`).
+A resume on the fMP4 burn-in route stalls with zero frames decoded, on an
+HDR movie and on an SDR episode alike; `20260901.4` switches such mid-file
+fMP4 sessions to Shaka sequence mode (see `docs/DEVICE_TEST_NOTES.md`).
+
+Build `20260901.4` passed the operator's full run: burn-in resume plays,
+autoplay chains with subtitles on, the cap asks after two automatic
+advances, Back on the card stays put. Handoff for the release write-up:
+`docs/handoffs/fable-subtitles-credits-2026-09-01.md`.
+
+Unresolved facts:
+
+- Whether the fMP4 sequence-mode route holds A/V sync over a long subtitled
+  watch (the earlier drift finding was MPEG-TS sequence mode, a different
+  route). Owed before release.
+- The Lower Decks S1E1 "Buffering" was almost certainly the same stall after
+  a long jump on the burn-in route, not a missing `ended`.
+- Whether Vega raises `pause` before `ended`; if it does, the paused-video
+  idle visual can appear over a "Continue watching?" card left unattended
+  for three minutes, as it already could over the old "Finished" state.
+
+### Automated evidence
+
+- ESLint and `tsc --noEmit` clean.
+- Jest: 41 suites, 372 tests, all passing (`npm test -- --runInBand`).
+  New: `test/SubtitleSelection.spec.ts` (policy table),
+  `test/UserPreferencesStorage.spec.ts` (persistence and fallback),
+  `test/EpisodePlayback.spec.ts` (segments, adjacency, credits window,
+  next-episode bounds, movie-versus-episode decision, the cap of three, reset
+  rules, countdown cancel/expiry with fake timers). Extended:
+  `test/PlaybackInfoRequests.spec.ts` (Off sends `-1`; On picks the language
+  and burns in; Default follows the server; a pinned manual choice goes out
+  on the first request with no re-request; audio and subtitle share one
+  pinned re-request) and `test/SettingsPlayback.spec.tsx` (subtitle radio
+  persists through `updateUserPreferences`).
 
 ## Vega OS 1.2 playback repair — 1.2.0, complete
 

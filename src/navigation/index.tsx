@@ -12,6 +12,7 @@ import {
   DeveloperNotice,
 } from '../components/DeveloperNotice';
 import {readAppState, writeAppState} from '../services/storage';
+import {nextAutoAdvanceCount} from '../services/episodePlayback';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
@@ -52,7 +53,12 @@ type RouteEntry =
   | {route: 'library'; library: JellyfinLibrary}
   | {route: 'detail'; item: JellyfinMediaItem}
   | {route: 'episodeDetail'; item: JellyfinMediaItem}
-  | {route: 'player'; item: JellyfinMediaItem}
+  | {
+      route: 'player';
+      item: JellyfinMediaItem;
+      /** Unattended episode advances that led here; see PlayerScreen. */
+      consecutiveAutoAdvances?: number;
+    }
   | {route: 'music'; tab?: MusicTab}
   | {route: 'musicArtist'; artistId: string}
   | {route: 'musicAlbum'; albumId: string}
@@ -145,6 +151,14 @@ export const RootNavigator = () => {
       setStack((entries) =>
         entries.length > 1 ? entries.slice(0, -1) : entries,
       ),
+    [],
+  );
+
+  // Swaps the top entry so an episode that advances to the next one does not
+  // leave a finished player behind for Back to walk through.
+  const replace = useCallback(
+    (entry: RouteEntry) =>
+      setStack((entries) => [...entries.slice(0, -1), entry]),
     [],
   );
 
@@ -478,11 +492,26 @@ export const RootNavigator = () => {
   }
 
   if (current.route === 'player' && serverProfile) {
+    const autoAdvances = current.consecutiveAutoAdvances ?? 0;
     return withExitPrompt(
       <PlayerScreen
         accessToken={serverProfile.accessToken}
+        consecutiveAutoAdvances={autoAdvances}
         item={current.item}
+        // A new item is a new player: remounting releases the old media
+        // element and starts the next one from a clean surface.
+        key={current.item.id}
         onBack={pop}
+        onPlayNext={(next, {automatic}) =>
+          replace({
+            route: 'player',
+            item: next,
+            consecutiveAutoAdvances: nextAutoAdvanceCount(
+              autoAdvances,
+              automatic,
+            ),
+          })
+        }
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
       />,
