@@ -7,7 +7,10 @@ import {
   shouldUseHlsSequenceMode,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
-import {writePlaybackPreferences} from '../src/services/storage';
+import {
+  updateUserPreferences,
+  writePlaybackPreferences,
+} from '../src/services/storage';
 
 jest.mock('@amazon-devices/react-native-kepler', () => {
   const MockReact = require('react');
@@ -103,6 +106,9 @@ const mockWritePlaybackPreferences =
   writePlaybackPreferences as jest.MockedFunction<
     typeof writePlaybackPreferences
   >;
+const mockUpdateUserPreferences = updateUserPreferences as jest.MockedFunction<
+  typeof updateUserPreferences
+>;
 
 const serverProfile = {
   accessToken: 'test-token',
@@ -143,6 +149,28 @@ describe('playback diagnostics entry points', () => {
     await waitFor(() =>
       expect(mockWritePlaybackPreferences).toHaveBeenCalledWith({
         hlsSegmentLengthSeconds: 3,
+      }),
+    );
+  });
+
+  it('offers the three global subtitle states plus forced-only and persists the choice', async () => {
+    mockUpdateUserPreferences.mockClear();
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    await waitFor(() =>
+      expect(screen.getByText('Default (per video)')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-Subtitle mode'));
+
+    expect(screen.getByText('All subtitles on')).toBeTruthy();
+    expect(screen.getByText('All subtitles off')).toBeTruthy();
+    expect(screen.getByText('Only forced')).toBeTruthy();
+    fireEvent.press(screen.getByText('All subtitles off'));
+
+    await waitFor(() =>
+      expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+        subtitleMode: 'alwaysOff',
       }),
     );
   });

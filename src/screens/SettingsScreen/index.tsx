@@ -662,18 +662,21 @@ export const SettingsScreen = ({
         );
       case 'subtitleMode':
         return (
-          <RadioPage
-            title="Subtitle mode"
-            onBack={pop}
-            options={[
-              {label: 'Default', value: 'default'},
-              {label: 'Always On', value: 'alwaysOn'},
-              {label: 'Always Off', value: 'alwaysOff'},
-              {label: 'Only Forced', value: 'forcedOnly'},
-            ]}
-            selectedValue={preferences.subtitleMode}
-            onSelect={(subtitleMode) => savePreferences({subtitleMode})}
-          />
+          <Page title="Subtitle mode" onBack={pop}>
+            <Text style={styles.description}>
+              Applies to every video you start. Choosing a track while watching
+              only affects that video.
+            </Text>
+            <PreferenceRadioGroup
+              options={subtitleModeOptions}
+              selectedValue={preferences.subtitleMode}
+              onSelect={(subtitleMode) => savePreferences({subtitleMode})}
+            />
+            <Text style={styles.infoText}>
+              Default (per video) follows the server's own subtitle choice for
+              each title, including a track you picked for it before.
+            </Text>
+          </Page>
         );
       case 'autoplayCountdown':
         return (
@@ -848,13 +851,19 @@ export const SettingsScreen = ({
   );
 };
 
+const subtitleModeOptions: Array<{
+  label: string;
+  value: UserPreferences['subtitleMode'];
+}> = [
+  {label: 'Default (per video)', value: 'default'},
+  {label: 'All subtitles on', value: 'alwaysOn'},
+  {label: 'All subtitles off', value: 'alwaysOff'},
+  {label: 'Only forced', value: 'forcedOnly'},
+];
+
 const labelForSubtitleMode = (mode: UserPreferences['subtitleMode']) =>
-  ({
-    alwaysOff: 'Always Off',
-    alwaysOn: 'Always On',
-    default: 'Default',
-    forcedOnly: 'Only Forced',
-  }[mode]);
+  subtitleModeOptions.find((option) => option.value === mode)?.label ??
+  'Default (per video)';
 
 const labelForSkip = (mode: UserPreferences['skipIntroCredits']) =>
   ({ask: 'Ask', auto: 'Auto-skip', ignore: 'Ignore'}[mode]);
