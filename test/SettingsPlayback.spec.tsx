@@ -5,6 +5,7 @@ import {
   PlaybackSettingsOverlay,
   PlaybackStatsOverlay,
   shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
 import {
@@ -354,5 +355,17 @@ describe('playback diagnostics entry points', () => {
     expect(shouldUseHlsSequenceMode('mp4')).toBe(false);
     expect(shouldUseHlsSequenceMode('fMP4 HLS')).toBe(false);
     expect(shouldUseHlsSequenceMode(undefined)).toBe(false);
+  });
+
+  it('uses sequence mode only for an fMP4 session that starts mid-file', () => {
+    // A resumed or reloaded fMP4 transcode stalled on hardware in segments
+    // mode: the first fragment landed at its source time, the playhead at 0.
+    expect(shouldUseSequenceModeForMidFileStart('mp4', 3343)).toBe(true);
+    expect(shouldUseSequenceModeForMidFileStart('fMP4 HLS', 90)).toBe(true);
+    expect(shouldUseSequenceModeForMidFileStart('mp4', 0)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('mp4', undefined)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('ts', 3343)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('mpegts', 3343)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart(undefined, 3343)).toBe(false);
   });
 });

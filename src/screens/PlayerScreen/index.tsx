@@ -109,6 +109,28 @@ const emptyPlaybackEventDiagnostics = (): PlaybackEventDiagnostics => ({
 // the native W3C Media 2.2 interface is evaluated independently.
 export const shouldUseHlsSequenceMode = (_outputContainer?: string) => false;
 
+/**
+ * An fMP4 session that starts mid-file needs sequence mode. Jellyfin's
+ * transcode keeps source timestamps (`-copyts`), and the fMP4 init segment
+ * is served by a separate from-zero FFmpeg session, so in segments mode the
+ * first fragment lands at its source time (for example 3345 s) while Shaka's
+ * playhead stays at 0 and nothing ever decodes. Observed on the physical
+ * stick for a subtitle burn-in resume on two titles. Sequence mode places
+ * the first fragment at the playhead regardless of its timestamps. MPEG-TS
+ * has no init segment and keeps the accepted segments mode, and so does
+ * fMP4 playback from the start.
+ */
+export const shouldUseSequenceModeForMidFileStart = (
+  outputContainer: string | undefined,
+  startTimeSeconds: number | undefined,
+) => {
+  if (!(startTimeSeconds && startTimeSeconds > 0)) {
+    return false;
+  }
+  const container = (outputContainer ?? '').trim().toLowerCase();
+  return container.includes('mp4') || container.includes('m4s');
+};
+
 interface PlayerScreenProps {
   accessToken: string;
   /**
@@ -1066,6 +1088,18 @@ export const PlayerScreen = ({
       const {ShakaPlayer} = await import(
         '../../w3cmedia/shakaplayer/ShakaPlayer'
       );
+      const sequenceMode =
+        shouldUseHlsSequenceMode(stream.outputContainer) ||
+        shouldUseSequenceModeForMidFileStart(
+          stream.outputContainer,
+          startTimeSeconds,
+        );
+      trace(
+        'shaka.mode',
+        `${sequenceMode ? 'sequence' : 'segments'} container=${
+          stream.outputContainer ?? '?'
+        } start=${(startTimeSeconds ?? 0).toFixed(0)}s`,
+      );
       const settings = {
         secure: stream.url.startsWith('https://'),
         abrEnabled: false,
@@ -1074,10 +1108,8 @@ export const PlayerScreen = ({
         // Physical testing rejected sequence mode for MPEG-TS because A/V
         // drift still accumulated over an hour. Retain the accepted
         // segments-mode path while evaluating W3C Media 2.2 in isolation.
-        hlsSequenceMode: shouldUseHlsSequenceMode(stream.outputContainer),
-        hlsIgnoreManifestTimestampsInSegmentsMode: !shouldUseHlsSequenceMode(
-          stream.outputContainer,
-        ),
+        hlsSequenceMode: sequenceMode,
+        hlsIgnoreManifestTimestampsInSegmentsMode: !sequenceMode,
         hlsResumePositionSeconds:
           startTimeSeconds && startTimeSeconds > 0
             ? startTimeSeconds
