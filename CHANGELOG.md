@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.2.1 - 2026-09-02
+
+Adds a global subtitle preference and Skip Credits / Next Episode playback
+controls, and fixes a resume stall found while validating them on hardware.
+
+### Added
+
+- A subtitle preference in Settings > Playback: Default (per video), All
+  subtitles on, All subtitles off, or Only forced. Resolved against each
+  video's PlaybackInfo response before its stream is built, so the choice
+  applies to movies and episodes, initial playback and resume alike. A track
+  chosen in the player affects only that video and does not change the
+  preference.
+- Skip Credits, from Jellyfin `Outro` media segments or a chapter named
+  "Credits", with Ask / Auto-skip / Ignore in Settings > Playback.
+- Next Episode, with an optional autoplay countdown (Settings > Playback:
+  Next episode autoplay, countdown duration). Autoplay is capped at three
+  episodes in a row before Astra pauses on a Continue Watching prompt; a
+  manual Next Episode always resets the count, and a new playback session
+  starts at zero.
+
+### Fixed
+
+- Playback could get stuck on "Buffering" with zero frames decoded when a
+  transcoded session with burned-in subtitles resumed, jumped a long
+  distance, or switched tracks partway into the video. The server's fMP4
+  segments start at their source timestamp while the player's clock started
+  at zero, so nothing lined up. Astra now starts that kind of session in
+  Shaka's sequence mode, which places the first segment at the player's
+  clock instead.
+
 ## 1.2.0 - 2026-08-29
 
 Repairs playback on Fire TV devices that have taken the Vega OS 1.2 update.

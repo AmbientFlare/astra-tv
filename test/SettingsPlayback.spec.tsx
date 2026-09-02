@@ -184,22 +184,22 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.2.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260830.1')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.2.0")).toBeTruthy();
+    expect(screen.getByText('Astra 1.2.1')).toBeTruthy();
+    expect(screen.getByText('Build: 20260902.1')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.2.1")).toBeTruthy();
     expect(
       screen.getByText(
-        '• Fixed resuming a title, switching audio tracks, and turning on burned-in subtitles, which could all exit to Home on Vega OS 1.2.',
+        "• Added a subtitle preference in Settings > Playback: leave each video's own default, turn subtitles all on, all off, or show only forced tracks.",
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Made seeking and startup much faster: a long jump that took most of a minute now takes seconds.',
+        "• Added Skip Credits and Next Episode, with an optional automatic skip and an autoplay countdown. Autoplay stops after three episodes in a row to confirm you're still watching.",
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Updated for Vega OS 1.2 and the current Amazon device libraries.',
+        '• Fixed playback getting stuck on Buffering when a video with burned-in subtitles resumed, jumped a long distance, or switched tracks partway through.',
       ),
     ).toBeTruthy();
   });
@@ -334,7 +334,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.2\.0 \(20260830\.1\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.2\.1 \(20260902\.1\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
