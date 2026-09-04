@@ -16,8 +16,12 @@ import {
 } from '@amazon-devices/react-native-w3cmedia';
 import {FocusableItem} from '../../components/FocusableItem';
 import {
+  getAdjacentEpisodes,
+  getEpisodes,
+  getMediaSegments,
   getStreamUrl,
   JellyfinMediaItem,
+  JellyfinMediaSegment,
   JellyfinMediaTrack,
   JellyfinStreamInfo,
   reportPlaybackProgress,
@@ -38,9 +42,21 @@ import {
 } from '../../w3cmedia/playerLifecycle';
 import {
   defaultPlaybackPrefs,
+  defaultUserPreferences,
+  getUserPreferences,
   readPlaybackPreferences,
+  UserPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
+import {
+  Countdown,
+  createCountdown,
+  CreditsWindow,
+  decideEndOfPlayback,
+  findCreditsWindow,
+  isInsideWindow,
+  resolveNextEpisode,
+} from '../../services/episodePlayback';
 import {audioPlayback} from '../../services/audioPlayer';
 import {VideoPauseIdleVisual} from '../../components/VideoPauseIdleVisual';
 import {
@@ -93,13 +109,59 @@ const emptyPlaybackEventDiagnostics = (): PlaybackEventDiagnostics => ({
 // the native W3C Media 2.2 interface is evaluated independently.
 export const shouldUseHlsSequenceMode = (_outputContainer?: string) => false;
 
+/**
+ * An fMP4 session that starts mid-file needs sequence mode. Jellyfin's
+ * transcode keeps source timestamps (`-copyts`), and the fMP4 init segment
+ * is served by a separate from-zero FFmpeg session, so in segments mode the
+ * first fragment lands at its source time (for example 3345 s) while Shaka's
+ * playhead stays at 0 and nothing ever decodes. Observed on the physical
+ * stick for a subtitle burn-in resume on two titles. Sequence mode places
+ * the first fragment at the playhead regardless of its timestamps. MPEG-TS
+ * has no init segment and keeps the accepted segments mode, and so does
+ * fMP4 playback from the start.
+ */
+export const shouldUseSequenceModeForMidFileStart = (
+  outputContainer: string | undefined,
+  startTimeSeconds: number | undefined,
+) => {
+  if (!(startTimeSeconds && startTimeSeconds > 0)) {
+    return false;
+  }
+  const container = (outputContainer ?? '').trim().toLowerCase();
+  return container.includes('mp4') || container.includes('m4s');
+};
+
 interface PlayerScreenProps {
   accessToken: string;
+  /**
+   * How many episodes in a row played unattended before this one. Zero when
+   * the viewer chose it; the navigator supplies the count on an advance.
+   */
+  consecutiveAutoAdvances?: number;
   item: JellyfinMediaItem;
   onBack?: () => void;
+  /**
+   * Replaces this player with the given episode once this one has released
+   * its media resources. Absent means the player never advances.
+   */
+  onPlayNext?: (item: JellyfinMediaItem, options: {automatic: boolean}) => void;
   serverUrl: string;
   userId?: string;
 }
+
+type EndPrompt =
+  | {kind: 'countdown'; remainingSeconds: number}
+  | {kind: 'confirm'};
+
+const episodeLabel = (episode: JellyfinMediaItem) => {
+  const code =
+    episode.parentIndexNumber !== undefined && episode.indexNumber !== undefined
+      ? `S${episode.parentIndexNumber}:E${episode.indexNumber}`
+      : episode.indexNumber !== undefined
+      ? `Episode ${episode.indexNumber}`
+      : undefined;
+  return code ? `${code}  ${episode.name}` : episode.name;
+};
 
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
@@ -153,8 +215,10 @@ const assertPlayableUrl = (url: string) => {
 
 export const PlayerScreen = ({
   accessToken,
+  consecutiveAutoAdvances = 0,
   item,
   onBack,
+  onPlayNext,
   serverUrl,
   userId,
 }: PlayerScreenProps) => {
@@ -169,6 +233,10 @@ export const PlayerScreen = ({
   const selectedForceTranscode = useRef(false);
   const selectedSubtitleBurnIn = useRef(false);
   const selectedSubtitleIndex = useRef<number | undefined>();
+  // False only until the first stream resolves. From then on every reload
+  // carries the session's subtitle choice explicitly (Off as -1 on the wire)
+  // instead of re-running the global preference against the server.
+  const subtitleSelectionPinned = useRef(false);
   const playbackGeneration = useRef(0);
   const playbackDiagnosticsStartedAt = useRef(Date.now());
   const playbackEventDiagnostics = useRef<PlaybackEventDiagnostics>(
@@ -190,6 +258,20 @@ export const PlayerScreen = ({
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const isPausedRef = useRef(false);
   const unmountedRef = useRef(false);
+  const episodePreferences = useRef<
+    Pick<
+      UserPreferences,
+      'nextEpisodeAutoplay' | 'nextEpisodeCountdownSeconds' | 'skipIntroCredits'
+    >
+  >(defaultUserPreferences);
+  // The only timer behind an unattended advance. Every exit path cancels it
+  // through cancelCountdown so a late expiry can never navigate.
+  const countdownRef = useRef<Countdown | null>(null);
+  // Vega fires `ended` twice for one end of stream; one prompt per player.
+  const endedHandledForGeneration = useRef<number | null>(null);
+  const handledCreditsWindow = useRef<string | null>(null);
+  const handoffInProgress = useRef(false);
+  const endedHandler = useRef<() => void>(() => undefined);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHandledKeyEvent = useRef<{
     time: number;
@@ -212,6 +294,16 @@ export const PlayerScreen = ({
     number | undefined
   >(undefined);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [mediaSegments, setMediaSegments] = useState<JellyfinMediaSegment[]>(
+    [],
+  );
+  const [nextEpisode, setNextEpisode] = useState<JellyfinMediaItem | null>(
+    null,
+  );
+  const [creditsPrompt, setCreditsPrompt] = useState<CreditsWindow | null>(
+    null,
+  );
+  const [endPrompt, setEndPrompt] = useState<EndPrompt | null>(null);
   // Resolving a stream can take two server round trips, so startup gets its
   // own always-visible state rather than borrowing the auto-hiding controls.
   const [startupError, setStartupError] = useState<string | null>(null);
@@ -263,6 +355,108 @@ export const PlayerScreen = ({
       mounted = false;
     };
   }, []);
+
+  // Credits and next-episode data are fetched once per item, off the playback
+  // path. Any failure leaves that feature off for this video and touches
+  // nothing else.
+  const itemId = item.id;
+  const itemType = item.type;
+  const seriesId = item.seriesId;
+  const seasonId = item.parentId;
+  useEffect(() => {
+    let mounted = true;
+
+    getUserPreferences()
+      .then((preferences) => {
+        if (mounted) {
+          episodePreferences.current = preferences;
+        }
+      })
+      .catch((error) => {
+        console.warn('[Astra] Unable to read episode preferences:', error);
+      });
+
+    getMediaSegments(serverUrl, accessToken, itemId)
+      .then((segments) => {
+        trace(
+          'credits.segments',
+          `count=${segments.length} chapters=${item.chapters?.length ?? 0}`,
+        );
+        if (mounted) {
+          setMediaSegments(segments);
+        }
+      })
+      .catch((error) => {
+        trace(
+          'credits.segments',
+          `error ${error instanceof Error ? error.message : String(error)}`,
+        );
+        console.warn('[Astra] Unable to load media segments:', error);
+      });
+
+    if (itemType === 'Episode' && seriesId && userId) {
+      const current = {
+        id: itemId,
+        indexNumber: item.indexNumber,
+        parentIndexNumber: item.parentIndexNumber,
+        seriesId,
+      };
+      const describe = (episode: JellyfinMediaItem | null) =>
+        episode
+          ? `s${episode.parentIndexNumber ?? '?'}e${
+              episode.indexNumber ?? '?'
+            } ${episode.locationType ?? ''}`.trim()
+          : 'none';
+      getAdjacentEpisodes(serverUrl, accessToken, userId, seriesId, itemId)
+        .then(async (episodes) => {
+          let next = resolveNextEpisode(episodes, current);
+          const hasCurrent = episodes.some((episode) => episode.id === itemId);
+          trace(
+            'nextEpisode.adjacent',
+            `candidates=${episodes.length} hasCurrent=${hasCurrent} ` +
+              `next=${describe(next)}`,
+          );
+          // A server that does not understand AdjacentTo answers without the
+          // current episode; the season list still names the next one.
+          if (!next && seasonId && !hasCurrent) {
+            const seasonEpisodes = await getEpisodes(
+              serverUrl,
+              accessToken,
+              userId,
+              seriesId,
+              seasonId,
+            );
+            next = resolveNextEpisode(seasonEpisodes, current);
+            trace(
+              'nextEpisode.season',
+              `candidates=${seasonEpisodes.length} next=${describe(next)}`,
+            );
+          }
+          if (mounted) {
+            setNextEpisode(next);
+          }
+        })
+        .catch((error) => {
+          trace(
+            'nextEpisode',
+            `error ${error instanceof Error ? error.message : String(error)}`,
+          );
+          console.warn('[Astra] Unable to resolve the next episode:', error);
+        });
+    } else {
+      trace(
+        'nextEpisode',
+        `skipped type=${itemType} series=${Boolean(seriesId)} user=${Boolean(
+          userId,
+        )}`,
+      );
+    }
+
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, itemId, itemType, seasonId, seriesId, serverUrl, userId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -616,6 +810,246 @@ export const PlayerScreen = ({
     [item, preferredSeekSeconds, seek, seekToSeconds],
   );
 
+  const cancelCountdown = useCallback(() => {
+    countdownRef.current?.cancel();
+    countdownRef.current = null;
+  }, []);
+
+  const dismissCreditsPrompt = useCallback((window: CreditsWindow) => {
+    handledCreditsWindow.current = window.key;
+    setCreditsPrompt(null);
+  }, []);
+
+  // Jumps to the end of the credits window. Same route as a chapter jump:
+  // a long distance reloads at the target, a short one seeks in place.
+  const skipCredits = useCallback(
+    async (window: CreditsWindow) => {
+      dismissCreditsPrompt(window);
+      const video = videoRef.current;
+      if (!video || typeof video.currentTime !== 'number') {
+        return;
+      }
+
+      const target = window.endTicks / TICKS_PER_SECOND;
+      const current = mediaToLogicalTime(
+        video.currentTime,
+        mediaTimelineOffsetSeconds.current,
+      );
+      const reloadAtSeconds = reloadAtSecondsRef.current;
+      try {
+        if (
+          reloadAtSeconds &&
+          Math.abs(target - current) >= RELOAD_JUMP_THRESHOLD_SECONDS
+        ) {
+          await reloadAtSeconds(target);
+        } else {
+          await seekToSeconds(target);
+        }
+      } catch (error) {
+        console.warn('[Astra] Unable to skip credits:', error);
+      }
+    },
+    [dismissCreditsPrompt, seekToSeconds],
+  );
+
+  // Releases this player's media resources the way the unmount cleanup does,
+  // but awaited: the next PlayerScreen must not construct its VideoPlayer
+  // while this one's surface and Shaka instance are still being torn down.
+  const releaseForHandoff = useCallback(async () => {
+    const handle = surfaceHandle.current;
+    const video = videoRef.current;
+    const shakaPlayer = shakaPlayerRef.current;
+
+    // Late events from the released element must not reach this screen.
+    playbackGeneration.current += 1;
+    videoRef.current = null;
+    shakaPlayerRef.current = null;
+    clearControlsHideTimer();
+    if (initialSeekTimer.current) {
+      clearTimeout(initialSeekTimer.current);
+      initialSeekTimer.current = null;
+    }
+
+    try {
+      await reportStopped();
+    } catch (error) {
+      console.warn(
+        '[Astra] Failed to report stopped before next episode:',
+        error,
+      );
+    }
+    streamInfo.current = null;
+
+    try {
+      video?.pause();
+    } catch (error) {
+      console.warn('[Astra] Failed to pause before next episode:', error);
+    }
+    try {
+      await shakaPlayer?.unload();
+    } catch (error) {
+      console.warn(
+        '[Astra] Failed to unload player before next episode:',
+        error,
+      );
+    }
+    try {
+      if (handle) {
+        video?.clearSurfaceHandle(handle);
+      }
+      await video?.deinitialize();
+    } catch (error) {
+      console.warn(
+        '[Astra] Failed to release video before next episode:',
+        error,
+      );
+    }
+  }, [clearControlsHideTimer, reportStopped]);
+
+  const advanceToEpisode = useCallback(
+    async (next: JellyfinMediaItem, automatic: boolean) => {
+      if (!onPlayNext || handoffInProgress.current || unmountedRef.current) {
+        return;
+      }
+
+      handoffInProgress.current = true;
+      trackReloadInProgress.current = true;
+      trace(
+        'handoff.start',
+        `to=${next.id.slice(0, 8)} automatic=${automatic} ` +
+          `count=${consecutiveAutoAdvances}`,
+      );
+      cancelCountdown();
+      setEndPrompt(null);
+      setCreditsPrompt(null);
+      setShowExitConfirm(false);
+      setSettingsPanel(null);
+      setStarting(true);
+      setStatusText('Starting next episode...');
+
+      try {
+        await releaseForHandoff();
+        trace('handoff.released', 'media released');
+      } catch (error) {
+        trace('handoff.released', 'release failed');
+        console.warn(
+          '[Astra] Failed to release the player for handoff:',
+          error,
+        );
+      }
+
+      // Back may have won the race: this screen is gone and the entry on top
+      // of the stack is no longer a player to replace.
+      if (unmountedRef.current) {
+        trace('handoff.navigate', 'skipped: player already left');
+        return;
+      }
+      trace('handoff.navigate', 'replacing player');
+      onPlayNext(next, {automatic});
+    },
+    [cancelCountdown, consecutiveAutoAdvances, onPlayNext, releaseForHandoff],
+  );
+
+  // Runs once per player generation when the stream ends. Movies finish;
+  // an episode with a known successor counts down or asks, per the decision
+  // rules in services/episodePlayback.
+  endedHandler.current = () => {
+    setCreditsPrompt(null);
+    const action = decideEndOfPlayback({
+      autoplayEnabled: episodePreferences.current.nextEpisodeAutoplay,
+      consecutiveAutoAdvances,
+      hasNextEpisode: Boolean(nextEpisode && onPlayNext),
+      itemType: item.type,
+    });
+    trace(
+      'ended',
+      `action=${action} autoplay=${
+        episodePreferences.current.nextEpisodeAutoplay
+      } count=${consecutiveAutoAdvances} next=${nextEpisode ? 'yes' : 'none'}`,
+    );
+
+    if (action === 'finished' || !nextEpisode) {
+      return;
+    }
+    if (action === 'confirm') {
+      setEndPrompt({kind: 'confirm'});
+      return;
+    }
+
+    cancelCountdown();
+    countdownRef.current = createCountdown({
+      seconds: episodePreferences.current.nextEpisodeCountdownSeconds,
+      onTick: (remainingSeconds) =>
+        setEndPrompt({kind: 'countdown', remainingSeconds}),
+      onExpire: () => {
+        countdownRef.current = null;
+        advanceToEpisode(nextEpisode, true).catch((error) => {
+          console.warn('[Astra] Unable to play the next episode:', error);
+        });
+      },
+    });
+  };
+
+  const creditsWindow = useMemo(
+    () =>
+      findCreditsWindow(
+        mediaSegments,
+        item.chapters,
+        currentStream?.runTimeTicks ?? item.runTimeTicks,
+      ),
+    [
+      currentStream?.runTimeTicks,
+      item.chapters,
+      item.runTimeTicks,
+      mediaSegments,
+    ],
+  );
+
+  useEffect(() => {
+    trace(
+      'credits.window',
+      creditsWindow
+        ? `${creditsWindow.source} ${(
+            creditsWindow.startTicks / TICKS_PER_SECOND
+          ).toFixed(0)}s-${(creditsWindow.endTicks / TICKS_PER_SECOND).toFixed(
+            0,
+          )}s`
+        : 'none',
+    );
+  }, [creditsWindow]);
+
+  useEffect(() => {
+    const inside =
+      creditsWindow !== null &&
+      !isStarting &&
+      !endPrompt &&
+      handledCreditsWindow.current !== creditsWindow.key &&
+      isInsideWindow(creditsWindow, toTicks(positionSeconds));
+
+    if (!inside || !creditsWindow) {
+      setCreditsPrompt((current) => (current ? null : current));
+      return;
+    }
+
+    const mode = episodePreferences.current.skipIntroCredits;
+    if (mode === 'ignore') {
+      return;
+    }
+    if (mode === 'auto') {
+      skipCredits(creditsWindow).catch((error) => {
+        console.warn('[Astra] Unable to auto-skip credits:', error);
+      });
+      return;
+    }
+    setCreditsPrompt((current) => {
+      if (current?.key === creditsWindow.key) {
+        return current;
+      }
+      trace('credits.prompt', creditsWindow.key);
+      return creditsWindow;
+    });
+  }, [creditsWindow, endPrompt, isStarting, positionSeconds, skipCredits]);
+
   const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
 
@@ -654,6 +1088,18 @@ export const PlayerScreen = ({
       const {ShakaPlayer} = await import(
         '../../w3cmedia/shakaplayer/ShakaPlayer'
       );
+      const sequenceMode =
+        shouldUseHlsSequenceMode(stream.outputContainer) ||
+        shouldUseSequenceModeForMidFileStart(
+          stream.outputContainer,
+          startTimeSeconds,
+        );
+      trace(
+        'shaka.mode',
+        `${sequenceMode ? 'sequence' : 'segments'} container=${
+          stream.outputContainer ?? '?'
+        } start=${(startTimeSeconds ?? 0).toFixed(0)}s`,
+      );
       const settings = {
         secure: stream.url.startsWith('https://'),
         abrEnabled: false,
@@ -662,10 +1108,8 @@ export const PlayerScreen = ({
         // Physical testing rejected sequence mode for MPEG-TS because A/V
         // drift still accumulated over an hour. Retain the accepted
         // segments-mode path while evaluating W3C Media 2.2 in isolation.
-        hlsSequenceMode: shouldUseHlsSequenceMode(stream.outputContainer),
-        hlsIgnoreManifestTimestampsInSegmentsMode: !shouldUseHlsSequenceMode(
-          stream.outputContainer,
-        ),
+        hlsSequenceMode: sequenceMode,
+        hlsIgnoreManifestTimestampsInSegmentsMode: !sequenceMode,
         hlsResumePositionSeconds:
           startTimeSeconds && startTimeSeconds > 0
             ? startTimeSeconds
@@ -869,6 +1313,11 @@ export const PlayerScreen = ({
         recordPlaybackEvent('ended');
         revealControls(false);
         setStatusText('Finished');
+        if (endedHandledForGeneration.current === generation) {
+          return;
+        }
+        endedHandledForGeneration.current = generation;
+        endedHandler.current();
       });
     },
     [applyPendingInitialSeek, revealControls, scheduleControlsHide],
@@ -884,6 +1333,10 @@ export const PlayerScreen = ({
     const generation = playbackGeneration.current + 1;
     playbackGeneration.current = generation;
     videoRef.current = null;
+    // A replaced player is a new playback session: no countdown from the
+    // old one may carry over.
+    cancelCountdown();
+    setEndPrompt(null);
 
     try {
       oldVideo?.pause();
@@ -928,6 +1381,7 @@ export const PlayerScreen = ({
     return video;
   }, [
     attachPlaybackEvents,
+    cancelCountdown,
     keplerAppStateManager,
     playbackRate,
     preferredSeekSeconds,
@@ -968,6 +1422,7 @@ export const PlayerScreen = ({
           mediaSourceId: streamInfo.current?.mediaSourceId,
           sourceHeight: sourceVideoStream?.height,
           sourceWidth: sourceVideoStream?.width,
+          subtitleSelectionIsManual: subtitleSelectionPinned.current,
           subtitleStreamIndex: selectedSubtitleIndex.current,
         },
       );
@@ -1008,6 +1463,17 @@ export const PlayerScreen = ({
         selectedAudioIndex.current = defaultTrack.index;
         setSelectedAudioTrackIndex(defaultTrack.index);
       }
+      // PlaybackInfo has resolved either the global subtitle preference or
+      // the pinned in-player choice. Mirror it into the refs the reload paths
+      // and progress reports read, so an audio switch or long jump keeps the
+      // same track and the overlay marks the one actually playing.
+      selectedSubtitleIndex.current = stream.subtitleStreamIndex;
+      setSelectedSubtitleTrackIndex(stream.subtitleStreamIndex);
+      selectedSubtitleBurnIn.current = Boolean(stream.subtitleBurnIn);
+      if (selectedSubtitleBurnIn.current) {
+        selectedForceTranscode.current = true;
+      }
+      subtitleSelectionPinned.current = true;
       setPositionSeconds(startTicks / TICKS_PER_SECOND);
       setStatusText(
         stream.playMethod === 'Transcode'
@@ -1095,6 +1561,7 @@ export const PlayerScreen = ({
           ? undefined
           : subtitleTrack?.index ?? selectedSubtitleIndex.current;
       if (subtitleTrack === null || subtitleTrack?.index !== undefined) {
+        subtitleSelectionPinned.current = true;
         setSelectedSubtitleTrackIndex(subtitleTrack?.index);
       }
       selectedSubtitleBurnIn.current =
@@ -1334,17 +1801,44 @@ export const PlayerScreen = ({
     }
     lastHandledKeyEvent.current = {time: now, type: key};
 
+    // While this player hands off to the next episode nothing but Back has
+    // a target any more.
+    if (handoffInProgress.current && key !== 'back') {
+      return;
+    }
+
+    if (key === 'back' && endPrompt) {
+      // Declining the next episode is not leaving the player: cancel the
+      // countdown and stay on the finished video.
+      cancelCountdown();
+      setEndPrompt(null);
+      setStatusText('Finished');
+      return;
+    }
+    if (key === 'back' && creditsPrompt) {
+      dismissCreditsPrompt(creditsPrompt);
+      return;
+    }
+    if (endPrompt && (key === 'menu' || key === 'context_menu')) {
+      return;
+    }
+    if (creditsPrompt && (key === 'menu' || key === 'context_menu')) {
+      dismissCreditsPrompt(creditsPrompt);
+    }
+
     // Back dismisses one layer at a time and must not reveal the controls
     // it is about to dismiss.
     if (key !== 'back') {
-      revealControls(!settingsPanel && !showExitConfirm);
+      revealControls(
+        !settingsPanel && !showExitConfirm && !creditsPrompt && !endPrompt,
+      );
     }
 
     // Focusable controls own their Select and directional events while a
     // modal is open. The global playback handler must not also pause, seek,
     // or commit a second action for the key-up phase of the same click.
     if (
-      (settingsPanel || showExitConfirm) &&
+      (settingsPanel || showExitConfirm || creditsPrompt || endPrompt) &&
       key !== 'back' &&
       key !== 'menu' &&
       key !== 'context_menu'
@@ -1408,6 +1902,7 @@ export const PlayerScreen = ({
       const stoppedPromise = reportStopped();
 
       unmountedRef.current = true;
+      cancelCountdown();
       clearControlsHideTimer();
       surfaceHandle.current = null;
       videoRef.current = null;
@@ -1435,7 +1930,7 @@ export const PlayerScreen = ({
           }
         });
     };
-  }, [clearControlsHideTimer, reportStopped]);
+  }, [cancelCountdown, clearControlsHideTimer, reportStopped]);
 
   useEffect(() => {
     const subscription = keplerAppStateManager.addAppStateListener(
@@ -1678,6 +2173,7 @@ export const PlayerScreen = ({
       videoRef.current = null;
       shakaPlayerRef.current = null;
       streamInfo.current = null;
+      cancelCountdown();
       clearControlsHideTimer();
       if (initialSeekTimer.current) {
         clearTimeout(initialSeekTimer.current);
@@ -1701,7 +2197,7 @@ export const PlayerScreen = ({
           console.warn('[Astra] Failed to tear down video surface:', error);
         });
     },
-    [clearControlsHideTimer, reportStopped],
+    [cancelCountdown, clearControlsHideTimer, reportStopped],
   );
 
   const durationSeconds =
@@ -1843,6 +2339,100 @@ export const PlayerScreen = ({
               style={styles.button}
               testID="player-exit-leave">
               <Text style={styles.buttonText}>Leave</Text>
+            </FocusableItem>
+          </View>
+        </View>
+      ) : null}
+      {creditsPrompt && !endPrompt && !showExitConfirm && !settingsPanel ? (
+        <View style={styles.promptCard} testID="player-credits-prompt">
+          <Text style={styles.promptTitle}>Credits</Text>
+          <View style={styles.exitButtons}>
+            <FocusableItem
+              focusedStyle={styles.focusedButton}
+              hasTVPreferredFocus={true}
+              onPress={() => {
+                skipCredits(creditsPrompt).catch((error) => {
+                  console.warn('[Astra] Unable to skip credits:', error);
+                });
+              }}
+              style={styles.button}
+              testID="player-skip-credits">
+              <Text style={styles.buttonText}>Skip Credits</Text>
+            </FocusableItem>
+            {nextEpisode && onPlayNext ? (
+              <FocusableItem
+                focusedStyle={styles.focusedButton}
+                onPress={() => {
+                  advanceToEpisode(nextEpisode, false).catch((error) => {
+                    console.warn(
+                      '[Astra] Unable to play the next episode:',
+                      error,
+                    );
+                  });
+                }}
+                style={styles.button}
+                testID="player-next-episode">
+                <Text style={styles.buttonText}>Next Episode</Text>
+              </FocusableItem>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+      {endPrompt && nextEpisode && !showExitConfirm ? (
+        <View style={styles.exitOverlay} testID="player-end-prompt">
+          <Text style={styles.exitTitle}>
+            {endPrompt.kind === 'countdown' ? 'Up next' : 'Continue watching?'}
+          </Text>
+          <Text numberOfLines={1} style={styles.promptSubtitle}>
+            {episodeLabel(nextEpisode)}
+          </Text>
+          <Text style={styles.promptHint}>
+            {endPrompt.kind === 'countdown'
+              ? `Playing in ${endPrompt.remainingSeconds}s  •  Back to cancel`
+              : 'Press Next Episode to keep watching'}
+          </Text>
+          <View style={styles.exitButtons}>
+            <FocusableItem
+              focusedStyle={styles.focusedButton}
+              hasTVPreferredFocus={true}
+              onPress={() => {
+                advanceToEpisode(nextEpisode, false).catch((error) => {
+                  console.warn(
+                    '[Astra] Unable to play the next episode:',
+                    error,
+                  );
+                });
+              }}
+              style={styles.button}
+              testID={
+                endPrompt.kind === 'countdown'
+                  ? 'player-up-next-play'
+                  : 'player-continue-watching'
+              }>
+              <Text style={styles.buttonText}>
+                {endPrompt.kind === 'countdown' ? 'Play now' : 'Next Episode'}
+              </Text>
+            </FocusableItem>
+            <FocusableItem
+              focusedStyle={styles.focusedButton}
+              onPress={() => {
+                if (endPrompt.kind === 'countdown') {
+                  cancelCountdown();
+                  setEndPrompt(null);
+                  setStatusText('Finished');
+                } else {
+                  handleBack();
+                }
+              }}
+              style={styles.button}
+              testID={
+                endPrompt.kind === 'countdown'
+                  ? 'player-up-next-cancel'
+                  : 'player-finished-done'
+              }>
+              <Text style={styles.buttonText}>
+                {endPrompt.kind === 'countdown' ? 'Cancel' : 'Done'}
+              </Text>
             </FocusableItem>
           </View>
         </View>
@@ -2318,6 +2908,37 @@ const styles = StyleSheet.create({
   exitButtons: {
     flexDirection: 'row',
     gap: 20,
+  },
+  promptCard: {
+    position: 'absolute',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12,17,22,0.94)',
+    borderRadius: 10,
+    bottom: 120,
+    paddingHorizontal: 28,
+    paddingVertical: 18,
+    right: 72,
+    zIndex: 3,
+  },
+  promptTitle: {
+    color: '#4CC9F0',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
+  promptSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '700',
+    marginBottom: 8,
+    maxWidth: 900,
+  },
+  promptHint: {
+    color: '#B8C5CC',
+    fontSize: 20,
+    marginBottom: 24,
   },
   settingsTitle: {
     color: '#FFFFFF',

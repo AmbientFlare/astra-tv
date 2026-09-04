@@ -103,6 +103,13 @@ const defaultDisplayPreferences: DisplayPreferences = {
   imageType: 'Primary',
 };
 
+export const SUBTITLE_MODES: ReadonlyArray<UserPreferences['subtitleMode']> = [
+  'default',
+  'alwaysOn',
+  'alwaysOff',
+  'forcedOnly',
+];
+
 export const defaultUserPreferences: UserPreferences = {
   accountSortBy: 'lastUsed',
   autoSignIn: 'mostRecent',
@@ -334,6 +341,12 @@ const parseUserPreferences = (
         ...defaultUserPreferences.homeSections,
         ...(parsed.homeSections ?? {}),
       },
+      // The player applies this on every stream request, so a value this
+      // build does not know must fall back to per-video behaviour rather
+      // than silently disabling or forcing subtitles.
+      subtitleMode: SUBTITLE_MODES.includes(parsed.subtitleMode)
+        ? parsed.subtitleMode
+        : defaultUserPreferences.subtitleMode,
     };
   } catch {
     return defaultUserPreferences;

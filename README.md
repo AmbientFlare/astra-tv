@@ -12,7 +12,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.2.0`, build `20260829.12`, for x86_64
+The current release is Astra `1.2.1`, build `20260902.1`, for x86_64
 Fire TV devices running Vega OS 1.2 or later.
 
 - Website: <https://watchastra.com> (screenshots, setup, and the
@@ -23,9 +23,10 @@ Fire TV devices running Vega OS 1.2 or later.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
-- Release validation: 208 tests, ESLint, TypeScript, Vega manifest, and Vega
-  ABI; resume, audio switching, burned-in subtitles, and a 45-minute A/V sync
-  soak passed on the physical Fire TV Stick for 1.2.0
+- Release validation: 374 tests, ESLint, TypeScript, Vega manifest, and Vega
+  ABI; global subtitle modes, Skip Credits, Next Episode autoplay, and the
+  existing resume/audio/seek behavior all passed on the physical Fire TV
+  Stick for 1.2.1
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -68,6 +69,20 @@ creation on Vega.
   metadata to the video player.
 
 ## Release history
+
+### 1.2.1 — Subtitle preference and Skip Credits / Next Episode — 2026-09-02
+
+- Added a subtitle preference in Settings > Playback: leave each video's own
+  default, turn subtitles all on, all off, or show only forced tracks.
+  Applies before a video's stream is built, for movies and episodes alike.
+- Added Skip Credits, sourced from Jellyfin media segments or a chapter
+  named "Credits", with Ask / Auto-skip / Ignore in Settings > Playback.
+- Added Next Episode with an optional autoplay countdown. Movies never
+  auto-advance; unattended autoplay stops after three episodes in a row to
+  confirm you're still watching.
+- Fixed playback getting stuck on "Buffering" with nothing decoding when a
+  video with burned-in subtitles resumed, jumped a long distance, or
+  switched tracks partway through.
 
 ### 1.2.0 — Vega OS 1.2 playback repair — 2026-08-29
 
@@ -148,7 +163,7 @@ creation on Vega.
 
 The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md). Release
 notes for the current version are in
-[docs/release-1.2.0.md](docs/release-1.2.0.md).
+[docs/release-1.2.1.md](docs/release-1.2.1.md).
 
 ## Development
 
@@ -172,7 +187,7 @@ Build the current release target with:
 ```sh
 PATH=/path/to/vega/bin:$PATH npx react-native build-vega \
   --build-type Release --target x86_64 \
-  --build-number 2026082912 --build-version 1.2.0
+  --build-number 2026090201 --build-version 1.2.1
 ```
 
 Install a VPKG on a Vega device with:
@@ -185,12 +200,13 @@ vega device launch-app \
 ```
 
 Never use `vega run-app` for an upgrade: it uninstalls the existing package and
-deletes app data before installing. Build 1.2.0 passed physical acceptance and
+deletes app data before installing. Build 1.2.1 passed physical acceptance and
 its Amazon upload package is prepared.
 
 ## Documentation
 
 - [Changelog](CHANGELOG.md)
+- [Astra 1.2.1 release notes](docs/release-1.2.1.md)
 - [Astra 1.2.0 release notes](docs/release-1.2.0.md)
 - [Astra 1.1.2 release notes](docs/release-1.1.2.md)
 - [Astra 1.1.1 release notes](docs/release-1.1.1.md)

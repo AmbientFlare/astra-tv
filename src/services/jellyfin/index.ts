@@ -1,5 +1,10 @@
 import {buildDeviceProfile} from './deviceProfile';
-import {readPlaybackPreferences} from '../storage';
+import {
+  defaultUserPreferences,
+  getUserPreferences,
+  readPlaybackPreferences,
+  UserPreferences,
+} from '../storage';
 import {getServerUrlCandidates, normalizeServerUrl} from '../serverUrl';
 import {APP_VERSION} from '../../config/app';
 import {
@@ -121,6 +126,14 @@ export interface JellyfinChapter {
   startPositionTicks: number;
 }
 
+/** A timed range the server marks inside an item, such as its credits. */
+export interface JellyfinMediaSegment {
+  endTicks: number;
+  id?: string;
+  startTicks: number;
+  type: string;
+}
+
 export interface JellyfinMediaTrack {
   id: string;
   index?: number;
@@ -134,6 +147,7 @@ export interface JellyfinMediaTrack {
   displayTitle?: string;
   deliveryMethod?: string;
   isDefault?: boolean;
+  isForced?: boolean;
   isExternal?: boolean;
   deliveryUrl?: string;
   burnInRequired?: boolean;
@@ -184,6 +198,14 @@ export interface JellyfinStreamInfo {
   qualityOptions: JellyfinQualityOption[];
   runTimeTicks?: number;
   startPositionTicks?: number;
+  /**
+   * The subtitle stream this PlaybackInfo session plays, if any. Absent means
+   * Off. It is either the caller's pinned choice or the global preference
+   * resolved against the server's media source.
+   */
+  subtitleStreamIndex?: number;
+  /** True when the server was asked to burn `subtitleStreamIndex` in. */
+  subtitleBurnIn?: boolean;
   subtitleTracks: JellyfinMediaTrack[];
   transcodeUrl?: string;
   url: string;
@@ -193,11 +215,14 @@ const getUrlParameter = (url: string, name: string) => {
   try {
     const normalizedName = name.toLowerCase();
     let value: string | undefined;
-    new URL(url).searchParams.forEach((candidate, key) => {
-      if (key.toLowerCase() === normalizedName) {
-        value = candidate;
-      }
-    });
+    // Jellyfin's TranscodingUrl is server-relative; the base lets it parse.
+    new URL(url, 'http://relative.invalid').searchParams.forEach(
+      (candidate, key) => {
+        if (key.toLowerCase() === normalizedName) {
+          value = candidate;
+        }
+      },
+    );
     return value;
   } catch {
     return undefined;
@@ -421,8 +446,17 @@ const buildTranscodingUrl = (
   return url;
 };
 
+/**
+ * Extra data to ask for alongside an item.
+ *
+ * Every entry must be a member of the server's ItemFields enum: the parameter
+ * is bound as an enum array, so one unrecognised name rejects the whole
+ * request rather than being ignored. Ratings, production year and user data
+ * are plain item properties that come back on their own and must NOT be
+ * listed here — asking for them by name is what breaks the request.
+ */
 export const itemFields =
-  'Overview,Genres,People,MediaSources,OfficialRating,CommunityRating,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,ProductionYear,UserData,CriticRating,RemoteTrailers';
+  'Overview,Genres,People,MediaSources,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,RemoteTrailers';
 
 const qualityCaps: JellyfinQualityOption[] = [
   {id: 'auto', label: 'Auto'},
@@ -477,6 +511,93 @@ const supportsTextTrack = (codec?: string) =>
   ['webvtt', 'vtt', 'srt', 'subrip', 'ttml'].includes(
     codec?.toLowerCase() ?? '',
   );
+
+export type SubtitleMode = UserPreferences['subtitleMode'];
+
+export interface SubtitleSelectionTrack {
+  index?: number;
+  isForced?: boolean;
+  language?: string;
+}
+
+export interface SubtitleSelectionOptions {
+  mode: SubtitleMode;
+  preferredLanguage: string;
+  serverDefaultSubtitleStreamIndex?: number;
+  /**
+   * A choice made in the player overlay, including an empty object for Off.
+   * Keeping Off distinct from an absent override stops the global policy from
+   * switching subtitles back on during an audio or quality reload.
+   */
+  manualSelection?: {streamIndex?: number};
+}
+
+const subtitleLanguageAliases: Record<string, string[]> = {
+  english: ['en', 'eng', 'english'],
+  spanish: ['es', 'spa', 'spanish'],
+  french: ['fr', 'fra', 'fre', 'french'],
+  german: ['de', 'deu', 'ger', 'german'],
+  italian: ['it', 'ita', 'italian'],
+  japanese: ['ja', 'jpn', 'japanese'],
+  korean: ['ko', 'kor', 'korean'],
+  portuguese: ['pt', 'por', 'portuguese'],
+  russian: ['ru', 'rus', 'russian'],
+  chinese: ['zh', 'zho', 'chi', 'chinese'],
+};
+
+const subtitleLanguageMatches = (
+  language: string | undefined,
+  preferred: string,
+) => {
+  const normalizedLanguage = language?.trim().toLowerCase();
+  const normalizedPreferred = preferred.trim().toLowerCase();
+  if (!normalizedLanguage || !normalizedPreferred) {
+    return false;
+  }
+
+  const preferredAliases = subtitleLanguageAliases[normalizedPreferred] ?? [
+    normalizedPreferred,
+  ];
+  return preferredAliases.includes(normalizedLanguage);
+};
+
+/**
+ * Resolves the global subtitle preference against one PlaybackInfo response.
+ * Returns the stream index to play, or undefined for Off; the request below
+ * serializes Off as Jellyfin's explicit -1 so the server cannot restore its
+ * own default.
+ */
+export const selectSubtitleStreamIndex = (
+  tracks: SubtitleSelectionTrack[],
+  options: SubtitleSelectionOptions,
+): number | undefined => {
+  if (options.manualSelection) {
+    return options.manualSelection.streamIndex;
+  }
+
+  const availableTracks = tracks.filter((track) => track.index !== undefined);
+  const serverDefault = availableTracks.find(
+    (track) => track.index === options.serverDefaultSubtitleStreamIndex,
+  );
+
+  switch (options.mode) {
+    case 'alwaysOff':
+      return undefined;
+    case 'forcedOnly':
+      return availableTracks.find((track) => track.isForced)?.index;
+    case 'alwaysOn':
+      return (
+        availableTracks.find((track) =>
+          subtitleLanguageMatches(track.language, options.preferredLanguage),
+        )?.index ??
+        serverDefault?.index ??
+        availableTracks[0]?.index
+      );
+    case 'default':
+    default:
+      return serverDefault?.index;
+  }
+};
 
 const selectAudioStreamIndex = (
   mediaStreams: JellyfinMediaStream[],
@@ -672,6 +793,25 @@ const mapItem = (
   seriesName: item.SeriesName,
 });
 
+/**
+ * A failed server response, carrying its status so callers can tell "this is
+ * gone" apart from "the server is unhappy". A library scan that drops an item
+ * between a list and a detail request is ordinary, not an app error.
+ */
+export class ServerResponseError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ServerResponseError';
+    this.status = status;
+  }
+}
+
+export const isMissingItemError = (error: unknown) =>
+  error instanceof ServerResponseError &&
+  (error.status === 404 || error.status === 400);
+
 export const getJson = async <ResponseBody>(
   url: string,
   options: {
@@ -693,8 +833,9 @@ export const getJson = async <ResponseBody>(
     if (!response.ok) {
       const failedUrl = new URL(url);
       failedUrl.searchParams.delete('api_key');
-      throw new Error(
+      throw new ServerResponseError(
         `Server request failed ${response.status}: ${failedUrl.pathname}`,
+        response.status,
       );
     }
 
@@ -977,6 +1118,41 @@ export const getItems = async (
   );
 };
 
+/**
+ * Whether the server's first answer already plays exactly the subtitle the
+ * policy chose: none selected when none is wanted, or the wanted track
+ * already burned in. Anything else needs the source-pinned re-request.
+ */
+const firstResponseSatisfiesSubtitle = (
+  mediaSource:
+    | {DefaultSubtitleStreamIndex?: number; TranscodingUrl?: string}
+    | undefined,
+  wantedSubtitleStreamIndex: number | undefined,
+) => {
+  const transcodingUrl = mediaSource?.TranscodingUrl ?? '';
+  const urlIndex = getUrlParameter(transcodingUrl, 'SubtitleStreamIndex');
+  const deliveredIndexValue =
+    urlIndex !== undefined
+      ? Number(urlIndex)
+      : mediaSource?.DefaultSubtitleStreamIndex;
+  const deliveredIndex =
+    typeof deliveredIndexValue === 'number' &&
+    Number.isFinite(deliveredIndexValue) &&
+    deliveredIndexValue >= 0
+      ? deliveredIndexValue
+      : undefined;
+
+  if (wantedSubtitleStreamIndex === undefined) {
+    return deliveredIndex === undefined;
+  }
+
+  return (
+    deliveredIndex === wantedSubtitleStreamIndex &&
+    getUrlParameter(transcodingUrl, 'SubtitleMethod')?.toLowerCase() ===
+      'encode'
+  );
+};
+
 export const getStreamUrl = async (
   serverUrl: string,
   accessToken: string,
@@ -992,12 +1168,24 @@ export const getStreamUrl = async (
     mediaSourceId?: string;
     sourceHeight?: number;
     sourceWidth?: number;
+    /**
+     * True once the viewer chose a track or Off in the player. The request
+     * then carries `subtitleStreamIndex` as given (Off as -1) and the global
+     * subtitle preference is not consulted.
+     */
+    subtitleSelectionIsManual?: boolean;
     subtitleStreamIndex?: number;
   } = {},
 ): Promise<JellyfinStreamInfo> => {
   const baseUrl = normalizeServerUrl(serverUrl);
-  const prefs = await readPlaybackPreferences();
-  const audioOutputCapabilities = await getAudioOutputCapabilities();
+  const [prefs, userPreferences, audioOutputCapabilities] = await Promise.all([
+    readPlaybackPreferences(),
+    getUserPreferences().catch((error) => {
+      console.warn('[Astra] Unable to read subtitle preference:', error);
+      return defaultUserPreferences;
+    }),
+    getAudioOutputCapabilities(),
+  ]);
   const deviceProfile = buildDeviceProfile(prefs, audioOutputCapabilities);
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
     api_key: accessToken,
@@ -1011,6 +1199,7 @@ export const getStreamUrl = async (
     PlaySessionId?: string;
     MediaSources?: Array<{
       Id?: string;
+      DefaultSubtitleStreamIndex?: number;
       RunTimeTicks?: number;
       Container?: string;
       ETag?: string;
@@ -1036,15 +1225,26 @@ export const getStreamUrl = async (
         Height?: number;
         DisplayTitle?: string;
         IsDefault?: boolean;
+        IsForced?: boolean;
         IsExternal?: boolean;
         DeliveryUrl?: string;
         DeliveryMethod?: string;
       }>;
     }>;
   };
+  // A manual Off must reach the server as -1: leaving the field out lets a
+  // remembered or default subtitle come back on the next reload.
+  const requestedSubtitleStreamIndex = options.subtitleSelectionIsManual
+    ? options.subtitleStreamIndex ?? -1
+    : options.subtitleStreamIndex;
   const postPlaybackInfo = (
     audioStreamIndex?: number,
     mediaSourceId?: string,
+    subtitleStreamIndex: number | undefined = requestedSubtitleStreamIndex,
+    alwaysBurnInSubtitleWhenTranscoding:
+      | boolean
+      | undefined = options.alwaysBurnInSubtitleWhenTranscoding,
+    allowVideoStreamCopy: boolean = !options.forceTranscode,
   ) =>
     getJson<PlaybackInfoResponse>(playbackInfoUrl, {
       method: 'POST',
@@ -1064,9 +1264,9 @@ export const getStreamUrl = async (
         UserId: userId,
         StartTimeTicks: startPositionTicks,
         AudioStreamIndex: audioStreamIndex,
-        SubtitleStreamIndex: options.subtitleStreamIndex,
+        SubtitleStreamIndex: subtitleStreamIndex,
         AlwaysBurnInSubtitleWhenTranscoding:
-          options.alwaysBurnInSubtitleWhenTranscoding,
+          alwaysBurnInSubtitleWhenTranscoding,
         MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
         MaxAudioChannels: prefs.maxAudioChannels,
         // Everything is delivered over HLS — no direct play. Raw-file
@@ -1077,7 +1277,7 @@ export const getStreamUrl = async (
         // quality), so this costs nothing for most of the library.
         EnableDirectPlay: false,
         EnableDirectStream: false,
-        AllowVideoStreamCopy: !options.forceTranscode,
+        AllowVideoStreamCopy: allowVideoStreamCopy,
         AllowAudioStreamCopy: options.allowAudioStreamCopy ?? true,
         AutoOpenLiveStream: true,
       }),
@@ -1127,15 +1327,52 @@ export const getStreamUrl = async (
       prefs.maxAudioChannels,
     );
 
-  if (
-    options.audioStreamIndex === undefined &&
-    selectedAudioStreamIndex !== null
-  ) {
+  const audioNeedsPinning =
+    options.audioStreamIndex === undefined && selectedAudioStreamIndex !== null;
+
+  // The global subtitle preference is resolved against the source the server
+  // just named. A manual choice from the player overlay went out on the first
+  // request already and is passed through untouched.
+  const firstMediaSource = response.MediaSources?.[0];
+  const selectedSubtitleStreamIndex = selectSubtitleStreamIndex(
+    (firstMediaSource?.MediaStreams ?? [])
+      .filter((stream) => stream.Type === 'Subtitle')
+      .map((stream) => ({
+        index: stream.Index,
+        isForced: stream.IsForced,
+        language: stream.Language,
+      })),
+    {
+      mode: userPreferences.subtitleMode,
+      preferredLanguage: userPreferences.preferredSubtitleLanguage,
+      serverDefaultSubtitleStreamIndex:
+        firstMediaSource?.DefaultSubtitleStreamIndex,
+      manualSelection: options.subtitleSelectionIsManual
+        ? {streamIndex: options.subtitleStreamIndex}
+        : undefined,
+    },
+  );
+  // Every subtitle is burned in by the server (see mapTrack below), so a
+  // selected track always means burn-in.
+  const selectedSubtitleBurnIn = selectedSubtitleStreamIndex !== undefined;
+  const subtitleNeedsPinning =
+    !options.subtitleSelectionIsManual &&
+    !firstResponseSatisfiesSubtitle(
+      firstMediaSource,
+      selectedSubtitleStreamIndex,
+    );
+
+  if (firstMediaSource?.Id && (audioNeedsPinning || subtitleNeedsPinning)) {
     // Now that the server has named its source, pin the re-request to it so
-    // the chosen audio stream index refers to the same source.
+    // the chosen audio and subtitle stream indexes refer to the same source.
+    // A burned-in subtitle takes the same request shape as the in-player
+    // switch that passed on hardware: no video stream copy.
     const resolved = await postPlaybackInfo(
-      selectedAudioStreamIndex,
-      response.MediaSources?.[0]?.Id ?? options.mediaSourceId,
+      selectedAudioStreamIndex ?? undefined,
+      firstMediaSource.Id,
+      selectedSubtitleStreamIndex ?? -1,
+      selectedSubtitleBurnIn || options.alwaysBurnInSubtitleWhenTranscoding,
+      !options.forceTranscode && !selectedSubtitleBurnIn,
     );
 
     if (hasPlayableMediaSource(resolved)) {
@@ -1221,6 +1458,7 @@ export const getStreamUrl = async (
       displayTitle: track.DisplayTitle,
       deliveryMethod: track.DeliveryMethod,
       isDefault: track.IsDefault,
+      isForced: track.IsForced,
       isExternal: track.IsExternal,
       deliveryUrl,
       // Every subtitle is burned in by the server. Astra used to render text
@@ -1334,6 +1572,8 @@ export const getStreamUrl = async (
       : qualityCaps,
     runTimeTicks: mediaSource?.RunTimeTicks,
     startPositionTicks,
+    subtitleStreamIndex: selectedSubtitleStreamIndex,
+    subtitleBurnIn: selectedSubtitleBurnIn,
     subtitleTracks: streams
       .filter((track) => track.Type === 'Subtitle')
       .map((track) => mapTrack(track)),
@@ -1386,6 +1626,76 @@ export const getNextUp = (
     EnableImageTypes: 'Primary,Backdrop',
     Limit: 24,
   });
+
+/**
+ * The item's neighbours in series order: the server returns the previous
+ * episode, the episode itself and the next one, across season boundaries.
+ * A caller picks the one after `episodeId`.
+ */
+export const getAdjacentEpisodes = (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  seriesId: string,
+  episodeId: string,
+) =>
+  getItemCollection(serverUrl, accessToken, `/Shows/${seriesId}/Episodes`, {
+    UserId: userId,
+    AdjacentTo: episodeId,
+    Fields: itemFields,
+    ImageTypeLimit: 1,
+    EnableImageTypes: 'Primary,Backdrop',
+  });
+
+/**
+ * The item's credits segments. Servers before 10.10 have no such endpoint
+ * and answer 404, which simply means the server knows of no credits.
+ */
+export const getMediaSegments = async (
+  serverUrl: string,
+  accessToken: string,
+  itemId: string,
+): Promise<JellyfinMediaSegment[]> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  let response: {
+    Items?: Array<{
+      EndTicks?: number;
+      Id?: string;
+      StartTicks?: number;
+      Type?: string;
+    }>;
+  };
+
+  try {
+    response = await getJson(
+      buildUrl(baseUrl, `/MediaSegments/${itemId}`, {
+        IncludeSegmentTypes: 'Outro',
+        api_key: accessToken,
+      }),
+      {headers: getAuthHeaders(accessToken)},
+    );
+  } catch (error) {
+    if (error instanceof ServerResponseError && error.status === 404) {
+      return [];
+    }
+    throw error;
+  }
+
+  return (response?.Items ?? []).flatMap((segment) =>
+    typeof segment.StartTicks === 'number' &&
+    typeof segment.EndTicks === 'number' &&
+    segment.EndTicks > segment.StartTicks
+      ? [
+          {
+            endTicks: segment.EndTicks,
+            id: segment.Id,
+            startTicks: segment.StartTicks,
+            type: segment.Type ?? '',
+          },
+        ]
+      : [],
+  );
+};
 
 export const getLatestItems = async (
   serverUrl: string,

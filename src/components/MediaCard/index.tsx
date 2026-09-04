@@ -52,7 +52,7 @@ export const MediaCard = ({
           styles.imagePlaceholder,
           {height: Math.round(330 * imageScale)},
         ]}>
-        <Text numberOfLines={2} style={styles.placeholderText}>
+        <Text numberOfLines={10} style={styles.placeholderText}>
           {title}
         </Text>
       </View>
@@ -112,9 +112,13 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   placeholderText: {
+    // A card with no artwork has the whole poster area free, so a long name
+    // (a release filename, say) is shown in full rather than clipped to the
+    // two lines that suit a title sitting under a poster.
     color: '#8CA1AA',
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '700',
+    lineHeight: 24,
     textAlign: 'center',
   },
   caption: {

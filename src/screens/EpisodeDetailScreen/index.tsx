@@ -7,6 +7,7 @@ import {MediaCard} from '../../components/MediaCard';
 import {
   getEpisodes,
   getItemDetails,
+  isMissingItemError,
   JellyfinMediaItem,
   setFavorite,
   setPlayed,
@@ -134,8 +135,11 @@ export const EpisodeDetailScreen = ({
         }
       } catch (error) {
         if (mounted) {
+          // The episode may have gone between the list and this request.
           setErrorText(
-            error instanceof Error
+            isMissingItemError(error)
+              ? 'This item is no longer on the server.'
+              : error instanceof Error
               ? error.message
               : 'Unable to load episode details.',
           );

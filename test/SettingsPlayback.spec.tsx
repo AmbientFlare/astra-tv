@@ -5,9 +5,13 @@ import {
   PlaybackSettingsOverlay,
   PlaybackStatsOverlay,
   shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
-import {writePlaybackPreferences} from '../src/services/storage';
+import {
+  updateUserPreferences,
+  writePlaybackPreferences,
+} from '../src/services/storage';
 
 jest.mock('@amazon-devices/react-native-kepler', () => {
   const MockReact = require('react');
@@ -103,6 +107,9 @@ const mockWritePlaybackPreferences =
   writePlaybackPreferences as jest.MockedFunction<
     typeof writePlaybackPreferences
   >;
+const mockUpdateUserPreferences = updateUserPreferences as jest.MockedFunction<
+  typeof updateUserPreferences
+>;
 
 const serverProfile = {
   accessToken: 'test-token',
@@ -147,6 +154,28 @@ describe('playback diagnostics entry points', () => {
     );
   });
 
+  it('offers the three global subtitle states plus forced-only and persists the choice', async () => {
+    mockUpdateUserPreferences.mockClear();
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    await waitFor(() =>
+      expect(screen.getByText('Default (per video)')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-Subtitle mode'));
+
+    expect(screen.getByText('All subtitles on')).toBeTruthy();
+    expect(screen.getByText('All subtitles off')).toBeTruthy();
+    expect(screen.getByText('Only forced')).toBeTruthy();
+    fireEvent.press(screen.getByText('All subtitles off'));
+
+    await waitFor(() =>
+      expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+        subtitleMode: 'alwaysOff',
+      }),
+    );
+  });
+
   it('shows the release version and build number on the About page', async () => {
     const screen = render(<SettingsScreen serverProfile={serverProfile} />);
 
@@ -155,22 +184,22 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.2.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260829.15')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.2.0")).toBeTruthy();
+    expect(screen.getByText('Astra 1.2.1')).toBeTruthy();
+    expect(screen.getByText('Build: 20260902.1')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.2.1")).toBeTruthy();
     expect(
       screen.getByText(
-        '• Fixed resuming a title, switching audio tracks, and turning on burned-in subtitles, which could all exit to Home on Vega OS 1.2.',
+        "• Added a subtitle preference in Settings > Playback: leave each video's own default, turn subtitles all on, all off, or show only forced tracks.",
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Made seeking and startup much faster: a long jump that took most of a minute now takes seconds.',
+        "• Added Skip Credits and Next Episode, with an optional automatic skip and an autoplay countdown. Autoplay stops after three episodes in a row to confirm you're still watching.",
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Updated for Vega OS 1.2 and the current Amazon device libraries.',
+        '• Fixed playback getting stuck on Buffering when a video with burned-in subtitles resumed, jumped a long distance, or switched tracks partway through.',
       ),
     ).toBeTruthy();
   });
@@ -305,7 +334,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.2\.0 \(20260829\.15\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.2\.1 \(20260902\.1\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
@@ -326,5 +355,17 @@ describe('playback diagnostics entry points', () => {
     expect(shouldUseHlsSequenceMode('mp4')).toBe(false);
     expect(shouldUseHlsSequenceMode('fMP4 HLS')).toBe(false);
     expect(shouldUseHlsSequenceMode(undefined)).toBe(false);
+  });
+
+  it('uses sequence mode only for an fMP4 session that starts mid-file', () => {
+    // A resumed or reloaded fMP4 transcode stalled on hardware in segments
+    // mode: the first fragment landed at its source time, the playhead at 0.
+    expect(shouldUseSequenceModeForMidFileStart('mp4', 3343)).toBe(true);
+    expect(shouldUseSequenceModeForMidFileStart('fMP4 HLS', 90)).toBe(true);
+    expect(shouldUseSequenceModeForMidFileStart('mp4', 0)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('mp4', undefined)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('ts', 3343)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('mpegts', 3343)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart(undefined, 3343)).toBe(false);
   });
 });
