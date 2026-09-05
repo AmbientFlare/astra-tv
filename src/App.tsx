@@ -28,6 +28,7 @@ export const App = () => {
         ...support.results,
         probeSucceeded: support.probeSucceeded,
         controlsFailed: support.controlsFailed,
+        alwaysTrue: support.alwaysTrue,
       });
     });
     const subscription = AppState.addEventListener('change', (state) =>
