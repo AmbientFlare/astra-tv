@@ -1,4 +1,6 @@
-import React from 'react';
+import React, {useEffect} from 'react';
+import {AppState} from 'react-native';
+import {bootstrapTelemetry, telemetryAppState} from './services/telemetry';
 import {RootNavigator} from './navigation';
 
 // ==== SPIKE (2026-07-27) — DELETE THIS BLOCK AND src/spike WHEN FINISHED ====
@@ -9,6 +11,13 @@ const RUN_AUDIO_SPIKE = false;
 // ===========================================================================
 
 export const App = () => {
+  useEffect(() => {
+    void bootstrapTelemetry();
+    const subscription = AppState.addEventListener('change', (state) =>
+      telemetryAppState(state === 'active'),
+    );
+    return () => subscription.remove();
+  }, []);
   if (RUN_AUDIO_SPIKE) {
     const {AudioSpike} = require('./spike/AudioSpike');
     return <AudioSpike />;
