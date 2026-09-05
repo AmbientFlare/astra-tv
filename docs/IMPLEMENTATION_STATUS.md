@@ -1,6 +1,155 @@
 # Implementation Status
 
-Last updated: 2026-09-02
+Last updated: 2026-09-05
+
+## Telemetry implementation — in progress
+
+User clarified that the handoff must be implemented before cleanup. Restored
+the verified source archive. Gate-only build installed and inspected on the
+development Fire TV: restricted privilege was accepted at build/install, but
+all four enumerated interfaces returned status 4 (PERMISSION_DENIED). Following
+the handoff, removed the restricted privilege and selected the manual opt-in
+gate. Existing persistent identity and legacy credential storage are preserved.
+
+- [x] Read proposal and preserve pre-existing playback work.
+- [x] Verify hardware privilege on device; select fail-closed fallback.
+- [ ] Trace-only build: explicit device activation and real collector events.
+- [ ] Playback decision, variants, error detail, heartbeat and session end integration.
+- [ ] Crash-tail, gate and transport fault tests; full regression/typecheck/build.
+- [ ] Final device delivery verification and documentation; handoff cleanup last.
+
+Original review status (historical):
+
+Read the full supplied telemetry proposal and source. Findings and future gates
+are recorded in [the telemetry review](telemetry-review-2026-09-05.md).
+The collector's local health check passed; no app-to-collector telemetry or
+hardware gate has been verified. Original proposal preserved locally before
+standalone handoff cleanup. No application, device, or service changes in this
+review; telemetry remains unimplemented.
+
+### Latest user-reported physical results (supersede failure status below)
+
+The HTTP 500 segment failures stopped after the user restarted the Jellyfin
+container. A full roughly 50-minute episode played; audio/video sync appeared
+good, with only a possible very small, unconfirmed offset. The credits prompt,
+letting credits finish, and next-episode transition worked. On a different
+movie, resume, audio-track selection, and subtitle on/off worked. The longer
+movie sync check was still in progress at the last report. These are user
+observations, not independent device verification or acceptance of every route.
+
+## Astra 1.3 playback core — candidate installed, physical acceptance pending
+
+### Physical failure reported after candidate installation
+
+The user reports H.264/EAC3 HLS/MP4 remaining stuck through recovery/Retry:
+zero decoded frames, Shaka `1001` category 1 severity 2 after initial load.
+This establishes failed HTTP delivery, not its cause or a decoder failure.
+The installed diagnostic omitted the HTTP status and request kind. Historical
+local device logs cannot be correlated with this new report.
+
+Working-tree follow-up adds allowlisted HTTP status/request kind to Shaka
+runtime and startup-failure diagnostics, and renders nonfinite buffering
+duration as unavailable instead of `NaNs`. No URLs, headers or response bodies
+are forwarded. This follow-up is not yet packaged or installed and does not
+claim to fix the underlying HTTP failure. Physical acceptance remains failed
+for the reported route until the failing response can be identified and fixed.
+Follow-up validation: 413 tests in 48 suites and one snapshot passed;
+TypeScript passed; ESLint completed with zero errors and 79 warnings.
+
+Diagnostic follow-up packaged as **1.3.0 / 20260905.1** and successfully
+installed via a data-preserving update on the development Fire TV at the
+user's request. Submission build passed; the 13 Settings/diagnostic tests
+passed after updating the build marker. This supersedes the uninstalled
+follow-up status above. Playback retest and underlying HTTP diagnosis remain
+pending; look for `http=... request=manifest/segment` in the new failure trace.
+
+Authorized continuation from 1.2.1 (`b9125b8`), on
+`feat/1.3-playback-core`. The architecture review below is the problem record.
+Preserve hardware-accepted codec/container policies and synchronous native MSE
+operations. Do not declare hardware acceptance from unit tests.
+
+Acceptance checklist:
+
+- [x] Native buffer exceptions reach Shaka; buffer-operation waits are bounded and observable.
+- [x] Shaka and native errors feed a consistent, sanitized diagnostic/recovery path.
+- [x] Startup, reload, recovery, exit and background share cancellable session ownership.
+- [x] Cleanup is idempotent and independent of server telemetry; no late load can revive a released player.
+- [x] Item duration/position govern progress, chapters and completion; early EOF is handled explicitly.
+- [x] Subtitle and decoder conversion requirements remain separate; Off removes only subtitle conversion.
+- [x] Every installation has a persistent unique Jellyfin device identity.
+- [x] Start/progress/stop reports are ordered per session and cannot revive stopped sessions.
+- [x] Regression and fault tests cover failures and overlapping lifecycle transitions.
+- [ ] Lint, TypeScript, full tests and 1.3 candidate build pass.
+- [ ] Physical-device acceptance covers long playback, resume, tracks, interruption, background and autoplay on supported routes.
+
+Latest full validation passed 409 tests in 47 suites, one snapshot, TypeScript
+and ESLint. A subsequent duplicate-surface/completed-playback adjustment passed
+all eight targeted PlayerScreen integration tests; a full rerun on that final
+adjustment is still pending. The final candidate submission build passed.
+
+Candidate 1.3.0 build `20260904.1` was installed with a data-preserving update
+and launched successfully on the development Fire TV. A screenshot confirmed
+the saved profile and library home loaded. No physical playback acceptance is
+claimed. Artifact: `dist/candidate-1.3.0-20260904.1/astra-1.3.0-x86_64-release.vpkg`.
+
+Device testing was stopped at the user's request; the user will run the
+[morning checklist](morning-playback-checklist-1.3.md). Release publication
+remains pending physical acceptance and the final automated rerun.
+
+## Playback architecture review — historical diagnosis before implementation
+
+The [2026-09-04 architecture review](playback-architecture-review-2026-09-04.md)
+records the verified findings, platform evidence, and recommended implementation
+sequence. New confirmed problems include swallowed synchronous native buffer
+exceptions, missing Shaka error forwarding, uncancelled startup after exit,
+an incomplete unload barrier, shared device identity, and subtitle-triggered
+forced conversion remaining enabled after subtitles are turned off. Resource
+release still waits for server reports and background handling only pauses.
+
+All 374 tests in 41 suites, the snapshot, TypeScript, and ESLint passed. Local
+fault probes reproduced the exception and unload-barrier defects. No playback
+code changed and no physical playback reproduction was performed in this review.
+The next architectural step is a single cancellable playback session with
+consistent timeline, resource ownership, error handling, and ordered reports;
+preserve the hardware-accepted delivery policies while validating that change.
+
+## Issue #17 playback review — diagnosis only
+
+Reviewed [issue #17](https://github.com/AmbientFlare/astra-tv/issues/17),
+the v1.2.0 source, and current commit `b9125b8`. No playback code changed.
+
+- Confirmed: `shaka.load.start startTime=0` is intentional. The requested
+  position reaches PlaybackInfo as `StartTimeTicks`, the HLS response filter
+  trims preceding segments, and the player maps media time to item time.
+  The log's 245 skipped segments are not 245 seconds.
+- Confirmed: `waiting` and `stalled` only update diagnostics/UI; Astra has
+  no prolonged-stall session recovery. Native media errors trigger recovery,
+  while Shaka has its own configured request retries. The reported zero
+  media errors therefore does not establish successful segment delivery.
+- Confirmed: the progress bar divides logical item position by native media
+  duration when available. A shortened playlist can therefore make the bar
+  reach 100% early. Chapter filtering uses the same mismatched duration.
+  This does not itself stop playback or prove incorrect server watch state.
+- Confirmed: native `ended` is accepted without comparing logical position
+  with item runtime. v1.2.0 labels it Finished; current 1.2.1 may also start
+  next-episode handling. This amplifies premature EOF but does not explain
+  why the media engine first stopped.
+- Related fix: `8cf4e2b`, included in 1.2.1, enables sequence mode for
+  mid-file fMP4 starts to address source timestamps far ahead of the new
+  playhead. It is relevant to this report's reload path, but the excerpt
+  does not establish that it fixes the original mid-playback stall.
+- `DirectPlayError` is displayed from the server URL's `TranscodeReasons`;
+  Astra disables direct play in PlaybackInfo. That label alone does not
+  establish that a client direct-play attempt failed.
+
+Validation: all 75 existing tests across seven targeted suites passed
+(HlsResumePlaylist, MediaTimeline, PlayerLifecycle, ShakaBufferTracking,
+JellyfinStreamPolicy, PlaybackInfoRequests, EpisodePlayback). These are unit
+tests, not a reproduction on the reporter's stream/device. Root cause of
+the initial stall remains unverified. A full trace spanning the first stall,
+native/Shaka buffered ranges and duration, actual ended/error events, and
+the matching server transcode log are needed to distinguish timestamp,
+segment delivery, decoder, and premature EOF failures.
 
 ## Global subtitle preference and credits/next episode — released in 1.2.1
 

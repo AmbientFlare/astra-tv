@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 — candidate, not yet released
+
+- Reworked video playback around cancellable sessions and shared cleanup.
+- Restored native buffer error propagation and added Shaka error diagnostics
+  and bounded recovery for stalls and premature stream endings.
+- Corrected resumed progress/chapter duration, subtitle-off conversion, and
+  ordered Jellyfin playback reports.
+- Added persistent per-installation device identity and safe music handoff.
+- Preserved the hardware-accepted codec/container and timestamp-mode policies.
+- Physical acceptance and publication are pending; see
+  [the candidate notes](docs/release-1.3.0.md).
+
 ## 1.2.1 - 2026-09-02
 
 Adds a global subtitle preference and Skip Credits / Next Episode playback
