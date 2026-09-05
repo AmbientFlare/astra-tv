@@ -15,6 +15,7 @@
  *    is paginated and returns a total count for infinite scroll.
  */
 import {buildUrl, getAuthHeaders, getJson, itemFields} from './index';
+import {getDeviceId} from '../deviceIdentity';
 
 export interface MusicSession {
   accessToken: string;
@@ -606,7 +607,7 @@ export const searchMusic = async (
 export const getAudioStreamUrl = (
   session: MusicSession,
   trackId: string,
-  deviceId = 'astra-audio',
+  deviceId = getDeviceId(),
 ) =>
   buildUrl(
     session.serverUrl,
@@ -631,7 +632,7 @@ export const getAudioStreamUrl = (
 export const getAudioHlsStreamUrl = (
   session: MusicSession,
   trackId: string,
-  deviceId = 'astra-audio',
+  deviceId = getDeviceId(),
 ) =>
   buildUrl(
     session.serverUrl,
