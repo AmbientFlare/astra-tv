@@ -32,6 +32,7 @@ import {
   trimHlsMediaPlaylistForResume,
 } from '../hlsResumePlaylist';
 import {trace} from '../../services/logging/trace';
+import {shakaFailure} from '../../services/playbackHealth';
 
 // install polyfills
 Document.install();
@@ -52,15 +53,31 @@ export interface ShakaPlayerSettings {
   hlsSequenceMode?: boolean;
   hlsIgnoreManifestTimestampsInSegmentsMode?: boolean;
   hlsResumePositionSeconds?: number;
+  onError?: (error: {
+    code?: number;
+    category?: number;
+    severity?: number;
+    httpStatus?: number;
+    requestType?: number;
+    source: 'shaka' | 'mse';
+  }) => void;
+  onTimelineReady?: (start: {
+    requestedSeconds: number;
+    skippedSeconds: number;
+  }) => void;
 }
 
 export class ShakaPlayer implements PlayerInterface {
   player: shaka.Player;
   private setting_: ShakaPlayerSettings;
   private mediaElement: HTMLMediaElement | null;
-  private bufferOperations = new BufferOperationTracker();
+  private bufferOperations: BufferOperationTracker;
   private appendHooksCleanup: (() => void) | null = null;
   private lifecycleQueue: Promise<void> = Promise.resolve();
+  private shakaErrorListener: ((event: any) => void) | null = null;
+  private loadSettled = false;
+  private loadCancelled = false;
+  private cancellationPromise: Promise<void> | null = null;
 
   static readonly enableNativeParsing = false;
   static readonly enableNativeXmlParsing = false;
@@ -71,6 +88,16 @@ export class ShakaPlayer implements PlayerInterface {
   ) {
     this.mediaElement = mediaElement;
     this.setting_ = setting;
+    this.bufferOperations = new BufferOperationTracker((error: any) => {
+      this.setting_.onError?.({
+        code: typeof error?.code === 'number' ? error.code : undefined,
+        category:
+          typeof error?.category === 'number' ? error.category : undefined,
+        severity:
+          typeof error?.severity === 'number' ? error.severity : undefined,
+        source: 'mse',
+      });
+    });
   }
 
   private enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
@@ -119,11 +146,7 @@ export class ShakaPlayer implements PlayerInterface {
 
     if (originalAbort) {
       sourceBuffer.abort = () => {
-        this.bufferOperations.track(
-          sourceBuffer,
-          () => originalAbort(),
-          false,
-        );
+        this.bufferOperations.track(sourceBuffer, () => originalAbort(), false);
       };
     }
   }
@@ -306,11 +329,17 @@ export class ShakaPlayer implements PlayerInterface {
   // End custom callbacks }}}
 
   async load(content: any, _autoplay: boolean): Promise<void> {
+    this.loadCancelled = false;
     return this.enqueueLifecycle(() => this.loadInternal(content, _autoplay));
   }
 
   private async loadInternal(content: any, _autoplay: boolean): Promise<void> {
     await this.waitForAppendComplete();
+    if (this.loadCancelled) {
+      throw Object.assign(new Error('Playback load cancelled'), {
+        name: 'PlaybackCancelledError',
+      });
+    }
     this.installAppendHooks();
 
     // Native HLS parsing setup
@@ -418,6 +447,13 @@ export class ShakaPlayer implements PlayerInterface {
 
     console.log('shakaplayer: creating');
     this.player = new shaka.Player(this.mediaElement);
+    this.loadSettled = false;
+    this.shakaErrorListener = (event: any) => {
+      if (!this.loadSettled) return;
+      const detail = event?.detail ?? event;
+      this.setting_.onError?.(shakaFailure(detail));
+    };
+    this.player.addEventListener?.('error', this.shakaErrorListener);
     console.log('shakaplayer: loading');
 
     // Registering the Custom filters for uplynk test streams.
@@ -511,6 +547,10 @@ export class ShakaPlayer implements PlayerInterface {
           console.info('[Astra] Trimmed Jellyfin HLS resume playlist:', {
             skippedDurationSeconds: trimmed.skippedDurationSeconds,
             skippedSegments: trimmed.skippedSegments,
+          });
+          this.setting_.onTimelineReady?.({
+            requestedSeconds: this.setting_.hlsResumePositionSeconds!,
+            skippedSeconds: trimmed.skippedDurationSeconds,
           });
         } catch (error) {
           console.warn('[Astra] Unable to trim HLS resume playlist:', error);
@@ -680,7 +720,28 @@ export class ShakaPlayer implements PlayerInterface {
       });
     }
 
-    await this.internalLoad(content);
+    try {
+      await this.internalLoad(content);
+    } catch (error) {
+      const player = this.player;
+      this.player = null;
+      if (player && this.shakaErrorListener) {
+        player.removeEventListener?.('error', this.shakaErrorListener);
+        this.shakaErrorListener = null;
+      }
+      this.appendHooksCleanup?.();
+      if (player) {
+        try {
+          await player.destroy?.();
+        } catch (destroyError) {
+          console.warn(
+            '[Astra] Failed to destroy Shaka after load failure:',
+            destroyError,
+          );
+        }
+      }
+      throw error;
+    }
     await this.waitForAppendComplete();
     console.log('shakaplayer: load() OUT');
   }
@@ -688,6 +749,7 @@ export class ShakaPlayer implements PlayerInterface {
     const loadStart = Date.now();
     trace('shaka.load.start', `startTime=${content.startTime ?? 0}`);
     await this.player.load(content.uri, content.startTime);
+    this.loadSettled = true;
     trace('shaka.load.done', `ms=${Date.now() - loadStart}`);
     console.log('shakaplayer: setTextTrackVisibility');
     this.player.setTextTrackVisibility(true);
@@ -753,6 +815,22 @@ export class ShakaPlayer implements PlayerInterface {
     return this.enqueueLifecycle(() => this.unloadInternal());
   }
 
+  /** Interrupt an in-flight Shaka load without waiting behind the lifecycle queue. */
+  async cancelLoad(): Promise<void> {
+    this.loadCancelled = true;
+    this.loadSettled = false;
+    if (this.cancellationPromise) return this.cancellationPromise;
+    const player = this.player;
+    if (!player || typeof player.unload !== 'function') return;
+    this.cancellationPromise = Promise.resolve()
+      .then(() => player.unload())
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+    return this.cancellationPromise;
+  }
+
   private async unloadInternal(): Promise<void> {
     console.log('shakaplayer:unload');
 
@@ -760,9 +838,17 @@ export class ShakaPlayer implements PlayerInterface {
     this.player = null;
     this.mediaElement = null;
 
-    await this.waitForAppendComplete();
+    try {
+      await this.waitForAppendComplete();
+    } catch (error) {
+      console.warn(
+        '[Astra] Native buffer observation failed during unload:',
+        error,
+      );
+    }
 
     if (!player) {
+      this.shakaErrorListener = null;
       this.appendHooksCleanup?.();
       return;
     }
@@ -786,6 +872,11 @@ export class ShakaPlayer implements PlayerInterface {
     }
 
     try {
+      if (this.cancellationPromise) await this.cancellationPromise;
+      if (this.shakaErrorListener) {
+        player.removeEventListener?.('error', this.shakaErrorListener);
+        this.shakaErrorListener = null;
+      }
       await player.detach();
     } finally {
       try {
@@ -794,6 +885,7 @@ export class ShakaPlayer implements PlayerInterface {
         await player.destroy();
       } finally {
         this.appendHooksCleanup?.();
+        this.cancellationPromise = null;
       }
     }
   }

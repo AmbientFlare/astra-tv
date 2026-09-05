@@ -11,6 +11,7 @@ import {
   AudioOutputCapabilities,
   getAudioOutputCapabilities,
 } from '../mediaCapabilities';
+import {getDeviceId, initializeDeviceIdentity} from '../deviceIdentity';
 
 export interface JellyfinServerInfo {
   /**
@@ -288,6 +289,7 @@ export interface GetItemsOptions {
 }
 
 export interface PlaybackReportInput {
+  failed?: boolean;
   itemId: string;
   audioStreamIndex?: number;
   mediaSourceId?: string;
@@ -310,20 +312,21 @@ interface DiscoveryOptions {
   timeoutMs?: number;
 }
 
-const AUTH_HEADER = `MediaBrowser Client="Astra", Device="FireTV", DeviceId="astra-device-001", Version="${APP_VERSION}"`;
+const authHeader = () =>
+  `MediaBrowser Client="Astra", Device="FireTV", DeviceId="${getDeviceId()}", Version="${APP_VERSION}"`;
 
 // Jellyfin 10.12 disables the X-Emby-* legacy headers by default and 10.13
 // removes them; send the standard Authorization header alongside them so both
 // old and new servers accept requests.
 const getPreAuthHeaders = () => ({
-  Authorization: AUTH_HEADER,
-  'X-Emby-Authorization': AUTH_HEADER,
+  Authorization: authHeader(),
+  'X-Emby-Authorization': authHeader(),
 });
 
 // Exported for the sibling music module; not part of the public surface.
 export const getAuthHeaders = (accessToken: string) => ({
-  Authorization: `${AUTH_HEADER}, Token="${accessToken}"`,
-  'X-Emby-Authorization': `${AUTH_HEADER}, Token="${accessToken}"`,
+  Authorization: `${authHeader()}, Token="${accessToken}"`,
+  'X-Emby-Authorization': `${authHeader()}, Token="${accessToken}"`,
   'X-Emby-Token': accessToken,
   'X-MediaBrowser-Token': accessToken,
 });
@@ -818,15 +821,35 @@ export const getJson = async <ResponseBody>(
     body?: string;
     headers?: Record<string, string>;
     method?: string;
+    signal?: AbortController['signal'];
   } = {},
   timeoutMs = 45000,
 ): Promise<ResponseBody> => {
+  await initializeDeviceIdentity();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const abortExternal = () => controller.abort();
+  options.signal?.addEventListener('abort', abortExternal, {once: true});
 
   try {
+    if (options.signal?.aborted) controller.abort();
+    const requestOptions = {...options};
+    // Headers may have been assembled synchronously before identity storage
+    // finished loading. Refresh only our own token-bearing headers; callers'
+    // unrelated headers must remain untouched.
+    const authorization = options.headers?.Authorization;
+    const tokenMatch = authorization?.match(/, Token="([^"]*)"/);
+    if (
+      tokenMatch &&
+      authorization?.startsWith('MediaBrowser Client="Astra"')
+    ) {
+      requestOptions.headers = {
+        ...options.headers,
+        ...getAuthHeaders(tokenMatch[1]),
+      };
+    }
     const response = await fetch(url, {
-      ...options,
+      ...requestOptions,
       signal: controller.signal,
     });
 
@@ -844,6 +867,7 @@ export const getJson = async <ResponseBody>(
     return (text ? JSON.parse(text) : undefined) as ResponseBody;
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', abortExternal);
   }
 };
 
@@ -903,6 +927,7 @@ export const authenticate = async (
   username: string,
   password: string,
 ): Promise<JellyfinAuthResult> => {
+  await initializeDeviceIdentity();
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
     User?: {Id?: string; Name?: string};
@@ -983,6 +1008,7 @@ export const authenticateWithQuickConnect = async (
   serverUrl: string,
   secret: string,
 ): Promise<JellyfinAuthResult> => {
+  await initializeDeviceIdentity();
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
     User?: {Id?: string; Name?: string};
@@ -1175,8 +1201,10 @@ export const getStreamUrl = async (
      */
     subtitleSelectionIsManual?: boolean;
     subtitleStreamIndex?: number;
+    signal?: AbortController['signal'];
   } = {},
 ): Promise<JellyfinStreamInfo> => {
+  await initializeDeviceIdentity();
   const baseUrl = normalizeServerUrl(serverUrl);
   const [prefs, userPreferences, audioOutputCapabilities] = await Promise.all([
     readPlaybackPreferences(),
@@ -1281,6 +1309,7 @@ export const getStreamUrl = async (
         AllowAudioStreamCopy: options.allowAudioStreamCopy ?? true,
         AutoOpenLiveStream: true,
       }),
+      signal: options.signal,
     });
 
   let response = await postPlaybackInfo(
@@ -1295,7 +1324,11 @@ export const getStreamUrl = async (
     console.log(
       '[Astra] PlaybackInfo returned no media source; retrying once.',
     );
+    if (options.signal?.aborted)
+      throw Object.assign(new Error('Aborted'), {name: 'AbortError'});
     await wait(PLAYBACK_INFO_RETRY_MS);
+    if (options.signal?.aborted)
+      throw Object.assign(new Error('Aborted'), {name: 'AbortError'});
     response = await postPlaybackInfo(
       options.audioStreamIndex,
       options.mediaSourceId,
@@ -1554,7 +1587,10 @@ export const getStreamUrl = async (
     deliveredAudioStreamIndex,
     deliveredVideoCodec: videoDelivery.codec ?? selectedVideoStream?.Codec,
     audioOutputCapabilities,
-    audioTranscodePolicy: deviceProfile.TranscodingProfiles[0].AudioCodec,
+    // Report the policy matching the selected delivery route, not always the
+    // first profile (which is video-oriented on some server versions).
+    audioTranscodePolicy:
+      getCodecChoices(url, 'AudioCodec').join(',') || undefined,
     height: sourceHeight,
     hlsMinimumSegmentCount: adaptiveStream
       ? getPositiveUrlNumber(url, 'MinSegments') ?? 1
@@ -1891,7 +1927,7 @@ const reportPlayback = async (
           PositionTicks: input.positionTicks,
           AudioStreamIndex: input.audioStreamIndex,
           SubtitleStreamIndex: input.subtitleStreamIndex,
-          Failed: false,
+          Failed: input.failed ?? false,
         }
       : {
           ItemId: input.itemId,

@@ -33,6 +33,7 @@ import {
   MusicTrack,
 } from '../jellyfin/music';
 import {isCleartextUrl} from '../serverUrl';
+import {initializeDeviceIdentity} from '../deviceIdentity';
 
 interface AdaptiveAudioPlayer {
   load(
@@ -46,6 +47,7 @@ interface AdaptiveAudioPlayer {
     autoplay: boolean,
   ): Promise<void>;
   unload(): Promise<void>;
+  cancelLoad?(): Promise<void>;
 }
 
 /** Below this many seconds, "previous" means the previous track. */
@@ -206,6 +208,8 @@ const emptyStatus = (queue: QueueState): PlaybackStatus => ({
 });
 
 export class AudioPlaybackService {
+  private loadGeneration = 0;
+  private stopping: Promise<void> | null = null;
   private player: AudioPlayer | null = null;
   private adaptivePlayer: AdaptiveAudioPlayer | null = null;
   private session: MusicSession | null = null;
@@ -286,16 +290,20 @@ export class AudioPlaybackService {
 
   private attachEvents(player: AudioPlayer) {
     player.addEventListener('playing', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       this.consecutiveErrors = 0;
       this.patch({isBuffering: false, isPlaying: true});
     });
     player.addEventListener('pause', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       this.patch({isPlaying: false});
     });
     player.addEventListener('waiting', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       this.patch({isBuffering: true});
     });
     player.addEventListener('loadedmetadata', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       const duration = player.duration;
 
       this.patch({
@@ -308,15 +316,18 @@ export class AudioPlaybackService {
       player.play();
     });
     player.addEventListener('timeupdate', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       this.patch({
         positionSeconds: player.currentTime ?? 0,
         readyState: player.readyState ?? 0,
       });
     });
     player.addEventListener('ended', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       this.advance({auto: true});
     });
     player.addEventListener('error', () => {
+      if (this.player !== player || !currentTrack(this.queue)) return;
       this.consecutiveErrors += 1;
       console.warn(
         `[Astra] Audio error on "${this.status.track?.name ?? 'unknown'}" ` +
@@ -344,6 +355,7 @@ export class AudioPlaybackService {
   }
 
   async dispose() {
+    await this.stop();
     const player = this.player;
     const adaptivePlayer = this.adaptivePlayer;
 
@@ -415,6 +427,9 @@ export class AudioPlaybackService {
   }
 
   private async loadCurrent() {
+    if (this.stopping) await this.stopping;
+    const generation = ++this.loadGeneration;
+    const isCurrent = () => generation === this.loadGeneration;
     const session = this.session;
     const track = currentTrack(this.queue);
 
@@ -423,6 +438,9 @@ export class AudioPlaybackService {
     }
 
     const player = await this.ensurePlayer();
+    if (!isCurrent()) return;
+    await initializeDeviceIdentity();
+    if (!isCurrent()) return;
 
     this.patch({
       durationSeconds: 0,
@@ -448,6 +466,7 @@ export class AudioPlaybackService {
 
     if (this.adaptivePlayer) {
       await this.adaptivePlayer.unload();
+      if (!isCurrent()) return;
       this.adaptivePlayer = null;
     }
 
@@ -464,9 +483,21 @@ export class AudioPlaybackService {
     const {ShakaPlayer} = await import(
       '../../w3cmedia/shakaplayer/ShakaPlayer'
     );
+    if (!isCurrent()) return;
     const adaptivePlayer: AdaptiveAudioPlayer = new ShakaPlayer(player, {
       secure: false,
       abrEnabled: false,
+      onError: (error) => {
+        if (!isCurrent() || error.severity === 1) return;
+        player.pause();
+        this.patch({
+          isPlaying: false,
+          isBuffering: false,
+          lastError: `Audio stream error ${error.code ?? 'unknown'} (category ${
+            error.category ?? 'unknown'
+          }). Retry playback.`,
+        });
+      },
     });
     this.adaptivePlayer = adaptivePlayer;
 
@@ -482,6 +513,7 @@ export class AudioPlaybackService {
         false,
       );
     } catch (error) {
+      if (!isCurrent()) return;
       if (this.adaptivePlayer === adaptivePlayer) {
         this.adaptivePlayer = null;
       }
@@ -593,26 +625,45 @@ export class AudioPlaybackService {
   }
 
   async stop() {
-    this.player?.pause();
-    if (this.adaptivePlayer) {
-      const adaptivePlayer = this.adaptivePlayer;
-      this.adaptivePlayer = null;
-      try {
-        await adaptivePlayer.unload();
-      } catch (error) {
-        console.warn('[Astra] Failed to unload stopped audio:', error);
-      }
-    }
+    if (this.stopping) return this.stopping;
+    ++this.loadGeneration;
     this.syncQueue(createQueue([]));
-    this.patch({
-      durationSeconds: 0,
-      isBuffering: false,
-      isPlaying: false,
-      lastError: null,
-      lastStreamUrl: null,
-      positionSeconds: 0,
-      readyState: 0,
-    });
+    this.player?.pause();
+    this.patch({isBuffering: false, isPlaying: false});
+    const stop = (async () => {
+      // A pending focus/initialize must settle before video may claim focus.
+      try {
+        await this.initializing;
+      } catch {
+        /* Failed initialization has no playable source. */
+      }
+      const player = this.player;
+      const adaptive = this.adaptivePlayer;
+      this.player = null;
+      this.adaptivePlayer = null;
+      this.initializing = null;
+      try {
+        await adaptive?.cancelLoad?.();
+        await adaptive?.unload();
+      } finally {
+        await player?.deinitialize();
+      }
+      this.patch({
+        durationSeconds: 0,
+        isBuffering: false,
+        isPlaying: false,
+        lastError: null,
+        lastStreamUrl: null,
+        positionSeconds: 0,
+        readyState: 0,
+      });
+    })();
+    this.stopping = stop;
+    try {
+      await stop;
+    } finally {
+      if (this.stopping === stop) this.stopping = null;
+    }
   }
 
   // ------------------------------------------------------------------ seek

@@ -1,3 +1,8 @@
+jest.mock('../src/services/deviceIdentity', () => ({
+  initializeDeviceIdentity: jest.fn(async () => 'test-installation'),
+  getDeviceId: () => 'test-installation',
+}));
+
 import {getAdjacentEpisodes, getMediaSegments} from '../src/services/jellyfin';
 import {
   createCountdown,
