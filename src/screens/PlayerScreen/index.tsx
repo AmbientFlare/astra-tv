@@ -106,6 +106,7 @@ import {
   WebVttCue,
 } from '../../services/subtitles';
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
+import {createPositionStore, PositionStore} from './positionStore';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -387,6 +388,19 @@ export const PlayerScreen = ({
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
   );
+  // The high-frequency channel. `timeupdate` writes here and nowhere else, so
+  // the ~4 Hz playhead stream reaches the subtitle overlay without re-rendering
+  // the player. Every other position change also lands in React state below.
+  const positionStore = useRef(
+    createPositionStore((item.resumePositionTicks ?? 0) / TICKS_PER_SECOND),
+  ).current;
+  const applyPosition = useCallback(
+    (seconds: number) => {
+      positionStore.set(seconds);
+      setPositionSeconds(seconds);
+    },
+    [positionStore],
+  );
   const [preferredSeekSeconds, setPreferredSeekSeconds] = useState(
     defaultPlaybackPrefs.seekDurationSeconds,
   );
@@ -562,11 +576,6 @@ export const PlayerScreen = ({
     };
   }, [currentStream, selectedSubtitleTrackIndex]);
 
-  const activeSubtitleText = useMemo(
-    () => activeWebVttText(externalSubtitleCues, positionSeconds),
-    [externalSubtitleCues, positionSeconds],
-  );
-
   const currentPositionTicks = useCallback(() => {
     if (
       !sessionReady.current ||
@@ -630,53 +639,56 @@ export const PlayerScreen = ({
     [clearControlsHideTimer, scheduleControlsHide],
   );
 
-  const applyPendingInitialSeek = useCallback((video: VideoPlayer) => {
-    const target = pendingInitialSeekSeconds.current;
+  const applyPendingInitialSeek = useCallback(
+    (video: VideoPlayer) => {
+      const target = pendingInitialSeekSeconds.current;
 
-    if (target === null || initialSeekApplied.current) {
-      return;
-    }
-
-    initialSeekApplied.current = true;
-    if (initialSeekTimer.current) {
-      clearTimeout(initialSeekTimer.current);
-    }
-    initialSeekTimer.current = setTimeout(async () => {
-      initialSeekTimer.current = null;
-      if (unmountedRef.current || videoRef.current !== video) {
+      if (target === null || initialSeekApplied.current) {
         return;
       }
 
-      const shakaPlayer = shakaPlayerRef.current;
-      if (shakaPlayer) {
-        await shakaPlayer.waitForAppendComplete();
+      initialSeekApplied.current = true;
+      if (initialSeekTimer.current) {
+        clearTimeout(initialSeekTimer.current);
       }
-      if (unmountedRef.current || videoRef.current !== video) {
-        return;
-      }
+      initialSeekTimer.current = setTimeout(async () => {
+        initialSeekTimer.current = null;
+        if (unmountedRef.current || videoRef.current !== video) {
+          return;
+        }
 
-      const duration =
-        typeof video.duration === 'number' && Number.isFinite(video.duration)
-          ? video.duration
-          : 0;
-      const clampedTarget =
-        duration > 0 ? Math.min(target, Math.max(0, duration - 1)) : target;
+        const shakaPlayer = shakaPlayerRef.current;
+        if (shakaPlayer) {
+          await shakaPlayer.waitForAppendComplete();
+        }
+        if (unmountedRef.current || videoRef.current !== video) {
+          return;
+        }
 
-      try {
-        video.currentTime = clampedTarget;
-        latestPositionTicks.current = toTicks(clampedTarget);
-        setPositionSeconds(clampedTarget);
-        setStatusText(
-          `Resumed at ${Math.floor(clampedTarget / 60)}:${String(
-            Math.floor(clampedTarget % 60),
-          ).padStart(2, '0')}`,
-        );
-      } catch (error) {
-        console.warn('Failed to apply resume position', error);
-        setStatusText('Playing from start');
-      }
-    }, 250);
-  }, []);
+        const duration =
+          typeof video.duration === 'number' && Number.isFinite(video.duration)
+            ? video.duration
+            : 0;
+        const clampedTarget =
+          duration > 0 ? Math.min(target, Math.max(0, duration - 1)) : target;
+
+        try {
+          video.currentTime = clampedTarget;
+          latestPositionTicks.current = toTicks(clampedTarget);
+          applyPosition(clampedTarget);
+          setStatusText(
+            `Resumed at ${Math.floor(clampedTarget / 60)}:${String(
+              Math.floor(clampedTarget % 60),
+            ).padStart(2, '0')}`,
+          );
+        } catch (error) {
+          console.warn('Failed to apply resume position', error);
+          setStatusText('Playing from start');
+        }
+      }, 250);
+    },
+    [applyPosition],
+  );
 
   const reportProgress = useCallback(
     (positionTicks = currentPositionTicks(), paused = isPausedRef.current) => {
@@ -881,7 +893,7 @@ export const PlayerScreen = ({
 
       const positionTicks = toTicks(target);
       latestPositionTicks.current = positionTicks;
-      setPositionSeconds(target);
+      applyPosition(target);
 
       if (video.paused) {
         video.play();
@@ -901,7 +913,7 @@ export const PlayerScreen = ({
 
       reportProgress(positionTicks, false);
     },
-    [item.runTimeTicks, reportProgress, scheduleControlsHide],
+    [applyPosition, item.runTimeTicks, reportProgress, scheduleControlsHide],
   );
 
   const seek = useCallback(
@@ -1364,7 +1376,7 @@ export const PlayerScreen = ({
           );
           pendingAdaptiveResumeSeconds.current = null;
           latestPositionTicks.current = toTicks(resumeTarget);
-          setPositionSeconds(resumeTarget);
+          applyPosition(resumeTarget);
           console.info('[Astra] Calibrated server-positioned HLS timeline:', {
             logicalStartSeconds: resumeTarget,
             mediaStartSeconds: video.currentTime,
@@ -1448,7 +1460,8 @@ export const PlayerScreen = ({
               mediaTimelineOffsetSeconds.current,
             );
           latestPositionTicks.current = toTicks(logicalTime);
-          setPositionSeconds(logicalTime);
+          // Store only. The 1 Hz interval below owns `positionSeconds`.
+          positionStore.set(logicalTime);
         }
       });
       listen('error', () => {
@@ -1491,8 +1504,10 @@ export const PlayerScreen = ({
     },
     [
       applyPendingInitialSeek,
+      applyPosition,
       currentPositionTicks,
       item.runTimeTicks,
+      positionStore,
       reportStopped,
       revealControls,
       scheduleControlsHide,
@@ -1660,7 +1675,7 @@ export const PlayerScreen = ({
       setSelectedSubtitleTrackIndex(stream.subtitleStreamIndex);
       selectedSubtitleBurnIn.current = Boolean(stream.subtitleBurnIn);
       subtitleSelectionPinned.current = true;
-      setPositionSeconds(startTicks / TICKS_PER_SECOND);
+      applyPosition(startTicks / TICKS_PER_SECOND);
       setStatusText(
         stream.playMethod === 'Transcode'
           ? isAdaptiveStream(stream.url)
@@ -1674,6 +1689,7 @@ export const PlayerScreen = ({
     },
     [
       accessToken,
+      applyPosition,
       item.id,
       item.mediaStreams,
       item.name,
@@ -1757,7 +1773,7 @@ export const PlayerScreen = ({
           firstAvailableSeconds.current = 0;
           mediaTimelineOffsetSeconds.current = 0;
           pendingAdaptiveResumeSeconds.current = null;
-          setPositionSeconds(target);
+          applyPosition(target);
           const video = await createFreshVideoPlayer(context);
           context.assertCurrent();
           trace(
@@ -1839,6 +1855,7 @@ export const PlayerScreen = ({
     [
       accessToken,
       addSelectedSubtitleTrack,
+      applyPosition,
       cancelCountdown,
       createFreshVideoPlayer,
       currentPositionTicks,
@@ -2059,7 +2076,7 @@ export const PlayerScreen = ({
       const video = videoRef.current;
       if (!video || !sessionReady.current || unmountedRef.current) return;
       const ticks = currentPositionTicks();
-      setPositionSeconds(ticks / TICKS_PER_SECOND);
+      applyPosition(ticks / TICKS_PER_SECOND);
       reportProgress(ticks);
       if (
         healthMonitor.current.observe(
@@ -2085,7 +2102,7 @@ export const PlayerScreen = ({
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [currentPositionTicks, reportProgress]);
+  }, [applyPosition, currentPositionTicks, reportProgress]);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -2297,14 +2314,10 @@ export const PlayerScreen = ({
         style={styles.videoSurface}
         testID="player-video-surface"
       />
-      {activeSubtitleText ? (
-        <View
-          pointerEvents="none"
-          style={styles.subtitleOverlay}
-          testID="player-external-subtitle">
-          <Text style={styles.subtitleText}>{activeSubtitleText}</Text>
-        </View>
-      ) : null}
+      <ExternalSubtitleOverlay
+        cues={externalSubtitleCues}
+        positionStore={positionStore}
+      />
       {isStarting || startupError ? (
         <View style={styles.startupOverlay} testID="player-startup-state">
           <Text numberOfLines={1} style={styles.startupTitle}>
@@ -2621,6 +2634,47 @@ const formatDiagnosticTime = (seconds: number) =>
     2,
     '0',
   )}`;
+
+/**
+ * Renders external WebVTT cues off the position store rather than off React
+ * state, so a playhead tick that does not change the visible cue costs no
+ * render anywhere — and one that does re-renders only this overlay.
+ */
+export const ExternalSubtitleOverlay = ({
+  cues,
+  positionStore,
+}: {
+  cues: WebVttCue[];
+  positionStore: PositionStore;
+}) => {
+  const [text, setText] = useState(() =>
+    activeWebVttText(cues, positionStore.get()),
+  );
+
+  useEffect(() => {
+    setText(activeWebVttText(cues, positionStore.get()));
+    if (cues.length === 0) {
+      return undefined;
+    }
+    return positionStore.subscribe((seconds) => {
+      const next = activeWebVttText(cues, seconds);
+      setText((current) => (current === next ? current : next));
+    });
+  }, [cues, positionStore]);
+
+  if (!text) {
+    return null;
+  }
+
+  return (
+    <View
+      pointerEvents="none"
+      style={styles.subtitleOverlay}
+      testID="player-external-subtitle">
+      <Text style={styles.subtitleText}>{text}</Text>
+    </View>
+  );
+};
 
 export const PlaybackStatsOverlay = ({
   diagnostics,
