@@ -155,6 +155,107 @@ export const probeAudioOutputCapabilities = async (
   }
 };
 
+/**
+ * Observational only. Nothing reads this: it exists to answer one question
+ * that is currently guesswork -- whether Vega's MSE accepts MPEG-TS natively,
+ * or whether Shaka's bundled TsTransmuxer is converting every segment in JS.
+ *
+ * Astra routes HEVC through MPEG-TS deliberately (see deviceProfile.ts): the
+ * fMP4 muxer rewrites open-GOP keyframe PTS onto a following B-frame and Vega
+ * renders the duplicate timestamps as micro-stutter. So a "no" here does not
+ * mean the route is wrong; it means the route has a JS cost nobody has
+ * measured. Do not wire this into the device profile.
+ */
+const containerProbeTypes = {
+  // The route actually in use. hvc1 and hev1 differ only in how the codec
+  // parameters are carried, and platforms are inconsistent about which they
+  // accept, so both are asked.
+  tsHevcHvc1: 'video/mp2t; codecs="hvc1.1.6.L93.B0"',
+  tsHevcHev1: 'video/mp2t; codecs="hev1.1.6.L93.B0"',
+  tsH264: 'video/mp2t; codecs="avc1.640028"',
+  tsBare: 'video/mp2t',
+  // Controls. fMP4 is the path this device is known to play, so if these come
+  // back false as well then the probe is broken and NO conclusion about
+  // mp2t follows from the results above.
+  mp4HevcControl: 'video/mp4; codecs="hvc1.1.6.L93.B0"',
+  mp4H264Control: 'video/mp4; codecs="avc1.640028"',
+} as const;
+
+type ContainerProbeKey = keyof typeof containerProbeTypes;
+
+export interface ContainerSupport {
+  results: Record<ContainerProbeKey, boolean>;
+  /** False when the media module could not be loaded; results are then meaningless. */
+  probeSucceeded: boolean;
+  /**
+   * True when both controls failed, i.e. the probe cannot tell "this device
+   * rejects mp2t" from "this probe does not work". Read this before reading
+   * anything else.
+   */
+  controlsFailed: boolean;
+}
+
+const emptyContainerResults = (): Record<ContainerProbeKey, boolean> => {
+  const results = {} as Record<ContainerProbeKey, boolean>;
+  for (const key of Object.keys(containerProbeTypes) as ContainerProbeKey[]) {
+    results[key] = false;
+  }
+  return results;
+};
+
+export const probeContainerSupport = async (
+  dependencies: {isTypeSupported?: IsTypeSupported} = {},
+): Promise<ContainerSupport> => {
+  const results = emptyContainerResults();
+
+  try {
+    let probeContainer = dependencies.isTypeSupported;
+
+    if (!probeContainer) {
+      const media = await import(
+        '@amazon-devices/react-native-w3cmedia/dist/headless'
+      );
+      probeContainer = media.MediaSource.isTypeSupported.bind(
+        media.MediaSource,
+      );
+    }
+
+    for (const key of Object.keys(containerProbeTypes) as ContainerProbeKey[]) {
+      try {
+        // A platform may throw on a codec string it does not recognise at all,
+        // which is a "no" and must not abort the remaining probes.
+        results[key] = probeContainer(containerProbeTypes[key]) === true;
+      } catch (error) {
+        console.warn(`[Astra] Container probe threw for ${key}:`, error);
+        results[key] = false;
+      }
+    }
+
+    const controlsFailed = !results.mp4HevcControl && !results.mp4H264Control;
+
+    console.info('[Astra] Container support probe:', {
+      ...results,
+      controlsFailed,
+    });
+
+    return {results, probeSucceeded: true, controlsFailed};
+  } catch (error) {
+    console.warn('[Astra] Unable to probe container support:', error);
+    return {results, probeSucceeded: false, controlsFailed: true};
+  }
+};
+
+let cachedContainerSupport: Promise<ContainerSupport> | null = null;
+
+export const getContainerSupport = () => {
+  cachedContainerSupport ??= probeContainerSupport();
+  return cachedContainerSupport;
+};
+
+export const resetContainerSupportCache = () => {
+  cachedContainerSupport = null;
+};
+
 let cachedCapabilities: Promise<AudioOutputCapabilities> | null = null;
 
 export const getAudioOutputCapabilities = () => {
