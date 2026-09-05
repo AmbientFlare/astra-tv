@@ -1,5 +1,16 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import {
+  configureManualTelemetry,
+  telemetryStatus,
+} from '../../services/telemetry';
 import {
   TVFocusGuideView,
   useKeplerBackHandler,
@@ -35,6 +46,7 @@ type SettingsRoute =
   | {route: 'login'}
   | {route: 'customization'}
   | {route: 'playback'}
+  | {route: 'telemetry'}
   | {route: 'about'}
   | {route: 'autoSignIn'}
   | {route: 'accountSort'}
@@ -108,6 +120,8 @@ export const SettingsScreen = ({
 }: SettingsScreenProps) => {
   const keplerBackHandler = useKeplerBackHandler();
   const [stack, setStack] = useState<SettingsRoute[]>([{route: 'preferences'}]);
+  const [telemetryPhrase, setTelemetryPhrase] = useState('');
+  const [telemetryMessage, setTelemetryMessage] = useState('');
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
@@ -482,6 +496,60 @@ export const SettingsScreen = ({
             />
           </Page>
         );
+      case 'telemetry':
+        return (
+          <Page title="Developer telemetry" onBack={pop}>
+            <Text style={{color: 'white', fontSize: 22}}>
+              Off by default. Enabling sends viewing diagnostics to the
+              configured operator collector. Enter the operator phrase only on
+              your own test device. Logs contain private viewing information.
+            </Text>
+            <TextInput
+              testID="telemetry-phrase"
+              value={telemetryPhrase}
+              onChangeText={setTelemetryPhrase}
+              placeholder="Operator phrase"
+              placeholderTextColor="#aaaaaa"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                color: 'white',
+                borderColor: '#aaaaaa',
+                borderWidth: 1,
+                padding: 16,
+                fontSize: 24,
+              }}
+            />
+            <MenuRow
+              icon="↗"
+              title="Enable on this device"
+              onPress={() => {
+                void configureManualTelemetry(telemetryPhrase).then(
+                  (enabled) => {
+                    setTelemetryPhrase('');
+                    setTelemetryMessage(
+                      enabled
+                        ? 'Enabled on this device.'
+                        : 'Not enabled: check phrase and build configuration.',
+                    );
+                  },
+                );
+              }}
+            />
+            <MenuRow
+              icon="×"
+              title="Disable telemetry"
+              onPress={() => {
+                void configureManualTelemetry('').then(() =>
+                  setTelemetryMessage('Telemetry stopped.'),
+                );
+              }}
+            />
+            <Text style={{color: 'white', fontSize: 22}}>
+              {telemetryMessage || telemetryStatus().reason}
+            </Text>
+          </Page>
+        );
       case 'playback':
         return (
           <Page title="Playback" onBack={pop}>
@@ -507,6 +575,15 @@ export const SettingsScreen = ({
                 })
               }
             />
+            {playbackPrefs.showPlaybackStats &&
+              playbackPrefs.showPlaybackTraces && (
+                <MenuRow
+                  icon="↯"
+                  title="Developer telemetry"
+                  subtitle="Local opt-in diagnostics; off by default"
+                  onPress={() => push({route: 'telemetry'})}
+                />
+              )}
             <MenuRow
               icon="↯"
               title="Max streaming bitrate"
@@ -776,19 +853,17 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Added a subtitle preference in Settings {'>'} Playback:
-                  leave each video's own default, turn subtitles all on, all
-                  off, or show only forced tracks.
+                  • Playback now shares one recovery and cleanup path for
+                  starting, seeking, changing tracks, and leaving a video.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Added Skip Credits and Next Episode, with an optional
-                  automatic skip and an autoplay countdown. Autoplay stops after
-                  three episodes in a row to confirm you're still watching.
+                  • Corrected progress after resuming, subtitle-off conversion,
+                  and device identity when using more than one TV.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Fixed playback getting stuck on Buffering when a video with
-                  burned-in subtitles resumed, jumped a long distance, or
-                  switched tracks partway through.
+                  • Added stream-engine error details and bounded recovery for
+                  stalled playback. This 1.3 candidate is undergoing device
+                  validation.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>

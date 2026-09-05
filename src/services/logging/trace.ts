@@ -20,6 +20,10 @@ export interface PlaybackTrace {
 
 const traces: PlaybackTrace[] = [];
 let originMs: number | null = null;
+let sink: ((entry: PlaybackTrace) => void) | null = null;
+export const setTraceSink = (next: typeof sink): void => {
+  sink = next;
+};
 
 /** Records one trace. Never throws; callers are on the playback hot path. */
 export const trace = (label: string, detail: string = ''): void => {
@@ -28,9 +32,15 @@ export const trace = (label: string, detail: string = ''): void => {
     if (originMs === null) {
       originMs = atMs;
     }
-    traces.push({label, detail, atMs});
+    const entry = {label, detail, atMs};
+    traces.push(entry);
     if (traces.length > TRACE_CAPACITY) {
       traces.shift();
+    }
+    try {
+      sink?.(entry);
+    } catch {
+      /* A sink must never fail playback. */
     }
   } catch {
     // Diagnostics must never break playback.
