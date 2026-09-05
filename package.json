@@ -1,12 +1,18 @@
 {
   "name": "@amazon-devices/astra",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
   "files": [
     "dist"
   ],
   "scripts": {
+    "prepare": "node scripts/prepare-telemetry.cjs",
+    "prestart": "node scripts/prepare-telemetry.cjs",
+    "pretest": "node scripts/prepare-telemetry.cjs",
+    "prebuild:submission": "node scripts/prepare-telemetry.cjs",
+    "prebuild:release": "node scripts/prepare-telemetry.cjs",
+    "prebuild:debug": "node scripts/prepare-telemetry.cjs",
     "clean": "rm -rf node_modules buildinfo.json dist build",
     "start": "react-native start",
     "test": "jest --colors ",

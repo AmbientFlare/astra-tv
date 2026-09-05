@@ -15,6 +15,10 @@ Website and install instructions: <https://watchastra.com>
 The current release is Astra `1.2.1`, build `20260902.1`, for x86_64
 Fire TV devices running Vega OS 1.2 or later.
 
+The development branch contains the Astra 1.3.0 playback-core candidate.
+See [candidate notes and physical acceptance checks](docs/release-1.3.0.md).
+It has not replaced the public 1.2.1 release.
+
 - Website: <https://watchastra.com> (screenshots, setup, and the
   [full release history](https://watchastra.com/releases/))
 - Package ID: `com.astra.tv`
