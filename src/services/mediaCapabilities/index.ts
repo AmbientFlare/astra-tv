@@ -174,11 +174,21 @@ const containerProbeTypes = {
   tsHevcHev1: 'video/mp2t; codecs="hev1.1.6.L93.B0"',
   tsH264: 'video/mp2t; codecs="avc1.640028"',
   tsBare: 'video/mp2t',
-  // Controls. fMP4 is the path this device is known to play, so if these come
-  // back false as well then the probe is broken and NO conclusion about
-  // mp2t follows from the results above.
+  // POSITIVE controls. fMP4 is the path this device is known to play, so if
+  // these come back false as well then the probe is broken and NO conclusion
+  // about mp2t follows from the results above.
   mp4HevcControl: 'video/mp4; codecs="hvc1.1.6.L93.B0"',
   mp4H264Control: 'video/mp4; codecs="avc1.640028"',
+  // NEGATIVE controls, and the reason the first run of this probe was
+  // unreadable: every type came back true, which an honest "mp2t is
+  // supported" and a stubbed `isTypeSupported` that always returns true
+  // produce identically. Positive controls only prove the probe RAN; these
+  // prove it DISCRIMINATES. Two of them, because they fail differently -- a
+  // container the platform has never heard of, and a real container carrying
+  // a codec that does not exist. An implementation can sniff the MIME type
+  // and ignore the codecs parameter entirely, which the first would miss.
+  garbageContainerControl: 'video/x-astra-not-a-real-container',
+  garbageCodecControl: 'video/mp4; codecs="zzzz.9.9.L999.X9"',
 } as const;
 
 type ContainerProbeKey = keyof typeof containerProbeTypes;
@@ -188,11 +198,19 @@ export interface ContainerSupport {
   /** False when the media module could not be loaded; results are then meaningless. */
   probeSucceeded: boolean;
   /**
-   * True when both controls failed, i.e. the probe cannot tell "this device
-   * rejects mp2t" from "this probe does not work". Read this before reading
-   * anything else.
+   * True when the controls did not behave, i.e. the probe cannot tell "this
+   * device rejects mp2t" from "this probe does not work" or "this probe says
+   * yes to everything". Read this before reading anything else: when it is
+   * true, every other result is noise.
    */
   controlsFailed: boolean;
+  /**
+   * True when a type that cannot possibly be supported was reported as
+   * supported. `isTypeSupported` is then not answering the question, and any
+   * capability logic elsewhere that trusts it is equally unreliable -- which
+   * is a finding in its own right, not merely a failed probe.
+   */
+  alwaysTrue: boolean;
 }
 
 const emptyContainerResults = (): Record<ContainerProbeKey, boolean> => {
@@ -231,17 +249,27 @@ export const probeContainerSupport = async (
       }
     }
 
-    const controlsFailed = !results.mp4HevcControl && !results.mp4H264Control;
+    // A positive control must pass and BOTH negative controls must fail.
+    const positivesPassed = results.mp4HevcControl || results.mp4H264Control;
+    const alwaysTrue =
+      results.garbageContainerControl || results.garbageCodecControl;
+    const controlsFailed = !positivesPassed || alwaysTrue;
 
     console.info('[Astra] Container support probe:', {
       ...results,
       controlsFailed,
+      alwaysTrue,
     });
 
-    return {results, probeSucceeded: true, controlsFailed};
+    return {results, probeSucceeded: true, controlsFailed, alwaysTrue};
   } catch (error) {
     console.warn('[Astra] Unable to probe container support:', error);
-    return {results, probeSucceeded: false, controlsFailed: true};
+    return {
+      results,
+      probeSucceeded: false,
+      controlsFailed: true,
+      alwaysTrue: false,
+    };
   }
 };
 

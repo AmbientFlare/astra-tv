@@ -12,7 +12,10 @@ describe('probeContainerSupport', () => {
 
   it('reports mp2t as unsupported while the controls pass', async () => {
     const isTypeSupported = jest.fn(
-      (contentType: string) => !contentType.startsWith('video/mp2t'),
+      (contentType: string) =>
+        !contentType.startsWith('video/mp2t') &&
+        !contentType.includes('not-a-real-container') &&
+        !contentType.includes('zzzz'),
     );
 
     const support = await probeContainerSupport({isTypeSupported});
@@ -25,6 +28,7 @@ describe('probeContainerSupport', () => {
     expect(support.results.tsBare).toBe(false);
     expect(support.results.mp4HevcControl).toBe(true);
     expect(support.results.mp4H264Control).toBe(true);
+    expect(support.alwaysTrue).toBe(false);
   });
 
   it('flags controlsFailed when nothing at all is supported, so the mp2t result cannot be trusted', async () => {
@@ -50,6 +54,34 @@ describe('probeContainerSupport', () => {
     expect(seen).toContain('video/mp2t');
   });
 
+  it('rejects an all-true implementation instead of reporting full support', async () => {
+    // The failure this probe was rebuilt to catch: a stubbed isTypeSupported
+    // that says yes to everything is indistinguishable from real mp2t support
+    // unless the negative controls are checked.
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+    const support = await probeContainerSupport({isTypeSupported: () => true});
+
+    expect(support.results.tsHevcHvc1).toBe(true);
+    expect(support.alwaysTrue).toBe(true);
+    expect(support.controlsFailed).toBe(true);
+  });
+
+  it('probes a bogus container and a bogus codec, which fail differently', async () => {
+    const seen: string[] = [];
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+    await probeContainerSupport({
+      isTypeSupported: (contentType: string) => {
+        seen.push(contentType);
+        return false;
+      },
+    });
+
+    // A platform may sniff the MIME type and ignore the codecs parameter, so
+    // an unknown container alone would not catch it.
+    expect(seen).toContain('video/x-astra-not-a-real-container');
+    expect(seen).toContain('video/mp4; codecs="zzzz.9.9.L999.X9"');
+  });
+
   it('treats a throwing codec string as unsupported and keeps probing', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     const support = await probeContainerSupport({
@@ -57,13 +89,19 @@ describe('probeContainerSupport', () => {
         if (contentType === 'video/mp2t') {
           throw new Error('unrecognised type');
         }
-        return true;
+        return (
+          !contentType.includes('not-a-real-container') &&
+          !contentType.includes('zzzz')
+        );
       },
     });
 
     expect(support.results.tsBare).toBe(false);
     expect(support.results.tsHevcHvc1).toBe(true);
     expect(support.results.mp4H264Control).toBe(true);
+    // The throwing string was a negative control's neighbour, not a control:
+    // positives still passed and negatives still failed.
+    expect(support.alwaysTrue).toBe(false);
     expect(support.controlsFailed).toBe(false);
   });
 
@@ -83,6 +121,7 @@ describe('probeContainerSupport', () => {
     await expect(first).resolves.toMatchObject({
       probeSucceeded: false,
       controlsFailed: true,
+      alwaysTrue: false,
     });
   });
 });
