@@ -50,6 +50,7 @@ export interface ShakaPlayerSettings {
   abrEnabled: boolean;
   abrMaxWidth?: number;
   abrMaxHeight?: number;
+  preferredVideoHdrLevel?: 'AUTO' | 'PQ' | 'HLG';
   hlsSequenceMode?: boolean;
   hlsIgnoreManifestTimestampsInSegmentsMode?: boolean;
   hlsResumePositionSeconds?: number;
@@ -661,6 +662,11 @@ export class ShakaPlayer implements PlayerInterface {
       },
       autoShowText: shaka.config.AutoShowText.ALWAYS,
     };
+
+    if (this.setting_.preferredVideoHdrLevel) {
+      playerConfig.preferredVideoHdrLevel =
+        this.setting_.preferredVideoHdrLevel;
+    }
 
     if (content.vcodec) {
       playerConfig.preferredVideoCodecs = [content.vcodec];

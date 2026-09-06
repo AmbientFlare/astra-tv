@@ -2,6 +2,32 @@
 
 Last updated: 2026-09-05
 
+## HDR variant selection — build 20260905.12; physical acceptance pending
+
+- Video playback now passes a top-level, opt-in Shaka HDR preference from the
+  cached controlled decoder probe: PQ for supported HDR10, HLG when the source
+  reports HLG and its probe succeeds, AUTO for rejected/inconclusive probes,
+  SDR, Dolby Vision, HDR10+, and other known ranges. Missing range metadata
+  uses PQ only with a supported HDR10 verdict. Music does not opt in.
+- Verified the vendored Shaka 4.8.5 live filter at compiled.js:186–189 retains
+  the previous candidates when the preferred range has no matches. The device
+  profile, manifest.hls configuration, direct-play flags, native parsing,
+  subtitle burn-in policy, and server encoder settings are unchanged.
+- TypeScript and touched-file ESLint pass; 57 Jest suites / 472 tests / one
+  snapshot pass, including controlled HDR preference tests. Release x86_64
+  build 2026090512 succeeded and was installed in place with saved data intact.
+  App launch succeeded; fresh app.start and media.hdr telemetry arrived for
+  build 20260905.12. Generated configuration is armed and remains gitignored.
+- Physical acceptance is NOT complete. Existing operator-only device-driving
+  instruction is retained. Run The Predator with subtitles OFF, The Hangover,
+  and a music track. Inspect fresh server FFmpeg bodies for video copy and no
+  tone mapping, plus segment URLs without AllowVideoStreamCopy=false. Operator
+  must report actual HDR picture quality; decoder acceptance is insufficient.
+- Server logs checked after install still end at the handoff's 02:31:10 UTC SDR
+  run; no new-build playback evidence exists yet. Debug logging remains enabled
+  for these pending runs; remove its temporary override after verification as
+  directed by the handoff. Stop if the TV picture is wrong; do not tune the sink.
+
 ## Transcode delivery evidence — deployed; operator playback pending
 
 - Corrected `playback.decision` video/audio methods to explicit Unknown with

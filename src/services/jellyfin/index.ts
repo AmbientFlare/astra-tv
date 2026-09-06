@@ -178,6 +178,7 @@ export interface JellyfinStreamInfo {
   sourceAudioProfile?: string;
   sourceAudioSampleRate?: number;
   sourceVideoCodec?: string;
+  sourceVideoRangeType?: string;
   outputAudioBitrate?: number;
   outputAudioCodec?: string;
   outputVideoCodec?: string;
@@ -1257,6 +1258,7 @@ export const getStreamUrl = async (
         IsExternal?: boolean;
         DeliveryUrl?: string;
         DeliveryMethod?: string;
+        VideoRangeType?: string;
       }>;
     }>;
   };
@@ -1577,6 +1579,7 @@ export const getStreamUrl = async (
     sourceAudioProfile: deliveredAudioStream?.Profile,
     sourceAudioSampleRate: deliveredAudioStream?.SampleRate,
     sourceVideoCodec: selectedVideoStream?.Codec,
+    sourceVideoRangeType: selectedVideoStream?.VideoRangeType,
     outputAudioBitrate,
     outputAudioCodec: audioDelivery.codec,
     outputVideoCodec: videoDelivery.codec,
