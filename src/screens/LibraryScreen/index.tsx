@@ -11,6 +11,7 @@ import {LoadingOrError} from '../../components/LoadingOrError';
 import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
+  getItemDetails,
   getItems,
   JellyfinMediaItem,
   JellyfinSortBy,
@@ -78,6 +79,47 @@ const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
   small: 0.75,
 };
 
+/**
+ * How far either side of the focused card to fetch details ahead of focus.
+ * Two rows in each direction: enough that walking the grid at D-pad speed
+ * lands on something already fetched, and small enough that scrolling the
+ * length of a library does not queue hundreds of requests.
+ */
+const DETAIL_PREFETCH_RADIUS = 6;
+
+/**
+ * Upper bound on cached per-item details. Each is roughly 10KB, so this is a
+ * couple of megabytes at worst; entries are evicted in insertion order.
+ */
+const DETAIL_CACHE_LIMIT = 240;
+
+/**
+ * Item ids to fill in around a focused card: the card itself first, then its
+ * neighbours outward, forward before backward. Whichever way focus moves
+ * next, the nearest cards are the ones already fetched, and the panel is
+ * complete by the time it is looked at.
+ */
+export const detailPrefetchIds = (
+  items: JellyfinMediaItem[],
+  index: number,
+) => {
+  const ids: string[] = [];
+  const add = (at: number) => {
+    const item = items[at];
+    if (item) {
+      ids.push(item.id);
+    }
+  };
+
+  add(index);
+  for (let offset = 1; offset <= DETAIL_PREFETCH_RADIUS; offset += 1) {
+    add(index + offset);
+    add(index - offset);
+  }
+
+  return ids;
+};
+
 export const LibraryScreen = ({
   libraryId,
   libraryName,
@@ -104,6 +146,17 @@ export const LibraryScreen = ({
       imageSize: 'medium',
       imageType: 'Primary',
     });
+  /**
+   * The heavy half of an item, keyed by item id, filled in as focus settles.
+   * The grid request deliberately does not carry cast, media sources or
+   * chapters (see browseItemFields), so the info panel renders what the grid
+   * knows first and this fills the rest in a moment later.
+   */
+  const [itemDetails, setItemDetails] = useState<
+    Record<string, JellyfinMediaItem>
+  >({});
+  /** Ids already fetched or in flight, so a re-focus does not refetch. */
+  const detailRequestsRef = useRef(new Set<string>());
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -127,6 +180,63 @@ export const LibraryScreen = ({
       setBackdropUrl(url);
     }, 150);
   }, []);
+
+  /**
+   * Fetches the full item for `ids` that have not been asked for yet, in the
+   * order given, so the focused card is filled before its neighbours. Runs
+   * sequentially: a Fire TV walking a grid should not have a dozen requests
+   * in flight, and each one is small enough that serialising them still
+   * finishes well inside the time it takes to move focus another two rows.
+   *
+   * A failure is recorded as attempted rather than retried. The panel keeps
+   * showing what the grid already gave it, which is the same thing it shows
+   * while the request is still running.
+   */
+  const ensureDetails = useCallback(
+    async (ids: string[]) => {
+      for (const id of ids) {
+        if (!mountedRef.current) {
+          return;
+        }
+        if (detailRequestsRef.current.has(id)) {
+          continue;
+        }
+        detailRequestsRef.current.add(id);
+
+        try {
+          const detail = await getItemDetails(
+            serverProfile.serverUrl,
+            serverProfile.accessToken,
+            serverProfile.userId,
+            id,
+          );
+
+          if (!mountedRef.current) {
+            return;
+          }
+
+          setItemDetails((current) => {
+            const next = {...current, [id]: detail};
+            const keys = Object.keys(next);
+            if (keys.length > DETAIL_CACHE_LIMIT) {
+              for (const stale of keys.slice(
+                0,
+                keys.length - DETAIL_CACHE_LIMIT,
+              )) {
+                delete next[stale];
+                detailRequestsRef.current.delete(stale);
+              }
+            }
+            return next;
+          });
+        } catch (error) {
+          // Nothing to show the user: the card and the panel's first pass
+          // are already on screen and stay correct without this.
+        }
+      }
+    },
+    [serverProfile],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -175,6 +285,14 @@ export const LibraryScreen = ({
     }
   }, [focusedItem, items]);
 
+  // Details are keyed by item id and stay valid across sort and filter
+  // changes, but a different library is a different set of ids: drop them
+  // rather than let the cache grow across every library visited.
+  useEffect(() => {
+    detailRequestsRef.current = new Set();
+    setItemDetails({});
+  }, [libraryId]);
+
   const filters = useMemo(
     () =>
       [
@@ -217,6 +335,7 @@ export const LibraryScreen = ({
           setItems(results);
           setFocusedIndex(0);
           setFocusedItem(results[0] ?? null);
+          ensureDetails(detailPrefetchIds(results, 0));
         }
       } catch (error) {
         if (mounted) {
@@ -232,6 +351,7 @@ export const LibraryScreen = ({
     },
     [
       displayPreferences.imageType,
+      ensureDetails,
       filters,
       libraryId,
       libraryType,
@@ -254,7 +374,7 @@ export const LibraryScreen = ({
 
   const cardScale = imageSizeScale[displayPreferences.imageSize];
 
-  const handleCardFocus = (item: JellyfinMediaItem) => {
+  const handleCardFocus = (item: JellyfinMediaItem, index: number) => {
     if (focusDebounceRef.current) {
       clearTimeout(focusDebounceRef.current);
     }
@@ -262,6 +382,10 @@ export const LibraryScreen = ({
       focusDebounceRef.current = null;
       if (mountedRef.current) {
         setFocusedItem(item);
+        // Deliberately on the settle rather than on every focus change: a
+        // fast scroll should queue one window of requests, not one per card
+        // it passes through.
+        ensureDetails(detailPrefetchIds(items, index));
       }
     }, 150);
   };
@@ -325,7 +449,7 @@ export const LibraryScreen = ({
                   imageScale={cardScale}
                   onFocus={() => {
                     setFocusedIndex(index);
-                    handleCardFocus(item);
+                    handleCardFocus(item, index);
                     queueBackdrop(item.backdropUrl ?? item.imageUrl);
                   }}
                   onPress={() => onSelectItem?.(item)}
@@ -343,7 +467,9 @@ export const LibraryScreen = ({
         <View style={styles.rightPane}>
           <LibraryInfoPanel
             accessToken={serverProfile.accessToken}
-            item={focusedItem}
+            item={
+              focusedItem ? itemDetails[focusedItem.id] ?? focusedItem : null
+            }
             serverUrl={serverProfile.serverUrl}
           />
         </View>

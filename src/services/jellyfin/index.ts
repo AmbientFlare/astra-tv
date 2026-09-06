@@ -462,6 +462,25 @@ const buildTranscodingUrl = (
 export const itemFields =
   'Overview,Genres,People,MediaSources,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,RemoteTrailers';
 
+/**
+ * What a library grid needs to draw its cards and fill the first pass of the
+ * info panel. The fields left out are the ones that make a whole-library
+ * request expensive:
+ *
+ *   People        the server joins cast and crew per item; measured at 2.5s
+ *                 of a 2.7s 90-movie request, and 93% of the wait
+ *   MediaSources  cheap on the server, but 0.8MB of the 2MB the device then
+ *   MediaStreams  has to pull over wifi and parse -- another 0.7MB
+ *   Chapters      0.2MB, and a grid card never shows one
+ *
+ * None of them are per-card data: they belong to whichever single item has
+ * focus, so `getItemDetails` fetches them one at a time instead. The same
+ * split exists in jellyfin-androidtv (ItemRepository.browseFields) and
+ * jellyfin-web, whose grid requests carry little more than the aspect ratio.
+ */
+export const browseItemFields =
+  'Overview,Genres,RecursiveItemCount,ChildCount,PrimaryImageAspectRatio';
+
 const qualityCaps: JellyfinQualityOption[] = [
   {id: 'auto', label: 'Auto'},
   {id: '20000000', label: '20 Mbps', bitrate: 20000000},
@@ -1127,7 +1146,7 @@ export const getItems = async (
         options.includeItemTypes === null
           ? undefined
           : options.includeItemTypes ?? 'Movie,Series,Episode,Video',
-      Fields: itemFields,
+      Fields: browseItemFields,
       ImageTypeLimit: 1,
       EnableImageTypes: `${options.imageType ?? 'Primary'},Backdrop`,
       Filters: options.filters?.join(','),
