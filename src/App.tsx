@@ -7,6 +7,10 @@ import {
 } from './services/telemetry';
 import {getContainerSupport} from './services/mediaCapabilities';
 import {getNativeParsingSupport} from './services/mediaCapabilities/nativeParsing';
+import {
+  flattenHdrSupport,
+  getHdrSupport,
+} from './services/mediaCapabilities/hdr';
 import {RootNavigator} from './navigation';
 
 // ==== SPIKE (2026-07-27) — DELETE THIS BLOCK AND src/spike WHEN FINISHED ====
@@ -34,6 +38,13 @@ export const App = () => {
         });
         const nativeParsing = await getNativeParsingSupport();
         emit('media.nativeParsing', {...nativeParsing});
+        // Asks whether the platform accepts an HDR10 decode configuration at
+        // all. Astra tone-maps every HDR source to SDR on the server on the
+        // strength of a sink rejection observed on the direct-play path,
+        // which is disabled; this asks about the MSE path actually in use.
+        // Read `hdrFieldsIgnored` before anything else -- if the platform
+        // ignores transferFunction, the HDR results carry no information.
+        emit('media.hdr', flattenHdrSupport(await getHdrSupport()));
       })
       .catch(() => {
         // Diagnostics must never reject into application startup.
