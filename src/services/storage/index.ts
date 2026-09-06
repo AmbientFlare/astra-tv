@@ -222,10 +222,6 @@ export const getLastUsedServerProfile =
     );
   };
 
-export const clearServerProfiles = async (): Promise<void> => {
-  await AsyncStorage.removeItem(STORAGE_KEY);
-};
-
 const parseAppState = (rawState: string | null): AppStateConfig => {
   if (!rawState) {
     return emptyAppState;

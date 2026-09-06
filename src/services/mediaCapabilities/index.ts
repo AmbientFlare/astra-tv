@@ -291,8 +291,4 @@ export const getAudioOutputCapabilities = () => {
   return cachedCapabilities;
 };
 
-export const resetAudioOutputCapabilitiesCache = () => {
-  cachedCapabilities = null;
-};
-
 export const defaultAudioOutputCapabilities = SAFE_AUDIO_CAPABILITIES;
