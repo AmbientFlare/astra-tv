@@ -398,6 +398,10 @@ export const RootNavigator = () => {
   if (current.route === 'library' && serverProfile) {
     return withExitPrompt(
       <LibraryScreen
+        // A different library is a different browse session: remounting is
+        // what lets LibraryScreen restore its own saved scroll and focus for
+        // the library being opened instead of inheriting the last one's.
+        key={current.library.id}
         libraryId={current.library.id}
         libraryName={current.library.name}
         libraryType={current.library.type}
