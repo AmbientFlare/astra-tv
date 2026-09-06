@@ -2632,6 +2632,23 @@ const formatDiagnosticKbps = (bitsPerSecond?: number) =>
     ? `${Math.round(bitsPerSecond / 1000)} kbps`
     : '—';
 
+// Vega's getVideoPlaybackQuality() reports absolute frame counts that cannot
+// be true -- roughly 4,600 fps on a 23.976 fps stream -- so printing them
+// invites people to read a wrong number as fact. The ratio between the two
+// still moves in the right direction when the decoder is struggling, so that
+// is the only form worth showing.
+const formatDropRatio = (decoded?: number, dropped?: number) => {
+  if (
+    !decoded ||
+    !Number.isFinite(decoded) ||
+    dropped === undefined ||
+    !Number.isFinite(dropped)
+  ) {
+    return '\u2014';
+  }
+  return `${((dropped / decoded) * 100).toFixed(2)}%`;
+};
+
 const formatDiagnosticCodec = (codec?: string, profile?: string) =>
   [codec?.toUpperCase() ?? 'UNKNOWN', profile].filter(Boolean).join(' ');
 
@@ -2830,9 +2847,10 @@ export const PlaybackStatsOverlay = ({
         )}   network ${formatDiagnosticMbps(diagnostics?.estimatedBandwidth)}`}
       </Text>
       <Text style={styles.statsLine}>
-        {`Frames  decoded ${diagnostics?.decodedFrames ?? '—'} / dropped ${
-          diagnostics?.droppedFrames ?? '—'
-        }   Buffering time ${formatBufferingTime(
+        {`Frames  dropped ${formatDropRatio(
+          diagnostics?.decodedFrames,
+          diagnostics?.droppedFrames,
+        )}   Buffering time ${formatBufferingTime(
           diagnostics?.bufferingTimeSeconds,
         )}`}
       </Text>

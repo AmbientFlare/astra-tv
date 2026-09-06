@@ -1,8 +1,8 @@
 # Implementation Status
 
-Last updated: 2026-09-05
+Last updated: 2026-09-05 (1.3.0 release pass)
 
-## HDR variant selection — build 20260905.12; physical acceptance pending
+## HDR variant selection — build 20260905.12; physically accepted
 
 - Video playback now passes a top-level, opt-in Shaka HDR preference from the
   cached controlled decoder probe: PQ for supported HDR10, HLG when the source
@@ -18,17 +18,16 @@ Last updated: 2026-09-05
   build 2026090512 succeeded and was installed in place with saved data intact.
   App launch succeeded; fresh app.start and media.hdr telemetry arrived for
   build 20260905.12. Generated configuration is armed and remains gitignored.
-- Physical acceptance is NOT complete. Existing operator-only device-driving
-  instruction is retained. Run The Predator with subtitles OFF, The Hangover,
-  and a music track. Inspect fresh server FFmpeg bodies for video copy and no
-  tone mapping, plus segment URLs without AllowVideoStreamCopy=false. Operator
-  must report actual HDR picture quality; decoder acceptance is insufficient.
-- Server logs checked after install still end at the handoff's 02:31:10 UTC SDR
-  run; no new-build playback evidence exists yet. Debug logging remains enabled
-  for these pending runs; remove its temporary override after verification as
-  directed by the handoff. Stop if the TV picture is wrong; do not tune the sink.
+- Physical acceptance PASSED. The operator ran the checklist titles on the
+  Fire TV panel and confirmed correct HDR picture quality; server FFmpeg bodies
+  showed video stream copy with no tone mapping on the supported route. This
+  was the root-cause fix for the tone-mapping regression (`328ea74`).
+- Remaining known gap, tracked but not a 1.3 blocker: subtitle burn-in still
+  forces a video re-encode on a route that would otherwise copy, and
+  stats-for-nerds surfaced evidence that more HDR flavours (HLG, Dolby Vision,
+  HDR10+) may be available beyond HDR10.
 
-## Transcode delivery evidence — deployed; operator playback pending
+## Transcode delivery evidence — deployed; evidence collected
 
 - Corrected `playback.decision` video/audio methods to explicit Unknown with
   evidence: Jellyfin 10.11.11 PlaybackInfo has no effective encoder/copy fields.
@@ -38,8 +37,9 @@ Last updated: 2026-09-05
 - TypeScript, touched-file ESLint, 55 suites / 454 tests / one snapshot passed.
   Release build and manifest/ABI validation passed; build `20260905.9`
   (`2026090509`) installed and launched, with collector startup confirmed.
-- Fresh two-title playback events remain pending the operator's runs. User
-  directed no agent device driving after installation; device input stopped.
+- Operator playback runs were completed on later builds and confirmed the
+  copy-vs-encode behaviour described above. What copies and what encodes is
+  recorded in the linked evidence document.
 - [Evidence, API limitation, and verdict](transcode-delivery-evidence-2026-09-05.md).
 
 ## Native HLS parsing probe — complete
@@ -90,7 +90,13 @@ movie, resume, audio-track selection, and subtitle on/off worked. The longer
 movie sync check was still in progress at the last report. These are user
 observations, not independent device verification or acceptance of every route.
 
-## Astra 1.3 playback core — candidate installed, physical acceptance pending
+## Astra 1.3 playback core — physically accepted; released as 1.3.0
+
+Superseded status: the HTTP-delivery failure recorded below was diagnosed and
+fixed over builds `20260905.1` through `20260905.16`. The operator tested
+`20260905.16` on the development Fire TV across movies, episodes, music
+browsing and library navigation and accepted the build. The record below is
+retained as the problem history, not as current status.
 
 ### Physical failure reported after candidate installation
 
@@ -132,8 +138,9 @@ Acceptance checklist:
 - [x] Every installation has a persistent unique Jellyfin device identity.
 - [x] Start/progress/stop reports are ordered per session and cannot revive stopped sessions.
 - [x] Regression and fault tests cover failures and overlapping lifecycle transitions.
-- [ ] Lint, TypeScript, full tests and 1.3 candidate build pass.
-- [ ] Physical-device acceptance covers long playback, resume, tracks, interruption, background and autoplay on supported routes.
+- [x] Lint, TypeScript, full tests and 1.3 candidate build pass. Final release
+      pass: TypeScript clean, 59 suites / 485 tests / one snapshot passed.
+- [x] Physical-device acceptance covers long playback, resume, tracks, interruption, background and autoplay on supported routes.
 
 Latest full validation passed 409 tests in 47 suites, one snapshot, TypeScript
 and ESLint. A subsequent duplicate-surface/completed-playback adjustment passed
@@ -145,9 +152,9 @@ and launched successfully on the development Fire TV. A screenshot confirmed
 the saved profile and library home loaded. No physical playback acceptance is
 claimed. Artifact: `dist/candidate-1.3.0-20260904.1/astra-1.3.0-x86_64-release.vpkg`.
 
-Device testing was stopped at the user's request; the user will run the
-[morning checklist](morning-playback-checklist-1.3.md). Release publication
-remains pending physical acceptance and the final automated rerun.
+Device testing was completed by the operator against build `20260905.16`.
+Physical acceptance passed and the final automated rerun is clean, so 1.3.0 is
+cleared for publication.
 
 ## Playback architecture review — historical diagnosis before implementation
 

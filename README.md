@@ -12,12 +12,10 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.2.1`, build `20260902.1`, for x86_64
-Fire TV devices running Vega OS 1.2 or later.
-
-The development branch contains the Astra 1.3.0 playback-core candidate.
-See [candidate notes and physical acceptance checks](docs/release-1.3.0.md).
-It has not replaced the public 1.2.1 release.
+The current release is Astra `1.3.0`, build `20260905.17`, for x86_64
+Fire TV devices running Vega OS 1.2 or later. It is submitted to the Amazon
+Appstore; until it is approved there, devices continue to run the previous
+release.
 
 - Website: <https://watchastra.com> (screenshots, setup, and the
   [full release history](https://watchastra.com/releases/))
@@ -27,10 +25,10 @@ It has not replaced the public 1.2.1 release.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
-- Release validation: 374 tests, ESLint, TypeScript, Vega manifest, and Vega
-  ABI; global subtitle modes, Skip Credits, Next Episode autoplay, and the
-  existing resume/audio/seek behavior all passed on the physical Fire TV
-  Stick for 1.2.1
+- Release validation: 485 tests in 59 suites, ESLint, TypeScript, Vega
+  manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
+  track selection, library navigation and music browsing were accepted on the
+  physical Fire TV Stick for 1.3.0
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -73,6 +71,23 @@ creation on Vega.
   metadata to the video player.
 
 ## Release history
+
+### 1.3.0 — Playback core, HDR picture, and library speed — 2026-09-05
+
+- Fixed HDR movies arriving as washed-out SDR. Astra used to ask the server
+  for a tone-mapped SDR stream on every HDR source; it now asks for the HDR
+  variant the device has been shown to accept, and the picture reaching the TV
+  is the picture on the disc.
+- Reworked playback around a single cancellable session, so videos that used
+  to stall, stick on a spinner or quit partway through recover on their own.
+  A video that ends early is treated as a failure, not as a finished video.
+- Fixed resumed playback reporting the wrong position, and gave every
+  installation its own Jellyfin device identity so two Fire TVs no longer
+  collide in the server's session list.
+- Library grids load roughly forty times faster, and backing out of a movie
+  returns to the exact card you opened it from instead of the top of the grid.
+- Added opt-in playback telemetry, off by default and inert unless an operator
+  explicitly arms it at build time.
 
 ### 1.2.1 — Subtitle preference and Skip Credits / Next Episode — 2026-09-02
 
@@ -230,6 +245,22 @@ Reusable engineering references:
 Reference repositories are kept outside this project under
 `~/projects/reference`. They are for study only and are not incorporated into
 this codebase.
+
+## Acknowledgements
+
+Astra is developed by AmbientFlare. Thanks to the people who have reported
+problems, tested builds on their own hardware, and sent code.
+
+- **[@brontodev](https://github.com/brontodev)** — Skip Credits and Next
+  Episode ([#14](https://github.com/AmbientFlare/astra-tv/pull/14)). The
+  Jellyfin media-segments client that Skip Credits runs on is his work, and
+  the shape of the feature — a pure decision module separate from the player,
+  credits sourced from the server's own `Outro` segments rather than guessed
+  offsets — is the design his patch proposed.
+- **[@eamcd](https://github.com/eamcd)**, **[@Jailbone](https://github.com/Jailbone)**
+  and **[@stspivey421](https://github.com/stspivey421)** — detailed playback,
+  subtitle and Live TV reports with server-side evidence, which is what made
+  the 1.2.1 and 1.3.0 fixes possible.
 
 ## License
 
