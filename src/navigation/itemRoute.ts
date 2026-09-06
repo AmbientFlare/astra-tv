@@ -5,8 +5,6 @@
  * series and movies, whatever the server groups together — so the type on the
  * item decides the destination rather than the row it was tapped in.
  */
-import {JellyfinMediaItem} from '../services/jellyfin';
-
 export type DetailRoute = 'detail' | 'episodeDetail' | 'library';
 
 /**
@@ -38,6 +36,3 @@ export const detailRouteForItem = (item: {
 
   return 'detail';
 };
-
-export const isRemoteItem = (item: Pick<JellyfinMediaItem, 'locationType'>) =>
-  item.locationType === 'Remote';

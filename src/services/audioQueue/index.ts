@@ -19,14 +19,6 @@ export interface QueueState {
   tracks: MusicTrack[];
 }
 
-export const emptyQueue: QueueState = {
-  cursor: 0,
-  order: [],
-  repeat: 'off',
-  shuffle: false,
-  tracks: [],
-};
-
 const identityOrder = (length: number) =>
   Array.from({length}, (_, index) => index);
 
@@ -58,8 +50,6 @@ export const currentTrack = (state: QueueState): MusicTrack | null => {
 
   return trackIndex === undefined ? null : state.tracks[trackIndex] ?? null;
 };
-
-export const queueLength = (state: QueueState) => state.tracks.length;
 
 /** 1-based position for display; 0 when the queue is empty. */
 export const displayPosition = (state: QueueState) =>
