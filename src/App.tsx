@@ -6,6 +6,7 @@ import {
   telemetryAppState,
 } from './services/telemetry';
 import {getContainerSupport} from './services/mediaCapabilities';
+import {getNativeParsingSupport} from './services/mediaCapabilities/nativeParsing';
 import {RootNavigator} from './navigation';
 
 // ==== SPIKE (2026-07-27) — DELETE THIS BLOCK AND src/spike WHEN FINISHED ====
@@ -17,20 +18,26 @@ const RUN_AUDIO_SPIKE = false;
 
 export const App = () => {
   useEffect(() => {
-    void bootstrapTelemetry().then(async () => {
-      // Observational only -- nothing branches on this. It answers whether
-      // Vega's MSE takes MPEG-TS natively or whether Shaka is transmuxing
-      // every segment in JS on the path HEVC currently takes. Emitted after
-      // bootstrap so the gate has been decided; a probe failure is reported
-      // in the event rather than thrown, so this cannot affect startup.
-      const support = await getContainerSupport();
-      emit('media.containers', {
-        ...support.results,
-        probeSucceeded: support.probeSucceeded,
-        controlsFailed: support.controlsFailed,
-        alwaysTrue: support.alwaysTrue,
+    void bootstrapTelemetry()
+      .then(async () => {
+        // Observational only -- nothing branches on this. It answers whether
+        // Vega's MSE takes MPEG-TS natively or whether Shaka is transmuxing
+        // every segment in JS on the path HEVC currently takes. Emitted after
+        // bootstrap so the gate has been decided; a probe failure is reported
+        // in the event rather than thrown, so this cannot affect startup.
+        const support = await getContainerSupport();
+        emit('media.containers', {
+          ...support.results,
+          probeSucceeded: support.probeSucceeded,
+          controlsFailed: support.controlsFailed,
+          alwaysTrue: support.alwaysTrue,
+        });
+        const nativeParsing = await getNativeParsingSupport();
+        emit('media.nativeParsing', {...nativeParsing});
+      })
+      .catch(() => {
+        // Diagnostics must never reject into application startup.
       });
-    });
     const subscription = AppState.addEventListener('change', (state) =>
       telemetryAppState(state === 'active'),
     );
