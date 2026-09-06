@@ -491,20 +491,24 @@ export const LibraryScreen = ({
   const cardScale = imageSizeScale[displayPreferences.imageSize];
 
   /**
-   * FlatList measures in rows once numColumns is set, so both of these are in
-   * rows rather than items. Without them the list cannot scroll to a card it
-   * has not rendered yet, which is exactly the case on a restore: the
-   * remembered card is usually far below the first window.
+   * Both of these are in ROWS, not items. FlatList hands `getItemLayout` and
+   * `initialScrollIndex` straight to VirtualizedList, which -- once
+   * numColumns is set -- counts one entry per row of cards. Measuring in
+   * items instead lands the list at a fraction of the intended offset.
+   *
+   * Without them the list cannot scroll to a card it has not rendered yet,
+   * which is exactly the case on a restore: the remembered card is usually
+   * far below the first window.
    */
   const rowHeight = Math.round(CARD_HEIGHT * cardScale) + GRID_ROW_GAP;
   const getItemLayout = useCallback(
     (
       _data: ArrayLike<JellyfinMediaItem> | null | undefined,
-      index: number,
+      rowIndex: number,
     ) => ({
-      index,
+      index: rowIndex,
       length: rowHeight,
-      offset: rowHeight * Math.floor(index / GRID_COLUMNS),
+      offset: rowHeight * rowIndex,
     }),
     [rowHeight],
   );

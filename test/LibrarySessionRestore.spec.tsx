@@ -8,6 +8,7 @@
  * counted, and a scroll position far enough down the list to show it.
  */
 import 'react-native';
+import {FlatList} from 'react-native';
 import {act, fireEvent, render} from '@testing-library/react-native';
 import React from 'react';
 
@@ -199,6 +200,33 @@ describe('LibraryScreen session restore', () => {
     await settle();
 
     expect(second.getByText('10 | 10')).toBeTruthy();
+  });
+
+  it('measures and scrolls the grid in rows, not in cards', async () => {
+    // FlatList hands both props straight to VirtualizedList, which counts one
+    // entry per row once numColumns is set. Measuring in cards instead put
+    // the restored list at a third of the intended offset -- close enough to
+    // look deliberate, and always wrong.
+    const first = renderLibrary();
+    await settle();
+    await focusCard(first, 27);
+    first.unmount();
+
+    const second = renderLibrary();
+    await settle();
+
+    const grid = second.UNSAFE_getByType(FlatList);
+    // Card 27 is the first card of row 9 of a three-wide grid.
+    expect(grid.props.initialScrollIndex).toBe(9);
+
+    // 412pt card at the default scale, plus the 26pt gap between rows.
+    const rowHeight = 438;
+    expect(grid.props.getItemLayout(null, 9)).toEqual({
+      index: 9,
+      length: rowHeight,
+      offset: rowHeight * 9,
+    });
+    expect(grid.props.getItemLayout(null, 0).offset).toBe(0);
   });
 
   it('starts at the top for a library it has never seen', async () => {
