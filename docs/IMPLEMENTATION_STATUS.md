@@ -2,6 +2,19 @@
 
 Last updated: 2026-09-05
 
+## Native HLS parsing probe — complete
+
+- Added an observational startup probe for Shaka 4.8.5 with a bogus-player
+  negative control; native parsing stays disabled and parser hooks are never set.
+- Target device build: `20260905.8` (`2026090508`).
+- TypeScript and touched-file ESLint passed; all 451 Jest tests across 54
+  suites passed (12 new probe tests).
+- Release build, manifest/ABI validation, in-place installation, and launch
+  passed. Device telemetry confirms support for Shaka 4.8.5, all hooks present,
+  and negative control rejected (`controlsFailed: false`, `alwaysTrue: false`).
+- Worth a separate enable-and-benchmark trial; no JS-thread savings measured
+  and native parsing remains disabled. See [device evidence and verdict](native-hls-probe-2026-09-05.md).
+
 ## Telemetry implementation — in progress
 
 User clarified that the handoff must be implemented before cleanup. Restored
