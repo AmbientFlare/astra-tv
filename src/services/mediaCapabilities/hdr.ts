@@ -1,22 +1,8 @@
 /**
- * Observational only. Nothing branches on this.
- *
- * Astra tone-maps every HDR source to SDR on the server:
- * `deviceProfile.ts` requires `VideoRangeType == SDR` before HEVC may be
- * stream-copied, so an HDR10 file is always re-encoded (NVENC) with a
- * `tonemap_cuda` filter chain. That costs GPU time and it is the single
- * largest picture-quality loss in the app.
- *
- * The stated justification is that the device sink rejects HDR10. That
- * belief comes from the direct-play ANR, where `setSrcUri` blocked the JS
- * thread when KeplerMediaSink refused a raw HDR10 file. It is evidence about
- * raw-file direct play -- which is disabled -- and NOT about MSE/HLS, which
- * is the path every stream actually takes today. Nobody has asked the
- * platform directly.
- *
- * This asks. Do not wire the result into the device profile: a "supported"
- * here means the decoder accepts the configuration, not that an end-to-end
- * HDR10 playback has been proven on hardware.
+ * Probe decoder acceptance of HDR over MSE, with positive and negative controls.
+ * Video playback uses the cached result for a soft Shaka variant preference.
+ * Acceptance does not prove KeplerMediaSink or the TV renders HDR correctly.
+ * Keep device-profile policy separate from this probe.
  */
 
 /** The subset of MediaCapabilities' result that Vega is known to return. */

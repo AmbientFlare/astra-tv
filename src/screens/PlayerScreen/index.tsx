@@ -37,6 +37,8 @@ import {
   reportPlaybackStopped,
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
+import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
+import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {getTraces, resetTraces, trace} from '../../services/logging/trace';
 import {
   emitError,
@@ -1250,7 +1252,13 @@ export const PlayerScreen = ({
           stream.outputContainer ?? '?'
         } start=${(startTimeSeconds ?? 0).toFixed(0)}s`,
       );
+      const hdrSupport = await getHdrSupport();
+      context?.assertCurrent();
       const settings = {
+        preferredVideoHdrLevel: preferredVideoHdrLevel(
+          hdrSupport,
+          stream.sourceVideoRangeType,
+        ),
         secure: stream.url.startsWith('https://'),
         abrEnabled: false,
         abrMaxWidth: 3840,
