@@ -2,6 +2,20 @@
 
 Last updated: 2026-09-05
 
+## Transcode delivery evidence — deployed; operator playback pending
+
+- Corrected `playback.decision` video/audio methods to explicit Unknown with
+  evidence: Jellyfin 10.11.11 PlaybackInfo has no effective encoder/copy fields.
+  Legacy URL estimates used by recovery/UI and all playback behavior remain.
+- Historical FFmpeg logs confirm Graceland copied both H.264 and AAC; Central
+  Intelligence encoded HEVC with tone mapping and audio to AC3 (with burn-in).
+- TypeScript, touched-file ESLint, 55 suites / 454 tests / one snapshot passed.
+  Release build and manifest/ABI validation passed; build `20260905.9`
+  (`2026090509`) installed and launched, with collector startup confirmed.
+- Fresh two-title playback events remain pending the operator's runs. User
+  directed no agent device driving after installation; device input stopped.
+- [Evidence, API limitation, and verdict](transcode-delivery-evidence-2026-09-05.md).
+
 ## Native HLS parsing probe — complete
 
 - Added an observational startup probe for Shaka 4.8.5 with a bogus-player

@@ -33,10 +33,8 @@ export interface PlaybackDecision {
   outputContainer?: string;
   videoCodec?: string;
   outputVideoCodec?: string;
-  videoDeliveryMethod?: string;
   audioCodec?: string;
   outputAudioCodec?: string;
-  audioDeliveryMethod?: string;
   audioTranscodePolicy?: string;
   width?: number;
   height?: number;
@@ -56,6 +54,16 @@ export interface PlaybackDecision {
 export const emitPlaybackDecision = (decision: PlaybackDecision): void => {
   emit('playback.decision', {
     ...decision,
+    // Jellyfin 10.11.11 PlaybackInfo exposes source metadata and a future
+    // transcode request, not FFmpeg's effective per-track encoder. Even a
+    // matching codec plus Allow*StreamCopy=true cannot establish stream copy.
+    // Keep this separate from the legacy URL estimates used by recovery/UI.
+    videoDeliveryMethod: 'Unknown',
+    videoDeliveryEvidence:
+      'PlaybackInfo.MediaSources: no effective video copy/encoder result; TranscodingUrl is a request',
+    audioDeliveryMethod: 'Unknown',
+    audioDeliveryEvidence:
+      'PlaybackInfo.MediaSources: no effective audio copy/encoder result; TranscodingUrl is a request',
     streamUrl: decision.streamUrl ? scrubUrl(decision.streamUrl) : undefined,
     transcodeUrl: decision.transcodeUrl
       ? scrubUrl(decision.transcodeUrl)
