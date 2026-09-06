@@ -853,17 +853,16 @@ export const SettingsScreen = ({
                   What's new in {APP_VERSION}
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Playback now shares one recovery and cleanup path for
-                  starting, seeking, changing tracks, and leaving a video.
+                  • HDR movies keep their HDR picture instead of arriving as
+                  washed-out SDR.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Corrected progress after resuming, subtitle-off conversion,
-                  and device identity when using more than one TV.
+                  • Videos that used to stall or quit partway through now
+                  recover on their own.
                 </Text>
                 <Text style={styles.releaseNotesText}>
-                  • Added stream-engine error details and bounded recovery for
-                  stalled playback. This 1.3 candidate is undergoing device
-                  validation.
+                  • Libraries open immediately, and backing out of a movie
+                  returns you to the card you left.
                 </Text>
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>

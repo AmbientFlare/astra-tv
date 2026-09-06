@@ -1,16 +1,58 @@
 # Changelog
 
-## 1.3.0 — candidate, not yet released
+## 1.3.0 - 2026-09-05
 
-- Reworked video playback around cancellable sessions and shared cleanup.
-- Restored native buffer error propagation and added Shaka error diagnostics
-  and bounded recovery for stalls and premature stream endings.
-- Corrected resumed progress/chapter duration, subtitle-off conversion, and
-  ordered Jellyfin playback reports.
-- Added persistent per-installation device identity and safe music handoff.
-- Preserved the hardware-accepted codec/container and timestamp-mode policies.
-- Physical acceptance and publication are pending; see
-  [the candidate notes](docs/release-1.3.0.md).
+The playback release. Videos that used to stall, stick on a spinner or quit
+partway through now recover on their own, HDR movies keep their HDR picture,
+and large libraries open immediately and stay where you left them.
+
+### Fixed
+
+- HDR movies were re-encoded to washed-out SDR. Astra asked the server for a
+  tone-mapped SDR stream on every HDR source, so an HDR10 or HLG movie arrived
+  looking flat and cost the server a full video re-encode to get there. Astra
+  now asks for the HDR variant its decoder has actually been shown to accept,
+  and the picture that reaches the TV is the picture on the disc. Confirmed on
+  a physical panel.
+- Playback could stall partway through a video and behave as though it had
+  ended, needing a manual track change to continue. Startup, seeks, track
+  changes, chapter reloads and error recovery now run as one cancellable
+  playback session instead of each driving the player directly, which removes
+  the overlapping-session races behind the stalls and the stuck spinners.
+- A video that ended early is now recognised as a failure and recovered from,
+  rather than reported as a finished video.
+- Progress, chapters and completion are measured against the item's real
+  duration and position, so resumed playback no longer reports the wrong spot.
+- Every installation now has its own stable Jellyfin device identity. Two Fire
+  TVs signed into the same account no longer collide in the server's session
+  list or evict each other's sessions.
+- Backing out of a movie or episode returns to the library exactly where you
+  left it -- same scroll position, same card focused -- instead of rebuilding
+  the grid from the top with a spinner. The grid is now measured in rows
+  rather than in cards, which is what put the list a third of the way down the
+  alphabet regardless of where you actually were.
+
+### Changed
+
+- Library grids load roughly forty times faster. The grid used to request every
+  field the detail screen needs for every item in the library: 2.7 seconds and
+  2.04 MB for a 90-movie library, most of it cast and crew lists nothing on a
+  card ever draws. It now requests what a card needs -- 0.06 seconds and 135 KB
+  for the same library -- and fills in the details as focus settles, prefetching
+  two rows ahead so the info panel is complete by the time you reach it.
+- The player no longer re-renders four times a second while a video plays. JS
+  contention is this platform's signature failure mode and this was paid every
+  second of every playback.
+- The diagnostics overlay reports dropped frames as a ratio. The platform's
+  absolute frame counts are not believable -- roughly 4,600 fps on a 24 fps
+  stream -- so the counts have been removed rather than shown as fact.
+
+### Added
+
+- Opt-in playback telemetry, off by default and inert unless an operator
+  explicitly arms it with a build-time endpoint and token. Nothing is
+  collected, buffered or sent otherwise, and the configuration is never
+  committed to the repository.
 
 ## 1.2.1 - 2026-09-02
 

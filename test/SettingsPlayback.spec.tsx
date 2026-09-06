@@ -185,21 +185,21 @@ describe('playback diagnostics entry points', () => {
     fireEvent.press(screen.getByTestId('settings-About'));
 
     expect(screen.getByText('Astra 1.3.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260905.16')).toBeTruthy();
+    expect(screen.getByText('Build: 20260905.17')).toBeTruthy();
     expect(screen.getByText("What's new in 1.3.0")).toBeTruthy();
     expect(
       screen.getByText(
-        '• Playback now shares one recovery and cleanup path for starting, seeking, changing tracks, and leaving a video.',
+        '• HDR movies keep their HDR picture instead of arriving as washed-out SDR.',
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Corrected progress after resuming, subtitle-off conversion, and device identity when using more than one TV.',
+        '• Videos that used to stall or quit partway through now recover on their own.',
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        '• Added stream-engine error details and bounded recovery for stalled playback. This 1.3 candidate is undergoing device validation.',
+        '• Libraries open immediately, and backing out of a movie returns you to the card you left.',
       ),
     ).toBeTruthy();
   });
@@ -334,7 +334,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.3\.0 \(20260905\.16\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.3\.0 \(20260905\.17\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
