@@ -13,9 +13,8 @@ Website and install instructions: <https://watchastra.com>
 ## Project status
 
 The current release is Astra `1.3.0`, build `20260905.17`, for x86_64
-Fire TV devices running Vega OS 1.2 or later. It is submitted to the Amazon
-Appstore; until it is approved there, devices continue to run the previous
-release.
+Fire TV devices running Vega OS 1.2 or later. It is available from the Amazon
+Appstore.
 
 - Website: <https://watchastra.com> (screenshots, setup, and the
   [full release history](https://watchastra.com/releases/))
