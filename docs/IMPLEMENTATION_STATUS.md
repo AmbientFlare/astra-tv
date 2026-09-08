@@ -1,6 +1,31 @@
 # Implementation Status
 
-Last updated: 2026-09-05 (1.3.0 release pass)
+Last updated: 2026-09-06 (delayed 1.2 native crash review)
+
+## Delayed Astra 1.2 native fragment-parser crash review
+
+- Reviewed an Amazon crash fragment whose fault is in
+  `SourceBufferStateImpl::get_buffered_ranges` while the native demuxer
+  publishes buffer changes from an asynchronous `SourceBuffer` append. This is
+  Amazon `ATVNativeFragmentParser` code below Astra/Shaka; the fragment has no
+  signal, fault address, registers, locals, or surrounding native source, so it
+  cannot distinguish a stale/null `TrackBuffer`, an internal iterator race, or
+  corrupted buffered-range state.
+- The signature is closely related to the earlier native append crashes in
+  [the August investigation](crash-investigation-2026-08-13.md), which failed in
+  `SourceBufferStateImpl::get_total_buffered_size`. It is not the Vega 1.2
+  JavaScript-thread logging termination fixed by Astra 1.2.
+- Astra 1.3 substantially reduces plausible app-side triggers: playback
+  transitions are serialized across screens, obsolete loads are cancelled,
+  unload is shared and ordered through native detach/destroy, media release no
+  longer waits for Jellyfin reporting, native buffer waits are bounded, and
+  synchronous append exceptions again reach Shaka. The focused lifecycle,
+  Shaka-error, and buffer-operation tests pass (5 suites / 29 tests).
+- This is mitigation, not a proven direct fix. Astra 1.2.0 and 1.3.0 both ship
+  `@amazon-devices/react-native-w3cmedia` 2.3.2, and 1.3 still reaches the same
+  native append/range-publication implementation. Treat a matching event from
+  a 1.3 build as actionable evidence; the delayed 1.2 event alone does not
+  justify another release change.
 
 ## HDR variant selection — build 20260905.12; physically accepted
 
@@ -825,3 +850,19 @@ Amazon submission packets, artifact paths and checksums, console checklists,
 and deployment records are maintained locally rather than in public project
 documentation. Playlist artwork composition remains optional future polish;
 missing server artwork currently uses a letter placeholder.
+# Public-web research audit — complete
+
+- [x] Read `/home/levi/START_HERE.md` and repository instructions.
+- [x] Established canonical identity pivots from the repository.
+- [x] Complete broad public-web, community, repository, and backlink discovery.
+- [x] Inspect and deduplicate substantive sources.
+- [x] Validate historical complaints against the current repository/application.
+- [x] Complete `EXTERNAL_MENTIONS_INDEX.md`, `EXTERNAL_USER_FEEDBACK.md`, and `OUTREACH_TARGETS.md`.
+
+Research result: 31 registry records after the final query sweep, including
+27 substantive or primary records and 4 secondary/index records. The audit
+identified 8 useful public outreach targets and confirmed inbound links from
+XDA, How-To Geek/Yahoo, JellyWatch, the Jellyfin forum, Reddit/Fediverse
+project posts, and GitHub topic indexing. No outreach or code changes were
+performed. Research artifacts are excluded by both `.gitignore` and the local
+`.git/info/exclude`, including the internal `docs/research/` directory.
