@@ -99,6 +99,7 @@ export interface JellyfinMediaSource {
 }
 
 export interface JellyfinMediaStream {
+  bitRate?: number;
   channels?: number;
   codec?: string;
   displayTitle?: string;
@@ -107,6 +108,7 @@ export interface JellyfinMediaStream {
   isDefault?: boolean;
   language?: string;
   type?: string;
+  videoRangeType?: string;
   width?: number;
 }
 

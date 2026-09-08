@@ -23,6 +23,7 @@ export const mapItem = (
     MediaType?: string;
     MediaSources?: Array<{
       MediaStreams?: Array<{
+        BitRate?: number;
         Channels?: number;
         Codec?: string;
         DisplayTitle?: string;
@@ -31,6 +32,7 @@ export const mapItem = (
         IsDefault?: boolean;
         Language?: string;
         Type?: string;
+        VideoRangeType?: string;
         Width?: number;
       }>;
     }>;
@@ -76,6 +78,9 @@ export const mapItem = (
   mediaSources: item.MediaSources ?? [],
   mediaType: item.MediaType,
   mediaStreams: item.MediaSources?.[0]?.MediaStreams?.map((stream) => ({
+    // bitRate and videoRangeType feed the decoder-risk classifier, which runs
+    // before PlaybackInfo is requested and so cannot use the stream info.
+    bitRate: stream.BitRate,
     channels: stream.Channels,
     codec: stream.Codec,
     displayTitle: stream.DisplayTitle,
@@ -84,6 +89,7 @@ export const mapItem = (
     isDefault: stream.IsDefault,
     language: stream.Language,
     type: stream.Type,
+    videoRangeType: stream.VideoRangeType,
     width: stream.Width,
   })),
   productionYear: item.ProductionYear,

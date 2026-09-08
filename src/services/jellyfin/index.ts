@@ -65,3 +65,5 @@ export {setFavorite} from './reporting';
 export {setPlayed} from './reporting';
 export {measureServerBandwidth} from './discovery';
 export {discoverServers} from './discovery';
+export {canServerTranscodeVideo} from './userPolicy';
+export {clearUserPolicyCache} from './userPolicy';
