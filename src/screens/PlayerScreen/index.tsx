@@ -2457,7 +2457,20 @@ export const PlayerScreen = ({
       const stream = streamInfo.current;
       const event = sample?.lastPlaybackEvent;
       return {
-        pos: videoRef.current?.currentTime,
+        // The element's clock restarts at zero on every server-positioned
+        // session, so a raw currentTime here reads as a rewind after each
+        // seek. Report the file position and keep the raw one beside it.
+        pos:
+          typeof videoRef.current?.currentTime === 'number'
+            ? mediaToLogicalTime(
+                videoRef.current.currentTime,
+                mediaTimelineOffsetSeconds.current,
+              )
+            : undefined,
+        mediaPos:
+          mediaTimelineOffsetSeconds.current !== 0
+            ? videoRef.current?.currentTime
+            : undefined,
         ahead: sample?.bufferedAheadSeconds,
         buffering: event === 'waiting' || event === 'stalled',
         paused: isPausedRef.current,

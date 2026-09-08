@@ -5,7 +5,14 @@ import {
 } from './config';
 
 export interface HeartbeatSample {
+  /** Position in the file, not in the stream the server handed back. */
   pos?: number;
+  /**
+   * Raw element time, sent only when it differs from `pos`. A session the
+   * server positioned at a seek point starts its own timeline near zero, so
+   * this is what says how far into *this* session playback is.
+   */
+  mediaPos?: number;
   ahead?: number;
   buffering?: boolean;
   paused?: boolean;
@@ -135,7 +142,9 @@ export class PlaybackHeartbeat {
     if (generation !== this.generation) {
       return;
     }
-    const active = n.buffering === true || (n.pos ?? 0) < 5;
+    // Session age, not file position: a resume at the ninety-minute mark is
+    // just as shaky in its first seconds as one from the start.
+    const active = n.buffering === true || (n.mediaPos ?? n.pos ?? 0) < 5;
     this.timer = setTimeout(
       () => this.tick(generation),
       active ? TELEMETRY_HEARTBEAT_ACTIVE_MS : TELEMETRY_HEARTBEAT_STEADY_MS,
