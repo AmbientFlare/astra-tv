@@ -1,5 +1,14 @@
 export interface PlaybackFailure {
-  source: 'native' | 'shaka' | 'mse' | 'watchdog' | 'early-end';
+  source:
+    | 'native'
+    | 'shaka'
+    | 'mse'
+    | 'watchdog'
+    // A forced re-encode that produced neither a buffered range nor a frame
+    // long past the point a healthy one has both. Distinct from 'watchdog' so
+    // the logs say which timer reached the verdict.
+    | 'decoder-dead-start'
+    | 'early-end';
   code?: number;
   category?: number;
   severity?: number;
@@ -72,10 +81,19 @@ export const isMediaFailure = (failure: PlaybackFailure) =>
   (failure.source === 'native' && (failure.code === 3 || failure.code === 4)) ||
   (failure.source === 'shaka' && failure.category === 3);
 
+/**
+ * @param decoderRequiresConversion Set after a decoder error forced a retry.
+ * @param subtitleBurnIn A burned-in subtitle can only be produced by encoding.
+ * @param decoderRiskRequiresConversion Set ahead of the first attempt when the
+ *   source is one this device's decoder is not trusted with and the server is
+ *   permitted to re-encode -- see `shouldTranscodeForDecoder`.
+ */
 export const shouldForceVideoConversion = (
   decoderRequiresConversion: boolean,
   subtitleBurnIn: boolean,
-) => decoderRequiresConversion || subtitleBurnIn;
+  decoderRiskRequiresConversion = false,
+) =>
+  decoderRequiresConversion || subtitleBurnIn || decoderRiskRequiresConversion;
 
 /**
  * Detect lack of forward progress only during active playback. Starting,
@@ -108,3 +126,22 @@ export class PlaybackHealthMonitor {
     return true;
   }
 }
+
+export {
+  MEDIA_BUFFER_BUDGET_BYTES,
+  DEFAULT_BUFFER_BUDGET,
+  computeBufferBudget,
+} from './bufferBudget';
+export type {BufferBudget} from './bufferBudget';
+export {
+  DECODER_RISK_WARNING,
+  DECODER_TRANSCODE_DEAD_START_MS,
+  HEAVY_ANY_BITRATE_BPS,
+  HEAVY_DYNAMIC_RANGE_BITRATE_BPS,
+  assessDecoderRisk,
+  shouldAbandonForcedDecoderTranscode,
+  shouldTranscodeForDecoder,
+  shouldTripForcedDecoderTranscode,
+  shouldWarnAboutDecoderRisk,
+} from './decoderRisk';
+export type {DecoderRisk, DecoderRiskVerdict} from './decoderRisk';

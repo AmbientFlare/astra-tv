@@ -19,6 +19,19 @@ export interface HeartbeatSample {
   segP95?: number;
   segCount?: number;
   segmentDurationSec?: number;
+  /**
+   * Buffer shape. `rangeCount` is the one that separates an MSE flush or
+   * eviction from an ordinary drain: a drain keeps a single range and walks
+   * its end down, while a flush changes how many ranges exist.
+   */
+  rangeCount?: number;
+  furthestAhead?: number;
+  gapAhead?: number;
+  bufferingTimeSec?: number;
+  /** Shaka pipeline counters. Cumulative, so read them as deltas. */
+  corruptedFrames?: number;
+  gapsJumped?: number;
+  stallsDetected?: number;
 }
 
 const nonnegative = (v: number | undefined): number | undefined =>
