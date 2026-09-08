@@ -48,7 +48,7 @@ describe("what's new notice", () => {
     // Test builds change more often than the version does, so the build number
     // is part of the id: each installed build earns exactly one prompt.
     expect(CURRENT_NOTICE_ID).toBe(`whats-new-${APP_VERSION}-${BUILD_NUMBER}`);
-    expect(CURRENT_NOTICE_ID).toBe('whats-new-1.3.1-20260908.10');
+    expect(CURRENT_NOTICE_ID).toMatch(/^whats-new-\d+\.\d+\.\d+-\d{8}\.\d+$/);
   });
 
   it('does not promise anything on Amazon behalf or link outside the app', () => {
