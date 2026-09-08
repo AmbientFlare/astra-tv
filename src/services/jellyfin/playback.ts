@@ -123,7 +123,31 @@ export const getStreamUrl = async (
   const requestedSubtitleStreamIndex = options.subtitleSelectionIsManual
     ? options.subtitleStreamIndex ?? -1
     : options.subtitleStreamIndex;
-  const postPlaybackInfo = (
+  // Some restricted accounts receive the raw source as a TranscodingUrl.
+  // Keep the normal policy unless that answer cannot be demuxed by Vega.
+  let enableDirectStream = false;
+  const isDegradedSource = (result: PlaybackInfoResponse) => {
+    const source = result.MediaSources?.[0];
+    const url = source?.TranscodingUrl;
+    const container = source?.Container?.trim().toLowerCase();
+    if (
+      !url ||
+      !container ||
+      ['mp4', 'm4v', 'mov', 'ts', 'mpegts'].includes(container)
+    ) {
+      return false;
+    }
+    try {
+      return (
+        /\/stream$/i.test(new URL(url, baseUrl).pathname) &&
+        getUrlParameter(url, 'SegmentContainer') === undefined &&
+        getUrlParameter(url, 'VideoCodec') === undefined
+      );
+    } catch {
+      return false;
+    }
+  };
+  const requestPlaybackInfo = (
     audioStreamIndex?: number,
     mediaSourceId?: string,
     subtitleStreamIndex: number | undefined = requestedSubtitleStreamIndex,
@@ -162,13 +186,33 @@ export const getStreamUrl = async (
         // Compatible sources are stream-copied by the server (full source
         // quality), so this costs nothing for most of the library.
         EnableDirectPlay: false,
-        EnableDirectStream: false,
+        EnableDirectStream: enableDirectStream,
         AllowVideoStreamCopy: allowVideoStreamCopy,
         AllowAudioStreamCopy: options.allowAudioStreamCopy ?? true,
         AutoOpenLiveStream: true,
       }),
       signal: options.signal,
     });
+
+  const postPlaybackInfo = async (
+    ...args: Parameters<typeof requestPlaybackInfo>
+  ): Promise<PlaybackInfoResponse> => {
+    let result = await requestPlaybackInfo(...args);
+    if (isDegradedSource(result)) {
+      const permissionError = () =>
+        new Error(
+          'This server is not permitted to transcode video for your account, ' +
+            'and no compatible playback stream was returned.',
+        );
+      if (enableDirectStream) throw permissionError();
+      enableDirectStream = true;
+      result = await requestPlaybackInfo(...args);
+      if (isDegradedSource(result) || !hasPlayableMediaSource(result)) {
+        throw permissionError();
+      }
+    }
+    return result;
+  };
 
   let response = await postPlaybackInfo(
     options.audioStreamIndex,
@@ -199,76 +243,91 @@ export const getStreamUrl = async (
     );
   }
 
-  const firstMediaStreams = response.MediaSources?.[0]?.MediaStreams?.map(
-    (stream): JellyfinMediaStream => ({
-      channels: stream.Channels,
-      codec: stream.Codec,
-      displayTitle: stream.DisplayTitle,
-      index: stream.Index,
-      isDefault: stream.IsDefault,
-      language: stream.Language,
-      type: stream.Type,
-    }),
-  );
-  const selectedAudioStreamIndex =
-    options.audioStreamIndex ??
-    selectAudioStreamIndex(
-      firstMediaStreams ?? [],
-      prefs.preferredAudioLanguage,
-      prefs.maxAudioChannels,
-    );
-
-  const audioNeedsPinning =
-    options.audioStreamIndex === undefined && selectedAudioStreamIndex !== null;
-
-  // The global subtitle preference is resolved against the source the server
-  // just named. A manual choice from the player overlay went out on the first
-  // request already and is passed through untouched.
-  const firstMediaSource = response.MediaSources?.[0];
-  const selectedSubtitleStreamIndex = selectSubtitleStreamIndex(
-    (firstMediaSource?.MediaStreams ?? [])
-      .filter((stream) => stream.Type === 'Subtitle')
-      .map((stream) => ({
+  let selectedAudioStreamIndex: number | null = null;
+  let selectedSubtitleStreamIndex: number | undefined;
+  let selectedSubtitleBurnIn = false;
+  let selectionComplete = false;
+  while (!selectionComplete) {
+    const firstMediaStreams = response.MediaSources?.[0]?.MediaStreams?.map(
+      (stream): JellyfinMediaStream => ({
+        channels: stream.Channels,
+        codec: stream.Codec,
+        displayTitle: stream.DisplayTitle,
         index: stream.Index,
-        isForced: stream.IsForced,
+        isDefault: stream.IsDefault,
         language: stream.Language,
-      })),
-    {
-      mode: userPreferences.subtitleMode,
-      preferredLanguage: userPreferences.preferredSubtitleLanguage,
-      serverDefaultSubtitleStreamIndex:
-        firstMediaSource?.DefaultSubtitleStreamIndex,
-      manualSelection: options.subtitleSelectionIsManual
-        ? {streamIndex: options.subtitleStreamIndex}
-        : undefined,
-    },
-  );
-  // Every subtitle is burned in by the server (see mapTrack below), so a
-  // selected track always means burn-in.
-  const selectedSubtitleBurnIn = selectedSubtitleStreamIndex !== undefined;
-  const subtitleNeedsPinning =
-    !options.subtitleSelectionIsManual &&
-    !firstResponseSatisfiesSubtitle(
-      firstMediaSource,
-      selectedSubtitleStreamIndex,
+        type: stream.Type,
+      }),
     );
+    selectedAudioStreamIndex =
+      options.audioStreamIndex ??
+      selectAudioStreamIndex(
+        firstMediaStreams ?? [],
+        prefs.preferredAudioLanguage,
+        prefs.maxAudioChannels,
+      );
 
-  if (firstMediaSource?.Id && (audioNeedsPinning || subtitleNeedsPinning)) {
-    // Now that the server has named its source, pin the re-request to it so
-    // the chosen audio and subtitle stream indexes refer to the same source.
-    // A burned-in subtitle takes the same request shape as the in-player
-    // switch that passed on hardware: no video stream copy.
-    const resolved = await postPlaybackInfo(
-      selectedAudioStreamIndex ?? undefined,
-      firstMediaSource.Id,
-      selectedSubtitleStreamIndex ?? -1,
-      selectedSubtitleBurnIn || options.alwaysBurnInSubtitleWhenTranscoding,
-      !options.forceTranscode && !selectedSubtitleBurnIn,
+    const audioNeedsPinning =
+      options.audioStreamIndex === undefined &&
+      selectedAudioStreamIndex !== null;
+
+    // The global subtitle preference is resolved against the source the server
+    // just named. A manual choice from the player overlay went out on the first
+    // request already and is passed through untouched.
+    const firstMediaSource = response.MediaSources?.[0];
+    selectedSubtitleStreamIndex = selectSubtitleStreamIndex(
+      (firstMediaSource?.MediaStreams ?? [])
+        .filter((stream) => stream.Type === 'Subtitle')
+        .map((stream) => ({
+          index: stream.Index,
+          isForced: stream.IsForced,
+          language: stream.Language,
+        })),
+      {
+        mode: userPreferences.subtitleMode,
+        preferredLanguage: userPreferences.preferredSubtitleLanguage,
+        serverDefaultSubtitleStreamIndex:
+          firstMediaSource?.DefaultSubtitleStreamIndex,
+        manualSelection: options.subtitleSelectionIsManual
+          ? {streamIndex: options.subtitleStreamIndex}
+          : undefined,
+      },
     );
+    // Every subtitle is burned in by the server (see mapTrack below), so a
+    // selected track always means burn-in.
+    selectedSubtitleBurnIn = selectedSubtitleStreamIndex !== undefined;
+    const subtitleNeedsPinning =
+      !options.subtitleSelectionIsManual &&
+      !firstResponseSatisfiesSubtitle(
+        firstMediaSource,
+        selectedSubtitleStreamIndex,
+      );
 
-    if (hasPlayableMediaSource(resolved)) {
-      response = resolved;
+    if (firstMediaSource?.Id && (audioNeedsPinning || subtitleNeedsPinning)) {
+      // Now that the server has named its source, pin the re-request to it so
+      // the chosen audio and subtitle stream indexes refer to the same source.
+      // A burned-in subtitle takes the same request shape as the in-player
+      // switch that passed on hardware: no video stream copy.
+      const wasDirectStreamEnabled: boolean = enableDirectStream;
+      const resolved = await postPlaybackInfo(
+        selectedAudioStreamIndex ?? undefined,
+        firstMediaSource.Id,
+        selectedSubtitleStreamIndex ?? -1,
+        selectedSubtitleBurnIn || options.alwaysBurnInSubtitleWhenTranscoding,
+        !options.forceTranscode && !selectedSubtitleBurnIn,
+      );
+
+      if (hasPlayableMediaSource(resolved)) {
+        response = resolved;
+        // A route retry can resolve a different source. Select tracks from it
+        // before pinning, and keep its session together with its playback URL.
+        if (enableDirectStream !== wasDirectStreamEnabled) {
+          selectionComplete = false;
+          continue;
+        }
+      }
     }
+    selectionComplete = true;
   }
   const mediaSource = response.MediaSources?.[0];
   const shouldUseTranscode = Boolean(mediaSource?.TranscodingUrl);
