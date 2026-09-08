@@ -120,6 +120,10 @@ import {
 import {audioPlayback} from '../../services/audioPlayer';
 import {VideoPauseIdleVisual} from '../../components/VideoPauseIdleVisual';
 import {
+  startVideoEngagement,
+  stopVideoEngagement,
+} from '@astra/user-engagement';
+import {
   activeWebVttText,
   parseWebVtt,
   WebVttCue,
@@ -2332,6 +2336,28 @@ export const PlayerScreen = ({
   useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
+
+  /**
+   * Tell Vega the viewer is engaged with video playback for as long as the
+   * player is open.
+   *
+   * The platform detects media playback on its own, but that detection is not
+   * durable: build 20260908.11 held the foreground for 55 minutes of an
+   * uninterrupted movie and was then terminated by the lifecycle manager
+   * (`ReclaimMediaResource`, foreground taken by the system device-control UI)
+   * at 47% of the runtime. This is the documented way to reinforce it.
+   *
+   * The hold spans pause as well as playback. A paused movie still belongs to
+   * the viewer, and the burn-in visual behind it needs the app alive; releasing
+   * here is what commit 8b9d24db added the hold to prevent. Release happens
+   * when the player closes.
+   */
+  useEffect(() => {
+    startVideoEngagement();
+    return () => {
+      stopVideoEngagement();
+    };
+  }, []);
 
   /**
    * One sample of player diagnostics. Extracted from the stats overlay so the

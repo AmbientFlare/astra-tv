@@ -1,5 +1,9 @@
 import React from 'react';
 import {render, act} from '@testing-library/react-native';
+import {
+  startVideoEngagement,
+  stopVideoEngagement,
+} from '@astra/user-engagement';
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -62,6 +66,10 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
 }));
 jest.mock('../src/components/VideoPauseIdleVisual', () => ({
   VideoPauseIdleVisual: () => null,
+}));
+jest.mock('@astra/user-engagement', () => ({
+  startVideoEngagement: jest.fn(),
+  stopVideoEngagement: jest.fn(),
 }));
 jest.mock('../src/services/audioPlayer', () => ({
   audioPlayback: {stop: jest.fn(async () => undefined)},
@@ -168,6 +176,26 @@ describe('PlayerScreen native session integration', () => {
     (getStreamUrl as jest.Mock).mockResolvedValue({...stream});
     (reportPlaybackStart as jest.Mock).mockResolvedValue(undefined);
     (reportPlaybackStopped as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  it('holds video engagement for as long as the player is open', async () => {
+    const view = mount();
+    await start(view);
+    expect(startVideoEngagement).toHaveBeenCalledTimes(1);
+    expect(stopVideoEngagement).not.toHaveBeenCalled();
+
+    // Pausing must not release it; a paused movie still belongs to the viewer.
+    await act(async () => {
+      mockVideos[0].pause();
+      await flush();
+    });
+    expect(stopVideoEngagement).not.toHaveBeenCalled();
+
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+    expect(stopVideoEngagement).toHaveBeenCalledTimes(1);
   });
 
   it('cannot load/play or report start after unmount during PlaybackInfo', async () => {
