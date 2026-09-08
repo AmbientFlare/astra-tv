@@ -26,6 +26,7 @@ import {
   getAdjacentEpisodes,
   getEpisodes,
   getMediaSegments,
+  canServerTranscodeVideo,
   getStreamUrl,
   JellyfinMediaItem,
   JellyfinMediaSegment,
@@ -81,8 +82,24 @@ import {
   formatPlaybackFailure,
   formatBufferingTime,
   PlaybackHealthMonitor,
+  shouldAbandonForcedDecoderTranscode,
+  shouldTripForcedDecoderTranscode,
   shouldForceVideoConversion,
+  assessDecoderRisk,
+  computeBufferBudget,
+  shouldTranscodeForDecoder,
+  shouldWarnAboutDecoderRisk,
+  DECODER_RISK_WARNING,
 } from '../../services/playbackHealth';
+import {
+  getServerCapabilities,
+  recordTranscodeFailure,
+  recordTranscodeProbe,
+  recordTranscodeSuccess,
+  serverCapabilityKey,
+  shouldAttemptServerTranscode,
+  shouldProbeTranscode,
+} from '../../services/serverCapabilities';
 import {
   defaultPlaybackPrefs,
   defaultUserPreferences,
@@ -120,9 +137,12 @@ interface PlaybackDebugInfo {
   bufferedAheadSeconds?: number;
   bufferedRangeCount?: number;
   bufferingTimeSeconds?: number;
+  corruptedFrames?: number;
   decodedFrames?: number;
   droppedFrames?: number;
   estimatedBandwidth?: number;
+  gapsJumped?: number;
+  stallsDetected?: number;
   errorEventCount: number;
   shakaErrorEventCount?: number;
   lastError?: string;
@@ -375,6 +395,68 @@ export const PlayerScreen = ({
   // Resolving a stream can take two server round trips, so startup gets its
   // own always-visible state rather than borrowing the auto-hiding controls.
   const [startupError, setStartupError] = useState<string | null>(null);
+  // Shown only to viewers whose server cannot re-encode a source this decoder
+  // is not trusted with. Anyone with transcoding available gets the re-encode
+  // instead and must never see this.
+  const [decoderRiskWarned, setDecoderRiskWarned] = useState(false);
+  useEffect(() => {
+    if (!decoderRiskWarned) {
+      return;
+    }
+    const timer = setTimeout(() => setDecoderRiskWarned(false), 12000);
+    return () => clearTimeout(timer);
+  }, [decoderRiskWarned]);
+  // EnableVideoPlaybackTranscoding is a permission, not a capability: a
+  // CPU-only NAS reports it happily and then cannot start a 4K Dolby Vision
+  // re-encode at all. Measured on 2026-09-07: the forced session never
+  // received a manifest, held zero buffered ranges for its whole life and
+  // died to the watchdog with no decoded frames -- three times -- where the
+  // unforced passthrough of the same file played with 0.025% drops. So treat
+  // a forced session that produces no frames as proof the server cannot do
+  // the work, stop forcing for the rest of this screen, and fall back to the
+  // passthrough route plus the warning the server should have earned up front.
+  const decoderTranscodeUnusable = useRef(false);
+  const forcedDecoderTranscode = useRef(false);
+  const decodedFramesThisSession = useRef(0);
+  const forcedTranscodeReadyAtMs = useRef<number | null>(null);
+  // The same verdict, remembered per server across restarts. Without this the
+  // 12 s dead start is paid again every time the player mounts; with it, the
+  // NAS is asked once and never again until it starts working.
+  const serverKey = serverCapabilityKey(serverUrl);
+  const transcodeSuccessRecorded = useRef(false);
+  // Set when this server's suppressed answer has gone stale enough to re-test.
+  // Held rather than acted on immediately: the probe is only spent when a
+  // heavy title actually triggers a forced attempt, so someone who only
+  // watches 1080p never pays for it and never uses up their weekly try.
+  const transcodeProbeArmed = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getServerCapabilities(serverKey)
+      .then((capabilities) => {
+        if (!mounted) return;
+        const now = Date.now();
+        transcodeProbeArmed.current = shouldProbeTranscode(
+          capabilities.videoTranscode,
+          capabilities.lastTranscodeProbeAtMs,
+          now,
+        );
+        if (
+          !shouldAttemptServerTranscode(
+            capabilities.videoTranscode,
+            capabilities.lastTranscodeProbeAtMs,
+            now,
+          )
+        ) {
+          decoderTranscodeUnusable.current = true;
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, [serverKey]);
   const [isStarting, setStarting] = useState(true);
   const onSurfaceViewCreatedRef = useRef<
     ((handle: string) => Promise<void>) | null
@@ -1254,7 +1336,22 @@ export const PlayerScreen = ({
       );
       const hdrSupport = await getHdrSupport();
       context?.assertCurrent();
+      // stream.bitrate is the server's figure for the delivered stream. It is
+      // the closest thing available before the manifest is parsed; the goals
+      // only need to be right to within a segment.
+      const bufferBudget = computeBufferBudget(stream.bitrate);
+      trace(
+        'shaka.buffer',
+        `ahead=${bufferBudget.bufferingGoal}s resume=${
+          bufferBudget.rebufferingGoal
+        }s behind=${bufferBudget.bufferBehind}s bitrate=${
+          stream.bitrate ?? '?'
+        }`,
+      );
       const settings = {
+        bufferingGoalSeconds: bufferBudget.bufferingGoal,
+        rebufferingGoalSeconds: bufferBudget.rebufferingGoal,
+        bufferBehindSeconds: bufferBudget.bufferBehind,
         preferredVideoHdrLevel: preferredVideoHdrLevel(
           hdrSupport,
           stream.sourceVideoRangeType,
@@ -1579,6 +1676,58 @@ export const PlayerScreen = ({
       const sourceVideoStream = item.mediaStreams?.find(
         (track) => track.type === 'Video',
       );
+      // Most of the library is well within this decoder's comfort zone, so
+      // this is a narrow exception rather than a routine re-encode: it fires
+      // only for the high-bitrate Dolby Vision / HDR10+ tail. When the server
+      // may re-encode we ask it to; when it may not, the source is delivered
+      // as-is and the viewer is told it may not play smoothly.
+      const decoderRisk = assessDecoderRisk(sourceVideoStream);
+      // Once this server has been observed failing the re-encode, its stated
+      // permission is worthless and asking again only wastes a request.
+      const serverCanTranscodeVideo = decoderTranscodeUnusable.current
+        ? false
+        : decoderRisk.risk === 'heavy' && userId
+        ? await canServerTranscodeVideo(
+            serverUrl,
+            accessToken,
+            userId,
+            context.signal,
+          )
+        : true;
+      context.assertCurrent();
+      const transcodeForDecoder = shouldTranscodeForDecoder(
+        decoderRisk.risk,
+        serverCanTranscodeVideo,
+      );
+      forcedDecoderTranscode.current = transcodeForDecoder;
+      // Spend the probe here, where the request is genuinely going out.
+      const probing = transcodeForDecoder && transcodeProbeArmed.current;
+      if (probing) {
+        transcodeProbeArmed.current = false;
+        void recordTranscodeProbe(serverKey);
+      }
+      decodedFramesThisSession.current = 0;
+      forcedTranscodeReadyAtMs.current = null;
+      transcodeSuccessRecorded.current = false;
+      if (decoderRisk.risk === 'heavy') {
+        trace(
+          'playback.decoderRisk',
+          `heavy reason=${decoderRisk.reason} bitrate=${
+            sourceVideoStream?.bitRate ?? '?'
+          } range=${sourceVideoStream?.videoRangeType ?? '?'} transcode=${
+            probing
+              ? 'probe'
+              : transcodeForDecoder
+              ? 'forced'
+              : decoderTranscodeUnusable.current
+              ? 'unusable'
+              : 'unavailable'
+          }`,
+        );
+      }
+      setDecoderRiskWarned(
+        shouldWarnAboutDecoderRisk(decoderRisk.risk, serverCanTranscodeVideo),
+      );
       const stream = await getStreamUrl(
         serverUrl,
         accessToken,
@@ -1592,6 +1741,7 @@ export const PlayerScreen = ({
           forceTranscode: shouldForceVideoConversion(
             decoderRequiresConversion.current,
             selectedSubtitleBurnIn.current,
+            transcodeForDecoder,
           ),
           maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
           // On a reload the server has already named its source; reusing that
@@ -1700,6 +1850,7 @@ export const PlayerScreen = ({
       item.mediaStreams,
       item.name,
       preferredMaxBitrate,
+      serverKey,
       serverUrl,
       userId,
     ],
@@ -1816,6 +1967,7 @@ export const PlayerScreen = ({
           context.assertCurrent();
           sessionReady.current = true;
           telemetrySessionStartedMs.current = Date.now();
+          forcedTranscodeReadyAtMs.current = Date.now();
           heartbeatRef.current?.start();
           void reporter.current?.start({
             ...stream,
@@ -1914,6 +2066,29 @@ export const PlayerScreen = ({
     if (failure.source === 'shaka' && failure.severity === 1) return;
     if (trackReloadInProgress.current || !sessionReady.current) return;
     sessionFailed.current = true;
+    // A forced re-encode that never produced a single frame is a server that
+    // cannot do the work, not a transient fault. Retrying the identical
+    // request twice more only spends 90 more seconds arriving at the same
+    // place, so drop the force instead and let the source through. The retry
+    // budget resets because this is a different request, and the sticky flag
+    // means it can only happen once.
+    if (
+      shouldAbandonForcedDecoderTranscode(
+        forcedDecoderTranscode.current,
+        decoderTranscodeUnusable.current,
+        decodedFramesThisSession.current,
+      )
+    ) {
+      decoderTranscodeUnusable.current = true;
+      void recordTranscodeFailure(serverKey);
+      playbackRecoveryAttempt.current = 0;
+      trace(
+        'playback.decoderRisk',
+        'forced transcode produced no frames; falling back to passthrough',
+      );
+      void startPlayback({failure, reason: 'recovery'});
+      return;
+    }
     if (playbackRecoveryAttempt.current >= 2) {
       sessionReady.current = false;
       videoRef.current?.pause();
@@ -2084,6 +2259,27 @@ export const PlayerScreen = ({
       const ticks = currentPositionTicks();
       applyPosition(ticks / TICKS_PER_SECOND);
       reportProgress(ticks);
+      // Beat the stall watchdog to a verdict it is going to reach anyway. The
+      // cheap flags are tested first so getDebugStats() -- which costs
+      // JS-thread time, this app's signature failure mode -- is only read
+      // while a forced session is actually overdue.
+      const forcedReadyAtMs = forcedTranscodeReadyAtMs.current;
+      if (
+        forcedDecoderTranscode.current &&
+        !decoderTranscodeUnusable.current &&
+        decodedFramesThisSession.current === 0 &&
+        forcedReadyAtMs !== null &&
+        shouldTripForcedDecoderTranscode(
+          forcedDecoderTranscode.current,
+          decoderTranscodeUnusable.current,
+          decodedFramesThisSession.current,
+          shakaPlayerRef.current?.getDebugStats()?.buffered?.total?.length ?? 0,
+          Date.now() - forcedReadyAtMs,
+        )
+      ) {
+        playbackErrorHandler.current({source: 'decoder-dead-start'});
+        return;
+      }
       if (
         healthMonitor.current.observe(
           Date.now(),
@@ -2191,9 +2387,12 @@ export const PlayerScreen = ({
         : undefined,
       bufferedRangeCount: bufferedRanges.length,
       bufferingTimeSeconds: stats?.bufferingTime,
+      corruptedFrames: stats?.corruptedFrames,
       decodedFrames: nativeVideoFrames?.totalVideoFrames,
       droppedFrames: nativeVideoFrames?.droppedVideoFrames,
       estimatedBandwidth: stats?.estimatedBandwidth,
+      gapsJumped: stats?.gapsJumped,
+      stallsDetected: stats?.stallsDetected,
       furthestBufferedAheadSeconds:
         furthestBufferedEnd > currentTime
           ? furthestBufferedEnd - currentTime
@@ -2214,6 +2413,24 @@ export const PlayerScreen = ({
     const heartbeat = new PlaybackHeartbeat((): HeartbeatSample => {
       const sample = collectPlaybackSample();
       lastTelemetrySample.current = sample ?? lastTelemetrySample.current;
+      decodedFramesThisSession.current = Math.max(
+        decodedFramesThisSession.current,
+        sample?.decodedFrames ?? 0,
+      );
+      // A forced session that is producing frames clears a stale `unable`, so
+      // a GPU that has come back is picked up without anyone visiting Settings.
+      if (
+        forcedDecoderTranscode.current &&
+        !transcodeSuccessRecorded.current &&
+        decodedFramesThisSession.current > 0
+      ) {
+        transcodeSuccessRecorded.current = true;
+        void getServerCapabilities(serverKey)
+          .then((capabilities) =>
+            recordTranscodeSuccess(serverKey, capabilities.videoTranscode),
+          )
+          .catch(() => undefined);
+      }
       const stream = streamInfo.current;
       const event = sample?.lastPlaybackEvent;
       return {
@@ -2227,6 +2444,16 @@ export const PlayerScreen = ({
         height: sample?.activeVideoHeight,
         decodedFrames: sample?.decodedFrames,
         droppedFrames: sample?.droppedFrames,
+        // Buffer shape. rangeCount is the field that tells a flush or an MSE
+        // eviction apart from a normal drain, which is the open question
+        // behind the full-buffer collapses on high-bitrate DV titles.
+        rangeCount: sample?.bufferedRangeCount,
+        furthestAhead: sample?.furthestBufferedAheadSeconds,
+        gapAhead: sample?.nextBufferedGapSeconds,
+        bufferingTimeSec: sample?.bufferingTimeSeconds,
+        corruptedFrames: sample?.corruptedFrames,
+        gapsJumped: sample?.gapsJumped,
+        stallsDetected: sample?.stallsDetected,
         // Per-segment timing has no source yet, so the `server` starvation
         // verdict cannot fire. That is an accepted Phase 1 gap — do not add
         // per-segment events to close it.
@@ -2238,7 +2465,7 @@ export const PlayerScreen = ({
       heartbeat.stop();
       heartbeatRef.current = null;
     };
-  }, [collectPlaybackSample]);
+  }, [collectPlaybackSample, serverKey]);
 
   useEffect(() => {
     if (!showPlaybackStats) {
@@ -2359,6 +2586,11 @@ export const PlayerScreen = ({
               </View>
             </>
           )}
+        </View>
+      ) : null}
+      {decoderRiskWarned ? (
+        <View style={styles.decoderWarning}>
+          <Text style={styles.decoderWarningText}>{DECODER_RISK_WARNING}</Text>
         </View>
       ) : null}
       {controlsVisible ? (
@@ -2950,6 +3182,21 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     paddingHorizontal: 12,
     paddingVertical: 5,
+    textAlign: 'center',
+  },
+  decoderWarning: {
+    position: 'absolute',
+    top: 48,
+    left: 72,
+    right: 72,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderRadius: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 18,
+  },
+  decoderWarningText: {
+    color: '#F2D98C',
+    fontSize: 24,
     textAlign: 'center',
   },
   overlay: {
