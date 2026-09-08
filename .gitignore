@@ -33,4 +33,11 @@ docs/DEVICE_TEST_NOTES.md
 
 # agent handoffs / working notes (never publish)
 docs/handoffs/
+
+# Internal public-web research artifacts (never publish)
+docs/EXTERNAL_USER_FEEDBACK.md
+docs/EXTERNAL_MENTIONS_INDEX.md
+docs/OUTREACH_TARGETS.md
+docs/research/
+
 src/services/telemetry/operator.generated.ts
