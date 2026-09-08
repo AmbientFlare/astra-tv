@@ -8,6 +8,7 @@ import {
   shouldUseSequenceModeForMidFileStart,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
+import {RELEASE_HIGHLIGHTS} from '../src/config/releaseNotes';
 import {
   updateUserPreferences,
   writePlaybackPreferences,
@@ -190,24 +191,17 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.3.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260908.08')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.3.0")).toBeTruthy();
-    expect(
-      screen.getByText(
-        '• HDR movies keep their HDR picture instead of arriving as washed-out SDR.',
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        '• Videos that used to stall or quit partway through now recover on their own.',
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        '• Libraries open immediately, and backing out of a movie returns you to the card you left.',
-      ),
-    ).toBeTruthy();
+    // The version and build are spelled out so a forgotten bump fails here.
+    expect(screen.getByText('Astra 1.3.1')).toBeTruthy();
+    expect(screen.getByText('Build: 20260908.09')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.3.1")).toBeTruthy();
+    // The notes themselves are not: About and the What's New notice both read
+    // RELEASE_HIGHLIGHTS, and pinning the prose here only made a version bump
+    // mean editing the same sentences twice.
+    expect(RELEASE_HIGHLIGHTS.length).toBeGreaterThan(0);
+    RELEASE_HIGHLIGHTS.forEach((highlight) => {
+      expect(screen.getByText(`\u2022 ${highlight}`)).toBeTruthy();
+    });
   });
 
   it('persists the separate with-logs toggle from Settings > Playback', async () => {
@@ -340,7 +334,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.3\.0 \(20260908\.08\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.3\.1 \(20260908\.09\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,

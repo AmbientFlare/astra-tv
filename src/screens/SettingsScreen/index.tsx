@@ -19,6 +19,7 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {measureServerBandwidth} from '../../services/jellyfin';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
+import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
 import {
   defaultUserPreferences,
   defaultPlaybackPrefs,
@@ -941,18 +942,13 @@ export const SettingsScreen = ({
                 <Text style={styles.releaseNotesTitle}>
                   What's new in {APP_VERSION}
                 </Text>
-                <Text style={styles.releaseNotesText}>
-                  • HDR movies keep their HDR picture instead of arriving as
-                  washed-out SDR.
-                </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Videos that used to stall or quit partway through now
-                  recover on their own.
-                </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Libraries open immediately, and backing out of a movie
-                  returns you to the card you left.
-                </Text>
+                {RELEASE_HIGHLIGHTS.map((highlight) => (
+                  <Text
+                    key={highlight.slice(0, 24)}
+                    style={styles.releaseNotesText}>
+                    {`\u2022 ${highlight}`}
+                  </Text>
+                ))}
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
             </View>

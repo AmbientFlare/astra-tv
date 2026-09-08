@@ -7,10 +7,7 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../components/FocusableItem';
 import {ProfileSwitcher} from '../components/ProfileSwitcher';
-import {
-  CURRENT_NOTICE_ID,
-  DeveloperNotice,
-} from '../components/DeveloperNotice';
+import {CURRENT_NOTICE_ID, WhatsNewNotice} from '../components/WhatsNewNotice';
 import {CapabilityNotice} from '../components/CapabilityNotice';
 import {readAppState, writeAppState} from '../services/storage';
 import {nextAutoAdvanceCount} from '../services/episodePlayback';
@@ -389,7 +386,7 @@ export const RootNavigator = () => {
   // suppressed during playback.
   const developerNotice =
     noticeVisible && serverProfile && current.route !== 'player' ? (
-      <DeveloperNotice onDismiss={dismissNotice} />
+      <WhatsNewNotice onDismiss={dismissNotice} />
     ) : null;
 
   // Playback is what writes the verdict, so re-read on the way back to home

@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.3.1 - 2026-09-08
+
+### Fixed
+
+- Turning on subtitles forced the server to re-encode the whole video. Astra
+  asked for every subtitle to be burned into the picture, which also told the
+  server it could not copy the video stream, so a file that needed no
+  conversion at all became a full transcode the moment captions were switched
+  on. On a server without hardware encoding that was the difference between
+  smooth playback and constant buffering. Astra draws text subtitles itself
+  again; burn-in is now reserved for the formats it cannot draw -- picture
+  based subtitles and styled ASS/SSA. ([#20](https://github.com/AmbientFlare/astra-tv/issues/20))
+- Subtitles in MP4 files (`mov_text`) were treated as a format Astra could not
+  render, so they always burned in. They are text like any other and are now
+  rendered in the app.
+- Switching subtitle tracks, or turning them off, no longer reloads the video.
+  A subtitle Astra draws itself changes nothing about the stream the server is
+  sending, so the change is now instant.
+- A stream the server handed back in a form Astra could not play -- seen with
+  some MKV and AVI files -- is now asked for again properly instead of failing
+  to start. ([#21](https://github.com/AmbientFlare/astra-tv/issues/21))
+
+### Added
+
+- Astra learns what each server can actually do and stops retrying what it has
+  already proved it cannot. A first run asks two questions per server -- whether
+  it has a graphics card and whether the room has surround sound, with "I don't
+  know" as a real answer -- and playback then corrects those answers on its own.
+  Settings gains a page to see and override any of it.
+- The one-time notice after an update is now a "What's new" list for the
+  version being installed, shown once and dismissed with a single press.
+
 ## 1.3.0 - 2026-09-05
 
 The playback release. Videos that used to stall, stick on a spinner or quit
