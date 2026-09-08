@@ -11,6 +11,10 @@ import {
   flattenHdrSupport,
   getHdrSupport,
 } from './services/mediaCapabilities/hdr';
+import {
+  flattenDeliveryRouteSupport,
+  getDeliveryRouteSupport,
+} from './services/mediaCapabilities/deliveryRoute';
 import {RootNavigator} from './navigation';
 
 export const App = () => {
@@ -38,6 +42,16 @@ export const App = () => {
         // Read `hdrFieldsIgnored` before anything else -- if the platform
         // ignores transferFunction, the HDR results carry no information.
         emit('media.hdr', flattenHdrSupport(await getHdrSupport()));
+        // Crosses container x resolution x level, because a 4K HEVC stream
+        // over MPEG-TS differs from a working 1080p one in all three at once
+        // and each implies a different fix. Read `controlsFailed`,
+        // `levelFieldIgnored` and `mp2tUnanswerable` before any cell: a
+        // platform that will not describe mp2t is not the same as one that
+        // rejects it.
+        emit(
+          'media.deliveryRoute',
+          flattenDeliveryRouteSupport(await getDeliveryRouteSupport()),
+        );
       })
       .catch(() => {
         // Diagnostics must never reject into application startup.
