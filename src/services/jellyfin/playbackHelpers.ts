@@ -175,9 +175,23 @@ export const subtitleMimeForDelivery = (
 };
 
 export const supportsTextTrack = (codec?: string) =>
-  ['webvtt', 'vtt', 'srt', 'subrip', 'ttml'].includes(
+  ['webvtt', 'vtt', 'srt', 'subrip', 'ttml', 'mov_text'].includes(
     codec?.toLowerCase() ?? '',
   );
+
+/**
+ * Burn-in is a last resort, not a policy. Vega renders timed text, so any
+ * format the server can hand over as WebVTT is rendered in-app and leaves the
+ * video eligible for a stream copy. Bitmap and styled formats (PGS, VOBSUB,
+ * ASS/SSA) have no in-app renderer, so those still cost a re-encode — and a
+ * server that explicitly answers `Encode` for a track is believed over the
+ * codec name.
+ */
+export const subtitleRequiresBurnIn = (track: {
+  codec?: string;
+  deliveryMethod?: string;
+}): boolean =>
+  track.deliveryMethod === 'Encode' || !supportsTextTrack(track.codec);
 
 const subtitleLanguageAliases: Record<string, string[]> = {
   english: ['en', 'eng', 'english'],

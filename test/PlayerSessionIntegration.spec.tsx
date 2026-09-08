@@ -313,6 +313,43 @@ describe('PlayerScreen native session integration', () => {
     });
   });
 
+  it('switches a text subtitle track in place, without a new stream', async () => {
+    // Issue #20: the app draws text cues itself, so choosing one changes no
+    // part of the stream the server is sending.
+    const track: any = {
+      id: 'sub',
+      index: 2,
+      title: 'English',
+      burnInRequired: false,
+      deliveryUrl: 'https://example.test/Subtitles/2/Stream.vtt',
+    };
+    (getStreamUrl as jest.Mock).mockImplementation(async () => ({
+      ...stream,
+      subtitleTracks: [track],
+      subtitleStreamIndex: undefined,
+      subtitleBurnIn: false,
+    }));
+    const view = mount();
+    await start(view);
+    const callsAfterStart = (getStreamUrl as jest.Mock).mock.calls.length;
+    await act(async () => {
+      mockRemote({eventType: 'menu'});
+    });
+    await act(async () => {
+      await view
+        .UNSAFE_getByType(PlaybackSettingsOverlay)
+        .props.onSelectSubtitle(track);
+    });
+    expect((getStreamUrl as jest.Mock).mock.calls).toHaveLength(
+      callsAfterStart,
+    );
+    expect(mockVideos).toHaveLength(1);
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+  });
+
   it('releases on background and navigates only once if the surface also disappears', async () => {
     const onBack = jest.fn();
     const view = render(

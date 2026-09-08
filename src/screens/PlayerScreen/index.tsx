@@ -1911,7 +1911,9 @@ export const PlayerScreen = ({
           }
           if (subtitleTrack !== undefined) {
             selectedSubtitleIndex.current = subtitleTrack?.index;
-            selectedSubtitleBurnIn.current = Boolean(subtitleTrack);
+            selectedSubtitleBurnIn.current = Boolean(
+              subtitleTrack?.burnInRequired,
+            );
             subtitleSelectionPinned.current = true;
             setSelectedSubtitleTrackIndex(subtitleTrack?.index);
           }
@@ -2033,9 +2035,30 @@ export const PlayerScreen = ({
       subtitleTrack?: JellyfinMediaTrack | null;
     }) => {
       if (trackReloadInProgress.current) return;
+      // A subtitle the app draws itself never touches the video stream, so
+      // switching between text tracks (or turning them off) is a state change,
+      // not a new session. Only a burn-in track — the one being left behind or
+      // the one being chosen — needs the server to build a different stream.
+      const subtitleOnly =
+        selection.audioTrack === undefined &&
+        selection.subtitleTrack !== undefined &&
+        sessionReady.current &&
+        !selectedSubtitleBurnIn.current &&
+        !selection.subtitleTrack?.burnInRequired;
+      if (subtitleOnly) {
+        const track = selection.subtitleTrack ?? null;
+        selectedSubtitleIndex.current = track?.index;
+        selectedSubtitleBurnIn.current = false;
+        subtitleSelectionPinned.current = true;
+        setSelectedSubtitleTrackIndex(track?.index);
+        setSettingsPanel(null);
+        trace('subtitle.switch', `inPlace index=${track?.index ?? 'off'}`);
+        reportProgress();
+        return;
+      }
       await startPlayback({...selection, reason: 'track'});
     },
-    [startPlayback],
+    [reportProgress, startPlayback],
   );
 
   reloadAtSecondsRef.current = async (position) => {

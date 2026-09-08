@@ -26,6 +26,7 @@ import {
   selectSubtitleStreamIndex,
   firstResponseSatisfiesSubtitle,
   buildTranscodingUrl,
+  subtitleRequiresBurnIn,
   supportsTextTrack,
   subtitleMimeForDelivery,
   getUrlParameter,
@@ -293,9 +294,27 @@ export const getStreamUrl = async (
           : undefined,
       },
     );
-    // Every subtitle is burned in by the server (see mapTrack below), so a
-    // selected track always means burn-in.
-    selectedSubtitleBurnIn = selectedSubtitleStreamIndex !== undefined;
+    // Only formats Astra cannot render itself are burned in (see mapTrack
+    // below). A text track is fetched as WebVTT and drawn over the video, so
+    // the server keeps its stream copy.
+    const selectedSubtitleStream =
+      selectedSubtitleStreamIndex === undefined
+        ? undefined
+        : (firstMediaSource?.MediaStreams ?? []).find(
+            (stream) =>
+              stream.Type === 'Subtitle' &&
+              stream.Index === selectedSubtitleStreamIndex,
+          );
+    selectedSubtitleBurnIn =
+      selectedSubtitleStreamIndex !== undefined &&
+      // A caller that already asked for burn-in has sent that flag on the
+      // first request, so report the stream it actually gets rather than what
+      // the codec alone would suggest.
+      (options.alwaysBurnInSubtitleWhenTranscoding === true ||
+        subtitleRequiresBurnIn({
+          codec: selectedSubtitleStream?.Codec,
+          deliveryMethod: selectedSubtitleStream?.DeliveryMethod,
+        }));
     const subtitleNeedsPinning =
       !options.subtitleSelectionIsManual &&
       !firstResponseSatisfiesSubtitle(
@@ -411,14 +430,21 @@ export const getStreamUrl = async (
       isForced: track.IsForced,
       isExternal: track.IsExternal,
       deliveryUrl,
-      // Every subtitle is burned in by the server. Astra used to render text
-      // tracks itself and leave picture-based ones to Jellyfin, which meant two
-      // code paths, two failure modes, and app-rendered subtitles that drifted
-      // out of sync after a long seek. One path costs a reload on each subtitle
-      // change and is worth it. Revert this single expression to
-      // `isSubtitle && (!deliveryUrl || !textTrackSupported)` to restore
-      // app-side rendering; nothing else was removed.
-      burnInRequired: isSubtitle,
+      // Text tracks are rendered in-app; only formats with no in-app renderer
+      // are burned in by the server. App-side rendering was collapsed into
+      // burn-in once because cues drifted after a long seek, but that drift was
+      // a timeline bug: `currentTime` on a server-positioned HLS session is
+      // relative to the segment window, not to the file. The cue clock now runs
+      // on the calibrated logical timeline (`mediaTimeline.ts`), which is the
+      // same clock the VTT timestamps use. Burning in every subtitle forced a
+      // full re-encode of otherwise stream-copyable video (issue #20).
+      burnInRequired:
+        isSubtitle &&
+        (!deliveryUrl ||
+          subtitleRequiresBurnIn({
+            codec: track.Codec,
+            deliveryMethod: track.DeliveryMethod,
+          })),
       mimeType: isSubtitle
         ? subtitleMimeForDelivery(deliveryUrl, track.Codec)
         : undefined,

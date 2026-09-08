@@ -312,7 +312,7 @@ describe('the global subtitle preference', () => {
     expect(stream.subtitleStreamIndex).toBeUndefined();
   });
 
-  it('picks the preferred language and asks for burn-in when all subtitles are on', async () => {
+  it('picks the preferred language and keeps the stream copy for a text track', async () => {
     mockUserPreferences = {
       preferredSubtitleLanguage: 'English',
       subtitleMode: 'alwaysOn',
@@ -327,11 +327,19 @@ describe('the global subtitle preference', () => {
     expect(requests[1].body.MediaSourceId).toBe('source-from-server');
     expect(requests[1].body.AudioStreamIndex).toBe(1);
     expect(requests[1].body.SubtitleStreamIndex).toBe(3);
-    expect(requests[1].body.AlwaysBurnInSubtitleWhenTranscoding).toBe(true);
-    // Same request shape as the in-player switch that passed on hardware.
-    expect(requests[1].body.AllowVideoStreamCopy).toBe(false);
+    // Stream 3 is subrip: the app renders it, so the server keeps its copy
+    // instead of re-encoding the video to paint the text on (issue #20).
+    expect(requests[1].body.AlwaysBurnInSubtitleWhenTranscoding).toBeFalsy();
+    expect(requests[1].body.AllowVideoStreamCopy).toBe(true);
     expect(stream.subtitleStreamIndex).toBe(3);
-    expect(stream.subtitleBurnIn).toBe(true);
+    expect(stream.subtitleBurnIn).toBe(false);
+    expect(
+      stream.subtitleTracks.find((track) => track.index === 3)?.burnInRequired,
+    ).toBe(false);
+    // Stream 4 is PGS, which has no in-app renderer.
+    expect(
+      stream.subtitleTracks.find((track) => track.index === 4)?.burnInRequired,
+    ).toBe(true);
     expect(stream.subtitleTracks.map((track) => track.index)).toEqual([
       2, 3, 4,
     ]);
@@ -350,9 +358,8 @@ describe('the global subtitle preference', () => {
     expect(stream.subtitleStreamIndex).toBeUndefined();
   });
 
-  it('follows the server default per video and burns it in when it is not yet', async () => {
-    // Text tracks come back as external streams the app no longer renders,
-    // so the server must be asked to burn its own choice in.
+  it('follows the server default per video without forcing a re-encode', async () => {
+    // The server's own default is a text track, which the app renders itself.
     mockUserPreferences = {subtitleMode: 'default'};
     const requests = mockPlaybackInfo([
       subtitledSource({DefaultSubtitleStreamIndex: 2}),
@@ -365,8 +372,29 @@ describe('the global subtitle preference', () => {
 
     expect(requests).toHaveLength(2);
     expect(requests[1].body.SubtitleStreamIndex).toBe(2);
-    expect(requests[1].body.AlwaysBurnInSubtitleWhenTranscoding).toBe(true);
+    expect(requests[1].body.AlwaysBurnInSubtitleWhenTranscoding).toBeFalsy();
+    expect(requests[1].body.AllowVideoStreamCopy).toBe(true);
     expect(stream.subtitleStreamIndex).toBe(2);
+    expect(stream.subtitleBurnIn).toBe(false);
+  });
+
+  it('asks for burn-in when the chosen track is picture-based', async () => {
+    // Stream 4 is PGS and forced; nothing in the app can draw it.
+    mockUserPreferences = {subtitleMode: 'default'};
+    const requests = mockPlaybackInfo([
+      subtitledSource({DefaultSubtitleStreamIndex: 4}),
+      subtitledSource({DefaultSubtitleStreamIndex: 4}),
+    ]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1].body.SubtitleStreamIndex).toBe(4);
+    expect(requests[1].body.AlwaysBurnInSubtitleWhenTranscoding).toBe(true);
+    expect(requests[1].body.AllowVideoStreamCopy).toBe(false);
+    expect(stream.subtitleBurnIn).toBe(true);
   });
 
   it('accepts a server default the server already burns in without a second request', async () => {
