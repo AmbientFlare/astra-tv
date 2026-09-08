@@ -33,7 +33,7 @@ export const CapabilityNotice = ({
   const buttonRef = useRef<any>(null);
   const [isFocused, setFocused] = useState(false);
 
-  // Same reason as DeveloperNotice: the screen behind has already claimed
+  // Same reason as WhatsNewNotice: the screen behind has already claimed
   // focus, so the first centre press would navigate instead of dismissing.
   useEffect(() => {
     const timer = setTimeout(() => {
