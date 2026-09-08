@@ -156,6 +156,9 @@ export const buildDeviceProfile = (
       {Format: 'srt', Method: 'External'},
       {Format: 'subrip', Method: 'External'},
       {Format: 'ttml', Method: 'External'},
+      // MP4 timed text. Jellyfin converts it to WebVTT on the Subtitles
+      // endpoint like any other text format.
+      {Format: 'mov_text', Method: 'External'},
       // Vega's caption surface renders timed text, not bitmap subtitles or
       // styled ASS/SSA. Ask Jellyfin to burn these formats into the video
       // instead of advertising them as external tracks that cannot render.
