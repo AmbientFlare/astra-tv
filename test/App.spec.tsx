@@ -241,6 +241,34 @@ jest.mock('../src/services/storage', () => ({
   setProStatus: jest.fn(async () => undefined),
   upsertServerProfile: jest.fn(async () => undefined),
   writeAppState: jest.fn(async () => ({isPro: false, launchCount: 1})),
+  writePlaybackPreferences: jest.fn(async () => undefined),
+}));
+
+// These tests are about navigation, so the first-run capability questions are
+// answered here. The wizard itself is covered in ServerCapabilities.spec.
+jest.mock('../src/services/serverCapabilities', () => ({
+  acknowledgeCapabilityNotice: jest.fn(async () => undefined),
+  applyServerCapabilities: jest.fn(async () => ({
+    interviewCompleted: true,
+    lastTranscodeProbeAtMs: 0,
+    maxAudioChannels: 6,
+    maxAudioChannelsSource: 'stated',
+    pendingCapabilityNotice: false,
+    updatedAtMs: 1,
+    videoTranscode: 'hardware',
+    videoTranscodeSource: 'stated',
+  })),
+  getServerCapabilities: jest.fn(async () => ({
+    interviewCompleted: true,
+    lastTranscodeProbeAtMs: 0,
+    maxAudioChannels: 6,
+    maxAudioChannelsSource: 'stated',
+    pendingCapabilityNotice: false,
+    updatedAtMs: 1,
+    videoTranscode: 'hardware',
+    videoTranscodeSource: 'stated',
+  })),
+  serverCapabilityKey: (url: string) => url,
 }));
 
 describe('App', () => {

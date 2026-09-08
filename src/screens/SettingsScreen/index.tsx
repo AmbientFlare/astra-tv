@@ -37,6 +37,15 @@ import {
   UserPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
+import {
+  getServerCapabilities,
+  serverCapabilityKey,
+  updateServerCapabilities,
+} from '../../services/serverCapabilities';
+import type {
+  ServerCapabilities,
+  VideoTranscodeCapability,
+} from '../../services/serverCapabilities';
 
 const EASTER_EGG_TEXT =
   'For Kimberly — whose love of Star Trek started all of this.';
@@ -59,6 +68,7 @@ type SettingsRoute =
   | {route: 'connectionTest'}
   | {route: 'hlsSegmentLength'}
   | {route: 'audioChannels'}
+  | {route: 'serverTranscoding'}
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
   | {route: 'subtitleMode'}
@@ -82,6 +92,39 @@ const bitrateOptions: Array<{
   {label: '120 Mbps', value: 120000000},
   {label: 'Unlimited', value: 200000000},
 ];
+
+const videoTranscodeOptions: Array<{
+  label: string;
+  value: VideoTranscodeCapability;
+}> = [
+  {label: 'Yes, it has a graphics card', value: 'hardware'},
+  {label: 'No, processor only', value: 'cpu'},
+  {label: "I don't know", value: 'unknown'},
+];
+
+/** Where the current answer came from, said plainly under the question. */
+const capabilitySourceNote = (capabilities: ServerCapabilities) => {
+  if (capabilities.videoTranscode === 'unable') {
+    return (
+      'Astra asked this server to re-encode a demanding title and it ' +
+      'produced nothing, so it has stopped asking. Choose an answer here to ' +
+      'let it try again.'
+    );
+  }
+  if (capabilities.videoTranscodeSource === 'detected') {
+    return 'Measured by Astra during playback.';
+  }
+  if (capabilities.videoTranscode === 'cpu') {
+    return (
+      'From your answer when you set this server up. Astra retries about ' +
+      'once a week in case the server can do more than you expected.'
+    );
+  }
+  if (capabilities.videoTranscodeSource === 'stated') {
+    return 'From your answer when you set this server up.';
+  }
+  return 'Not answered yet. Astra works it out from your first few playbacks.';
+};
 
 const audioChannelOptions: Array<{
   label: string;
@@ -133,6 +176,9 @@ export const SettingsScreen = ({
       imageSize: 'medium',
       imageType: 'Primary',
     });
+  const [capabilities, setCapabilities] = useState<ServerCapabilities | null>(
+    null,
+  );
   const [confirmAction, setConfirmAction] = useState<{
     body: string;
     onConfirm: () => Promise<void>;
@@ -185,6 +231,14 @@ export const SettingsScreen = ({
     readPlaybackPreferences().then(setPlaybackPrefs);
     getDisplayPreferences().then(setDisplayPreferenceState);
   }, [refreshProfiles]);
+
+  // Kept per server: the NAS and the GPU box give different answers, and the
+  // one showing here must be the one for the server currently signed in to.
+  const capabilityKey = serverCapabilityKey(serverProfile.serverUrl);
+
+  useEffect(() => {
+    getServerCapabilities(capabilityKey).then(setCapabilities);
+  }, [capabilityKey]);
 
   const handleSettingsBack = useCallback(() => {
     if (confirmAction) {
@@ -607,6 +661,12 @@ export const SettingsScreen = ({
               onPress={() => push({route: 'audioChannels'})}
             />
             <MenuRow
+              icon="⚙"
+              title="Server transcoding"
+              subtitle="Whether this server can re-encode demanding titles"
+              onPress={() => push({route: 'serverTranscoding'})}
+            />
+            <MenuRow
               icon="♫"
               title="Preferred audio language"
               subtitle={
@@ -706,6 +766,35 @@ export const SettingsScreen = ({
             />
             <Text style={styles.infoText}>
               7.1 requires direct play. Transcoded audio is 5.1 maximum.
+            </Text>
+          </Page>
+        );
+      case 'serverTranscoding':
+        return (
+          <Page title="Server transcoding" onBack={pop}>
+            <Text style={styles.description}>
+              Does {serverProfile.name} have hardware transcoding?
+            </Text>
+            <PreferenceRadioGroup
+              options={videoTranscodeOptions}
+              selectedValue={
+                capabilities?.videoTranscode === 'unable'
+                  ? 'unknown'
+                  : capabilities?.videoTranscode ?? 'unknown'
+              }
+              onSelect={(videoTranscode) => {
+                void updateServerCapabilities(capabilityKey, {
+                  pendingCapabilityNotice: false,
+                  videoTranscode,
+                  videoTranscodeSource:
+                    videoTranscode === 'unknown' ? 'default' : 'stated',
+                }).then(setCapabilities);
+              }}
+            />
+            <Text style={styles.infoText}>
+              {capabilities
+                ? capabilitySourceNote(capabilities)
+                : 'Loading this server\u2019s settings…'}
             </Text>
           </Page>
         );
