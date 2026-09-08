@@ -2848,13 +2848,25 @@ export const PlaybackSettingsOverlay = ({
         {streamInfo.subtitleTracks.map((track) => (
           <SettingsButton
             key={track.id}
-            // Every subtitle is burned in now, so the old "(burn-in)" suffix
-            // would appear on every entry and tell the viewer nothing.
+            // A release with twenty tracks mixes formats Astra draws itself
+            // with picture-based ones the server has to paint into the video.
+            // Those cost very different things to pick, and nothing in the
+            // track title says which is which, so the badge does.
+            badge={
+              track.burnInRequired
+                ? {label: 'Reloads', tone: 'reload'}
+                : {label: 'Instant', tone: 'instant'}
+            }
             label={track.title}
             onPress={() => onSelectSubtitle(track)}
             selected={track.index === selectedSubtitleIndex}
           />
         ))}
+        <Text style={styles.settingsHint}>
+          Instant tracks are drawn by Astra and switch without touching the
+          video. Reloads tracks are picture-based, so the server has to build a
+          new stream with them painted in.
+        </Text>
       </SettingsColumn>
       <SettingsColumn title="Diagnostics">
         <SettingsButton
@@ -3159,10 +3171,12 @@ const SettingsColumn = ({
 );
 
 const SettingsButton = ({
+  badge,
   label,
   onPress,
   selected = false,
 }: {
+  badge?: {label: string; tone: 'instant' | 'reload'};
   label: string;
   onPress: () => void;
   selected?: boolean;
@@ -3177,6 +3191,17 @@ const SettingsButton = ({
     <Text numberOfLines={1} style={styles.settingsButtonText}>
       {label}
     </Text>
+    {badge ? (
+      <Text
+        style={[
+          styles.settingsButtonBadge,
+          badge.tone === 'instant'
+            ? styles.settingsButtonBadgeInstant
+            : styles.settingsButtonBadgeReload,
+        ]}>
+        {badge.label}
+      </Text>
+    ) : null}
   </FocusableItem>
 );
 
@@ -3411,8 +3436,26 @@ const styles = StyleSheet.create({
   },
   settingsButtonText: {
     color: '#FFFFFF',
+    flexShrink: 1,
     fontSize: 18,
     fontWeight: '700',
+  },
+  settingsButtonBadge: {
+    borderRadius: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 'auto',
+    overflow: 'hidden',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  settingsButtonBadgeInstant: {
+    backgroundColor: '#1F5133',
+    color: '#7BE49B',
+  },
+  settingsButtonBadgeReload: {
+    backgroundColor: '#5A2A20',
+    color: '#FF9E80',
   },
   radioCircle: {
     alignItems: 'center',

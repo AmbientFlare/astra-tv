@@ -193,7 +193,7 @@ describe('playback diagnostics entry points', () => {
 
     // The version and build are spelled out so a forgotten bump fails here.
     expect(screen.getByText('Astra 1.3.1')).toBeTruthy();
-    expect(screen.getByText('Build: 20260908.09')).toBeTruthy();
+    expect(screen.getByText('Build: 20260908.10')).toBeTruthy();
     expect(screen.getByText("What's new in 1.3.1")).toBeTruthy();
     // The notes themselves are not: About and the What's New notice both read
     // RELEASE_HIGHLIGHTS, and pinning the prose here only made a version bump
@@ -265,6 +265,49 @@ describe('playback diagnostics entry points', () => {
     expect(screen.getByText('Stats for Nerds: Off')).toBeTruthy();
   });
 
+  it('marks which subtitle tracks switch in place and which rebuild the stream', () => {
+    // A disc rip can carry twenty tracks whose titles differ only by language.
+    // The badge is the only thing that says whether picking one is free.
+    const screen = render(
+      <PlaybackSettingsOverlay
+        onSelectAudio={jest.fn()}
+        onSelectSubtitle={jest.fn()}
+        onToggleStats={jest.fn()}
+        onToggleTraces={jest.fn()}
+        selectedAudioIndex={1}
+        showStats={false}
+        showTraces={false}
+        streamInfo={{
+          audioStreamIndex: 1,
+          audioTracks: [],
+          itemId: 'item-1',
+          playMethod: 'Transcode',
+          qualityOptions: [],
+          subtitleTracks: [
+            {
+              id: '2',
+              index: 2,
+              title: 'English (SRT)',
+              type: 'Subtitle',
+              burnInRequired: false,
+            },
+            {
+              id: '3',
+              index: 3,
+              title: 'English (PGS)',
+              type: 'Subtitle',
+              burnInRequired: true,
+            },
+          ],
+          url: 'https://example.com/video.m3u8',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Instant')).toBeTruthy();
+    expect(screen.getByText('Reloads')).toBeTruthy();
+  });
+
   it('distinguishes source codecs from delivered codecs and copy from transcode', () => {
     const screen = render(
       <PlaybackStatsOverlay
@@ -334,7 +377,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.3\.1 \(20260908\.09\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.3\.1 \(20260908\.10\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,

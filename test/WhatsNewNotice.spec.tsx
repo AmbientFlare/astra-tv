@@ -6,6 +6,7 @@ import {
   NOTICE_TITLE,
   WhatsNewNotice,
 } from '../src/components/WhatsNewNotice';
+import {APP_VERSION, BUILD_NUMBER} from '../src/config/app';
 
 describe("what's new notice", () => {
   it('renders the title, every highlight and a dismiss control', () => {
@@ -43,10 +44,11 @@ describe("what's new notice", () => {
     jest.useRealTimers();
   });
 
-  it('ties the notice id to the released version, so it shows once per release', () => {
-    // The id changes with APP_VERSION on purpose: each release earns exactly
-    // one prompt, and a rebuild of the same version does not re-show it.
-    expect(CURRENT_NOTICE_ID).toBe('whats-new-1.3.1');
+  it('ties the notice id to the version and build, so every build shows once', () => {
+    // Test builds change more often than the version does, so the build number
+    // is part of the id: each installed build earns exactly one prompt.
+    expect(CURRENT_NOTICE_ID).toBe(`whats-new-${APP_VERSION}-${BUILD_NUMBER}`);
+    expect(CURRENT_NOTICE_ID).toBe('whats-new-1.3.1-20260908.10');
   });
 
   it('does not promise anything on Amazon behalf or link outside the app', () => {

@@ -1,4 +1,4 @@
-import {APP_VERSION} from './app';
+import {APP_VERSION, BUILD_NUMBER} from './app';
 
 /**
  * What changed in this release, in the words a viewer would use rather than
@@ -17,13 +17,16 @@ export const RELEASE_HIGHLIGHTS: readonly string[] = [
     'and AVI files — are asked for again properly instead of failing to start.',
   'Astra now learns what your server can actually do, and stops retrying the ' +
     'things it has already proved it cannot.',
+  'Each subtitle track is now marked Instant or Reloads, so on a release with ' +
+    'twenty of them you can see which ones switch on without rebuilding the ' +
+    'video.',
 ];
 
 /**
  * Identity of the What's New notice, stored as
- * `AppStateConfig.acknowledgedNoticeId`. It is derived from the version, so
- * every release shows its notice exactly once and re-installing the same
- * version does not ask again. Append BUILD_NUMBER here instead if a notice
- * per build is ever wanted.
+ * `AppStateConfig.acknowledgedNoticeId`. The build number is part of it, so
+ * every build shows the notice once — that is what test builds want, since a
+ * rebuilt version is a different set of changes. Drop `BUILD_NUMBER` here to
+ * go back to one prompt per released version.
  */
-export const CURRENT_NOTICE_ID = `whats-new-${APP_VERSION}`;
+export const CURRENT_NOTICE_ID = `whats-new-${APP_VERSION}-${BUILD_NUMBER}`;
