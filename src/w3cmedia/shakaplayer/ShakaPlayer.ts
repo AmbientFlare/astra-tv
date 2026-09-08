@@ -54,6 +54,14 @@ export interface ShakaPlayerSettings {
   hlsSequenceMode?: boolean;
   hlsIgnoreManifestTimestampsInSegmentsMode?: boolean;
   hlsResumePositionSeconds?: number;
+  /**
+   * Bitrate-aware buffer goals, in seconds. Supplied by the caller so the
+   * media buffer targets a fixed byte budget instead of a fixed duration --
+   * see services/playbackHealth/bufferBudget.
+   */
+  bufferingGoalSeconds?: number;
+  rebufferingGoalSeconds?: number;
+  bufferBehindSeconds?: number;
   onError?: (error: {
     code?: number;
     category?: number;
@@ -625,8 +633,18 @@ export class ShakaPlayer implements PlayerInterface {
         // A near-zero rebuffer threshold causes one-second play/buffer loops
         // on high-bitrate HLS after a seek or track switch. Keep enough media
         // queued for stable restart without overcommitting this 1 GB device.
-        rebufferingGoal: 2,
-        bufferingGoal: 10,
+        //
+        // These are derived from the stream's bitrate so the buffer costs
+        // roughly the same bytes on a 2 Mbps episode and a 25 Mbps movie. The
+        // fallbacks are the previous fixed values.
+        //
+        // bufferBehind is set explicitly rather than left at Shaka's 30s
+        // default: at 25 Mbps that default retains ~90 MB behind the playhead,
+        // and its eviction pass is the leading suspect for the full-buffer
+        // collapses observed on high-bitrate Dolby Vision titles.
+        rebufferingGoal: this.setting_.rebufferingGoalSeconds ?? 2,
+        bufferingGoal: this.setting_.bufferingGoalSeconds ?? 10,
+        bufferBehind: this.setting_.bufferBehindSeconds ?? 10,
         alwaysStreamText: true,
         retryParameters: {
           maxAttempts: 3,
