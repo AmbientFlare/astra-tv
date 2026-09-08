@@ -466,3 +466,178 @@ describe('a subtitle chosen in the player', () => {
     expect(stream.subtitleBurnIn).toBe(true);
   });
 });
+
+describe('Issue 21: degraded direct-stream responses', () => {
+  const degraded = (overrides: Record<string, unknown> = {}) =>
+    playableSource({
+      Container: 'mkv',
+      TranscodingUrl: '/videos/item-abc/stream?PlaySessionId=session-1',
+      ...overrides,
+    });
+
+  it.each(['mkv', 'avi', 'webm', 'flv'])(
+    'requests direct stream once for unsupported %s with a codec-less /stream URL',
+    async (container) => {
+      const requests = mockPlaybackInfo([
+        degraded({Container: container}),
+        playableSource({Container: container}),
+      ]);
+
+      const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+        audioStreamIndex: 1,
+      });
+
+      expect(requests).toHaveLength(2);
+      expect(stream.url).toContain('/master.m3u8');
+      expect(requests[0].body.EnableDirectStream).toBe(false);
+      expect(requests[1].body.EnableDirectStream).toBe(true);
+      expect(requests[1].body.EnableDirectPlay).toBe(false);
+    },
+  );
+
+  it.each(['mp4', 'm4v', 'ts'])(
+    'leaves raw %s /stream responses unchanged',
+    async (container) => {
+      const requests = mockPlaybackInfo([degraded({Container: container})]);
+
+      await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+        audioStreamIndex: 1,
+      });
+
+      expect(requests).toHaveLength(1);
+      expect(requests[0].body.EnableDirectStream).toBe(false);
+    },
+  );
+
+  it('does not mistake an encoded /stream query value for the pathname', async () => {
+    const requests = mockPlaybackInfo([
+      degraded({
+        TranscodingUrl:
+          '/videos/item-abc/master.m3u8?Name=%2Fstream&PlaySessionId=session-1',
+      }),
+    ]);
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
+
+    expect(requests).toHaveLength(1);
+  });
+
+  it('retains the complete retry response, including session, source, and tracks', async () => {
+    const retry = {
+      PlaySessionId: 'retry-session',
+      MediaSources: [
+        {
+          ...playableSource().MediaSources[0],
+          Id: 'retry-source',
+          TranscodingUrl:
+            '/videos/item-abc/master.m3u8?PlaySessionId=retry-session',
+          MediaStreams: [
+            {Index: 7, Type: 'Video', Codec: 'hevc', Height: 720, Width: 1280},
+            {Index: 8, Type: 'Audio', Codec: 'aac', Channels: 2},
+          ],
+        },
+      ],
+    };
+    const requests = mockPlaybackInfo([degraded(), retry]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 8,
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(stream.playSessionId).toBe('retry-session');
+    expect(stream.mediaSourceId).toBe('retry-source');
+    expect(stream.audioTracks[0].index).toBe(8);
+    expect(stream.sourceVideoCodec).toBe('hevc');
+    expect(stream.url).toContain('PlaySessionId=retry-session');
+  });
+
+  it('applies the guard independently to separate invocations', async () => {
+    const requests = mockPlaybackInfo([
+      degraded(),
+      playableSource(),
+      degraded(),
+      playableSource(),
+    ]);
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
+
+    expect(requests).toHaveLength(4);
+    expect(requests[1].body.EnableDirectStream).toBe(true);
+    expect(requests[3].body.EnableDirectStream).toBe(true);
+  });
+
+  it('recovers a late degraded response during audio/subtitle pinning only once', async () => {
+    const retry = {
+      PlaySessionId: 'late-session',
+      MediaSources: [
+        {
+          ...playableSource().MediaSources[0],
+          Id: 'late-source',
+          DefaultSubtitleStreamIndex: 9,
+          TranscodingUrl:
+            '/videos/item-abc/master.m3u8?PlaySessionId=late-session&SubtitleStreamIndex=9&SubtitleMethod=Encode',
+          MediaStreams: [
+            {Index: 0, Type: 'Video', Codec: 'hevc'},
+            {Index: 8, Type: 'Audio', Codec: 'ac3', Channels: 6},
+            {Index: 9, Type: 'Subtitle', Codec: 'subrip', Language: 'eng'},
+          ],
+        },
+      ],
+    };
+    const requests = mockPlaybackInfo([
+      playableSource(),
+      degraded(),
+      retry,
+      retry,
+    ]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0);
+
+    expect(requests).toHaveLength(4);
+    expect(requests[2].body.EnableDirectStream).toBe(true);
+    expect(requests[3].body.EnableDirectStream).toBe(true);
+    expect(requests[3].body.MediaSourceId).toBe('late-source');
+    expect(requests[3].body.AudioStreamIndex).toBe(8);
+    expect(requests[3].body.SubtitleStreamIndex).toBe(9);
+    expect(stream.mediaSourceId).toBe('late-source');
+    expect(stream.playSessionId).toBe('late-session');
+    expect(stream.audioStreamIndex).toBe(8);
+    expect(stream.subtitleStreamIndex).toBe(9);
+  });
+
+  it('fails after the one degraded-response retry is exhausted', async () => {
+    const requests = mockPlaybackInfo([degraded(), degraded()]);
+
+    await expect(
+      getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1}),
+    ).rejects.toThrow(
+      'This server is not permitted to transcode video for your account',
+    );
+    expect(requests).toHaveLength(2);
+  });
+
+  it.each(['videocodec=hevc', 'segmentcontainer=ts'])(
+    'preserves a /stream URL with %s',
+    async (parameter) => {
+      const requests = mockPlaybackInfo([
+        degraded({TranscodingUrl: `/videos/item-abc/stream?${parameter}`}),
+      ]);
+      await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {audioStreamIndex: 1});
+      expect(requests).toHaveLength(1);
+    },
+  );
+
+  it('does not retry again if the track-pinned response degrades after recovery', async () => {
+    const requests = mockPlaybackInfo([
+      degraded(),
+      playableSource(),
+      degraded(),
+    ]);
+    await expect(getStreamUrl(SERVER, TOKEN, ITEM, USER, 0)).rejects.toThrow(
+      'This server is not permitted to transcode video for your account',
+    );
+    expect(requests).toHaveLength(3);
+  });
+});
