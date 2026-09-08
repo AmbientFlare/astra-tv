@@ -29,8 +29,13 @@
   it has a graphics card and whether the room has surround sound, with "I don't
   know" as a real answer -- and playback then corrects those answers on its own.
   Settings gains a page to see and override any of it.
-- The one-time notice after an update is now a "What's new" list for the
-  version being installed, shown once and dismissed with a single press.
+- The one-time notice after an update is now a "What's new" list for the build
+  being installed, shown once and dismissed with a single press.
+- Each subtitle track in the player options is marked Instant or Reloads. A
+  release can carry twenty tracks whose titles differ only by language, and
+  nothing in the title says whether picking one is free: the ones Astra draws
+  itself switch on with no interruption, while picture-based ones need the
+  server to rebuild the stream with them painted in.
 
 ## 1.3.0 - 2026-09-05
 

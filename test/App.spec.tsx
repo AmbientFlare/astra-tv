@@ -167,6 +167,12 @@ jest.mock('../src/services/iap', () => ({
   purchaseAstraPro: jest.fn(async () => false),
 }));
 
+// Required inside the factory rather than imported: a jest.mock factory may not
+// close over an import. Reading the real id keeps these tests off the
+// version-bump checklist.
+const acknowledgedNoticeId = (): string =>
+  require('../src/config/releaseNotes').CURRENT_NOTICE_ID;
+
 jest.mock('../src/services/storage', () => ({
   defaultPlaybackPrefs: {
     hlsSegmentLengthSeconds: 0,
@@ -234,7 +240,7 @@ jest.mock('../src/services/storage', () => ({
   // Notice already acknowledged: these tests exercise navigation and the exit
   // prompt, and an unacknowledged notice deliberately replaces the screen.
   readAppState: jest.fn(async () => ({
-    acknowledgedNoticeId: 'whats-new-1.3.1',
+    acknowledgedNoticeId: acknowledgedNoticeId(),
     isPro: false,
     launchCount: 0,
   })),
@@ -279,7 +285,7 @@ describe('App', () => {
     // the notice unacknowledged would otherwise leak into the next one and
     // hide the screen it expects.
     (readAppState as jest.Mock).mockResolvedValue({
-      acknowledgedNoticeId: 'whats-new-1.3.1',
+      acknowledgedNoticeId: acknowledgedNoticeId(),
       isPro: false,
       launchCount: 0,
     });
