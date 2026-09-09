@@ -376,6 +376,10 @@ export const PlayerScreen = ({
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [showControls, setShowControls] = useState(true);
   const [isPaused, setPaused] = useState(false);
+  // Playback reached its natural end and the player is sitting on the finished
+  // frame. Distinct from `isPaused`: a paused movie is still the viewer's, a
+  // finished one is not. Drives the user-engagement release below.
+  const [playbackFinished, setPlaybackFinished] = useState(false);
   const [settingsPanel, setSettingsPanel] = useState<PlaybackPanel | null>(
     null,
   );
@@ -1493,6 +1497,7 @@ export const PlayerScreen = ({
           });
         }
         setPaused(false);
+        setPlaybackFinished(false);
         const videoWithDimensions = video as VideoPlayer & {
           videoWidth?: number;
           videoHeight?: number;
@@ -1604,6 +1609,7 @@ export const PlayerScreen = ({
         recordPlaybackEvent('ended');
         revealControls(false);
         setStatusText('Finished');
+        setPlaybackFinished(true);
         if (endedHandledForGeneration.current === generation) {
           return;
         }
@@ -2338,8 +2344,8 @@ export const PlayerScreen = ({
   }, [isPaused]);
 
   /**
-   * Tell Vega the viewer is engaged with video playback for as long as the
-   * player is open.
+   * Tell Vega the viewer is engaged with video playback while a video is open
+   * and unfinished.
    *
    * The platform detects media playback on its own, but that detection is not
    * durable: build 20260908.11 held the foreground for 55 minutes of an
@@ -2349,15 +2355,25 @@ export const PlayerScreen = ({
    *
    * The hold spans pause as well as playback. A paused movie still belongs to
    * the viewer, and the burn-in visual behind it needs the app alive; releasing
-   * here is what commit 8b9d24db added the hold to prevent. Release happens
-   * when the player closes.
+   * there is what commit 8b9d24db added the hold to prevent.
+   *
+   * It does not span the finished frame. Once a video plays out, nobody is
+   * watching anything, and holding engagement would keep the device awake
+   * indefinitely on an end screen — the case the SDK documents releasing for
+   * ("are you still watching?"). Build 20260908.12 sat on a finished movie for
+   * 19 minutes still holding it. Resuming re-acquires: `playing` clears the
+   * flag.
    */
   useEffect(() => {
+    if (playbackFinished) {
+      stopVideoEngagement();
+      return undefined;
+    }
     startVideoEngagement();
     return () => {
       stopVideoEngagement();
     };
-  }, []);
+  }, [playbackFinished]);
 
   /**
    * One sample of player diagnostics. Extracted from the stats overlay so the
