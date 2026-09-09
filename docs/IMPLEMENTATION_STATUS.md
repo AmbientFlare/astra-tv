@@ -852,7 +852,7 @@ documentation. Playlist artwork composition remains optional future polish;
 missing server artwork currently uses a letter placeholder.
 # Public-web research audit — complete
 
-- [x] Read `/home/levi/START_HERE.md` and repository instructions.
+- [x] Read the local environment instructions and repository instructions.
 - [x] Established canonical identity pivots from the repository.
 - [x] Complete broad public-web, community, repository, and backlink discovery.
 - [x] Inspect and deduplicate substantive sources.

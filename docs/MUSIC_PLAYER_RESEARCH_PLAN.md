@@ -444,7 +444,7 @@ Research is complete only when all of the following are true:
 /goal Conduct the full, evidence-backed music-player audit described in
 docs/MUSIC_PLAYER_RESEARCH_PLAN.md. Do not implement or modify application code.
 
-First read /home/levi/START_HERE.md, the repository instructions, and the plan
+First read the local environment instructions, the repository instructions, and the plan
 in full. Inspect the current Astra music implementation and its tests yourself
 before relying on historical notes. Then perform the external research using
 primary, current sources and repeatable observations where possible.
