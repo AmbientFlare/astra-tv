@@ -1,5 +1,12 @@
 # Astra
 
+[![Latest release](https://img.shields.io/badge/release-1.4.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
+[![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
+[![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
+[![Tests](https://img.shields.io/badge/tests-578%20in%2064%20suites-4c9a2a?style=flat-square)](#project-status)
+[![License](https://img.shields.io/badge/license-source--available-8a8f9c?style=flat-square)](LICENSE.md)
+
 Astra is a couch-first Jellyfin client for Amazon Fire TV devices running Vega
 OS. It connects directly to a server supplied by the user and brings personal
 movie, television, and music libraries into a remote-friendly TV interface.
@@ -72,6 +79,12 @@ creation on Vega.
   metadata to the video player.
 
 ## Release history
+
+Every release below is tagged in the repository as `vMAJOR.MINOR.PATCH` and
+published with notes on the
+[Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
+facing notes for the same releases are at
+<https://watchastra.com/releases/>.
 
 ### 1.4.0 — Playback stability, subtitle rendering, and per-server capabilities — 2026-09-08
 
@@ -217,6 +230,25 @@ The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md), whose
 topmost section always covers the current version. Every release above is
 tagged in the repository as `vMAJOR.MINOR.PATCH`.
 
+## Getting help
+
+- **Setup, settings, and troubleshooting:** <https://watchastra.com/help/>
+- **Report a problem or request a feature:**
+  [open an issue](https://github.com/AmbientFlare/astra-tv/issues)
+
+A playback report is far easier to act on with the following, and most reports
+that get fixed quickly include them:
+
+- The Astra version and build number, from Settings > About.
+- The Jellyfin server version, and whether it transcodes on a graphics card.
+- The container, video codec, audio codec, and resolution of the file.
+- Whether the same file plays on another Jellyfin client, and on the same
+  network or over the internet.
+- Anything the Jellyfin server log says about the failed session.
+
+Astra has no crash reporting that phones home, so a report is the only way a
+problem on your hardware becomes visible.
+
 ## Development
 
 Install the Vega SDK, then run:
@@ -275,9 +307,8 @@ Reusable engineering references:
 - [Deferred engineering work](docs/deferred-work.md)
 - [Jellyfin Android TV reference inventory](docs/reference-inventory.md)
 
-Reference repositories are kept outside this project under
-`~/projects/reference`. They are for study only and are not incorporated into
-this codebase.
+Reference repositories are kept outside this project, on the development
+machine only. They are for study and are not incorporated into this codebase.
 
 ## Acknowledgements
 

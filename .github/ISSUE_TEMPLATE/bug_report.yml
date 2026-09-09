@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in Astra does not work, or works wrongly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Astra has no crash reporting that phones
+        home, so a report is the only way a problem on your hardware becomes
+        visible.
+
+        If the problem is playback, the fields below are the ones that make a
+        fix possible. "I don't know" is a fine answer to any of them.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what Astra did, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Astra version and build
+      description: Settings > About, for example "1.4.0 (20260908.14)".
+      placeholder: "1.4.0 (20260908.14)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Fire TV device and Vega OS version
+      description: Settings > My Fire TV > About on the device.
+      placeholder: "Fire TV Stick 4K Select, Vega OS 1.2"
+  - type: input
+    id: server
+    attributes:
+      label: Jellyfin server version
+      placeholder: "10.11.11"
+  - type: dropdown
+    id: transcoding
+    attributes:
+      label: Does the server transcode on a graphics card?
+      options:
+        - "Yes, hardware transcoding is enabled"
+        - "No, CPU only"
+        - "I don't know"
+  - type: textarea
+    id: file
+    attributes:
+      label: The file, if this is a playback problem
+      description: >
+        Container, video codec, audio codec, resolution, and whether it is HDR.
+        Jellyfin shows all of these on the item's media info.
+      placeholder: |
+        MKV, HEVC 10-bit HDR10, TrueHD 7.1, 3840x2160
+  - type: dropdown
+    id: elsewhere
+    attributes:
+      label: Does the same file play on another Jellyfin client?
+      options:
+        - "Yes, it plays elsewhere"
+        - "No, it fails elsewhere too"
+        - "I have not tried"
+  - type: dropdown
+    id: network
+    attributes:
+      label: How does Astra reach the server?
+      options:
+        - "Same local network"
+        - "Over the internet"
+        - "Through a VPN or tunnel"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server log lines for the failed session, if you have them
+      description: Paste them here. They are formatted automatically.
+      render: text
