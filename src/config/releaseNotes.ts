@@ -8,6 +8,9 @@ import {APP_VERSION, BUILD_NUMBER} from './app';
  * would actually notice.
  */
 export const RELEASE_HIGHLIGHTS: readonly string[] = [
+  'Long films no longer get shut down partway through. Astra now holds the ' +
+    'system awake for as long as a video is open, so a two-hour movie plays ' +
+    'start to finish without being interrupted.',
   'Turning on subtitles no longer forces your server to re-encode the video. ' +
     'On a server without a graphics card that was the difference between ' +
     'smooth playback and constant buffering.',

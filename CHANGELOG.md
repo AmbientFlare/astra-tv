@@ -1,9 +1,20 @@
 # Changelog
 
-## 1.3.1 - 2026-09-08
+## 1.4.0 - 2026-09-08
 
 ### Fixed
 
+- A movie could be shut down partway through. Watching an uninterrupted film,
+  the system lifecycle manager reclaimed Astra's media resources and took the
+  foreground roughly an hour in -- one title died at 61 minutes, 47% of the
+  way through. The platform notices video playback on its own, but that notice
+  is not durable over a feature-length runtime. Astra now tells the system
+  outright that the viewer is engaged, for as long as a video is open and
+  unfinished. A 130-minute film has since played start to finish without a
+  single interruption.
+- The hold spans pause as well as playback, so pausing a film no longer risks
+  the same shutdown, and it is released once a video plays out -- sitting on a
+  finished end screen no longer keeps the device awake indefinitely.
 - Turning on subtitles forced the server to re-encode the whole video. Astra
   asked for every subtitle to be burned into the picture, which also told the
   server it could not copy the video stream, so a file that needed no
