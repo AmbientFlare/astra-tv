@@ -1,5 +1,5 @@
 export const APP_VERSION = '1.4.0';
-export const BUILD_NUMBER = '20260908.13';
+export const BUILD_NUMBER = '20260908.14';
 export const BUILD_DATE = '2026-09-08';
 
 // Physical-device testing confirmed that this Fire TV/Vega HLS/fMP4 path
