@@ -12,6 +12,7 @@ import {
   getSeasons,
   getSimilarItems,
   isIncompleteSeasonList,
+  isMissingItemError,
   JellyfinMediaItem,
   setFavorite,
   setPlayed,
@@ -191,8 +192,13 @@ export const ItemDetailScreen = ({
       }
     } catch (error) {
       if (mountedRef.current) {
+        // A server can drop an item between listing it and being asked for
+        // it — a stale library scan, a removed file. Say so plainly rather
+        // than showing the raw request failure.
         setErrorText(
-          error instanceof Error
+          isMissingItemError(error)
+            ? 'This item is no longer on the server.'
+            : error instanceof Error
             ? error.message
             : 'Unable to load item details.',
         );

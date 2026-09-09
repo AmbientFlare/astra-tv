@@ -15,6 +15,7 @@
  *    is paginated and returns a total count for infinite scroll.
  */
 import {buildUrl, getAuthHeaders, getJson, itemFields} from './index';
+import {getDeviceId} from '../deviceIdentity';
 
 export interface MusicSession {
   accessToken: string;
@@ -105,8 +106,10 @@ export const DEFAULT_PAGE_SIZE = 60;
 export const NATIVE_AUDIO_CONTAINERS =
   'mp3,m4a,aac,flac,alac,ogg,opus,wav,webma,mp4';
 
-const musicItemFields =
-  'Genres,MediaSources,ParentId,PrimaryImageAspectRatio,ProductionYear,UserData,ChildCount';
+// Same rule as itemFields: enum members only. ProductionYear and UserData
+// arrive as ordinary item properties.
+export const musicItemFields =
+  'Genres,MediaSources,ParentId,PrimaryImageAspectRatio,ChildCount';
 
 interface RawItem {
   Album?: string;
@@ -366,9 +369,6 @@ export const getPlaylists = (
     MediaTypes: 'Audio',
   });
 
-export const getSongs = (session: MusicSession, options: PageOptions = {}) =>
-  listItems(session, 'Audio', options, 'SortName', mapTrack(session));
-
 /**
  * Album artists rather than every credited artist — matching how people
  * actually browse a music library. /Artists/AlbumArtists is a distinct
@@ -379,21 +379,6 @@ export const getAlbumArtists = async (
   options: PageOptions = {},
 ): Promise<Page<MusicArtist>> => {
   const raw = await request<RawPage>(session, '/Artists/AlbumArtists', {
-    ...pageParams(options, 'SortName'),
-    Fields: musicItemFields,
-    ImageTypeLimit: 1,
-    Recursive: true,
-    UserId: session.userId,
-  });
-
-  return toPage(raw, options, mapArtist(session));
-};
-
-export const getArtists = async (
-  session: MusicSession,
-  options: PageOptions = {},
-): Promise<Page<MusicArtist>> => {
-  const raw = await request<RawPage>(session, '/Artists', {
     ...pageParams(options, 'SortName'),
     Fields: musicItemFields,
     ImageTypeLimit: 1,
@@ -558,39 +543,6 @@ export const getArtistFallbackImage = async (
   return albums.items[0]?.imageUrl;
 };
 
-export const searchMusic = async (
-  session: MusicSession,
-  searchTerm: string,
-): Promise<{
-  albums: MusicAlbum[];
-  artists: MusicArtist[];
-  tracks: MusicTrack[];
-}> => {
-  const [albums, artists, tracks] = await Promise.all([
-    listItems(
-      session,
-      'MusicAlbum',
-      {limit: 24},
-      'SortName',
-      mapAlbum(session),
-      {SearchTerm: searchTerm},
-    ),
-    listItems(
-      session,
-      'MusicArtist',
-      {limit: 24},
-      'SortName',
-      mapArtist(session),
-      {SearchTerm: searchTerm},
-    ),
-    listItems(session, 'Audio', {limit: 40}, 'SortName', mapTrack(session), {
-      SearchTerm: searchTerm,
-    }),
-  ]);
-
-  return {albums: albums.items, artists: artists.items, tracks: tracks.items};
-};
-
 // -------------------------------------------------------------- streaming
 
 /**
@@ -604,7 +556,7 @@ export const searchMusic = async (
 export const getAudioStreamUrl = (
   session: MusicSession,
   trackId: string,
-  deviceId = 'astra-audio',
+  deviceId = getDeviceId(),
 ) =>
   buildUrl(
     session.serverUrl,
@@ -629,7 +581,7 @@ export const getAudioStreamUrl = (
 export const getAudioHlsStreamUrl = (
   session: MusicSession,
   trackId: string,
-  deviceId = 'astra-audio',
+  deviceId = getDeviceId(),
 ) =>
   buildUrl(
     session.serverUrl,

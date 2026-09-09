@@ -1,5 +1,138 @@
 # Changelog
 
+## 1.4.0 - 2026-09-08
+
+### Fixed
+
+- A movie could be shut down partway through. Watching an uninterrupted film,
+  the system lifecycle manager reclaimed Astra's media resources and took the
+  foreground roughly an hour in -- one title died at 61 minutes, 47% of the
+  way through. The platform notices video playback on its own, but that notice
+  is not durable over a feature-length runtime. Astra now tells the system
+  outright that the viewer is engaged, for as long as a video is open and
+  unfinished. A 130-minute film has since played start to finish without a
+  single interruption.
+- The hold spans pause as well as playback, so pausing a film no longer risks
+  the same shutdown, and it is released once a video plays out -- sitting on a
+  finished end screen no longer keeps the device awake indefinitely.
+- Turning on subtitles forced the server to re-encode the whole video. Astra
+  asked for every subtitle to be burned into the picture, which also told the
+  server it could not copy the video stream, so a file that needed no
+  conversion at all became a full transcode the moment captions were switched
+  on. On a server without hardware encoding that was the difference between
+  smooth playback and constant buffering. Astra draws text subtitles itself
+  again; burn-in is now reserved for the formats it cannot draw -- picture
+  based subtitles and styled ASS/SSA. ([#20](https://github.com/AmbientFlare/astra-tv/issues/20))
+- Subtitles in MP4 files (`mov_text`) were treated as a format Astra could not
+  render, so they always burned in. They are text like any other and are now
+  rendered in the app.
+- Switching subtitle tracks, or turning them off, no longer reloads the video.
+  A subtitle Astra draws itself changes nothing about the stream the server is
+  sending, so the change is now instant.
+- A stream the server handed back in a form Astra could not play -- seen with
+  some MKV and AVI files -- is now asked for again properly instead of failing
+  to start. ([#21](https://github.com/AmbientFlare/astra-tv/issues/21))
+
+### Added
+
+- Astra learns what each server can actually do and stops retrying what it has
+  already proved it cannot. A first run asks two questions per server -- whether
+  it has a graphics card and whether the room has surround sound, with "I don't
+  know" as a real answer -- and playback then corrects those answers on its own.
+  Settings gains a page to see and override any of it.
+- The one-time notice after an update is now a "What's new" list for the build
+  being installed, shown once and dismissed with a single press.
+- Each subtitle track in the player options is marked Instant or Reloads. A
+  release can carry twenty tracks whose titles differ only by language, and
+  nothing in the title says whether picking one is free: the ones Astra draws
+  itself switch on with no interruption, while picture-based ones need the
+  server to rebuild the stream with them painted in.
+
+## 1.3.0 - 2026-09-05
+
+The playback release. Videos that used to stall, stick on a spinner or quit
+partway through now recover on their own, HDR movies keep their HDR picture,
+and large libraries open immediately and stay where you left them.
+
+### Fixed
+
+- HDR movies were re-encoded to washed-out SDR. Astra asked the server for a
+  tone-mapped SDR stream on every HDR source, so an HDR10 or HLG movie arrived
+  looking flat and cost the server a full video re-encode to get there. Astra
+  now asks for the HDR variant its decoder has actually been shown to accept,
+  and the picture that reaches the TV is the picture on the disc. Confirmed on
+  a physical panel.
+- Playback could stall partway through a video and behave as though it had
+  ended, needing a manual track change to continue. Startup, seeks, track
+  changes, chapter reloads and error recovery now run as one cancellable
+  playback session instead of each driving the player directly, which removes
+  the overlapping-session races behind the stalls and the stuck spinners.
+- A video that ended early is now recognised as a failure and recovered from,
+  rather than reported as a finished video.
+- Progress, chapters and completion are measured against the item's real
+  duration and position, so resumed playback no longer reports the wrong spot.
+- Every installation now has its own stable Jellyfin device identity. Two Fire
+  TVs signed into the same account no longer collide in the server's session
+  list or evict each other's sessions.
+- Backing out of a movie or episode returns to the library exactly where you
+  left it -- same scroll position, same card focused -- instead of rebuilding
+  the grid from the top with a spinner. The grid is now measured in rows
+  rather than in cards, which is what put the list a third of the way down the
+  alphabet regardless of where you actually were.
+
+### Changed
+
+- Library grids load roughly forty times faster. The grid used to request every
+  field the detail screen needs for every item in the library: 2.7 seconds and
+  2.04 MB for a 90-movie library, most of it cast and crew lists nothing on a
+  card ever draws. It now requests what a card needs -- 0.06 seconds and 135 KB
+  for the same library -- and fills in the details as focus settles, prefetching
+  two rows ahead so the info panel is complete by the time you reach it.
+- The player no longer re-renders four times a second while a video plays. JS
+  contention is this platform's signature failure mode and this was paid every
+  second of every playback.
+- The diagnostics overlay reports dropped frames as a ratio. The platform's
+  absolute frame counts are not believable -- roughly 4,600 fps on a 24 fps
+  stream -- so the counts have been removed rather than shown as fact.
+
+### Added
+
+- Opt-in playback telemetry, off by default and inert unless an operator
+  explicitly arms it with a build-time endpoint and token. Nothing is
+  collected, buffered or sent otherwise, and the configuration is never
+  committed to the repository.
+
+## 1.2.1 - 2026-09-02
+
+Adds a global subtitle preference and Skip Credits / Next Episode playback
+controls, and fixes a resume stall found while validating them on hardware.
+
+### Added
+
+- A subtitle preference in Settings > Playback: Default (per video), All
+  subtitles on, All subtitles off, or Only forced. Resolved against each
+  video's PlaybackInfo response before its stream is built, so the choice
+  applies to movies and episodes, initial playback and resume alike. A track
+  chosen in the player affects only that video and does not change the
+  preference.
+- Skip Credits, from Jellyfin `Outro` media segments or a chapter named
+  "Credits", with Ask / Auto-skip / Ignore in Settings > Playback.
+- Next Episode, with an optional autoplay countdown (Settings > Playback:
+  Next episode autoplay, countdown duration). Autoplay is capped at three
+  episodes in a row before Astra pauses on a Continue Watching prompt; a
+  manual Next Episode always resets the count, and a new playback session
+  starts at zero.
+
+### Fixed
+
+- Playback could get stuck on "Buffering" with zero frames decoded when a
+  transcoded session with burned-in subtitles resumed, jumped a long
+  distance, or switched tracks partway into the video. The server's fMP4
+  segments start at their source timestamp while the player's clock started
+  at zero, so nothing lined up. Astra now starts that kind of session in
+  Shaka's sequence mode, which places the first segment at the player's
+  clock instead.
+
 ## 1.2.0 - 2026-08-29
 
 Repairs playback on Fire TV devices that have taken the Vega OS 1.2 update.

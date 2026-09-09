@@ -1,0 +1,13 @@
+import operator from './operator.generated';
+export const TELEMETRY_ENDPOINT = operator.endpoint;
+export const TELEMETRY_TOKEN = operator.token;
+export const TELEMETRY_ENABLED = true;
+export const TELEMETRY_SCHEMA_VERSION = 1;
+export const TELEMETRY_HEARTBEAT_STEADY_MS = 10000;
+export const TELEMETRY_HEARTBEAT_ACTIVE_MS = 2000;
+export const TELEMETRY_FLUSH_INTERVAL_MS = 5000;
+export const TELEMETRY_MAX_BATCH = 40;
+export const TELEMETRY_QUEUE_CAPACITY = 400;
+export const TELEMETRY_REQUEST_TIMEOUT_MS = 4000;
+export const TELEMETRY_BACKOFF_START_MS = 15000;
+export const TELEMETRY_BACKOFF_MAX_MS = 300000;

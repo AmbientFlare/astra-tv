@@ -7,16 +7,16 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../components/FocusableItem';
 import {ProfileSwitcher} from '../components/ProfileSwitcher';
-import {
-  CURRENT_NOTICE_ID,
-  DeveloperNotice,
-} from '../components/DeveloperNotice';
+import {CURRENT_NOTICE_ID, WhatsNewNotice} from '../components/WhatsNewNotice';
+import {CapabilityNotice} from '../components/CapabilityNotice';
 import {readAppState, writeAppState} from '../services/storage';
+import {nextAutoAdvanceCount} from '../services/episodePlayback';
 import {HomeScreen} from '../screens/HomeScreen';
 import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
 import {LibraryScreen} from '../screens/LibraryScreen';
 import {SetupScreen} from '../screens/SetupScreen';
+import {ServerCapabilitiesScreen} from '../screens/ServerCapabilitiesScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
 import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
@@ -40,7 +40,16 @@ import {
   readServerProfiles,
   ServerProfile,
   upsertServerProfile,
+  writePlaybackPreferences,
 } from '../services/storage';
+import {
+  acknowledgeCapabilityNotice,
+  applyServerCapabilities,
+  getServerCapabilities,
+  serverCapabilityKey,
+} from '../services/serverCapabilities';
+import {defaultServerCapabilities} from '../services/serverCapabilities/defaults';
+import type {ServerCapabilities} from '../services/serverCapabilities/types';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -52,7 +61,12 @@ type RouteEntry =
   | {route: 'library'; library: JellyfinLibrary}
   | {route: 'detail'; item: JellyfinMediaItem}
   | {route: 'episodeDetail'; item: JellyfinMediaItem}
-  | {route: 'player'; item: JellyfinMediaItem}
+  | {
+      route: 'player';
+      item: JellyfinMediaItem;
+      /** Unattended episode advances that led here; see PlayerScreen. */
+      consecutiveAutoAdvances?: number;
+    }
   | {route: 'music'; tab?: MusicTab}
   | {route: 'musicArtist'; artistId: string}
   | {route: 'musicAlbum'; albumId: string}
@@ -88,6 +102,14 @@ export const RootNavigator = () => {
   const [libraryMenuVisible, setLibraryMenuVisible] = useState(false);
   const [profileSwitcherVisible, setProfileSwitcherVisible] = useState(false);
   const [noticeVisible, setNoticeVisible] = useState(false);
+  // What this server can do, remembered per server id. Held here because the
+  // first-run questions sit between connecting and the home screen, and
+  // because switching servers has to restate that server's answers -- the
+  // device profile is built from one set of preferences, so without this the
+  // NAS would inherit whatever the GPU box last asked for.
+  const [capabilities, setCapabilities] = useState<ServerCapabilities | null>(
+    null,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -145,6 +167,14 @@ export const RootNavigator = () => {
       setStack((entries) =>
         entries.length > 1 ? entries.slice(0, -1) : entries,
       ),
+    [],
+  );
+
+  // Swaps the top entry so an episode that advances to the next one does not
+  // leave a finished player behind for Back to walk through.
+  const replace = useCallback(
+    (entry: RouteEntry) =>
+      setStack((entries) => [...entries.slice(0, -1), entry]),
     [],
   );
 
@@ -248,6 +278,56 @@ export const RootNavigator = () => {
     serverProfile,
   ]);
 
+  const serverId = serverProfile
+    ? serverCapabilityKey(serverProfile.serverUrl)
+    : '';
+
+  useEffect(() => {
+    let mounted = true;
+    if (!serverId) {
+      setCapabilities(null);
+      return;
+    }
+
+    applyServerCapabilities(serverId, writePlaybackPreferences)
+      .then((next) => {
+        if (mounted) {
+          setCapabilities(next);
+        }
+      })
+      .catch(() => {
+        // Falling back to the shipped defaults is the safe outcome: the
+        // fallback path still discovers an unusable server on its own.
+        if (mounted) {
+          setCapabilities(defaultServerCapabilities);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [serverId]);
+
+  const atHome = current.route === 'home';
+
+  useEffect(() => {
+    if (!serverId || !atHome) {
+      return;
+    }
+    let mounted = true;
+    getServerCapabilities(serverId)
+      .then((next) => {
+        if (mounted) {
+          setCapabilities(next);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, [atHome, serverId]);
+
   useEffect(() => {
     const subscription = keplerBackHandler.addEventListener(
       'hardwareBackPress',
@@ -306,7 +386,20 @@ export const RootNavigator = () => {
   // suppressed during playback.
   const developerNotice =
     noticeVisible && serverProfile && current.route !== 'player' ? (
-      <DeveloperNotice onDismiss={dismissNotice} />
+      <WhatsNewNotice onDismiss={dismissNotice} />
+    ) : null;
+
+  // Playback is what writes the verdict, so re-read on the way back to home
+  // rather than only when the server changes.
+  const capabilityNotice =
+    serverProfile && atHome && capabilities?.pendingCapabilityNotice ? (
+      <CapabilityNotice
+        onDismiss={() => {
+          setCapabilities({...capabilities, pendingCapabilityNotice: false});
+          acknowledgeCapabilityNotice(serverId).catch(() => undefined);
+        }}
+        serverName={serverProfile.name}
+      />
     ) : null;
 
   const exitPrompt = exitPromptVisible ? (
@@ -326,7 +419,9 @@ export const RootNavigator = () => {
   // occur while the notice is up.
   const withExitPrompt = (screen: React.ReactElement) => (
     <View style={styles.appShell}>
-      <View style={styles.appScreen}>{developerNotice ?? screen}</View>
+      <View style={styles.appScreen}>
+        {developerNotice ?? capabilityNotice ?? screen}
+      </View>
       <NowPlayingBar
         onOpen={() => {
           if (
@@ -363,6 +458,27 @@ export const RootNavigator = () => {
     );
   }
 
+  // Asked once per server, and only at the home screen, so it can never
+  // interrupt a stack the user has already navigated into.
+  if (
+    serverProfile &&
+    capabilities &&
+    !capabilities.interviewCompleted &&
+    current.route === 'home'
+  ) {
+    return withExitPrompt(
+      <ServerCapabilitiesScreen
+        onDone={() => {
+          getServerCapabilities(serverId)
+            .then(setCapabilities)
+            .catch(() => undefined);
+        }}
+        serverId={serverId}
+        serverName={serverProfile.name}
+      />,
+    );
+  }
+
   if (current.route === 'home') {
     return withExitPrompt(
       <>
@@ -384,6 +500,10 @@ export const RootNavigator = () => {
   if (current.route === 'library' && serverProfile) {
     return withExitPrompt(
       <LibraryScreen
+        // A different library is a different browse session: remounting is
+        // what lets LibraryScreen restore its own saved scroll and focus for
+        // the library being opened instead of inheriting the last one's.
+        key={current.library.id}
         libraryId={current.library.id}
         libraryName={current.library.name}
         libraryType={current.library.type}
@@ -478,11 +598,26 @@ export const RootNavigator = () => {
   }
 
   if (current.route === 'player' && serverProfile) {
+    const autoAdvances = current.consecutiveAutoAdvances ?? 0;
     return withExitPrompt(
       <PlayerScreen
         accessToken={serverProfile.accessToken}
+        consecutiveAutoAdvances={autoAdvances}
         item={current.item}
+        // A new item is a new player: remounting releases the old media
+        // element and starts the next one from a clean surface.
+        key={current.item.id}
         onBack={pop}
+        onPlayNext={(next, {automatic}) =>
+          replace({
+            route: 'player',
+            item: next,
+            consecutiveAutoAdvances: nextAutoAdvanceCount(
+              autoAdvances,
+              automatic,
+            ),
+          })
+        }
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
       />,

@@ -6,6 +6,8 @@ import {App} from '../src/App';
 import {SearchScreen} from '../src/screens/SearchScreen';
 import {checkAstraProReceipt} from '../src/services/iap';
 import {
+  getItems,
+  getLibraries,
   initiateQuickConnect,
   isQuickConnectEnabled,
 } from '../src/services/jellyfin';
@@ -129,8 +131,20 @@ jest.mock('../src/services/jellyfin', () => ({
   initiateQuickConnect: jest.fn(async () => ({code: '123456', secret: 'sec'})),
   isQuickConnectEnabled: jest.fn(async () => false),
   pollQuickConnect: jest.fn(async () => false),
+  getEpisodes: jest.fn(async () => []),
+  getItemDetails: jest.fn(async (_url, _token, _user, id) => ({
+    id,
+    name: 'Item',
+    type: 'Movie',
+  })),
+  getItems: jest.fn(async () => []),
   getLibraries: jest.fn(async () => []),
   getLatestItems: jest.fn(async () => []),
+  getLatestItemsInLibrary: jest.fn(async () => []),
+  getNextUp: jest.fn(async () => []),
+  getResumeItems: jest.fn(async () => []),
+  getSeasons: jest.fn(async () => []),
+  getSimilarItems: jest.fn(async () => []),
   getStreamUrl: jest.fn(async () => ({
     itemId: 'test-item',
     playMethod: 'DirectPlay',
@@ -152,6 +166,12 @@ jest.mock('../src/services/iap', () => ({
   isIapAvailable: jest.fn(() => false),
   purchaseAstraPro: jest.fn(async () => false),
 }));
+
+// Required inside the factory rather than imported: a jest.mock factory may not
+// close over an import. Reading the real id keeps these tests off the
+// version-bump checklist.
+const acknowledgedNoticeId = (): string =>
+  require('../src/config/releaseNotes').CURRENT_NOTICE_ID;
 
 jest.mock('../src/services/storage', () => ({
   defaultPlaybackPrefs: {
@@ -220,13 +240,41 @@ jest.mock('../src/services/storage', () => ({
   // Notice already acknowledged: these tests exercise navigation and the exit
   // prompt, and an unacknowledged notice deliberately replaces the screen.
   readAppState: jest.fn(async () => ({
-    acknowledgedNoticeId: 'vega-os-1.2-apology-2026-08',
+    acknowledgedNoticeId: acknowledgedNoticeId(),
     isPro: false,
     launchCount: 0,
   })),
   setProStatus: jest.fn(async () => undefined),
   upsertServerProfile: jest.fn(async () => undefined),
   writeAppState: jest.fn(async () => ({isPro: false, launchCount: 1})),
+  writePlaybackPreferences: jest.fn(async () => undefined),
+}));
+
+// These tests are about navigation, so the first-run capability questions are
+// answered here. The wizard itself is covered in ServerCapabilities.spec.
+jest.mock('../src/services/serverCapabilities', () => ({
+  acknowledgeCapabilityNotice: jest.fn(async () => undefined),
+  applyServerCapabilities: jest.fn(async () => ({
+    interviewCompleted: true,
+    lastTranscodeProbeAtMs: 0,
+    maxAudioChannels: 6,
+    maxAudioChannelsSource: 'stated',
+    pendingCapabilityNotice: false,
+    updatedAtMs: 1,
+    videoTranscode: 'hardware',
+    videoTranscodeSource: 'stated',
+  })),
+  getServerCapabilities: jest.fn(async () => ({
+    interviewCompleted: true,
+    lastTranscodeProbeAtMs: 0,
+    maxAudioChannels: 6,
+    maxAudioChannelsSource: 'stated',
+    pendingCapabilityNotice: false,
+    updatedAtMs: 1,
+    videoTranscode: 'hardware',
+    videoTranscodeSource: 'stated',
+  })),
+  serverCapabilityKey: (url: string) => url,
 }));
 
 describe('App', () => {
@@ -237,7 +285,7 @@ describe('App', () => {
     // the notice unacknowledged would otherwise leak into the next one and
     // hide the screen it expects.
     (readAppState as jest.Mock).mockResolvedValue({
-      acknowledgedNoticeId: 'vega-os-1.2-apology-2026-08',
+      acknowledgedNoticeId: acknowledgedNoticeId(),
       isPro: false,
       launchCount: 0,
     });
@@ -377,7 +425,7 @@ describe('App', () => {
     });
   });
 
-  it('replaces the screen with the developer notice until it is acknowledged', async () => {
+  it("replaces the screen with the what's new notice until it is acknowledged", async () => {
     // The notice must not merely overlay the screen: on device the screen
     // behind kept focus, so the first centre press selected a library item and
     // navigated away instead of dismissing, leaving the notice unacknowledged.
@@ -400,10 +448,10 @@ describe('App', () => {
     const screen = render(<App />);
 
     await waitFor(() =>
-      expect(screen.getByTestId('developer-notice')).toBeTruthy(),
+      expect(screen.getByTestId('whats-new-notice')).toBeTruthy(),
     );
     expect(screen.queryByTestId('home-screen')).toBeNull();
-    expect(screen.getByTestId('developer-notice-ok')).toBeTruthy();
+    expect(screen.getByTestId('whats-new-notice-ok')).toBeTruthy();
   });
 
   it('requires repeated root back presses before showing exit confirmation', async () => {
@@ -439,5 +487,60 @@ describe('App', () => {
 
     fireEvent.press(screen.getByTestId('exit-cancel-button'));
     expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+  });
+
+  it('pops back out of a nested library instead of offering to exit', async () => {
+    // A view can put folders at its top level, and tapping one browses into
+    // it. Back must then unwind the stack a screen at a time; only the home
+    // screen may start the exit count.
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      serverType: 'jellyfin' as const,
+      serverUrl: 'https://example.com',
+      userId: 'test-user',
+    };
+    (readServerProfiles as jest.Mock).mockResolvedValueOnce([serverProfile]);
+    (getLastUsedServerProfile as jest.Mock).mockResolvedValueOnce(
+      serverProfile,
+    );
+    (getLibraries as jest.Mock).mockResolvedValue([
+      {id: 'view-1', name: 'Watchlist', type: 'somethingnew'},
+    ]);
+    (getItems as jest.Mock).mockResolvedValue([
+      {id: 'folder-1', name: 'A Folder', type: 'Folder', isFolder: true},
+    ]);
+
+    const screen = render(<App />);
+    await waitFor(() => expect(screen.getByTestId('home-screen')).toBeTruthy());
+
+    fireEvent.press(screen.getByTestId('home-nav-other'));
+    await waitFor(() =>
+      expect(screen.getByTestId('library-screen')).toBeTruthy(),
+    );
+
+    fireEvent.press(screen.getByTestId('media-card-A Folder'));
+    await waitFor(() =>
+      expect(screen.getAllByText('A Folder').length).toBeGreaterThan(0),
+    );
+
+    // First back: out of the folder, still inside the library.
+    await act(async () => {
+      mockHardwareBackPressHandler?.();
+    });
+    expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+    await waitFor(() =>
+      expect(screen.getAllByText('Watchlist').length).toBeGreaterThan(0),
+    );
+
+    // Second back: out of the library, home again — still no exit prompt.
+    await act(async () => {
+      mockHardwareBackPressHandler?.();
+    });
+    expect(screen.getByTestId('home-screen')).toBeTruthy();
+    expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+    expect(mockKeplerExitApp).not.toHaveBeenCalled();
   });
 });

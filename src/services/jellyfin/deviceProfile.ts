@@ -113,9 +113,26 @@ export const buildDeviceProfile = (
     ],
     ContainerProfiles: [],
     CodecProfiles: [
-      // Only SDR HEVC may be stream-copied; HDR10 fails this condition and
-      // gets re-encoded to tonemapped SDR HEVC (the device sink rejects
-      // HDR10, and untonemapped HDR looks washed out).
+      // EXPERIMENT (2026-09-05, build 20260905.11) -- revert this Value to
+      // 'SDR' to restore the previous behaviour. Nothing else changed.
+      //
+      // This used to be 'SDR' alone, so every HDR source was re-encoded to
+      // tonemapped SDR HEVC. The justification was that the device sink
+      // rejects HDR10 -- but that came from the direct-play `setSrcUri` ANR,
+      // which is evidence about raw-file direct play (disabled) and not about
+      // the MSE/HLS path every stream actually takes. The on-device
+      // `decodingInfo` probe (`mediaCapabilities/hdr.ts`, event `media.hdr`)
+      // returned `verdict: 'hdr10-supported'` with its controls intact,
+      // including the garbage-transfer control that proves the platform really
+      // does parse the colour fields. That removes the evidence for 'SDR'; it
+      // does not by itself prove end-to-end HDR playback, which is what this
+      // build is for.
+      //
+      // HDR10 and HLG only. Dolby Vision and HDR10+ stay excluded: the probe
+      // asked about `pq` and `hlg` transfers and said nothing whatever about
+      // either, and a DV title would add a second unanswered question to a
+      // test built to answer one.
+      //
       // Do NOT add resolution conditions on h264 here: Jellyfin applies
       // conditions across every codec listed in a TranscodingProfile, so an
       // h264 width cap silently downscales HEVC output too (observed:
@@ -127,7 +144,7 @@ export const buildDeviceProfile = (
           {
             Condition: 'EqualsAny',
             Property: 'VideoRangeType',
-            Value: 'SDR',
+            Value: 'SDR|HDR10|HLG',
             IsRequired: true,
           },
         ],
@@ -139,6 +156,9 @@ export const buildDeviceProfile = (
       {Format: 'srt', Method: 'External'},
       {Format: 'subrip', Method: 'External'},
       {Format: 'ttml', Method: 'External'},
+      // MP4 timed text. Jellyfin converts it to WebVTT on the Subtitles
+      // endpoint like any other text format.
+      {Format: 'mov_text', Method: 'External'},
       // Vega's caption surface renders timed text, not bitmap subtitles or
       // styled ASS/SSA. Ask Jellyfin to burn these formats into the video
       // instead of advertising them as external tracks that cannot render.

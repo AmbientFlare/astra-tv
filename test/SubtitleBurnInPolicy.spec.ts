@@ -1,65 +1,46 @@
-export {};
+import {
+  subtitleRequiresBurnIn,
+  supportsTextTrack,
+} from '../src/services/jellyfin/playbackHelpers';
 
 /**
- * Pins the single-path subtitle policy.
+ * Pins the subtitle delivery policy (issue #20).
  *
- * Astra used to render text subtitles itself and leave picture-based ones to
- * Jellyfin. That meant two code paths and two failure modes, and app-rendered
- * subtitles drifted out of sync after a long seek. Every subtitle is now burned
- * in by the server: one path, one behaviour, at the cost of a reload per
- * change.
- *
- * These tests describe the decision directly. `mapTrack` is not exported, so
- * they mirror the expression rather than calling it; the comment on
- * `burnInRequired` in services/jellyfin points here.
+ * Burning in every subtitle made the server re-encode video that would
+ * otherwise be stream-copied, because Astra sends `AllowVideoStreamCopy: false`
+ * and `AlwaysBurnInSubtitleWhenTranscoding: true` whenever burn-in is required.
+ * Astra draws text tracks itself, so burn-in is now reserved for the formats it
+ * has no renderer for: bitmap subtitles and styled ASS/SSA.
  */
-
-/** Mirrors the shipped expression. */
-const burnInRequired = (isSubtitle: boolean): boolean => isSubtitle;
-
-/** The previous expression, kept as the thing we deliberately moved away from. */
-const previousBurnInRequired = (
-  isSubtitle: boolean,
-  hasDeliveryUrl: boolean,
-  textTrackSupported: boolean,
-): boolean => isSubtitle && (!hasDeliveryUrl || !textTrackSupported);
-
 describe('subtitle burn-in policy', () => {
-  it.each([
-    ['SRT with a delivery URL', true, true],
-    ['WebVTT with a delivery URL', true, true],
-    ['PGS with no delivery URL', false, false],
-    ['ASS with a delivery URL but no text support', true, false],
-  ])('burns in %s', (_name, hasDeliveryUrl, textTrackSupported) => {
-    expect(burnInRequired(true)).toBe(true);
-    // The cases that previously rendered in-app are the ones that change.
-    const changed = !previousBurnInRequired(
-      true,
-      hasDeliveryUrl,
-      textTrackSupported,
-    );
-    expect(typeof changed).toBe('boolean');
+  it.each([['subrip'], ['srt'], ['webvtt'], ['vtt'], ['ttml'], ['mov_text']])(
+    'renders %s in-app instead of burning it in',
+    (codec) => {
+      expect(supportsTextTrack(codec)).toBe(true);
+      expect(subtitleRequiresBurnIn({codec})).toBe(false);
+    },
+  );
+
+  it.each([['pgssub'], ['dvdsub'], ['dvbsub'], ['ass'], ['ssa'], [undefined]])(
+    'burns in %s, which has no in-app renderer',
+    (codec) => {
+      expect(subtitleRequiresBurnIn({codec})).toBe(true);
+    },
+  );
+
+  it('is case-insensitive about the codec name', () => {
+    expect(subtitleRequiresBurnIn({codec: 'SubRip'})).toBe(false);
+    expect(subtitleRequiresBurnIn({codec: 'MOV_TEXT'})).toBe(false);
   });
 
-  it('never marks a non-subtitle track for burn-in', () => {
-    expect(burnInRequired(false)).toBe(false);
-  });
-
-  it('changes behaviour only for renderable text tracks', () => {
-    // Text tracks with a delivery URL used to render in-app and now burn in.
-    expect(previousBurnInRequired(true, true, true)).toBe(false);
-    expect(burnInRequired(true)).toBe(true);
-
-    // Picture-based tracks always burned in and are unaffected.
-    expect(previousBurnInRequired(true, false, false)).toBe(true);
-    expect(burnInRequired(true)).toBe(true);
-  });
-
-  it('means every subtitle change forces a server transcode', () => {
-    // PlayerScreen sets selectedForceTranscode when burn-in is required, so a
-    // universal policy means no subtitle selection can be a stream copy. This
-    // is the accepted cost of the single path.
-    const forcesTranscode = burnInRequired(true);
-    expect(forcesTranscode).toBe(true);
+  it('believes a server that answers Encode for a text track', () => {
+    // The device profile asks for External delivery of text formats, but a
+    // server that decides otherwise is the authority on what it will send.
+    expect(
+      subtitleRequiresBurnIn({codec: 'subrip', deliveryMethod: 'Encode'}),
+    ).toBe(true);
+    expect(
+      subtitleRequiresBurnIn({codec: 'subrip', deliveryMethod: 'External'}),
+    ).toBe(false);
   });
 });

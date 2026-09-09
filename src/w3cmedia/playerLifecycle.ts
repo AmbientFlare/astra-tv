@@ -6,6 +6,8 @@ export interface PlayerReference<Player extends UnloadablePlayer> {
   current: Player | null;
 }
 
+const unloads = new WeakMap<object, Promise<void>>();
+
 export interface PlaybackRecoveryInput {
   attempt: number;
   audioDeliveryMethod?: 'Copy' | 'Transcode' | 'Unknown';
@@ -57,11 +59,19 @@ export const getNextPlaybackRecovery = ({
 export const unloadPlayer = async <Player extends UnloadablePlayer>(
   playerRef: PlayerReference<Player>,
 ): Promise<void> => {
+  const pending = unloads.get(playerRef);
+  if (pending) return pending;
   const player = playerRef.current;
   if (!player) {
     return;
   }
 
   playerRef.current = null;
-  await player.unload();
+  const promise = Promise.resolve().then(() => player.unload());
+  unloads.set(playerRef, promise);
+  try {
+    await promise;
+  } finally {
+    unloads.delete(playerRef);
+  }
 };
