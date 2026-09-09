@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Setup, settings, and troubleshooting
+    url: https://watchastra.com/help/
+    about: Installing Astra, pointing it at a server, and the fixes for the most common problems.
+  - name: Release notes
+    url: https://watchastra.com/releases/
+    about: What changed in each version, in plain language.
+  - name: Support Astra
+    url: https://ko-fi.com/astrafiretv
+    about: Astra is free. If it saved your Fire TV, this keeps the test hardware running.
