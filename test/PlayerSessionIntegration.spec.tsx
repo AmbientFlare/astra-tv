@@ -198,6 +198,36 @@ describe('PlayerScreen native session integration', () => {
     expect(stopVideoEngagement).toHaveBeenCalledTimes(1);
   });
 
+  it('releases video engagement once playback finishes, and re-acquires on resume', async () => {
+    const view = mount();
+    await start(view);
+    expect(startVideoEngagement).toHaveBeenCalledTimes(1);
+    expect(stopVideoEngagement).not.toHaveBeenCalled();
+
+    // A movie that plays out is nobody's any more: holding engagement here
+    // would keep the device awake on the finished frame indefinitely.
+    mockVideos[0].currentTime = 1000;
+    await act(async () => {
+      mockVideos[0].emit('ended');
+      await flush();
+    });
+    expect(stopVideoEngagement).toHaveBeenCalled();
+
+    // Playing again re-acquires it.
+    const releases = (stopVideoEngagement as jest.Mock).mock.calls.length;
+    await act(async () => {
+      mockVideos[0].play();
+      await flush();
+    });
+    expect(startVideoEngagement).toHaveBeenCalledTimes(2);
+    expect(stopVideoEngagement).toHaveBeenCalledTimes(releases);
+
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+  });
+
   it('cannot load/play or report start after unmount during PlaybackInfo', async () => {
     const pending = deferred<any>();
     (getStreamUrl as jest.Mock).mockReturnValue(pending.promise);
