@@ -12,7 +12,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.3.0`, build `20260905.17`, for x86_64
+The current release is Astra `1.4.0`, build `20260908.14`, for x86_64
 Fire TV devices running Vega OS 1.2 or later. It is available from the Amazon
 Appstore.
 
@@ -24,10 +24,12 @@ Appstore.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
-- Release validation: 485 tests in 59 suites, ESLint, TypeScript, Vega
+- Release validation: 578 tests in 64 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
-  physical Fire TV Stick for 1.3.0
+  physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
+  film was played start to finish on the same device to confirm the
+  engagement fix.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -70,6 +72,38 @@ creation on Vega.
   metadata to the video player.
 
 ## Release history
+
+### 1.4.0 — Playback stability, subtitle rendering, and per-server capabilities — 2026-09-08
+
+- Fixed a feature-length film being shut down partway through. The system
+  lifecycle manager reclaimed Astra's media resources and took the foreground
+  roughly an hour into an uninterrupted movie; one title died at 61 minutes,
+  47% of the way in. The platform detects video playback on its own, but that
+  detection is not durable over a two-hour runtime, so Astra now signals
+  viewer engagement explicitly for as long as a video is open and unfinished.
+  The hold covers pause as well, and is released once a video plays out so a
+  finished end screen no longer keeps the device awake.
+- Fixed subtitles forcing the server to re-encode the whole video. Astra asked
+  for every subtitle to be burned into the picture, which also told the server
+  it could not copy the video stream, so a file needing no conversion became a
+  full transcode the moment captions were switched on. Astra draws text
+  subtitles itself again; burn-in is reserved for picture-based and styled
+  ASS/SSA tracks it cannot draw.
+- Fixed subtitles in MP4 files (`mov_text`) always burning in, and made
+  switching or disabling a subtitle track instant instead of reloading the
+  video.
+- Fixed streams the server returned in a form Astra could not play, seen with
+  some MKV and AVI files, being asked for again properly instead of failing to
+  start.
+- Added per-server capability memory: Astra learns what each server can
+  actually do and stops retrying what it has proved it cannot. First run asks
+  two questions per server, with "I don't know" as a real answer, and playback
+  corrects those answers on its own. Settings gains a page to see and override
+  any of it.
+- Added Instant / Reloads markers on every subtitle track, so on a release
+  carrying twenty of them it is visible which ones switch without rebuilding
+  the stream.
+- Added a per-build "What's new" list shown once after an update.
 
 ### 1.3.0 — Playback core, HDR picture, and library speed — 2026-09-05
 
@@ -179,9 +213,9 @@ creation on Vega.
   and Vega media playback with Jellyfin transcoding fallback.
 - Established the remote-first Fire TV interface and Amazon submission assets.
 
-The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md). Release
-notes for the current version are in
-[docs/release-1.2.1.md](docs/release-1.2.1.md).
+The detailed engineering changelog is in [CHANGELOG.md](CHANGELOG.md), whose
+topmost section always covers the current version. Every release above is
+tagged in the repository as `vMAJOR.MINOR.PATCH`.
 
 ## Development
 
