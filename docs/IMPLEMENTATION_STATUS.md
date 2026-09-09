@@ -1,6 +1,398 @@
 # Implementation Status
 
-Last updated: 2026-08-29
+Last updated: 2026-09-06 (delayed 1.2 native crash review)
+
+## Delayed Astra 1.2 native fragment-parser crash review
+
+- Reviewed an Amazon crash fragment whose fault is in
+  `SourceBufferStateImpl::get_buffered_ranges` while the native demuxer
+  publishes buffer changes from an asynchronous `SourceBuffer` append. This is
+  Amazon `ATVNativeFragmentParser` code below Astra/Shaka; the fragment has no
+  signal, fault address, registers, locals, or surrounding native source, so it
+  cannot distinguish a stale/null `TrackBuffer`, an internal iterator race, or
+  corrupted buffered-range state.
+- The signature is closely related to the earlier native append crashes in
+  [the August investigation](crash-investigation-2026-08-13.md), which failed in
+  `SourceBufferStateImpl::get_total_buffered_size`. It is not the Vega 1.2
+  JavaScript-thread logging termination fixed by Astra 1.2.
+- Astra 1.3 substantially reduces plausible app-side triggers: playback
+  transitions are serialized across screens, obsolete loads are cancelled,
+  unload is shared and ordered through native detach/destroy, media release no
+  longer waits for Jellyfin reporting, native buffer waits are bounded, and
+  synchronous append exceptions again reach Shaka. The focused lifecycle,
+  Shaka-error, and buffer-operation tests pass (5 suites / 29 tests).
+- This is mitigation, not a proven direct fix. Astra 1.2.0 and 1.3.0 both ship
+  `@amazon-devices/react-native-w3cmedia` 2.3.2, and 1.3 still reaches the same
+  native append/range-publication implementation. Treat a matching event from
+  a 1.3 build as actionable evidence; the delayed 1.2 event alone does not
+  justify another release change.
+
+## HDR variant selection — build 20260905.12; physically accepted
+
+- Video playback now passes a top-level, opt-in Shaka HDR preference from the
+  cached controlled decoder probe: PQ for supported HDR10, HLG when the source
+  reports HLG and its probe succeeds, AUTO for rejected/inconclusive probes,
+  SDR, Dolby Vision, HDR10+, and other known ranges. Missing range metadata
+  uses PQ only with a supported HDR10 verdict. Music does not opt in.
+- Verified the vendored Shaka 4.8.5 live filter at compiled.js:186–189 retains
+  the previous candidates when the preferred range has no matches. The device
+  profile, manifest.hls configuration, direct-play flags, native parsing,
+  subtitle burn-in policy, and server encoder settings are unchanged.
+- TypeScript and touched-file ESLint pass; 57 Jest suites / 472 tests / one
+  snapshot pass, including controlled HDR preference tests. Release x86_64
+  build 2026090512 succeeded and was installed in place with saved data intact.
+  App launch succeeded; fresh app.start and media.hdr telemetry arrived for
+  build 20260905.12. Generated configuration is armed and remains gitignored.
+- Physical acceptance PASSED. The operator ran the checklist titles on the
+  Fire TV panel and confirmed correct HDR picture quality; server FFmpeg bodies
+  showed video stream copy with no tone mapping on the supported route. This
+  was the root-cause fix for the tone-mapping regression (`328ea74`).
+- Remaining known gap, tracked but not a 1.3 blocker: subtitle burn-in still
+  forces a video re-encode on a route that would otherwise copy, and
+  stats-for-nerds surfaced evidence that more HDR flavours (HLG, Dolby Vision,
+  HDR10+) may be available beyond HDR10.
+
+## Transcode delivery evidence — deployed; evidence collected
+
+- Corrected `playback.decision` video/audio methods to explicit Unknown with
+  evidence: Jellyfin 10.11.11 PlaybackInfo has no effective encoder/copy fields.
+  Legacy URL estimates used by recovery/UI and all playback behavior remain.
+- Historical FFmpeg logs confirm Graceland copied both H.264 and AAC; Central
+  Intelligence encoded HEVC with tone mapping and audio to AC3 (with burn-in).
+- TypeScript, touched-file ESLint, 55 suites / 454 tests / one snapshot passed.
+  Release build and manifest/ABI validation passed; build `20260905.9`
+  (`2026090509`) installed and launched, with collector startup confirmed.
+- Operator playback runs were completed on later builds and confirmed the
+  copy-vs-encode behaviour described above. What copies and what encodes is
+  recorded in the linked evidence document.
+- [Evidence, API limitation, and verdict](transcode-delivery-evidence-2026-09-05.md).
+
+## Native HLS parsing probe — complete
+
+- Added an observational startup probe for Shaka 4.8.5 with a bogus-player
+  negative control; native parsing stays disabled and parser hooks are never set.
+- Target device build: `20260905.8` (`2026090508`).
+- TypeScript and touched-file ESLint passed; all 451 Jest tests across 54
+  suites passed (12 new probe tests).
+- Release build, manifest/ABI validation, in-place installation, and launch
+  passed. Device telemetry confirms support for Shaka 4.8.5, all hooks present,
+  and negative control rejected (`controlsFailed: false`, `alwaysTrue: false`).
+- Worth a separate enable-and-benchmark trial; no JS-thread savings measured
+  and native parsing remains disabled. See [device evidence and verdict](native-hls-probe-2026-09-05.md).
+
+## Telemetry implementation — in progress
+
+User clarified that the handoff must be implemented before cleanup. Restored
+the verified source archive. Gate-only build installed and inspected on the
+development Fire TV: restricted privilege was accepted at build/install, but
+all four enumerated interfaces returned status 4 (PERMISSION_DENIED). Following
+the handoff, removed the restricted privilege and selected the manual opt-in
+gate. Existing persistent identity and legacy credential storage are preserved.
+
+- [x] Read proposal and preserve pre-existing playback work.
+- [x] Verify hardware privilege on device; select fail-closed fallback.
+- [ ] Trace-only build: explicit device activation and real collector events.
+- [ ] Playback decision, variants, error detail, heartbeat and session end integration.
+- [ ] Crash-tail, gate and transport fault tests; full regression/typecheck/build.
+- [ ] Final device delivery verification and documentation; handoff cleanup last.
+
+Original review status (historical):
+
+Read the full supplied telemetry proposal and source. Findings and future gates
+are recorded in [the telemetry review](telemetry-review-2026-09-05.md).
+The collector's local health check passed; no app-to-collector telemetry or
+hardware gate has been verified. Original proposal preserved locally before
+standalone handoff cleanup. No application, device, or service changes in this
+review; telemetry remains unimplemented.
+
+### Latest user-reported physical results (supersede failure status below)
+
+The HTTP 500 segment failures stopped after the user restarted the Jellyfin
+container. A full roughly 50-minute episode played; audio/video sync appeared
+good, with only a possible very small, unconfirmed offset. The credits prompt,
+letting credits finish, and next-episode transition worked. On a different
+movie, resume, audio-track selection, and subtitle on/off worked. The longer
+movie sync check was still in progress at the last report. These are user
+observations, not independent device verification or acceptance of every route.
+
+## Astra 1.3 playback core — physically accepted; released as 1.3.0
+
+Superseded status: the HTTP-delivery failure recorded below was diagnosed and
+fixed over builds `20260905.1` through `20260905.16`. The operator tested
+`20260905.16` on the development Fire TV across movies, episodes, music
+browsing and library navigation and accepted the build. The record below is
+retained as the problem history, not as current status.
+
+### Physical failure reported after candidate installation
+
+The user reports H.264/EAC3 HLS/MP4 remaining stuck through recovery/Retry:
+zero decoded frames, Shaka `1001` category 1 severity 2 after initial load.
+This establishes failed HTTP delivery, not its cause or a decoder failure.
+The installed diagnostic omitted the HTTP status and request kind. Historical
+local device logs cannot be correlated with this new report.
+
+Working-tree follow-up adds allowlisted HTTP status/request kind to Shaka
+runtime and startup-failure diagnostics, and renders nonfinite buffering
+duration as unavailable instead of `NaNs`. No URLs, headers or response bodies
+are forwarded. This follow-up is not yet packaged or installed and does not
+claim to fix the underlying HTTP failure. Physical acceptance remains failed
+for the reported route until the failing response can be identified and fixed.
+Follow-up validation: 413 tests in 48 suites and one snapshot passed;
+TypeScript passed; ESLint completed with zero errors and 79 warnings.
+
+Diagnostic follow-up packaged as **1.3.0 / 20260905.1** and successfully
+installed via a data-preserving update on the development Fire TV at the
+user's request. Submission build passed; the 13 Settings/diagnostic tests
+passed after updating the build marker. This supersedes the uninstalled
+follow-up status above. Playback retest and underlying HTTP diagnosis remain
+pending; look for `http=... request=manifest/segment` in the new failure trace.
+
+Authorized continuation from 1.2.1 (`b9125b8`), on
+`feat/1.3-playback-core`. The architecture review below is the problem record.
+Preserve hardware-accepted codec/container policies and synchronous native MSE
+operations. Do not declare hardware acceptance from unit tests.
+
+Acceptance checklist:
+
+- [x] Native buffer exceptions reach Shaka; buffer-operation waits are bounded and observable.
+- [x] Shaka and native errors feed a consistent, sanitized diagnostic/recovery path.
+- [x] Startup, reload, recovery, exit and background share cancellable session ownership.
+- [x] Cleanup is idempotent and independent of server telemetry; no late load can revive a released player.
+- [x] Item duration/position govern progress, chapters and completion; early EOF is handled explicitly.
+- [x] Subtitle and decoder conversion requirements remain separate; Off removes only subtitle conversion.
+- [x] Every installation has a persistent unique Jellyfin device identity.
+- [x] Start/progress/stop reports are ordered per session and cannot revive stopped sessions.
+- [x] Regression and fault tests cover failures and overlapping lifecycle transitions.
+- [x] Lint, TypeScript, full tests and 1.3 candidate build pass. Final release
+      pass: TypeScript clean, 59 suites / 485 tests / one snapshot passed.
+- [x] Physical-device acceptance covers long playback, resume, tracks, interruption, background and autoplay on supported routes.
+
+Latest full validation passed 409 tests in 47 suites, one snapshot, TypeScript
+and ESLint. A subsequent duplicate-surface/completed-playback adjustment passed
+all eight targeted PlayerScreen integration tests; a full rerun on that final
+adjustment is still pending. The final candidate submission build passed.
+
+Candidate 1.3.0 build `20260904.1` was installed with a data-preserving update
+and launched successfully on the development Fire TV. A screenshot confirmed
+the saved profile and library home loaded. No physical playback acceptance is
+claimed. Artifact: `dist/candidate-1.3.0-20260904.1/astra-1.3.0-x86_64-release.vpkg`.
+
+Device testing was completed by the operator against build `20260905.16`.
+Physical acceptance passed and the final automated rerun is clean, so 1.3.0 is
+cleared for publication.
+
+## Playback architecture review — historical diagnosis before implementation
+
+The [2026-09-04 architecture review](playback-architecture-review-2026-09-04.md)
+records the verified findings, platform evidence, and recommended implementation
+sequence. New confirmed problems include swallowed synchronous native buffer
+exceptions, missing Shaka error forwarding, uncancelled startup after exit,
+an incomplete unload barrier, shared device identity, and subtitle-triggered
+forced conversion remaining enabled after subtitles are turned off. Resource
+release still waits for server reports and background handling only pauses.
+
+All 374 tests in 41 suites, the snapshot, TypeScript, and ESLint passed. Local
+fault probes reproduced the exception and unload-barrier defects. No playback
+code changed and no physical playback reproduction was performed in this review.
+The next architectural step is a single cancellable playback session with
+consistent timeline, resource ownership, error handling, and ordered reports;
+preserve the hardware-accepted delivery policies while validating that change.
+
+## Issue #17 playback review — diagnosis only
+
+Reviewed [issue #17](https://github.com/AmbientFlare/astra-tv/issues/17),
+the v1.2.0 source, and current commit `b9125b8`. No playback code changed.
+
+- Confirmed: `shaka.load.start startTime=0` is intentional. The requested
+  position reaches PlaybackInfo as `StartTimeTicks`, the HLS response filter
+  trims preceding segments, and the player maps media time to item time.
+  The log's 245 skipped segments are not 245 seconds.
+- Confirmed: `waiting` and `stalled` only update diagnostics/UI; Astra has
+  no prolonged-stall session recovery. Native media errors trigger recovery,
+  while Shaka has its own configured request retries. The reported zero
+  media errors therefore does not establish successful segment delivery.
+- Confirmed: the progress bar divides logical item position by native media
+  duration when available. A shortened playlist can therefore make the bar
+  reach 100% early. Chapter filtering uses the same mismatched duration.
+  This does not itself stop playback or prove incorrect server watch state.
+- Confirmed: native `ended` is accepted without comparing logical position
+  with item runtime. v1.2.0 labels it Finished; current 1.2.1 may also start
+  next-episode handling. This amplifies premature EOF but does not explain
+  why the media engine first stopped.
+- Related fix: `8cf4e2b`, included in 1.2.1, enables sequence mode for
+  mid-file fMP4 starts to address source timestamps far ahead of the new
+  playhead. It is relevant to this report's reload path, but the excerpt
+  does not establish that it fixes the original mid-playback stall.
+- `DirectPlayError` is displayed from the server URL's `TranscodeReasons`;
+  Astra disables direct play in PlaybackInfo. That label alone does not
+  establish that a client direct-play attempt failed.
+
+Validation: all 75 existing tests across seven targeted suites passed
+(HlsResumePlaylist, MediaTimeline, PlayerLifecycle, ShakaBufferTracking,
+JellyfinStreamPolicy, PlaybackInfoRequests, EpisodePlayback). These are unit
+tests, not a reproduction on the reporter's stream/device. Root cause of
+the initial stall remains unverified. A full trace spanning the first stall,
+native/Shaka buffered ranges and duration, actual ended/error events, and
+the matching server transcode log are needed to distinguish timestamp,
+segment delivery, decoder, and premature EOF failures.
+
+## Global subtitle preference and credits/next episode — released in 1.2.1
+
+Plan recorded before editing. Both features already had persisted settings
+(`subtitleMode`, `preferredSubtitleLanguage`, `nextEpisodeAutoplay`,
+`nextEpisodeCountdownSeconds`, `skipIntroCredits`) with Settings pages that
+nothing in the player read. Prior art reviewed: commit `c36aec7` on
+`chore/regression-hardening` (subtitle policy resolved from PlaybackInfo, the
+`-1` wire convention; its in-place text-track switching is superseded by
+burn-in-everything and is not reused) and PR #14 (media-segment credits and
+next-episode countdown; conflicting with `main`, episode-only credits, Next Up
+based lookup, no advance cap; ideas reused, code not merged).
+
+### Expected behaviour
+
+Subtitles are resolved inside `getStreamUrl` after the first PlaybackInfo
+response and before the stream URL is chosen, so the burned-in track and the
+server decision always match:
+
+| mode | decision | wire |
+|---|---|---|
+| Default (per video) | the server's `DefaultSubtitleStreamIndex`, which carries Jellyfin's per-user subtitle mode and its remembered per-item choice | that index with burn-in, or `-1` when none |
+| All subtitles on | preferred subtitle language, then the server default, then the first subtitle; none when the item has no subtitles | index, `AlwaysBurnInSubtitleWhenTranscoding`, `AllowVideoStreamCopy=false` (the same request shape as the hardware-proven in-player switch) |
+| All subtitles off | none | `SubtitleStreamIndex=-1`, no burn-in |
+| Only forced | first `IsForced` track, else none | as above |
+
+- A track or Off chosen in the player overlay pins that playback session:
+  later reloads (audio switch, long jump, error recovery) send the explicit
+  index and skip the policy. The player never writes the global setting.
+- Movies and episodes, start-from-zero and resume all pass through the same
+  `loadStream → getStreamUrl` path, so the policy applies to every new video.
+
+Credits and next episode:
+
+- The credits window comes from Jellyfin media segments of type `Outro`
+  (server 10.10+; a 404 or failure means none), else from a chapter whose
+  name contains "credits" (window = chapter start to the next chapter start or
+  the runtime). No fixed timestamps are assumed.
+- Inside the window, unless the setting is Ignore, a focused card offers Skip
+  Credits; an episode with a resolved next episode also offers Next Episode.
+  Auto-skip seeks to the window end once per window. Back dismisses the card.
+- A movie that ends shows "Finished" as before and never starts another item.
+- An episode that ends with a valid next episode shows an "Up next" countdown
+  (autoplay on, fewer than two consecutive automatic advances so far) or a
+  "Continue watching?" card that needs an explicit press. The cap is two
+  automatic advances, so the episode the viewer started plus two more play
+  before Astra asks (operator's call on 2026-09-01; the brief said three).
+  The consecutive count rides on the navigation entry: any play from a
+  browse screen or a manual Next Episode resets it to zero; an automatic
+  advance adds one.
+- Next episode = same series, type Episode, the item after the current one
+  from `/Shows/{seriesId}/Episodes?AdjacentTo=`; missing metadata means no
+  card and no advance. Series boundaries are never crossed.
+- Advancing awaits the player's own teardown before the navigator replaces
+  the player entry; every credits/countdown timer is cancelled on Back,
+  unmount, player replacement and handoff, and the `ended` handler runs once
+  per player generation because Vega fires it twice.
+
+Intro skipping is out of scope: the setting is still labelled "Skip
+intro/credits" but only credits are handled.
+
+### What changed (2026-09-01)
+
+- `src/services/jellyfin/index.ts`: `selectSubtitleStreamIndex` resolves the
+  global preference against the first PlaybackInfo response
+  (`DefaultSubtitleStreamIndex`, `IsForced`, language aliases). The
+  source-pinned re-request now carries the subtitle decision as well as the
+  audio index, serialises Off as `-1`, and asks for burn-in with
+  `AllowVideoStreamCopy=false` exactly as the in-player switch does. It is
+  skipped when the first answer already plays the wanted track burned in, or
+  none when none is wanted, so reload requests keep their one-request shape.
+  `JellyfinStreamInfo` gains `subtitleStreamIndex` and `subtitleBurnIn`. New
+  `getMediaSegments` (404 → none) and `getAdjacentEpisodes` (`AdjacentTo`).
+  `getUrlParameter` accepts Jellyfin's server-relative `TranscodingUrl`.
+- `src/services/storage/index.ts`: an unknown stored `subtitleMode` reads as
+  `default`.
+- `src/screens/SettingsScreen/index.tsx`: the subtitle page reads "Default
+  (per video)", "All subtitles on", "All subtitles off", "Only forced".
+- `src/services/episodePlayback/index.ts` (new, pure): credits window from
+  Outro segments or a "credits" chapter (post/mid/after-credits names are
+  excluded), next-episode resolution bounded to the series, the end-of-video
+  decision (`finished` / `countdown` / `confirm`), the cap of three, the
+  advance counter, and a cancellable one-second countdown.
+- `src/screens/PlayerScreen/index.tsx`: mirrors the resolved subtitle into
+  the refs the reload paths and reports read and pins the session; fetches
+  segments and the adjacent episode once per item; shows the Credits card
+  (Skip Credits, plus Next Episode for an episode with a successor), the
+  "Up next" countdown and the "Continue watching?" card; `ended` runs the
+  decision once per player generation; the countdown is cancelled on Back,
+  unmount, surface loss and player replacement; advancing awaits
+  `releaseForHandoff` (report stopped → Shaka unload → surface release →
+  deinitialize) and bails if Back unmounted the screen meanwhile.
+- `src/navigation/index.tsx`: `replace` swaps the top entry; the player is
+  keyed by item id and receives `consecutiveAutoAdvances`; a manual Next
+  Episode resets the count, an automatic one adds one.
+- Build marker `20260901.1`.
+
+### Physical device
+
+Build `20260901.1` installed in place on the local Fire TV Stick; profile
+intact. Operator result: the three subtitle modes pass across titles and the
+existing playback paths (resume, audio switch, long jump) still pass. Skip
+Credits and Next Episode did not show on the one episode tried (Star Trek:
+Lower Decks S1E1), which ended on "Buffering" instead of a card. Whether
+that title carries credits data or a resolvable neighbour is not known from
+the device; build `20260901.2` adds trace lines to Stats for Nerds with logs
+(`credits.segments`, `credits.window`, `nextEpisode.*`, `ended`,
+`handoff.*`) and refuses a next episode that is another copy of the same
+episode number. Movie credits, the three-episode cap and Back-during-
+countdown remain unverified on hardware.
+
+Server check (2026-09-01, Jellyfin 10.11.11): Lower Decks S1E1 has no
+chapters and no media segments, so no Credits card was possible there, and
+`AdjacentTo` returns `[S1E1, S1E2]`, so the neighbour lookup is sound. The
+server runs no segment plugin, so credits detection there depends on chapter
+names; six movies and three series carry one. Saved positions just before
+the credits were written for the operator's user on Shaun of the Dead, Star
+Trek (2009) and A Knight of the Seven Kingdoms S1E2–E5 for the next run.
+
+Device results so far: the Credits card with Skip Credits and Next Episode,
+the advance itself, and autoplay chaining all passed on the MPEG-TS
+stream-copy route (Spartacus: House of Ashur S1, subtitles off). The cap was
+changed to two automatic advances at the operator's request (`20260901.3`).
+A resume on the fMP4 burn-in route stalls with zero frames decoded, on an
+HDR movie and on an SDR episode alike; `20260901.4` switches such mid-file
+fMP4 sessions to Shaka sequence mode (see `docs/DEVICE_TEST_NOTES.md`).
+
+Build `20260901.4` passed the operator's full run: burn-in resume plays,
+autoplay chains with subtitles on, the cap asks after two automatic
+advances, Back on the card stays put. Released as Astra `1.2.1`, build
+`20260902.1` (Vega build number `2026090201`); see
+`docs/release-1.2.1.md` and `CHANGELOG.md`.
+
+Unresolved facts:
+
+- Whether the fMP4 sequence-mode route holds A/V sync over a long subtitled
+  watch (the earlier drift finding was MPEG-TS sequence mode, a different
+  route). Owed before release.
+- The Lower Decks S1E1 "Buffering" was almost certainly the same stall after
+  a long jump on the burn-in route, not a missing `ended`.
+- Whether Vega raises `pause` before `ended`; if it does, the paused-video
+  idle visual can appear over a "Continue watching?" card left unattended
+  for three minutes, as it already could over the old "Finished" state.
+
+### Automated evidence
+
+- ESLint and `tsc --noEmit` clean.
+- Jest: 41 suites, 372 tests, all passing (`npm test -- --runInBand`).
+  New: `test/SubtitleSelection.spec.ts` (policy table),
+  `test/UserPreferencesStorage.spec.ts` (persistence and fallback),
+  `test/EpisodePlayback.spec.ts` (segments, adjacency, credits window,
+  next-episode bounds, movie-versus-episode decision, the cap of three, reset
+  rules, countdown cancel/expiry with fake timers). Extended:
+  `test/PlaybackInfoRequests.spec.ts` (Off sends `-1`; On picks the language
+  and burns in; Default follows the server; a pinned manual choice goes out
+  on the first request with no re-request; audio and subtitle share one
+  pinned re-request) and `test/SettingsPlayback.spec.tsx` (subtitle radio
+  persists through `updateUserPreferences`).
 
 ## Vega OS 1.2 playback repair — 1.2.0, complete
 
@@ -458,3 +850,19 @@ Amazon submission packets, artifact paths and checksums, console checklists,
 and deployment records are maintained locally rather than in public project
 documentation. Playlist artwork composition remains optional future polish;
 missing server artwork currently uses a letter placeholder.
+# Public-web research audit — complete
+
+- [x] Read the local environment instructions and repository instructions.
+- [x] Established canonical identity pivots from the repository.
+- [x] Complete broad public-web, community, repository, and backlink discovery.
+- [x] Inspect and deduplicate substantive sources.
+- [x] Validate historical complaints against the current repository/application.
+- [x] Complete `EXTERNAL_MENTIONS_INDEX.md`, `EXTERNAL_USER_FEEDBACK.md`, and `OUTREACH_TARGETS.md`.
+
+Research result: 31 registry records after the final query sweep, including
+27 substantive or primary records and 4 secondary/index records. The audit
+identified 8 useful public outreach targets and confirmed inbound links from
+XDA, How-To Geek/Yahoo, JellyWatch, the Jellyfin forum, Reddit/Fediverse
+project posts, and GitHub topic indexing. No outreach or code changes were
+performed. Research artifacts are excluded by both `.gitignore` and the local
+`.git/info/exclude`, including the internal `docs/research/` directory.

@@ -11,6 +11,7 @@ import {LoadingOrError} from '../../components/LoadingOrError';
 import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
+  getItemDetails,
   getItems,
   JellyfinMediaItem,
   JellyfinSortBy,
@@ -78,6 +79,87 @@ const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
   small: 0.75,
 };
 
+/**
+ * How far either side of the focused card to fetch details ahead of focus.
+ * Two rows in each direction: enough that walking the grid at D-pad speed
+ * lands on something already fetched, and small enough that scrolling the
+ * length of a library does not queue hundreds of requests.
+ */
+const DETAIL_PREFETCH_RADIUS = 6;
+
+/**
+ * Upper bound on cached per-item details. Each is roughly 10KB, so this is a
+ * couple of megabytes at worst; entries are evicted in insertion order.
+ */
+const DETAIL_CACHE_LIMIT = 240;
+
+/** Cards per row, and the gap the grid styles put between rows. */
+const GRID_COLUMNS = 3;
+const GRID_ROW_GAP = 26;
+
+/** Unscaled card height, from MediaCard's own style. */
+const CARD_HEIGHT = 412;
+
+/**
+ * What a library grid looked like when it was last left. The navigation stack
+ * renders only the current route, so opening an item unmounts LibraryScreen
+ * and every piece of its state goes with it -- which is why backing out used
+ * to land on the first card at the top of the list. Holding the session here,
+ * outside the component, lets the remount draw the same grid at the same
+ * place with the same card focused, and refresh behind it rather than behind
+ * a spinner.
+ *
+ * Module-level rather than persisted: this is where the user was a moment
+ * ago, not a preference, and it should not outlive the app.
+ */
+interface LibrarySession {
+  items: JellyfinMediaItem[];
+  itemDetails: Record<string, JellyfinMediaItem>;
+  sortBy: JellyfinSortBy;
+  sortDescending: boolean;
+  filterUnwatched: boolean;
+  filterFavorites: boolean;
+  focusedIndex: number;
+}
+
+/** Keyed by library id. A handful of libraries at most. */
+const librarySessions = new Map<string, LibrarySession>();
+
+/** Enough for every library on a server, and a bound in case it is not. */
+const LIBRARY_SESSION_LIMIT = 12;
+
+/** Test seam: drops every remembered grid. */
+export const resetLibrarySessions = () => {
+  librarySessions.clear();
+};
+
+/**
+ * Item ids to fill in around a focused card: the card itself first, then its
+ * neighbours outward, forward before backward. Whichever way focus moves
+ * next, the nearest cards are the ones already fetched, and the panel is
+ * complete by the time it is looked at.
+ */
+export const detailPrefetchIds = (
+  items: JellyfinMediaItem[],
+  index: number,
+) => {
+  const ids: string[] = [];
+  const add = (at: number) => {
+    const item = items[at];
+    if (item) {
+      ids.push(item.id);
+    }
+  };
+
+  add(index);
+  for (let offset = 1; offset <= DETAIL_PREFETCH_RADIUS; offset += 1) {
+    add(index + offset);
+    add(index - offset);
+  }
+
+  return ids;
+};
+
 export const LibraryScreen = ({
   libraryId,
   libraryName,
@@ -87,23 +169,64 @@ export const LibraryScreen = ({
   onSelectItem,
   serverProfile,
 }: LibraryScreenProps) => {
-  const [items, setItems] = useState<JellyfinMediaItem[]>([]);
-  const [isLoading, setLoading] = useState(true);
-  const [errorText, setErrorText] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<JellyfinSortBy>('name');
-  const [sortDescending, setSortDescending] = useState(false);
-  const [filterUnwatched, setFilterUnwatched] = useState(false);
-  const [filterFavorites, setFilterFavorites] = useState(false);
-  const [focusedItem, setFocusedItem] = useState<JellyfinMediaItem | null>(
-    null,
+  // Populated when this library has been browsed already in this run of the
+  // app; the screen then opens on the grid the user left instead of a
+  // spinner. `key={libraryId}` in the navigator guarantees a remount per
+  // library, so this is read once and stays the right session for this mount.
+  const restored = useRef(librarySessions.get(libraryId)).current;
+
+  const [items, setItems] = useState<JellyfinMediaItem[]>(
+    restored?.items ?? [],
   );
-  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [isLoading, setLoading] = useState(!restored);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<JellyfinSortBy>(
+    restored?.sortBy ?? 'name',
+  );
+  const [sortDescending, setSortDescending] = useState(
+    restored?.sortDescending ?? false,
+  );
+  const [filterUnwatched, setFilterUnwatched] = useState(
+    restored?.filterUnwatched ?? false,
+  );
+  const [filterFavorites, setFilterFavorites] = useState(
+    restored?.filterFavorites ?? false,
+  );
+  const [focusedItem, setFocusedItem] = useState<JellyfinMediaItem | null>(
+    restored ? restored.items[restored.focusedIndex] ?? null : null,
+  );
+  const [focusedIndex, setFocusedIndex] = useState(restored?.focusedIndex ?? 0);
+  /**
+   * The card to hand focus to when the grid first draws. Fixed for the life of
+   * the mount: `hasTVPreferredFocus` is only read as a card appears, and the
+   * background refresh must not move focus out from under the user.
+   */
+  const initialFocusIndex = useRef(restored?.focusedIndex ?? 0).current;
+  /**
+   * Cleared by the first load. While set, that load is a refresh of something
+   * already on screen: no spinner, no reset to the top, and a failure leaves
+   * the remembered grid up rather than replacing it with an error.
+   */
+  const refreshingRestoredRef = useRef(Boolean(restored));
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
       imageSize: 'medium',
       imageType: 'Primary',
     });
+  /**
+   * The heavy half of an item, keyed by item id, filled in as focus settles.
+   * The grid request deliberately does not carry cast, media sources or
+   * chapters (see browseItemFields), so the info panel renders what the grid
+   * knows first and this fills the rest in a moment later.
+   */
+  const [itemDetails, setItemDetails] = useState<
+    Record<string, JellyfinMediaItem>
+  >(restored?.itemDetails ?? {});
+  /** Ids already fetched or in flight, so a re-focus does not refetch. */
+  const detailRequestsRef = useRef(
+    new Set<string>(Object.keys(restored?.itemDetails ?? {})),
+  );
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -127,6 +250,63 @@ export const LibraryScreen = ({
       setBackdropUrl(url);
     }, 150);
   }, []);
+
+  /**
+   * Fetches the full item for `ids` that have not been asked for yet, in the
+   * order given, so the focused card is filled before its neighbours. Runs
+   * sequentially: a Fire TV walking a grid should not have a dozen requests
+   * in flight, and each one is small enough that serialising them still
+   * finishes well inside the time it takes to move focus another two rows.
+   *
+   * A failure is recorded as attempted rather than retried. The panel keeps
+   * showing what the grid already gave it, which is the same thing it shows
+   * while the request is still running.
+   */
+  const ensureDetails = useCallback(
+    async (ids: string[]) => {
+      for (const id of ids) {
+        if (!mountedRef.current) {
+          return;
+        }
+        if (detailRequestsRef.current.has(id)) {
+          continue;
+        }
+        detailRequestsRef.current.add(id);
+
+        try {
+          const detail = await getItemDetails(
+            serverProfile.serverUrl,
+            serverProfile.accessToken,
+            serverProfile.userId,
+            id,
+          );
+
+          if (!mountedRef.current) {
+            return;
+          }
+
+          setItemDetails((current) => {
+            const next = {...current, [id]: detail};
+            const keys = Object.keys(next);
+            if (keys.length > DETAIL_CACHE_LIMIT) {
+              for (const stale of keys.slice(
+                0,
+                keys.length - DETAIL_CACHE_LIMIT,
+              )) {
+                delete next[stale];
+                detailRequestsRef.current.delete(stale);
+              }
+            }
+            return next;
+          });
+        } catch (error) {
+          // Nothing to show the user: the card and the panel's first pass
+          // are already on screen and stay correct without this.
+        }
+      }
+    },
+    [serverProfile],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -175,6 +355,42 @@ export const LibraryScreen = ({
     }
   }, [focusedItem, items]);
 
+  // Remember where this library was left, so the next mount can pick it up.
+  // Written on every change rather than on unmount: the navigation stack
+  // unmounts this screen without warning, and a cleanup that read stale
+  // closure state would remember the wrong card.
+  useEffect(() => {
+    if (items.length === 0) {
+      return;
+    }
+
+    librarySessions.set(libraryId, {
+      filterFavorites,
+      filterUnwatched,
+      focusedIndex,
+      itemDetails,
+      items,
+      sortBy,
+      sortDescending,
+    });
+
+    if (librarySessions.size > LIBRARY_SESSION_LIMIT) {
+      const oldest = librarySessions.keys().next();
+      if (!oldest.done) {
+        librarySessions.delete(oldest.value);
+      }
+    }
+  }, [
+    filterFavorites,
+    filterUnwatched,
+    focusedIndex,
+    itemDetails,
+    items,
+    libraryId,
+    sortBy,
+    sortDescending,
+  ]);
+
   const filters = useMemo(
     () =>
       [
@@ -186,7 +402,14 @@ export const LibraryScreen = ({
 
   const loadItems = useCallback(
     async (mounted = true) => {
-      setLoading(true);
+      // True only for the first load after a restore: the grid is already on
+      // screen and this call is refreshing it in place.
+      const refreshingRestored = refreshingRestoredRef.current;
+      refreshingRestoredRef.current = false;
+
+      if (!refreshingRestored) {
+        setLoading(true);
+      }
       setErrorText(null);
 
       try {
@@ -214,12 +437,23 @@ export const LibraryScreen = ({
         );
 
         if (mounted) {
+          // A refresh keeps the user where they were, clamped in case the
+          // library shrank while they were away. Any other load -- a sort or
+          // filter change -- is a new list, and starts at the top.
+          const index = refreshingRestored
+            ? Math.min(initialFocusIndex, Math.max(results.length - 1, 0))
+            : 0;
+
           setItems(results);
-          setFocusedIndex(0);
-          setFocusedItem(results[0] ?? null);
+          setFocusedIndex(index);
+          setFocusedItem(results[index] ?? null);
+          ensureDetails(detailPrefetchIds(results, index));
         }
       } catch (error) {
-        if (mounted) {
+        // A failed refresh of a restored grid is silent: what is on screen is
+        // a moment old and still true, and replacing it with an error message
+        // would be a worse answer than the one already there.
+        if (mounted && !refreshingRestored) {
           setErrorText(
             error instanceof Error ? error.message : 'Unable to load library.',
           );
@@ -232,7 +466,9 @@ export const LibraryScreen = ({
     },
     [
       displayPreferences.imageType,
+      ensureDetails,
       filters,
+      initialFocusIndex,
       libraryId,
       libraryType,
       serverProfile,
@@ -254,7 +490,39 @@ export const LibraryScreen = ({
 
   const cardScale = imageSizeScale[displayPreferences.imageSize];
 
-  const handleCardFocus = (item: JellyfinMediaItem) => {
+  /**
+   * Both of these are in ROWS, not items. FlatList hands `getItemLayout` and
+   * `initialScrollIndex` straight to VirtualizedList, which -- once
+   * numColumns is set -- counts one entry per row of cards. Measuring in
+   * items instead lands the list at a fraction of the intended offset.
+   *
+   * Without them the list cannot scroll to a card it has not rendered yet,
+   * which is exactly the case on a restore: the remembered card is usually
+   * far below the first window.
+   */
+  const rowHeight = Math.round(CARD_HEIGHT * cardScale) + GRID_ROW_GAP;
+  const getItemLayout = useCallback(
+    (
+      _data: ArrayLike<JellyfinMediaItem> | null | undefined,
+      rowIndex: number,
+    ) => ({
+      index: rowIndex,
+      length: rowHeight,
+      offset: rowHeight * rowIndex,
+    }),
+    [rowHeight],
+  );
+  /**
+   * Clamped so a library that lost items while the user was away still hands
+   * focus to a card that exists rather than to none of them.
+   */
+  const preferredFocusIndex = Math.max(
+    Math.min(initialFocusIndex, items.length - 1),
+    0,
+  );
+  const initialScrollRow = Math.floor(preferredFocusIndex / GRID_COLUMNS);
+
+  const handleCardFocus = (item: JellyfinMediaItem, index: number) => {
     if (focusDebounceRef.current) {
       clearTimeout(focusDebounceRef.current);
     }
@@ -262,6 +530,10 @@ export const LibraryScreen = ({
       focusDebounceRef.current = null;
       if (mountedRef.current) {
         setFocusedItem(item);
+        // Deliberately on the settle rather than on every focus change: a
+        // fast scroll should queue one window of requests, not one per card
+        // it passes through.
+        ensureDetails(detailPrefetchIds(items, index));
       }
     }, 150);
   };
@@ -309,10 +581,12 @@ export const LibraryScreen = ({
               columnWrapperStyle={styles.gridRow}
               contentContainerStyle={styles.grid}
               data={items}
+              getItemLayout={getItemLayout}
               horizontal={false}
+              initialScrollIndex={initialScrollRow || undefined}
               keyExtractor={(item) => item.id}
               key="vertical"
-              numColumns={3}
+              numColumns={GRID_COLUMNS}
               renderItem={({index, item}) => (
                 <MediaCard
                   badgeText={
@@ -320,12 +594,12 @@ export const LibraryScreen = ({
                       ? formatUnplayedBadge(item.unplayedItemCount)
                       : undefined
                   }
-                  hasTVPreferredFocus={index === 0}
+                  hasTVPreferredFocus={index === preferredFocusIndex}
                   imageUrl={item.imageUrl}
                   imageScale={cardScale}
                   onFocus={() => {
                     setFocusedIndex(index);
-                    handleCardFocus(item);
+                    handleCardFocus(item, index);
                     queueBackdrop(item.backdropUrl ?? item.imageUrl);
                   }}
                   onPress={() => onSelectItem?.(item)}
@@ -343,7 +617,9 @@ export const LibraryScreen = ({
         <View style={styles.rightPane}>
           <LibraryInfoPanel
             accessToken={serverProfile.accessToken}
-            item={focusedItem}
+            item={
+              focusedItem ? itemDetails[focusedItem.id] ?? focusedItem : null
+            }
             serverUrl={serverProfile.serverUrl}
           />
         </View>

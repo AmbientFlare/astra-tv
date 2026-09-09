@@ -6,6 +6,7 @@ import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {MediaCard} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {LoadingOrError} from '../../components/LoadingOrError';
+import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
 import {
@@ -273,23 +274,11 @@ export const HomeScreen = ({
 
     const {accessToken, serverUrl, userId} = serverProfile;
 
-    return libraries
-      .filter((library) => {
-        const type = library.type?.toLowerCase();
-
-        return (
-          type !== 'movies' &&
-          type !== 'tvshows' &&
-          type !== 'music' &&
-          type !== 'playlists'
-        );
-      })
-      .map((library) => ({
-        key: library.id,
-        title: `Latest in ${library.name}`,
-        loadItems: () =>
-          getLatestItemsInLibrary(serverUrl, accessToken, userId, library.id),
-      }));
+    return selectExtraLibraryRows(libraries).map((row) => ({
+      ...row,
+      loadItems: () =>
+        getLatestItemsInLibrary(serverUrl, accessToken, userId, row.libraryId),
+    }));
   }, [libraries, serverProfile]);
 
   return (
@@ -392,7 +381,7 @@ export const HomeScreen = ({
         ) : null}
         {extraLibraryRows.map((row) => (
           <HomeMediaRow
-            key={row.key}
+            key={row.libraryId}
             loadItems={row.loadItems}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}

@@ -5,15 +5,26 @@ import {
   PlaybackSettingsOverlay,
   PlaybackStatsOverlay,
   shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
-import {writePlaybackPreferences} from '../src/services/storage';
+import {RELEASE_HIGHLIGHTS} from '../src/config/releaseNotes';
+import {
+  updateUserPreferences,
+  writePlaybackPreferences,
+} from '../src/services/storage';
 
 jest.mock('@amazon-devices/react-native-kepler', () => {
   const MockReact = require('react');
   const {View} = require('react-native');
 
   return {
+    // The settings screen reads the per-server capability record on mount.
+    AsyncStorage: {
+      getItem: jest.fn(async () => null),
+      removeItem: jest.fn(async () => undefined),
+      setItem: jest.fn(async () => undefined),
+    },
     TVFocusGuideView: (props: Record<string, unknown>) =>
       MockReact.createElement(View, props),
     useKeplerAppStateManager: jest.fn(() => ({
@@ -103,6 +114,9 @@ const mockWritePlaybackPreferences =
   writePlaybackPreferences as jest.MockedFunction<
     typeof writePlaybackPreferences
   >;
+const mockUpdateUserPreferences = updateUserPreferences as jest.MockedFunction<
+  typeof updateUserPreferences
+>;
 
 const serverProfile = {
   accessToken: 'test-token',
@@ -147,6 +161,28 @@ describe('playback diagnostics entry points', () => {
     );
   });
 
+  it('offers the three global subtitle states plus forced-only and persists the choice', async () => {
+    mockUpdateUserPreferences.mockClear();
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    await waitFor(() =>
+      expect(screen.getByText('Default (per video)')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-Subtitle mode'));
+
+    expect(screen.getByText('All subtitles on')).toBeTruthy();
+    expect(screen.getByText('All subtitles off')).toBeTruthy();
+    expect(screen.getByText('Only forced')).toBeTruthy();
+    fireEvent.press(screen.getByText('All subtitles off'));
+
+    await waitFor(() =>
+      expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+        subtitleMode: 'alwaysOff',
+      }),
+    );
+  });
+
   it('shows the release version and build number on the About page', async () => {
     const screen = render(<SettingsScreen serverProfile={serverProfile} />);
 
@@ -155,24 +191,17 @@ describe('playback diagnostics entry points', () => {
     );
     fireEvent.press(screen.getByTestId('settings-About'));
 
-    expect(screen.getByText('Astra 1.2.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20260829.15')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.2.0")).toBeTruthy();
-    expect(
-      screen.getByText(
-        '• Fixed resuming a title, switching audio tracks, and turning on burned-in subtitles, which could all exit to Home on Vega OS 1.2.',
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        '• Made seeking and startup much faster: a long jump that took most of a minute now takes seconds.',
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        '• Updated for Vega OS 1.2 and the current Amazon device libraries.',
-      ),
-    ).toBeTruthy();
+    // The version and build are spelled out so a forgotten bump fails here.
+    expect(screen.getByText('Astra 1.4.0')).toBeTruthy();
+    expect(screen.getByText('Build: 20260908.13')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.4.0")).toBeTruthy();
+    // The notes themselves are not: About and the What's New notice both read
+    // RELEASE_HIGHLIGHTS, and pinning the prose here only made a version bump
+    // mean editing the same sentences twice.
+    expect(RELEASE_HIGHLIGHTS.length).toBeGreaterThan(0);
+    RELEASE_HIGHLIGHTS.forEach((highlight) => {
+      expect(screen.getByText(`\u2022 ${highlight}`)).toBeTruthy();
+    });
   });
 
   it('persists the separate with-logs toggle from Settings > Playback', async () => {
@@ -234,6 +263,49 @@ describe('playback diagnostics entry points', () => {
 
     expect(screen.getByText('Diagnostics')).toBeTruthy();
     expect(screen.getByText('Stats for Nerds: Off')).toBeTruthy();
+  });
+
+  it('marks which subtitle tracks switch in place and which rebuild the stream', () => {
+    // A disc rip can carry twenty tracks whose titles differ only by language.
+    // The badge is the only thing that says whether picking one is free.
+    const screen = render(
+      <PlaybackSettingsOverlay
+        onSelectAudio={jest.fn()}
+        onSelectSubtitle={jest.fn()}
+        onToggleStats={jest.fn()}
+        onToggleTraces={jest.fn()}
+        selectedAudioIndex={1}
+        showStats={false}
+        showTraces={false}
+        streamInfo={{
+          audioStreamIndex: 1,
+          audioTracks: [],
+          itemId: 'item-1',
+          playMethod: 'Transcode',
+          qualityOptions: [],
+          subtitleTracks: [
+            {
+              id: '2',
+              index: 2,
+              title: 'English (SRT)',
+              type: 'Subtitle',
+              burnInRequired: false,
+            },
+            {
+              id: '3',
+              index: 3,
+              title: 'English (PGS)',
+              type: 'Subtitle',
+              burnInRequired: true,
+            },
+          ],
+          url: 'https://example.com/video.m3u8',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Instant')).toBeTruthy();
+    expect(screen.getByText('Reloads')).toBeTruthy();
   });
 
   it('distinguishes source codecs from delivered codecs and copy from transcode', () => {
@@ -305,7 +377,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.2\.0 \(20260829\.15\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.4\.0 \(20260908\.13\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
@@ -326,5 +398,17 @@ describe('playback diagnostics entry points', () => {
     expect(shouldUseHlsSequenceMode('mp4')).toBe(false);
     expect(shouldUseHlsSequenceMode('fMP4 HLS')).toBe(false);
     expect(shouldUseHlsSequenceMode(undefined)).toBe(false);
+  });
+
+  it('uses sequence mode only for an fMP4 session that starts mid-file', () => {
+    // A resumed or reloaded fMP4 transcode stalled on hardware in segments
+    // mode: the first fragment landed at its source time, the playhead at 0.
+    expect(shouldUseSequenceModeForMidFileStart('mp4', 3343)).toBe(true);
+    expect(shouldUseSequenceModeForMidFileStart('fMP4 HLS', 90)).toBe(true);
+    expect(shouldUseSequenceModeForMidFileStart('mp4', 0)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('mp4', undefined)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('ts', 3343)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart('mpegts', 3343)).toBe(false);
+    expect(shouldUseSequenceModeForMidFileStart(undefined, 3343)).toBe(false);
   });
 });

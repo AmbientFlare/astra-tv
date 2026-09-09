@@ -32,6 +32,27 @@ describe('getNextPlaybackRecovery', () => {
 });
 
 describe('unloadPlayer', () => {
+  it('holds a second caller until the first native unload completes', async () => {
+    let finish!: () => void;
+    const ref = {
+      current: {
+        unload: () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      },
+    };
+    const first = unloadPlayer(ref);
+    let secondFinished = false;
+    const second = unloadPlayer(ref).then(() => {
+      secondFinished = true;
+    });
+    await Promise.resolve();
+    expect(secondFinished).toBe(false);
+    finish();
+    await Promise.all([first, second]);
+    expect(secondFinished).toBe(true);
+  });
   it('waits for asynchronous cleanup before resolving', async () => {
     let finishUnload: (() => void) | undefined;
     const unload = jest.fn(
@@ -49,6 +70,7 @@ describe('unloadPlayer', () => {
     });
 
     expect(playerRef.current).toBeNull();
+    await Promise.resolve();
     expect(unload).toHaveBeenCalledTimes(1);
     expect(resolved).toBe(false);
 

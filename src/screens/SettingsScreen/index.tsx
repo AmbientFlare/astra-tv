@@ -1,5 +1,16 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Image, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import {
+  configureManualTelemetry,
+  telemetryStatus,
+} from '../../services/telemetry';
 import {
   TVFocusGuideView,
   useKeplerBackHandler,
@@ -8,6 +19,7 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {measureServerBandwidth} from '../../services/jellyfin';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
+import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
 import {
   defaultUserPreferences,
   defaultPlaybackPrefs,
@@ -26,6 +38,15 @@ import {
   UserPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
+import {
+  getServerCapabilities,
+  serverCapabilityKey,
+  updateServerCapabilities,
+} from '../../services/serverCapabilities';
+import type {
+  ServerCapabilities,
+  VideoTranscodeCapability,
+} from '../../services/serverCapabilities';
 
 const EASTER_EGG_TEXT =
   'For Kimberly — whose love of Star Trek started all of this.';
@@ -35,6 +56,7 @@ type SettingsRoute =
   | {route: 'login'}
   | {route: 'customization'}
   | {route: 'playback'}
+  | {route: 'telemetry'}
   | {route: 'about'}
   | {route: 'autoSignIn'}
   | {route: 'accountSort'}
@@ -47,6 +69,7 @@ type SettingsRoute =
   | {route: 'connectionTest'}
   | {route: 'hlsSegmentLength'}
   | {route: 'audioChannels'}
+  | {route: 'serverTranscoding'}
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
   | {route: 'subtitleMode'}
@@ -70,6 +93,39 @@ const bitrateOptions: Array<{
   {label: '120 Mbps', value: 120000000},
   {label: 'Unlimited', value: 200000000},
 ];
+
+const videoTranscodeOptions: Array<{
+  label: string;
+  value: VideoTranscodeCapability;
+}> = [
+  {label: 'Yes, it has a graphics card', value: 'hardware'},
+  {label: 'No, processor only', value: 'cpu'},
+  {label: "I don't know", value: 'unknown'},
+];
+
+/** Where the current answer came from, said plainly under the question. */
+const capabilitySourceNote = (capabilities: ServerCapabilities) => {
+  if (capabilities.videoTranscode === 'unable') {
+    return (
+      'Astra asked this server to re-encode a demanding title and it ' +
+      'produced nothing, so it has stopped asking. Choose an answer here to ' +
+      'let it try again.'
+    );
+  }
+  if (capabilities.videoTranscodeSource === 'detected') {
+    return 'Measured by Astra during playback.';
+  }
+  if (capabilities.videoTranscode === 'cpu') {
+    return (
+      'From your answer when you set this server up. Astra retries about ' +
+      'once a week in case the server can do more than you expected.'
+    );
+  }
+  if (capabilities.videoTranscodeSource === 'stated') {
+    return 'From your answer when you set this server up.';
+  }
+  return 'Not answered yet. Astra works it out from your first few playbacks.';
+};
 
 const audioChannelOptions: Array<{
   label: string;
@@ -108,6 +164,8 @@ export const SettingsScreen = ({
 }: SettingsScreenProps) => {
   const keplerBackHandler = useKeplerBackHandler();
   const [stack, setStack] = useState<SettingsRoute[]>([{route: 'preferences'}]);
+  const [telemetryPhrase, setTelemetryPhrase] = useState('');
+  const [telemetryMessage, setTelemetryMessage] = useState('');
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
@@ -119,6 +177,9 @@ export const SettingsScreen = ({
       imageSize: 'medium',
       imageType: 'Primary',
     });
+  const [capabilities, setCapabilities] = useState<ServerCapabilities | null>(
+    null,
+  );
   const [confirmAction, setConfirmAction] = useState<{
     body: string;
     onConfirm: () => Promise<void>;
@@ -171,6 +232,14 @@ export const SettingsScreen = ({
     readPlaybackPreferences().then(setPlaybackPrefs);
     getDisplayPreferences().then(setDisplayPreferenceState);
   }, [refreshProfiles]);
+
+  // Kept per server: the NAS and the GPU box give different answers, and the
+  // one showing here must be the one for the server currently signed in to.
+  const capabilityKey = serverCapabilityKey(serverProfile.serverUrl);
+
+  useEffect(() => {
+    getServerCapabilities(capabilityKey).then(setCapabilities);
+  }, [capabilityKey]);
 
   const handleSettingsBack = useCallback(() => {
     if (confirmAction) {
@@ -482,6 +551,60 @@ export const SettingsScreen = ({
             />
           </Page>
         );
+      case 'telemetry':
+        return (
+          <Page title="Developer telemetry" onBack={pop}>
+            <Text style={{color: 'white', fontSize: 22}}>
+              Off by default. Enabling sends viewing diagnostics to the
+              configured operator collector. Enter the operator phrase only on
+              your own test device. Logs contain private viewing information.
+            </Text>
+            <TextInput
+              testID="telemetry-phrase"
+              value={telemetryPhrase}
+              onChangeText={setTelemetryPhrase}
+              placeholder="Operator phrase"
+              placeholderTextColor="#aaaaaa"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                color: 'white',
+                borderColor: '#aaaaaa',
+                borderWidth: 1,
+                padding: 16,
+                fontSize: 24,
+              }}
+            />
+            <MenuRow
+              icon="↗"
+              title="Enable on this device"
+              onPress={() => {
+                void configureManualTelemetry(telemetryPhrase).then(
+                  (enabled) => {
+                    setTelemetryPhrase('');
+                    setTelemetryMessage(
+                      enabled
+                        ? 'Enabled on this device.'
+                        : 'Not enabled: check phrase and build configuration.',
+                    );
+                  },
+                );
+              }}
+            />
+            <MenuRow
+              icon="×"
+              title="Disable telemetry"
+              onPress={() => {
+                void configureManualTelemetry('').then(() =>
+                  setTelemetryMessage('Telemetry stopped.'),
+                );
+              }}
+            />
+            <Text style={{color: 'white', fontSize: 22}}>
+              {telemetryMessage || telemetryStatus().reason}
+            </Text>
+          </Page>
+        );
       case 'playback':
         return (
           <Page title="Playback" onBack={pop}>
@@ -507,6 +630,15 @@ export const SettingsScreen = ({
                 })
               }
             />
+            {playbackPrefs.showPlaybackStats &&
+              playbackPrefs.showPlaybackTraces && (
+                <MenuRow
+                  icon="↯"
+                  title="Developer telemetry"
+                  subtitle="Local opt-in diagnostics; off by default"
+                  onPress={() => push({route: 'telemetry'})}
+                />
+              )}
             <MenuRow
               icon="↯"
               title="Max streaming bitrate"
@@ -528,6 +660,12 @@ export const SettingsScreen = ({
               title="Audio output"
               subtitle="Match your TV or receiver's channel capability"
               onPress={() => push({route: 'audioChannels'})}
+            />
+            <MenuRow
+              icon="⚙"
+              title="Server transcoding"
+              subtitle="Whether this server can re-encode demanding titles"
+              onPress={() => push({route: 'serverTranscoding'})}
             />
             <MenuRow
               icon="♫"
@@ -632,6 +770,35 @@ export const SettingsScreen = ({
             </Text>
           </Page>
         );
+      case 'serverTranscoding':
+        return (
+          <Page title="Server transcoding" onBack={pop}>
+            <Text style={styles.description}>
+              Does {serverProfile.name} have hardware transcoding?
+            </Text>
+            <PreferenceRadioGroup
+              options={videoTranscodeOptions}
+              selectedValue={
+                capabilities?.videoTranscode === 'unable'
+                  ? 'unknown'
+                  : capabilities?.videoTranscode ?? 'unknown'
+              }
+              onSelect={(videoTranscode) => {
+                void updateServerCapabilities(capabilityKey, {
+                  pendingCapabilityNotice: false,
+                  videoTranscode,
+                  videoTranscodeSource:
+                    videoTranscode === 'unknown' ? 'default' : 'stated',
+                }).then(setCapabilities);
+              }}
+            />
+            <Text style={styles.infoText}>
+              {capabilities
+                ? capabilitySourceNote(capabilities)
+                : 'Loading this server\u2019s settings…'}
+            </Text>
+          </Page>
+        );
       case 'audioLanguage':
         return (
           <Page title="Preferred audio language" onBack={pop}>
@@ -662,18 +829,21 @@ export const SettingsScreen = ({
         );
       case 'subtitleMode':
         return (
-          <RadioPage
-            title="Subtitle mode"
-            onBack={pop}
-            options={[
-              {label: 'Default', value: 'default'},
-              {label: 'Always On', value: 'alwaysOn'},
-              {label: 'Always Off', value: 'alwaysOff'},
-              {label: 'Only Forced', value: 'forcedOnly'},
-            ]}
-            selectedValue={preferences.subtitleMode}
-            onSelect={(subtitleMode) => savePreferences({subtitleMode})}
-          />
+          <Page title="Subtitle mode" onBack={pop}>
+            <Text style={styles.description}>
+              Applies to every video you start. Choosing a track while watching
+              only affects that video.
+            </Text>
+            <PreferenceRadioGroup
+              options={subtitleModeOptions}
+              selectedValue={preferences.subtitleMode}
+              onSelect={(subtitleMode) => savePreferences({subtitleMode})}
+            />
+            <Text style={styles.infoText}>
+              Default (per video) follows the server's own subtitle choice for
+              each title, including a track you picked for it before.
+            </Text>
+          </Page>
         );
       case 'autoplayCountdown':
         return (
@@ -772,23 +942,13 @@ export const SettingsScreen = ({
                 <Text style={styles.releaseNotesTitle}>
                   What's new in {APP_VERSION}
                 </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Fixed resuming a title, switching audio tracks, and turning
-                  on burned-in subtitles, which could all exit to Home on Vega
-                  OS 1.2.
-                </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Made seeking and startup much faster: a long jump that took
-                  most of a minute now takes seconds.
-                </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Updated for Vega OS 1.2 and the current Amazon device
-                  libraries.
-                </Text>
-                <Text style={styles.releaseNotesText}>
-                  • Added an optional Stats for Nerds with logs view showing
-                  playback timings.
-                </Text>
+                {RELEASE_HIGHLIGHTS.map((highlight) => (
+                  <Text
+                    key={highlight.slice(0, 24)}
+                    style={styles.releaseNotesText}>
+                    {`\u2022 ${highlight}`}
+                  </Text>
+                ))}
               </View>
               <Text style={styles.easterEgg}>{EASTER_EGG_TEXT}</Text>
             </View>
@@ -848,13 +1008,19 @@ export const SettingsScreen = ({
   );
 };
 
+const subtitleModeOptions: Array<{
+  label: string;
+  value: UserPreferences['subtitleMode'];
+}> = [
+  {label: 'Default (per video)', value: 'default'},
+  {label: 'All subtitles on', value: 'alwaysOn'},
+  {label: 'All subtitles off', value: 'alwaysOff'},
+  {label: 'Only forced', value: 'forcedOnly'},
+];
+
 const labelForSubtitleMode = (mode: UserPreferences['subtitleMode']) =>
-  ({
-    alwaysOff: 'Always Off',
-    alwaysOn: 'Always On',
-    default: 'Default',
-    forcedOnly: 'Only Forced',
-  }[mode]);
+  subtitleModeOptions.find((option) => option.value === mode)?.label ??
+  'Default (per video)';
 
 const labelForSkip = (mode: UserPreferences['skipIntroCredits']) =>
   ({ask: 'Ask', auto: 'Auto-skip', ignore: 'Ignore'}[mode]);

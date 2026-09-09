@@ -1,1 +1,4 @@
 src/w3cmedia/**
+
+# Generated operator configuration: holds a live token; never lint or print it.
+src/services/telemetry/operator.generated.ts

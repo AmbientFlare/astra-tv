@@ -2,36 +2,26 @@ import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 
+import {APP_VERSION} from '../../config/app';
+import {CURRENT_NOTICE_ID, RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
+
 /**
- * Id of the notice currently being shown. Bump this to show a new one-time
- * message; `AppStateConfig.acknowledgedNoticeId` stores the last id dismissed,
- * so an unchanged id stays hidden and a new id appears once.
+ * Shown once after an update, then never again for that version.
+ * `AppStateConfig.acknowledgedNoticeId` stores the last id dismissed and
+ * `CURRENT_NOTICE_ID` is derived from the app version, so a release announces
+ * itself without anyone remembering to bump an id by hand.
  */
-export const CURRENT_NOTICE_ID = 'vega-os-1.2-apology-2026-08';
+export {CURRENT_NOTICE_ID};
 
-export const NOTICE_TITLE = 'A note from the developer';
+export const NOTICE_TITLE = `What's new in Astra ${APP_VERSION}`;
 
-export const NOTICE_BODY = [
-  "I'm sorry for the trouble over the last couple of weeks. The Vega OS 1.2 " +
-    'update caught me flat-footed, and playback problems slipped through as a ' +
-    'result.',
-  'The worst of it is addressed here. Standard playback, resuming a title, ' +
-    'switching audio tracks and turning on burned-in subtitles all work ' +
-    'again, and seeking is far quicker than it was.',
-  'Two things are still rough. A double-arrow jump takes much longer than it ' +
-    'should, and subtitles can drift out of sync after one. Both are top of ' +
-    'the list for the next small patch.',
-  'Astra is built and maintained by one person. I will do my best to stay ' +
-    'ahead of platform changes, but this one got away from me, and I ' +
-    'apologise for the rough stretch.',
-  'Thank you for continuing to use Astra.',
-];
+export const NOTICE_BODY = RELEASE_HIGHLIGHTS;
 
-interface DeveloperNoticeProps {
+interface WhatsNewNoticeProps {
   onDismiss: () => void;
 }
 
-export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => {
+export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
   const buttonRef = useRef<any>(null);
   const [isFocused, setFocused] = useState(false);
 
@@ -47,7 +37,7 @@ export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => {
   }, []);
 
   return (
-    <View style={styles.backdrop} testID="developer-notice">
+    <View style={styles.backdrop} testID="whats-new-notice">
       <TVFocusGuideView
         autoFocus
         trapFocusDown
@@ -56,14 +46,14 @@ export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => {
         trapFocusUp
         style={styles.card}>
         <Text style={styles.title}>{NOTICE_TITLE}</Text>
-        {NOTICE_BODY.map((paragraph) => (
-          <Text key={paragraph.slice(0, 24)} style={styles.body}>
-            {paragraph}
+        {NOTICE_BODY.map((highlight) => (
+          <Text key={highlight.slice(0, 24)} style={styles.body}>
+            {`\u2022 ${highlight}`}
           </Text>
         ))}
         <Text style={styles.signature}>— Levi</Text>
         <TouchableOpacity
-          accessibilityLabel="Dismiss developer notice"
+          accessibilityLabel="Dismiss what's new notice"
           accessibilityRole="button"
           activeOpacity={1}
           hasTVPreferredFocus
@@ -72,7 +62,7 @@ export const DeveloperNotice = ({onDismiss}: DeveloperNoticeProps) => {
           onPress={onDismiss}
           ref={buttonRef}
           style={[styles.button, isFocused && styles.buttonFocused]}
-          testID="developer-notice-ok">
+          testID="whats-new-notice-ok">
           <Text style={styles.buttonLabel}>OK</Text>
         </TouchableOpacity>
       </TVFocusGuideView>
