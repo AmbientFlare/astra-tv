@@ -67,3 +67,5 @@ export {measureServerBandwidth} from './discovery';
 export {discoverServers} from './discovery';
 export {canServerTranscodeVideo} from './userPolicy';
 export {clearUserPolicyCache} from './userPolicy';
+export type {NebulaBridgeCapabilities} from '../nebulabridge';
+export {getNebulaBridgeCapabilities} from '../nebulabridge';

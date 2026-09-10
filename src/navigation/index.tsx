@@ -50,6 +50,7 @@ import {
 } from '../services/serverCapabilities';
 import {defaultServerCapabilities} from '../services/serverCapabilities/defaults';
 import type {ServerCapabilities} from '../services/serverCapabilities/types';
+import {getNebulaBridgeCapabilities} from '../services/nebulabridge';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -281,6 +282,23 @@ export const RootNavigator = () => {
   const serverId = serverProfile
     ? serverCapabilityKey(serverProfile.serverUrl)
     : '';
+
+  // Optional and intentionally unobserved: a stock Jellyfin server simply
+  // answers 404 and all screens continue through their normal APIs.
+  useEffect(() => {
+    if (
+      !serverProfile?.accessToken ||
+      !serverProfile.serverUrl ||
+      !serverProfile.userId
+    ) {
+      return;
+    }
+    getNebulaBridgeCapabilities(
+      serverProfile.serverUrl,
+      serverProfile.accessToken,
+      serverProfile.userId,
+    ).catch(() => undefined);
+  }, [serverProfile]);
 
   useEffect(() => {
     let mounted = true;
