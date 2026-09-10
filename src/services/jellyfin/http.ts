@@ -1,9 +1,13 @@
-import {getDeviceId, initializeDeviceIdentity} from '../deviceIdentity';
+import {
+  getDeviceId,
+  getDeviceName,
+  initializeDeviceIdentity,
+} from '../deviceIdentity';
 import {APP_VERSION} from '../../config/app';
 export {getServerUrlCandidates, normalizeServerUrl} from '../serverUrl';
 
 const authHeader = () =>
-  `MediaBrowser Client="Astra", Device="FireTV", DeviceId="${getDeviceId()}", Version="${APP_VERSION}"`;
+  `MediaBrowser Client="Astra", Device="${getDeviceName()}", DeviceId="${getDeviceId()}", Version="${APP_VERSION}"`;
 
 // Jellyfin 10.12 disables the X-Emby-* legacy headers by default and 10.13
 // removes them; send the standard Authorization header alongside them so both
