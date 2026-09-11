@@ -16,6 +16,8 @@ Last updated: 2026-09-11 (Jellyfin 12 compatibility and server support floor)
 - Verification passed: TypeScript, ESLint with zero errors (112 existing
   warnings), 67 Jest suites / 607 tests / one snapshot, and the x86_64 Release
   Vega build with manifest and ABI validation.
+- Fire Stick test package prepared as app build `20260911.1` (Vega package
+  build `2026091101`).
 
 ## Delayed Astra 1.2 native fragment-parser crash review
 
