@@ -64,10 +64,10 @@ export const LibraryInfoPanel = ({
           item.id
         }/Images/Backdrop?maxWidth=800&tag=${encodeURIComponent(
           item.backdropImageTags[0],
-        )}&api_key=${encodeURIComponent(accessToken)}`
+        )}&ApiKey=${encodeURIComponent(accessToken)}`
       : `${baseUrl}/Items/${
           item.id
-        }/Images/Primary?maxWidth=400&api_key=${encodeURIComponent(
+        }/Images/Primary?maxWidth=400&ApiKey=${encodeURIComponent(
           accessToken,
         )}`;
   const metadata = [

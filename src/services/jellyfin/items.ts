@@ -79,7 +79,7 @@ export const getLibraries = async (
         ? buildUrl(baseUrl, `/Items/${library.Id}/Images/Primary`, {
             fillWidth: 520,
             quality: 90,
-            api_key: accessToken,
+            ApiKey: accessToken,
           })
         : undefined,
       name: library.Name ?? 'Library',
@@ -150,7 +150,7 @@ export const getItems = async (
       Filters: options.filters?.join(','),
       SortBy: sortByMap[options.sortBy ?? 'name'],
       SortOrder: options.sortDescending ? 'Descending' : 'Ascending',
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     {
       headers: getAuthHeaders(accessToken),
@@ -185,7 +185,7 @@ export const getMediaSegments = async (
     response = await getJson(
       buildUrl(baseUrl, `/MediaSegments/${itemId}`, {
         IncludeSegmentTypes: 'Outro',
-        api_key: accessToken,
+        ApiKey: accessToken,
       }),
       {headers: getAuthHeaders(accessToken)},
     );
@@ -227,7 +227,7 @@ export const getPerson = async (
     Overview?: string;
     PremiereDate?: string;
     UserData?: {IsFavorite?: boolean};
-  }>(buildUrl(baseUrl, `/Persons/${personKey}`, {api_key: accessToken}), {
+  }>(buildUrl(baseUrl, `/Persons/${personKey}`, {ApiKey: accessToken}), {
     headers: getAuthHeaders(accessToken),
   });
   const resolvedId = person.Id ?? personId;
@@ -238,7 +238,7 @@ export const getPerson = async (
     imageUrl: buildUrl(baseUrl, `/Items/${resolvedId}/Images/Primary`, {
       fillWidth: 420,
       quality: 90,
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     isFavorite: person.UserData?.IsFavorite,
     name: person.Name ?? personName ?? 'Unknown',
@@ -288,7 +288,7 @@ export const getItemDetails = async (
   const item = await getJson<Parameters<typeof mapItem>[2]>(
     buildUrl(baseUrl, `/Users/${userId}/Items/${itemId}`, {
       Fields: itemFields,
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     {
       headers: getAuthHeaders(accessToken),

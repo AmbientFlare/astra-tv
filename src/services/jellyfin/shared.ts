@@ -103,7 +103,7 @@ export const mapItem = (
         fillWidth: 360,
         quality: 90,
         tag: item.ImageTags?.[imageType],
-        api_key: accessToken,
+        ApiKey: accessToken,
       })
     : undefined,
   backdropUrl:
@@ -112,7 +112,7 @@ export const mapItem = (
           fillWidth: 1280,
           quality: 85,
           tag: item.BackdropImageTags[0],
-          api_key: accessToken,
+          ApiKey: accessToken,
         })
       : undefined,
   runTimeTicks: item.RunTimeTicks,
@@ -132,7 +132,7 @@ export const mapItem = (
       ? buildUrl(baseUrl, `/Items/${person.Id}/Images/Primary`, {
           fillWidth: 260,
           quality: 85,
-          api_key: accessToken,
+          ApiKey: accessToken,
         })
       : undefined,
     name: person.Name ?? 'Unknown',
@@ -162,7 +162,7 @@ export const getItemCollection = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
     Items?: Array<Parameters<typeof mapItem>[2]>;
-  }>(buildUrl(baseUrl, path, {...params, api_key: accessToken}), {
+  }>(buildUrl(baseUrl, path, {...params, ApiKey: accessToken}), {
     headers: getAuthHeaders(accessToken),
   });
 

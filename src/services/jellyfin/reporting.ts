@@ -35,7 +35,7 @@ const reportPlayback = async (
         };
 
   await getJson(
-    buildUrl(baseUrl, `/Sessions/${endpoint}`, {api_key: accessToken}),
+    buildUrl(baseUrl, `/Sessions/${endpoint}`, {ApiKey: accessToken}),
     {
       method: 'POST',
       headers: {
@@ -75,7 +75,7 @@ export const setFavorite = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   await getJson(
     buildUrl(baseUrl, `/Users/${userId}/FavoriteItems/${itemId}`, {
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     {
       method: isFavorite ? 'POST' : 'DELETE',
@@ -94,7 +94,7 @@ export const setPlayed = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   await getJson(
     buildUrl(baseUrl, `/Users/${userId}/PlayedItems/${itemId}`, {
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     {
       method: isPlayed ? 'POST' : 'DELETE',
