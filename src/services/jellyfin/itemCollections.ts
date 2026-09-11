@@ -63,7 +63,7 @@ export const getLatestItems = async (
       ImageTypeLimit: 1,
       EnableImageTypes: 'Primary,Backdrop',
       Limit: 24,
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     {
       headers: getAuthHeaders(accessToken),

@@ -1,6 +1,7 @@
 jest.mock('../src/services/deviceIdentity', () => ({
   initializeDeviceIdentity: jest.fn(async () => 'test-installation'),
   getDeviceId: () => 'test-installation',
+  getDeviceName: () => 'FireTV',
 }));
 
 import {

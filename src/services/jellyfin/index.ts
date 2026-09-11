@@ -42,6 +42,12 @@ export {isQuickConnectEnabled} from './auth';
 export {initiateQuickConnect} from './auth';
 export {pollQuickConnect} from './auth';
 export {authenticateWithQuickConnect} from './auth';
+export {
+  getJellyfinVersionWarning,
+  compareJellyfinVersions,
+  isJellyfinVersionBelowMinimum,
+  MIN_SUPPORTED_JELLYFIN_VERSION,
+} from './version';
 export {getLibraries} from './items';
 export {getItems} from './items';
 export {getStreamUrl} from './playback';
@@ -67,3 +73,5 @@ export {measureServerBandwidth} from './discovery';
 export {discoverServers} from './discovery';
 export {canServerTranscodeVideo} from './userPolicy';
 export {clearUserPolicyCache} from './userPolicy';
+export type {NebulaBridgeCapabilities} from '../nebulabridge';
+export {getNebulaBridgeCapabilities} from '../nebulabridge';

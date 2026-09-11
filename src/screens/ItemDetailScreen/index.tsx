@@ -18,6 +18,10 @@ import {
   setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {
+  hydrateNebulaBridgeSeason,
+  hydrateNebulaBridgeSeries,
+} from '../../services/nebulabridge';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -65,6 +69,10 @@ export const ItemDetailScreen = ({
   const [isAwaitingServerTree, setAwaitingServerTree] = useState(false);
   const mountedRef = useRef(true);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A detail visit may retry ordinary Jellyfin reads, but optional hydration
+  // itself is bounded to one request per shown series or season.
+  const hydratedSeriesIds = useRef(new Set<string>());
+  const hydratedSeasonIds = useRef(new Set<string>());
 
   const clearRetryTimer = useCallback(() => {
     if (retryTimer.current) {
@@ -98,6 +106,15 @@ export const ItemDetailScreen = ({
       setLoadingChildren(true);
 
       try {
+        if (!hydratedSeriesIds.current.has(seriesId)) {
+          hydratedSeriesIds.current.add(seriesId);
+          await hydrateNebulaBridgeSeries(
+            serverProfile.serverUrl,
+            serverProfile.accessToken,
+            serverProfile.userId,
+            seriesId,
+          );
+        }
         const seasonResults = await getSeasons(
           serverProfile.serverUrl,
           serverProfile.accessToken,
@@ -268,6 +285,15 @@ export const ItemDetailScreen = ({
       setLoadingChildren(true);
 
       try {
+        if (!hydratedSeasonIds.current.has(seasonId)) {
+          hydratedSeasonIds.current.add(seasonId);
+          await hydrateNebulaBridgeSeason(
+            serverProfile.serverUrl,
+            serverProfile.accessToken,
+            serverProfile.userId,
+            seasonId,
+          );
+        }
         const results = await getEpisodes(
           serverProfile.serverUrl,
           serverProfile.accessToken,

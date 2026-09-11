@@ -11,7 +11,7 @@ describe('safe playback diagnostics', () => {
       category: 1,
       severity: 2,
       data: [
-        'https://private?api_key=secret',
+        'https://private?ApiKey=secret',
         500,
         'private body',
         {Authorization: 'secret'},

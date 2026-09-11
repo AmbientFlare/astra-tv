@@ -74,7 +74,7 @@ export const getStreamUrl = async (
   ]);
   const deviceProfile = buildDeviceProfile(prefs, audioOutputCapabilities);
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
-    api_key: accessToken,
+    ApiKey: accessToken,
   });
   console.log(
     '[Astra] buildUrl PlaybackInfo output:',
@@ -390,7 +390,7 @@ export const getStreamUrl = async (
       PlaySessionId: response.PlaySessionId,
       AudioStreamIndex: selectedAudioStreamIndex ?? undefined,
       tag: mediaSource?.ETag,
-      api_key: accessToken,
+      ApiKey: accessToken,
     });
     console.log(
       '[Astra] buildUrl DirectStream output:',
@@ -403,12 +403,12 @@ export const getStreamUrl = async (
     const isSubtitle = track.Type === 'Subtitle';
     const textTrackSupported = isSubtitle && supportsTextTrack(track.Codec);
     const deliveryUrl = track.DeliveryUrl
-      ? buildUrl(baseUrl, track.DeliveryUrl, {api_key: accessToken})
+      ? buildUrl(baseUrl, track.DeliveryUrl, {ApiKey: accessToken})
       : isSubtitle && track.Index !== undefined && textTrackSupported
       ? buildUrl(
           baseUrl,
           `/Videos/${itemId}/${mediaSource?.Id}/Subtitles/${track.Index}/Stream.vtt`,
-          {api_key: accessToken},
+          {ApiKey: accessToken},
         )
       : undefined;
 
