@@ -29,7 +29,7 @@ export const measureServerBandwidth = async (
   const download = async (sizeBytes: number) => {
     const url = buildUrl(baseUrl, '/Playback/BitrateTest', {
       Size: sizeBytes,
-      api_key: accessToken,
+      ApiKey: accessToken,
     });
     const started = Date.now();
     const response = await fetch(url, {headers: getAuthHeaders(accessToken)});

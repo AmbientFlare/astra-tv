@@ -9,9 +9,8 @@ export {getServerUrlCandidates, normalizeServerUrl} from '../serverUrl';
 const authHeader = () =>
   `MediaBrowser Client="Astra", Device="${getDeviceName()}", DeviceId="${getDeviceId()}", Version="${APP_VERSION}"`;
 
-// Jellyfin 10.12 disables the X-Emby-* legacy headers by default and 10.13
-// removes them; send the standard Authorization header alongside them so both
-// old and new servers accept requests.
+// Keep the modern Authorization header alongside X-Emby-* for compatibility
+// across Astra's supported Jellyfin 10.10, 10.11, and 12 server lines.
 export const getPreAuthHeaders = () => ({
   Authorization: authHeader(),
   'X-Emby-Authorization': authHeader(),
@@ -125,7 +124,6 @@ export const getJson = async <ResponseBody>(
 
     if (!response.ok) {
       const failedUrl = new URL(url);
-      failedUrl.searchParams.delete('api_key');
       throw new ServerResponseError(
         `Server request failed ${response.status}: ${failedUrl.pathname}`,
         response.status,

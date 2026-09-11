@@ -14,6 +14,7 @@ import {
   connect,
   DiscoveredServer,
   discoverServers,
+  getJellyfinVersionWarning,
   initiateQuickConnect,
   isQuickConnectEnabled,
   JellyfinAuthResult,
@@ -54,7 +55,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   const [isBusy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   // Not an error: the server is reachable, but media will not play from it.
-  const [warningText, setWarningText] = useState<string | null>(null);
+  const [warningTexts, setWarningTexts] = useState<string[]>([]);
   const [serverInfo, setServerInfo] = useState<JellyfinServerInfo | null>(null);
   const [quickConnectEnabled, setQuickConnectEnabled] = useState(false);
   const [quickConnectCode, setQuickConnectCode] = useState<string | null>(null);
@@ -168,9 +169,13 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     try {
       const info = await connect(serverUrl);
       setServerInfo(info);
-      setWarningText(
+      const warnings = [
+        serverType === 'jellyfin'
+          ? getJellyfinVersionWarning(info.version)
+          : null,
         isCleartextUrl(info.baseUrl) ? CLEARTEXT_MEDIA_MESSAGE : null,
-      );
+      ].filter((warning): warning is string => Boolean(warning));
+      setWarningTexts(warnings);
       const enabled =
         serverType === 'jellyfin' &&
         (await isQuickConnectEnabled(info.baseUrl));
@@ -635,9 +640,11 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       <TVFocusGuideView style={styles.form}>
         {renderStep()}
         {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
-        {warningText ? (
-          <Text style={styles.warningText}>{warningText}</Text>
-        ) : null}
+        {warningTexts.map((warning, index) => (
+          <Text key={`${index}-${warning}`} style={styles.warningText}>
+            {warning}
+          </Text>
+        ))}
       </TVFocusGuideView>
     </View>
   );

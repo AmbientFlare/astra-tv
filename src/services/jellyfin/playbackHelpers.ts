@@ -100,8 +100,24 @@ export const hasPlayableMediaSource = (response: {
       source.SupportsTranscoding === true,
   );
 
-const hasQueryParam = (url: string, paramName: string) =>
-  new RegExp(`[?&]${paramName}=`, 'i').test(url);
+const normalizeQueryParamName = (name: string) =>
+  name.toLowerCase().replace(/_/g, '');
+
+const hasQueryParam = (url: string, paramName: string) => {
+  const normalizedName = normalizeQueryParamName(paramName);
+
+  try {
+    return Array.from(
+      new URL(url, 'http://relative.invalid').searchParams.keys(),
+    ).some((key) => normalizeQueryParamName(key) === normalizedName);
+  } catch {
+    // Keep malformed server URLs harmless and preserve the old fallback's
+    // case-insensitive matching, including Jellyfin's legacy underscore form.
+    return new RegExp(`[?&]${paramName.replace(/_/g, '')}=`, 'i').test(
+      url.replace(/_/g, ''),
+    );
+  }
+};
 
 export const buildTranscodingUrl = (
   baseUrl: string,
@@ -116,8 +132,8 @@ export const buildTranscodingUrl = (
 
   url = url.replace('?&', '?').replace(/&&+/g, '&');
 
-  if (!hasQueryParam(url, 'api_key')) {
-    url = `${url}${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(
+  if (!hasQueryParam(url, 'ApiKey')) {
+    url = `${url}${url.includes('?') ? '&' : '?'}ApiKey=${encodeURIComponent(
       accessToken,
     )}`;
   }

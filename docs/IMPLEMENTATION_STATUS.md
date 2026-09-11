@@ -1,6 +1,21 @@
 # Implementation Status
 
-Last updated: 2026-09-06 (delayed 1.2 native crash review)
+Last updated: 2026-09-11 (Jellyfin 12 compatibility and server support floor)
+
+## Jellyfin 12 compatibility and server support floor — complete
+
+- Changed Astra-generated Jellyfin query authentication to `ApiKey`, including
+  video/HLS, subtitles, artwork, music, bandwidth testing, collection/detail
+  requests, reports, user state, and optional Nebula Bridge requests.
+- Added the centralized Jellyfin `10.10.0` support floor and setup warning
+  path. Older parseable servers remain connectable, and unknown versions do
+  not receive a false unsupported warning.
+- Added focused regression coverage for video/HLS, direct-stream fallback,
+  subtitles, images, music, bandwidth testing, server-supplied auth, version
+  parsing, and warning coexistence.
+- Verification passed: TypeScript, ESLint with zero errors (112 existing
+  warnings), 67 Jest suites / 607 tests / one snapshot, and the x86_64 Release
+  Vega build with manifest and ABI validation.
 
 ## Delayed Astra 1.2 native fragment-parser crash review
 

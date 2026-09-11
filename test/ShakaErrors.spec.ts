@@ -93,7 +93,7 @@ describe('actual Shaka wrapper error and cancellation channels', () => {
         code: 1002,
         category: 1,
         severity: 2,
-        data: ['https://server?api_key=secret'],
+        data: ['https://server?ApiKey=secret'],
       },
     });
     expect(onError).toHaveBeenCalledWith({

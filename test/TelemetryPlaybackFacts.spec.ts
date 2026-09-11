@@ -59,8 +59,8 @@ describe('emitPlaybackDecision delivery facts', () => {
   it('forwards both playback URLs through the scrubber', () => {
     emitPlaybackDecision({
       streamUrl:
-        'https://jellyfin.test/stream?api_key=secret&MediaSourceId=source',
-      transcodeUrl: 'https://jellyfin.test/videos/1/master.m3u8?apiKey=secret',
+        'https://jellyfin.test/stream?ApiKey=secret&MediaSourceId=source',
+      transcodeUrl: 'https://jellyfin.test/videos/1/master.m3u8?ApiKey=secret',
     });
 
     const detail = mockEmit.mock.calls[0][1];

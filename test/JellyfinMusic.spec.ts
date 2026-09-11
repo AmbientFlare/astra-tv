@@ -62,12 +62,13 @@ describe('getAudioStreamUrl', () => {
     expect(url).not.toContain('MaxStreamingBitrate');
   });
 
-  it('includes the track id, user and api key', () => {
+  it('includes the track id, user and ApiKey token', () => {
     const url = getAudioStreamUrl(session, 'track-9');
 
     expect(url).toContain('/Audio/track-9/universal');
     expect(url).toContain('UserId=user-1');
-    expect(url).toContain('api_key=token-123');
+    expect(url).toContain('ApiKey=token-123');
+    expect(url).not.toContain('api_key=');
   });
 });
 
@@ -84,12 +85,13 @@ describe('getAudioHlsStreamUrl', () => {
     expect(query.get('Container')).not.toBe(NATIVE_AUDIO_CONTAINERS);
   });
 
-  it('includes the track id, user and api key', () => {
+  it('includes the track id, user and ApiKey token', () => {
     const url = getAudioHlsStreamUrl(session, 'track-9');
 
     expect(url).toContain('/Audio/track-9/universal');
     expect(url).toContain('UserId=user-1');
-    expect(url).toContain('api_key=token-123');
+    expect(url).toContain('ApiKey=token-123');
+    expect(url).not.toContain('api_key=');
   });
 
   it('refuses an empty track id', () => {

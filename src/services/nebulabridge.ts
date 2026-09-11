@@ -58,7 +58,7 @@ export const getNebulaBridgeCapabilities = (
 
   const result = getJson<NebulaBridgeCapabilities>(
     buildUrl(normalizeServerUrl(serverUrl), '/nebulabridge/capabilities', {
-      api_key: accessToken,
+      ApiKey: accessToken,
     }),
     {headers: getAuthHeaders(accessToken)},
   )
@@ -109,7 +109,7 @@ const hydrate = async (
       buildUrl(
         normalizeServerUrl(serverUrl),
         `/nebulabridge/hydrate/${kind}/${itemId}`,
-        {api_key: accessToken},
+        {ApiKey: accessToken},
       ),
       {headers: getAuthHeaders(accessToken), method: 'POST'},
     );

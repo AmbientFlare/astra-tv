@@ -404,7 +404,7 @@ export const EpisodeDetailScreen = ({
                   testID={`episode-chapter-${index}`}>
                   <Image
                     source={{
-                      uri: `${serverProfile.serverUrl}/Items/${detail.id}/Images/Chapter/${index}?api_key=${serverProfile.accessToken}`,
+                      uri: `${serverProfile.serverUrl}/Items/${detail.id}/Images/Chapter/${index}?ApiKey=${serverProfile.accessToken}`,
                     }}
                     style={styles.chapterImage}
                   />

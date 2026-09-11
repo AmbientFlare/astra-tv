@@ -8,6 +8,7 @@ import {
   sanitizeUrlForLog,
   subtitleMimeForDelivery,
 } from '../src/services/jellyfin';
+import {buildTranscodingUrl} from '../src/services/jellyfin/playbackHelpers';
 
 const capabilities = (
   overrides: Partial<AudioOutputCapabilities> = {},
@@ -35,7 +36,7 @@ describe('Jellyfin diagnostic URL privacy', () => {
   it('does not leak queries when handed a relative or malformed URL', () => {
     expect(
       sanitizeUrlForLog(
-        '/videos/2f38ff46b85175a14be6e80b2d093b94/master.m3u8?api_key=secret',
+        '/videos/2f38ff46b85175a14be6e80b2d093b94/master.m3u8?ApiKey=secret',
       ),
     ).toBe('/videos/[id]/master.m3u8');
   });
@@ -234,7 +235,7 @@ describe('Jellyfin subtitle delivery policy', () => {
   it('labels Jellyfin VTT delivery as text/vtt even with authentication parameters', () => {
     expect(
       subtitleMimeForDelivery(
-        'https://jellyfin.example/Videos/item/source/Subtitles/3/Stream.vtt?api_key=secret',
+        'https://jellyfin.example/Videos/item/source/Subtitles/3/Stream.vtt?ApiKey=secret',
         'subrip',
       ),
     ).toBe('text/vtt');
@@ -243,9 +244,37 @@ describe('Jellyfin subtitle delivery policy', () => {
   it('uses the source codec MIME when Jellyfin did not convert the track', () => {
     expect(
       subtitleMimeForDelivery(
-        'https://jellyfin.example/subtitles/track.srt?api_key=secret',
+        'https://jellyfin.example/subtitles/track.srt?ApiKey=secret',
         'srt',
       ),
     ).toBe('application/x-subrip');
+  });
+});
+
+describe('Jellyfin transcoding URL authentication', () => {
+  it('appends ApiKey when Astra must authenticate a server URL', () => {
+    const url = buildTranscodingUrl(
+      'https://jellyfin.example',
+      '/Videos/item/master.m3u8?PlaySessionId=session',
+      'client-token',
+    );
+
+    expect(new URL(url).searchParams.get('ApiKey')).toBe('client-token');
+    expect(url).not.toContain('api_key=');
+  });
+
+  it('does not duplicate an auth token already supplied by the server', () => {
+    const url = buildTranscodingUrl(
+      'https://jellyfin.example',
+      '/Videos/item/master.m3u8?PlaySessionId=session&api_key=server-token',
+      'client-token',
+    );
+    const authKeys = Array.from(new URL(url).searchParams.keys()).filter(
+      (key) => key.toLowerCase().replace(/_/g, '') === 'apikey',
+    );
+
+    expect(authKeys).toHaveLength(1);
+    expect(new URL(url).searchParams.get('api_key')).toBe('server-token');
+    expect(url).not.toContain('client-token');
   });
 });
