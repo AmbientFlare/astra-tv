@@ -37,6 +37,13 @@ if (source) {
   }
   config = {endpoint: input.endpoint, token: input.token};
 }
+if (!config.endpoint) {
+  throw new Error(
+    'No telemetry operator configuration found (checked ASTRA_TELEMETRY_CONFIG, ' +
+    'ASTRA_TELEMETRY_ENV, and .telemetry.env). Every build must carry one so the ' +
+    'passphrase can arm it on-device; a build can never ship without it.',
+  );
+}
 const target = path.join(__dirname, '../src/services/telemetry/operator.generated.ts');
 fs.mkdirSync(path.dirname(target), {recursive: true});
 fs.writeFileSync(target, '// Generated; do not commit. Default configuration sends nothing.\nexport default ' + JSON.stringify(config) + ';\n', {mode: 0o600});
