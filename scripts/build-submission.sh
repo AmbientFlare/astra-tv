@@ -13,17 +13,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Run directly (not via `npm run build:submission`), npm's prebuild:submission
-# hook never fires, so do it here too: every release must carry a telemetry
-# operator config, armable on-device, regardless of how the build was invoked.
-node scripts/prepare-telemetry.cjs
-
-OPERATOR_FILE=src/services/telemetry/operator.generated.ts
-if ! grep -q '"endpoint":"http' "$OPERATOR_FILE" 2>/dev/null; then
-    echo "Telemetry operator config is blank; this build could never be armed." >&2
-    echo "Set ASTRA_TELEMETRY_ENV/.telemetry.env or ASTRA_TELEMETRY_CONFIG first." >&2
-    exit 1
-fi
+# metro.config.js runs scripts/prepare-telemetry.cjs itself and throws if no
+# operator config is found, so every Metro bundle (this build included) is
+# guaranteed to carry one — no separate step to remember or skip here.
 
 APP_VERSION=$(sed -n "s/^export const APP_VERSION = '\(.*\)';$/\1/p" src/config/app.ts)
 BUILD_MARKER=$(sed -n "s/^export const BUILD_NUMBER = '\(.*\)';$/\1/p" src/config/app.ts)
