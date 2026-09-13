@@ -8,6 +8,7 @@ import {checkAstraProReceipt} from '../src/services/iap';
 import {
   getItems,
   getLibraries,
+  connect,
   initiateQuickConnect,
   isQuickConnectEnabled,
 } from '../src/services/jellyfin';
@@ -128,6 +129,11 @@ jest.mock('../src/services/jellyfin', () => ({
     version: '10.11.11',
   })),
   discoverServers: jest.fn(async () => []),
+  getJellyfinVersionWarning: jest.fn((version: string) =>
+    version === '10.9.11'
+      ? 'Astra officially supports Jellyfin Server 10.10 and newer. This server is running Jellyfin 10.9.11. It may work, but this version is unsupported. Update Jellyfin if you experience problems.'
+      : null,
+  ),
   initiateQuickConnect: jest.fn(async () => ({code: '123456', secret: 'sec'})),
   isQuickConnectEnabled: jest.fn(async () => false),
   pollQuickConnect: jest.fn(async () => false),
@@ -353,6 +359,32 @@ describe('App', () => {
     expect(screen.getByTestId('setup-username-input')).toBeTruthy();
     expect(screen.getByTestId('setup-password-input')).toBeTruthy();
     expect(screen.getByTestId('setup-signin-button')).toBeTruthy();
+  });
+
+  it('keeps an unsupported-version warning alongside the cleartext warning', async () => {
+    (connect as jest.Mock).mockResolvedValueOnce({
+      baseUrl: 'http://test.example.com',
+      id: 'test-server',
+      name: 'Test Server',
+      version: '10.9.11',
+    });
+
+    const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-type-jellyfin')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-server-type-jellyfin'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-server-url-input')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('setup-connect-button'));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/officially supports Jellyfin Server 10\.10/),
+      ).toBeTruthy(),
+    );
+    expect(screen.getByText(/unencrypted \(http:\/\/\) server/)).toBeTruthy();
   });
 
   it('offers Quick Connect and displays the server-issued code', async () => {

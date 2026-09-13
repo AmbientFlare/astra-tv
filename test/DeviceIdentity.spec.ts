@@ -12,6 +12,11 @@ jest.mock('@amazon-devices/react-native-kepler', () => ({
   AsyncStorage: {getItem: mockGetItem, setItem: mockSetItem},
 }));
 
+const mockFriendlyName = jest.fn(() => '');
+jest.mock('@astra/device-info', () => ({
+  getFriendlyDeviceName: () => mockFriendlyName(),
+}));
+
 describe('persistent installation identity', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -124,5 +129,57 @@ describe('persistent installation identity', () => {
     await Promise.resolve();
     controller.abort();
     await rejected;
+  });
+});
+
+/**
+ * The `Device` field of the MediaBrowser authorization header is what a
+ * Jellyfin admin sees in Dashboard -> Devices. Reporting the platform's
+ * friendly name makes two installs distinguishable, but that name is
+ * user-supplied UTF-8, so it has to survive the trip into an HTTP header.
+ */
+describe('reported device name', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+    mockStorage.clear();
+    mockFriendlyName.mockReturnValue('Living Room TV');
+  });
+
+  it('reports the platform friendly name once initialized', async () => {
+    const identity = require('../src/services/deviceIdentity');
+    expect(identity.getDeviceName()).toBe('FireTV');
+    await identity.initializeDeviceIdentity();
+    expect(identity.getDeviceName()).toBe('Living Room TV');
+  });
+
+  it('falls back to FireTV when the platform supplies no name', async () => {
+    mockFriendlyName.mockReturnValue('');
+    const identity = require('../src/services/deviceIdentity');
+    await identity.initializeDeviceIdentity();
+    expect(identity.getDeviceName()).toBe('FireTV');
+  });
+
+  it('strips quotes and non-ASCII so the header stays well formed', async () => {
+    mockFriendlyName.mockReturnValue('Levi\u2019s "Den" \\TV\n');
+    const identity = require('../src/services/deviceIdentity');
+    await identity.initializeDeviceIdentity();
+    expect(identity.getDeviceName()).toBe('Levi s Den TV');
+  });
+
+  it('caps a name that exceeds the platform maximum', async () => {
+    mockFriendlyName.mockReturnValue('T'.repeat(120));
+    const identity = require('../src/services/deviceIdentity');
+    await identity.initializeDeviceIdentity();
+    expect(identity.getDeviceName()).toBe('T'.repeat(60));
+  });
+
+  it('carries the name into the Jellyfin authorization header', async () => {
+    const identity = require('../src/services/deviceIdentity');
+    await identity.initializeDeviceIdentity();
+    const {getPreAuthHeaders} = require('../src/services/jellyfin/http');
+    expect(getPreAuthHeaders().Authorization).toContain(
+      'Device="Living Room TV"',
+    );
   });
 });

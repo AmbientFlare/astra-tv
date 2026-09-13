@@ -1,6 +1,7 @@
 jest.mock('../src/services/deviceIdentity', () => ({
   initializeDeviceIdentity: jest.fn(async () => 'test-installation'),
   getDeviceId: () => 'test-installation',
+  getDeviceName: () => 'FireTV',
 }));
 
 /**
@@ -250,7 +251,27 @@ describe('a locally hosted item', () => {
     expect(stream.playMethod).toBe('Transcode');
     expect(stream.mediaSourceId).toBe('source-from-server');
     expect(stream.audioTracks).toHaveLength(1);
-    expect(stream.url).toContain('api_key=');
+    expect(stream.url).toContain('ApiKey=');
+    expect(stream.url).not.toContain('api_key=');
+  });
+
+  it('uses ApiKey on the direct-stream fallback URL', async () => {
+    const requests = mockPlaybackInfo([
+      playableSource({
+        SupportsDirectPlay: true,
+        SupportsTranscoding: false,
+        TranscodingUrl: undefined,
+      }),
+    ]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(stream.url).toContain(`/Videos/${ITEM}/stream`);
+    expect(new URL(stream.url).searchParams.get('ApiKey')).toBe(TOKEN);
+    expect(stream.url).not.toContain('api_key=');
   });
 });
 
@@ -310,6 +331,18 @@ describe('the global subtitle preference', () => {
 
     expect(requests).toHaveLength(1);
     expect(stream.subtitleStreamIndex).toBeUndefined();
+  });
+
+  it('uses ApiKey for fallback subtitle delivery URLs', async () => {
+    const requests = mockPlaybackInfo([subtitledSource()]);
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(stream.subtitleTracks[0].deliveryUrl).toContain('ApiKey=');
+    expect(stream.subtitleTracks[0].deliveryUrl).not.toContain('api_key=');
   });
 
   it('picks the preferred language and keeps the stream copy for a text track', async () => {

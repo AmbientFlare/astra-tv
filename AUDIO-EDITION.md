@@ -90,7 +90,7 @@ Verified working against the LAN server **over plain http**:
 
 ```
 GET /Audio/{id}/universal?UserId=…&Container=aac&TranscodingContainer=ts
-    &TranscodingProtocol=hls&AudioCodec=aac&api_key=…
+    &TranscodingProtocol=hls&AudioCodec=aac&ApiKey=…
 
 HTTP/1.1 200 OK
 Content-Type: application/vnd.apple.mpegurl

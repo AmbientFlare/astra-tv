@@ -28,6 +28,8 @@ Appstore.
 - Package ID: `com.astra.tv`
 - Main component: `com.astra.tv.main`
 - Supported backend: Jellyfin
+- Minimum supported Jellyfin Server: `10.10`. Older versions are unsupported
+  rather than necessarily blocked; Astra may still connect to them.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.

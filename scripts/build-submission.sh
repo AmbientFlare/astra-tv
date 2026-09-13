@@ -13,6 +13,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# metro.config.js runs scripts/prepare-telemetry.cjs itself and throws if no
+# operator config is found, so every Metro bundle (this build included) is
+# guaranteed to carry one — no separate step to remember or skip here.
+
 APP_VERSION=$(sed -n "s/^export const APP_VERSION = '\(.*\)';$/\1/p" src/config/app.ts)
 BUILD_MARKER=$(sed -n "s/^export const BUILD_NUMBER = '\(.*\)';$/\1/p" src/config/app.ts)
 
