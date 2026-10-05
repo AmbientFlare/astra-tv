@@ -17,6 +17,10 @@ import {
   defaultUserPreferences,
 } from '../storage';
 import {getAudioOutputCapabilities} from '../mediaCapabilities';
+import {
+  getVideoDecodeLimits,
+  defaultVideoDecodeLimits,
+} from '../mediaCapabilities/decodeLimits';
 import {buildDeviceProfile} from './deviceProfile';
 import {
   hasPlayableMediaSource,
@@ -64,15 +68,33 @@ export const getStreamUrl = async (
 ): Promise<JellyfinStreamInfo> => {
   await initializeDeviceIdentity();
   const baseUrl = normalizeServerUrl(serverUrl);
-  const [prefs, userPreferences, audioOutputCapabilities] = await Promise.all([
-    readPlaybackPreferences(),
-    getUserPreferences().catch((error) => {
-      console.warn('[Astra] Unable to read subtitle preference:', error);
-      return defaultUserPreferences;
-    }),
-    getAudioOutputCapabilities(),
-  ]);
-  const deviceProfile = buildDeviceProfile(prefs, audioOutputCapabilities);
+  const [prefs, userPreferences, audioOutputCapabilities, videoDecodeLimits] =
+    await Promise.all([
+      readPlaybackPreferences(),
+      getUserPreferences().catch((error) => {
+        console.warn('[Astra] Unable to read subtitle preference:', error);
+        return defaultUserPreferences;
+      }),
+      getAudioOutputCapabilities(),
+      // A device capability rather than a server answer: anything that goes
+      // wrong here has to leave the device profile exactly as it was before this
+      // existed, which is what an unanswered probe means downstream.
+      getVideoDecodeLimits().catch((error) => {
+        console.warn(
+          '[Astra] Unable to read decoder resolution limits:',
+          error,
+        );
+        return defaultVideoDecodeLimits;
+      }),
+    ]);
+  // `undefined` so the DTS trial flag keeps its own default: the decoder
+  // ceiling is the only thing this adds to the profile.
+  const deviceProfile = buildDeviceProfile(
+    prefs,
+    audioOutputCapabilities,
+    undefined,
+    videoDecodeLimits,
+  );
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
     api_key: accessToken,
   });
