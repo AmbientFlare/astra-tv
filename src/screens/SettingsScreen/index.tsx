@@ -18,6 +18,11 @@ import {
 import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {measureServerBandwidth} from '../../services/jellyfin';
+import {
+  checkSessionLink,
+  serverSocket,
+  type ServerSocketSnapshot,
+} from '../../services/serverSocket';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
 import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
 import {
@@ -67,6 +72,7 @@ type SettingsRoute =
   | {route: 'displayPreferences'}
   | {route: 'maxBitrate'}
   | {route: 'connectionTest'}
+  | {route: 'liveConnection'}
   | {route: 'hlsSegmentLength'}
   | {route: 'audioChannels'}
   | {route: 'serverTranscoding'}
@@ -656,6 +662,12 @@ export const SettingsScreen = ({
               onPress={() => push({route: 'connectionTest'})}
             />
             <MenuRow
+              icon="◉"
+              title="Live server connection"
+              subtitle="The link SyncPlay and remote control will use"
+              onPress={() => push({route: 'liveConnection'})}
+            />
+            <MenuRow
               icon="◎"
               title="Audio output"
               subtitle="Match your TV or receiver's channel capability"
@@ -751,6 +763,10 @@ export const SettingsScreen = ({
             onBack={pop}
             serverProfile={serverProfile}
           />
+        );
+      case 'liveConnection':
+        return (
+          <LiveConnectionPage onBack={pop} serverProfile={serverProfile} />
         );
       case 'audioChannels':
         return (
@@ -1125,6 +1141,116 @@ const ConnectionTestPage = ({
       {phase === 'error' && errorText ? (
         <Text style={styles.infoText}>{errorText}</Text>
       ) : null}
+    </Page>
+  );
+};
+
+const secondsAgo = (atMs: number | null, nowMs: number) =>
+  atMs === null
+    ? 'never'
+    : `${Math.max(0, Math.round((nowMs - atMs) / 1000))}s ago`;
+
+const socketStatusLabel: Record<ServerSocketSnapshot['status'], string> = {
+  idle: 'Not started',
+  connecting: 'Connecting…',
+  open: 'Connected',
+  waiting: 'Disconnected, retrying',
+  stopped: 'Stopped',
+};
+
+const LiveConnectionPage = ({
+  onBack,
+  serverProfile,
+}: {
+  onBack: () => void;
+  serverProfile: ServerProfile;
+}) => {
+  const [snapshot, setSnapshot] = useState(() => serverSocket.getSnapshot());
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [check, setCheck] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = serverSocket.onStateChange(setSnapshot);
+    // Ages tick even when no message arrives.
+    const clock = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => {
+      unsubscribe();
+      clearInterval(clock);
+    };
+  }, []);
+
+  const runCheck = async () => {
+    setCheck('Asking the server…');
+    try {
+      const link = await checkSessionLink(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+      );
+      setCheck(
+        !link.found
+          ? 'The server has no session for this device.'
+          : link.supportsRemoteControl
+          ? 'The server sees this device and has the live connection attached.'
+          : 'The server sees this device. It will list it as remote-controllable once Astra announces that it can take commands.',
+      );
+    } catch (error) {
+      setCheck(error instanceof Error ? error.message : 'Check failed.');
+    }
+  };
+
+  return (
+    <Page title="Live server connection" onBack={onBack}>
+      <Text style={styles.description}>
+        A connection that stays open so {serverProfile.name || 'your server'}{' '}
+        can send Astra messages. SyncPlay and remote control need it.
+      </Text>
+      <Text style={styles.infoText}>
+        Status: {socketStatusLabel[snapshot.status]}
+        {snapshot.openedAtMs !== null
+          ? ` (open ${secondsAgo(snapshot.openedAtMs, nowMs).replace(
+              ' ago',
+              '',
+            )})`
+          : ''}
+      </Text>
+      <Text style={styles.infoText}>
+        Messages received: {snapshot.messagesReceived}, last{' '}
+        {secondsAgo(snapshot.lastMessageAtMs, nowMs)}
+      </Text>
+      <Text style={styles.infoText}>
+        Keep-alive:{' '}
+        {snapshot.keepAliveIntervalMs === null
+          ? 'not requested yet'
+          : `every ${Math.round(snapshot.keepAliveIntervalMs / 1000)}s, ${
+              snapshot.keepAlivesSent
+            } sent`}
+      </Text>
+      <Text style={styles.infoText}>
+        Connections opened: {snapshot.opens}
+        {snapshot.lastCloseCode !== null
+          ? `, last closed with code ${snapshot.lastCloseCode}`
+          : ''}
+      </Text>
+      {snapshot.lastError ? (
+        <Text style={styles.infoText}>Last error: {snapshot.lastError}</Text>
+      ) : null}
+      {snapshot.recent.length ? (
+        <Text style={styles.infoText}>
+          Recent:{' '}
+          {snapshot.recent
+            .slice(-6)
+            .map((event) => `${event.type} (${secondsAgo(event.atMs, nowMs)})`)
+            .join(', ')}
+        </Text>
+      ) : null}
+      <MenuRow
+        icon="⇄"
+        preferred={true}
+        title="Check with server"
+        subtitle="Ask the server whether it can reach this device"
+        onPress={runCheck}
+      />
+      {check ? <Text style={styles.infoText}>{check}</Text> : null}
     </Page>
   );
 };

@@ -29,6 +29,7 @@ import {
 } from '../screens/MusicCollectionScreen';
 import {detailRouteForItem} from './itemRoute';
 import {audioPlayback} from '../services/audioPlayer';
+import {serverSocket} from '../services/serverSocket';
 import {NowPlayingBar} from '../components/NowPlayingBar';
 import {AudioIdleVisual} from '../components/AudioIdleVisual';
 import {NowPlayingScreen} from '../screens/NowPlayingScreen';
@@ -277,6 +278,19 @@ export const RootNavigator = () => {
     pop,
     serverProfile,
   ]);
+
+  // Keep the server's live connection pointed at whoever is signed in. It
+  // follows profile switches and drops on sign-out, so pushed messages are
+  // never delivered to a session that is no longer on screen.
+  const socketServerUrl = serverProfile?.serverUrl;
+  const socketAccessToken = serverProfile?.accessToken;
+  useEffect(() => {
+    if (socketServerUrl && socketAccessToken) {
+      serverSocket.connect(socketServerUrl, socketAccessToken);
+    } else {
+      serverSocket.disconnect();
+    }
+  }, [socketServerUrl, socketAccessToken]);
 
   const serverId = serverProfile
     ? serverCapabilityKey(serverProfile.serverUrl)
