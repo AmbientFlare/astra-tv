@@ -32,26 +32,47 @@ echo "  app build marker:  $BUILD_MARKER"
 echo "  vega build number: $VEGA_BUILD_NUMBER"
 echo
 
-rm -f build/x86_64-release/astra_x86_64.vpkg
+# Physical Fire TV sticks are armv7. x86_64 is the Vega Virtual Device build:
+# Vega OS 1.x would install it anyway, but its native libraries could not load
+# on the stick's ARM CPU, and Vega OS 2.0 refuses the package outright.
+TARGET=armv7
+PACKAGE=build/$TARGET-release/astra_$TARGET.vpkg
+
+# The app build stages each local turbomodule from its dist/ directory and
+# fails outright when the module has no build for the target, so rebuild it
+# for this target first rather than trusting a committed binary.
+for module in packages/astra-*/; do
+    (cd "$module" && vega build --target "$TARGET" --buildType Release)
+done
+
+rm -f "$PACKAGE"
 
 npx react-native build-vega \
-    --build-type Release --target x86_64 \
+    --build-type Release --target "$TARGET" \
     --build-number "$VEGA_BUILD_NUMBER" \
     --build-version "$APP_VERSION"
 
 # build-vega can exit 0 having written the JS bundle but no package, so verify
 # the artifact rather than trusting the exit code.
-if [ ! -f build/x86_64-release/astra_x86_64.vpkg ]; then
+if [ ! -f "$PACKAGE" ]; then
     echo "Build reported success but produced no package." >&2
     exit 1
 fi
 
-ACTUAL=$(sed -n 's/.*"build_number": \([0-9]*\).*/\1/p' build/x86_64-release/vpkg-info.json)
+ACTUAL=$(sed -n 's/.*"build_number": \([0-9]*\).*/\1/p' "build/$TARGET-release/vpkg-info.json")
 if [ "$ACTUAL" != "$VEGA_BUILD_NUMBER" ]; then
     echo "Package build_number is '$ACTUAL', expected '$VEGA_BUILD_NUMBER'." >&2
     exit 1
 fi
 
+# Every native library in the package must be built for the target; a stray
+# x86_64 library would install and then silently fail to load on the device.
+if tar -tf "$PACKAGE" | grep '^lib/' | grep -v "^lib/$TARGET/" | grep -q .; then
+    echo "Package contains native libraries for another architecture:" >&2
+    tar -tf "$PACKAGE" | grep '^lib/' >&2
+    exit 1
+fi
+
 echo
-echo "Package: build/x86_64-release/astra_x86_64.vpkg"
-cat build/x86_64-release/vpkg-info.json
+echo "Package: $PACKAGE"
+cat "build/$TARGET-release/vpkg-info.json"
