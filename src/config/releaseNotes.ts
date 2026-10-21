@@ -8,6 +8,7 @@ import {APP_VERSION, BUILD_NUMBER} from './app';
  * would actually notice.
  */
 export const RELEASE_HIGHLIGHTS: readonly string[] = [
+  'Astra now installs and runs on the new Fire TV Stick 4K (2026).',
   'Long films no longer get shut down partway through. Astra now holds the ' +
     'system awake for as long as a video is open, so a two-hour movie plays ' +
     'start to finish without being interrupted.',

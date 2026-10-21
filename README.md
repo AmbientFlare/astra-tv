@@ -19,8 +19,8 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.4.0`, build `20260908.14`, for x86_64
-Fire TV devices running Vega OS 1.2 or later. It is available from the Amazon
+The current release is Astra `1.4.1`, build `20261020.2`, for Fire TV
+devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
 - Website: <https://watchastra.com> (screenshots, setup, and the
@@ -266,13 +266,17 @@ npx tsc --noEmit
 npm test -- --runInBand
 ```
 
-Build the current release target with:
+Build the store package with:
 
 ```sh
-PATH=/path/to/vega/bin:$PATH npx react-native build-vega \
-  --build-type Release --target x86_64 \
-  --build-number 2026090201 --build-version 1.2.1
+PATH=/path/to/vega/bin:$PATH npm run build:submission
 ```
+
+Fire TV sticks are armv7, so that is the package to install on a device and
+the one to upload to the Appstore: `build/armv7-release/astra_armv7.vpkg`.
+`npm run build:vvd` builds the x86_64 package for the Vega Virtual Device
+only. A stick on Vega OS 2.0 refuses the x86_64 package, and on Vega OS 1.x it
+installs but Astra's native modules cannot load.
 
 Install a VPKG on a Vega device with:
 

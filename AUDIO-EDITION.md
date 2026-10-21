@@ -217,13 +217,12 @@ export KEPLER_SDK_PATH=/path/to/vega/sdk
 export PATH=/path/to/vega/bin:$KEPLER_SDK_PATH/bin:$PATH
 
 npm run lint && npm test
-npx react-native build-vega --build-type Release --target x86_64 \
+npx react-native build-vega --build-type Release --target armv7 \
   --build-number 2026072904 --build-version 1.1.0
 
 ```
 
-The validated release target was an x86_64 Fire TV Stick. Confirm the target
-architectures reported by the current store/device matrix before release.
+Fire TV sticks are armv7; x86_64 is the Vega Virtual Device build.
 
 ### Paused-video system idle suppression
 
@@ -238,7 +237,7 @@ The native module must be built before a clean application build:
 
 ```bash
 (cd packages/astra-user-engagement && \
-  vega build --target x86_64 --buildType Release)
+  vega build --target armv7 --buildType Release)
 ```
 
 The resulting release library and Turbo Module manifest are retained in the
