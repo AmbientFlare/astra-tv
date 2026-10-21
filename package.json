@@ -1,6 +1,6 @@
 {
   "name": "@amazon-devices/astra",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
   "files": [
@@ -19,7 +19,8 @@
     "test:snapshot": "jest --colors --updateSnapshot",
     "lint": "eslint src test --ext .ts,.tsx",
     "lint:fix": "eslint src test --ext .ts,.tsx --fix",
-    "build:release": "react-native build-vega --build-type Release --target x86_64",
+    "build:release": "react-native build-vega --build-type Release --target armv7",
+    "build:vvd": "react-native build-vega --build-type Release --target x86_64",
     "build:submission": "bash scripts/build-submission.sh",
     "build:debug": "react-native build-vega --build-type Debug",
     "build:app": "npm-run-all build:release",

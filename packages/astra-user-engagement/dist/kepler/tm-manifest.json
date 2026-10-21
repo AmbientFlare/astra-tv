@@ -1,1 +1,1 @@
-{"schema":1,"fileSets":{"native":[{"arch":"x86_64","variant":"release","directoryPath":"x86_64-release"}]}}
+{"schema":1,"fileSets":{"native":[{"arch":"armv7","variant":"release","directoryPath":"armv7-release"},{"arch":"x86_64","variant":"release","directoryPath":"x86_64-release"}]}}

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.1 - 2026-10-20
+
+### Fixed
+
+- Astra would not install on the new Fire TV Stick 4K (2026). The store
+  package was built for the PC virtual device (x86_64) instead of the ARM
+  (armv7) chip every Fire TV stick uses. Vega OS 2.0 checks the package's
+  architecture and refused it; older sticks installed it, but Astra's native
+  modules -- including the engagement hold that keeps long films from being
+  shut down -- could not load on them. The release package is now armv7, and
+  the submission build rebuilds the native modules for that target and fails
+  if the package carries a library for any other architecture.
+
 ## 1.4.0 - 2026-09-08
 
 ### Fixed
