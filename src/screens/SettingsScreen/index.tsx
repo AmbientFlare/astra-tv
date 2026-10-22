@@ -18,6 +18,17 @@ import {
 import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {measureServerBandwidth} from '../../services/jellyfin';
+import {
+  checkSessionLink,
+  serverSocket,
+  type ServerSocketSnapshot,
+} from '../../services/serverSocket';
+import {
+  syncPlay,
+  type SyncPlayAccess,
+  type SyncPlayGroupInfo,
+  type SyncPlayGroupState,
+} from '../../services/syncPlay';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
 import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
 import {
@@ -67,6 +78,8 @@ type SettingsRoute =
   | {route: 'displayPreferences'}
   | {route: 'maxBitrate'}
   | {route: 'connectionTest'}
+  | {route: 'liveConnection'}
+  | {route: 'syncPlay'}
   | {route: 'hlsSegmentLength'}
   | {route: 'audioChannels'}
   | {route: 'serverTranscoding'}
@@ -656,6 +669,18 @@ export const SettingsScreen = ({
               onPress={() => push({route: 'connectionTest'})}
             />
             <MenuRow
+              icon="◉"
+              title="Live server connection"
+              subtitle="The link SyncPlay and remote control will use"
+              onPress={() => push({route: 'liveConnection'})}
+            />
+            <MenuRow
+              icon="◈"
+              title="SyncPlay"
+              subtitle="Watch in step with a group on this server"
+              onPress={() => push({route: 'syncPlay'})}
+            />
+            <MenuRow
               icon="◎"
               title="Audio output"
               subtitle="Match your TV or receiver's channel capability"
@@ -751,6 +776,12 @@ export const SettingsScreen = ({
             onBack={pop}
             serverProfile={serverProfile}
           />
+        );
+      case 'syncPlay':
+        return <SyncPlayPage onBack={pop} userName={serverProfile.username} />;
+      case 'liveConnection':
+        return (
+          <LiveConnectionPage onBack={pop} serverProfile={serverProfile} />
         );
       case 'audioChannels':
         return (
@@ -1129,6 +1160,293 @@ const ConnectionTestPage = ({
   );
 };
 
+const secondsAgo = (atMs: number | null, nowMs: number) =>
+  atMs === null
+    ? 'never'
+    : `${Math.max(0, Math.round((nowMs - atMs) / 1000))}s ago`;
+
+const socketStatusLabel: Record<ServerSocketSnapshot['status'], string> = {
+  idle: 'Not started',
+  connecting: 'Connecting…',
+  open: 'Connected',
+  waiting: 'Disconnected, retrying',
+  stopped: 'Stopped',
+};
+
+const LiveConnectionPage = ({
+  onBack,
+  serverProfile,
+}: {
+  onBack: () => void;
+  serverProfile: ServerProfile;
+}) => {
+  const [snapshot, setSnapshot] = useState(() => serverSocket.getSnapshot());
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [check, setCheck] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = serverSocket.onStateChange(setSnapshot);
+    // Ages tick even when no message arrives.
+    const clock = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => {
+      unsubscribe();
+      clearInterval(clock);
+    };
+  }, []);
+
+  const runCheck = async () => {
+    setCheck('Asking the server…');
+    try {
+      const link = await checkSessionLink(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+      );
+      setCheck(
+        !link.found
+          ? 'The server has no session for this device.'
+          : link.supportsRemoteControl
+          ? 'The server sees this device and has the live connection attached.'
+          : 'The server sees this device. It will list it as remote-controllable once Astra announces that it can take commands.',
+      );
+    } catch (error) {
+      setCheck(error instanceof Error ? error.message : 'Check failed.');
+    }
+  };
+
+  return (
+    <Page title="Live server connection" onBack={onBack}>
+      <Text style={styles.description}>
+        A connection that stays open so {serverProfile.name || 'your server'}{' '}
+        can send Astra messages. SyncPlay and remote control need it.
+      </Text>
+      <Text style={styles.infoText}>
+        Status: {socketStatusLabel[snapshot.status]}
+        {snapshot.openedAtMs !== null
+          ? ` (open ${secondsAgo(snapshot.openedAtMs, nowMs).replace(
+              ' ago',
+              '',
+            )})`
+          : ''}
+      </Text>
+      <Text style={styles.infoText}>
+        Messages received: {snapshot.messagesReceived}, last{' '}
+        {secondsAgo(snapshot.lastMessageAtMs, nowMs)}
+      </Text>
+      <Text style={styles.infoText}>
+        Keep-alive:{' '}
+        {snapshot.keepAliveIntervalMs === null
+          ? 'not requested yet'
+          : `every ${Math.round(snapshot.keepAliveIntervalMs / 1000)}s, ${
+              snapshot.keepAlivesSent
+            } sent`}
+      </Text>
+      <Text style={styles.infoText}>
+        Connections opened: {snapshot.opens}
+        {snapshot.lastCloseCode !== null
+          ? `, last closed with code ${snapshot.lastCloseCode}`
+          : ''}
+      </Text>
+      {snapshot.lastError ? (
+        <Text style={styles.infoText}>Last error: {snapshot.lastError}</Text>
+      ) : null}
+      {snapshot.recent.length ? (
+        <Text style={styles.infoText}>
+          Recent:{' '}
+          {snapshot.recent
+            .slice(-6)
+            .map((event) => `${event.type} (${secondsAgo(event.atMs, nowMs)})`)
+            .join(', ')}
+        </Text>
+      ) : null}
+      <MenuRow
+        icon="⇄"
+        preferred={true}
+        title="Check with server"
+        subtitle="Ask the server whether it can reach this device"
+        onPress={runCheck}
+      />
+      {check ? <Text style={styles.infoText}>{check}</Text> : null}
+    </Page>
+  );
+};
+
+const syncPlayStateLabel: Record<SyncPlayGroupState, string> = {
+  Idle: 'nothing playing',
+  Waiting: 'waiting for everyone to load',
+  Paused: 'paused',
+  Playing: 'playing',
+};
+
+const SyncPlayPage = ({
+  onBack,
+  userName,
+}: {
+  onBack: () => void;
+  userName?: string;
+}) => {
+  const [snapshot, setSnapshot] = useState(() => syncPlay.getSnapshot());
+  const [groups, setGroups] = useState<SyncPlayGroupInfo[] | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [access, setAccess] = useState<SyncPlayAccess>('CreateAndJoinGroups');
+
+  useEffect(() => syncPlay.onChange(setSnapshot), []);
+
+  const refresh = useCallback(async () => {
+    setMessage('Looking for groups…');
+    // Unknown counts as allowed: the server still refuses what it must.
+    const allowed = await syncPlay
+      .getAccess()
+      .catch((): SyncPlayAccess => 'CreateAndJoinGroups');
+    setAccess(allowed);
+    if (allowed === 'None') {
+      setGroups([]);
+      setMessage(
+        'This account is not allowed to use SyncPlay. A server admin can allow it in the user’s settings on the server.',
+      );
+      return;
+    }
+    try {
+      const found = await syncPlay.listGroups();
+      setGroups(found);
+      setMessage(
+        found.length
+          ? null
+          : allowed === 'JoinGroups'
+          ? 'No groups on this server right now. This account can join groups but not start them.'
+          : 'No groups on this server right now.',
+      );
+    } catch (error) {
+      setGroups([]);
+      setMessage(
+        error instanceof Error && error.message.includes(' 403')
+          ? 'This account is not allowed to use SyncPlay.'
+          : 'Could not list groups.',
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!snapshot.group) void refresh();
+  }, [refresh, snapshot.group]);
+
+  const join = async (group: SyncPlayGroupInfo) => {
+    setMessage(`Joining ${group.GroupName}…`);
+    try {
+      await syncPlay.join(group.GroupId);
+      setMessage(null);
+    } catch {
+      setMessage('Could not join that group.');
+    }
+  };
+
+  const groupName = userName ? `${userName}'s group` : 'Astra group';
+  const create = async () => {
+    setMessage(`Starting ${groupName}…`);
+    try {
+      await syncPlay.create(groupName);
+      setMessage(null);
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message.includes(' 403')
+          ? 'This account may not start SyncPlay groups.'
+          : 'Could not start a group.',
+      );
+    }
+  };
+
+  const leave = async () => {
+    try {
+      await syncPlay.leave();
+    } catch {
+      setMessage('Could not reach the server; left the group here anyway.');
+    }
+  };
+
+  const group = snapshot.group;
+  return (
+    <Page title="SyncPlay" onBack={onBack}>
+      <Text style={styles.description}>
+        Watch together with other Jellyfin apps. Join a group, or start one and
+        pick something to play: everyone in the group opens it, and play, pause
+        and seek on any of them go to all.
+      </Text>
+      {group ? (
+        <>
+          <View style={styles.statusLines}>
+            <Text style={[styles.infoText, styles.statusLine]}>
+              In {group.GroupName}:{' '}
+              {snapshot.state ? syncPlayStateLabel[snapshot.state] : 'joining'}
+            </Text>
+            <Text style={[styles.infoText, styles.statusLine]}>
+              With: {group.Participants.join(', ') || 'just you'}
+            </Text>
+            {!snapshot.playingItemId ? (
+              <Text style={[styles.infoText, styles.statusLine]}>
+                Nothing playing yet. Pick something and press Play to start it
+                for the group.
+              </Text>
+            ) : null}
+            {snapshot.lastEvent ? (
+              <Text style={[styles.infoText, styles.statusLine]}>
+                Last: {snapshot.lastEvent}
+              </Text>
+            ) : null}
+          </View>
+          <MenuRow
+            icon="×"
+            preferred={true}
+            title="Leave group"
+            subtitle="Stop following the group"
+            onPress={leave}
+          />
+        </>
+      ) : (
+        <>
+          {groups?.map((candidate, index) => (
+            <MenuRow
+              icon="◈"
+              key={candidate.GroupId}
+              preferred={index === 0}
+              title={candidate.GroupName}
+              subtitle={`${candidate.Participants.join(', ')} · ${
+                syncPlayStateLabel[candidate.State] ?? candidate.State
+              }`}
+              onPress={() => void join(candidate)}
+            />
+          ))}
+          {access === 'CreateAndJoinGroups' ? (
+            <MenuRow
+              icon="+"
+              preferred={!groups?.length}
+              title="Start a group"
+              subtitle={`Others can join ${groupName}`}
+              onPress={() => void create()}
+            />
+          ) : null}
+          <MenuRow
+            icon="↻"
+            preferred={!groups?.length && access !== 'CreateAndJoinGroups'}
+            title="Look again"
+            subtitle="Refresh the list of groups"
+            onPress={() => void refresh()}
+          />
+        </>
+      )}
+      {snapshot.clockOffsetMs !== null ? (
+        <Text style={styles.infoText}>
+          Server clock {snapshot.clockOffsetMs >= 0 ? '+' : ''}
+          {Math.round(snapshot.clockOffsetMs)} ms, round trip{' '}
+          {Math.round(snapshot.pingMs ?? 0)} ms
+        </Text>
+      ) : null}
+      {snapshot.lastError ? (
+        <Text style={styles.infoText}>{snapshot.lastError}</Text>
+      ) : null}
+      {message ? <Text style={styles.infoText}>{message}</Text> : null}
+    </Page>
+  );
+};
+
 const Page = ({
   children,
   onBack,
@@ -1329,6 +1647,12 @@ const styles = StyleSheet.create({
     color: '#B8C5CC',
     fontSize: 22,
     marginBottom: 18,
+  },
+  statusLines: {
+    gap: 4,
+  },
+  statusLine: {
+    marginTop: 0,
   },
   infoText: {
     color: '#9FB0BA',
