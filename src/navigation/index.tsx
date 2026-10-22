@@ -322,22 +322,23 @@ export const RootNavigator = () => {
   // never delivered to a session that is no longer on screen.
   const socketServerUrl = serverProfile?.serverUrl;
   const socketAccessToken = serverProfile?.accessToken;
+  const socketUserId = serverProfile?.userId;
   useEffect(() => {
     if (socketServerUrl && socketAccessToken) {
       serverSocket.connect(socketServerUrl, socketAccessToken);
       syncPlay.setServer({
         serverUrl: socketServerUrl,
         accessToken: socketAccessToken,
+        userId: socketUserId,
       });
     } else {
       serverSocket.disconnect();
       syncPlay.setServer(null);
     }
-  }, [socketServerUrl, socketAccessToken]);
+  }, [socketServerUrl, socketAccessToken, socketUserId]);
 
   // A SyncPlay group picks what plays. Its item opens at the group position,
   // replacing whatever player is on screen once that one lets go of the media.
-  const socketUserId = serverProfile?.userId;
   useEffect(
     () =>
       syncPlay.onOpenRequest((request) => {

@@ -59,8 +59,27 @@ const fakePlayer = (itemId = 'item-1') => {
   return player as typeof player & SyncPlayPlayer;
 };
 
-const harness = () => {
+const memoryStore = (initial: Record<string, string> = {}) => {
+  const items = new Map(Object.entries(initial));
+  return {
+    items,
+    getItem: jest.fn(async (key: string) => items.get(key) ?? null),
+    setItem: jest.fn(async (key: string, value: string) => {
+      items.set(key, value);
+    }),
+    removeItem: jest.fn(async (key: string) => {
+      items.delete(key);
+    }),
+  };
+};
+
+const harness = ({
+  store = memoryStore(),
+  socketStatus = 'open',
+}: {store?: ReturnType<typeof memoryStore>; socketStatus?: string} = {}) => {
   let listener: ((message: ServerSocketMessage) => void) | null = null;
+  let stateListener: ((snapshot: {status: string}) => void) | null = null;
+  let status = socketStatus;
   const api = fakeApi();
   const manager = new SyncPlayManager(
     {
@@ -70,10 +89,28 @@ const harness = () => {
           listener = null;
         };
       },
+      onStateChange: (next) => {
+        stateListener = next;
+        return () => {
+          stateListener = null;
+        };
+      },
+      getSnapshot: () => ({status}),
     },
     () => api,
+    undefined,
+    undefined,
+    store,
   );
-  manager.setServer({serverUrl: 'http://server', accessToken: 'tok'});
+  manager.setServer({
+    serverUrl: 'http://server',
+    accessToken: 'tok',
+    userId: 'u1',
+  });
+  const setSocketStatus = (next: string) => {
+    status = next;
+    stateListener?.({status});
+  };
   const opens: SyncPlayOpenRequest[] = [];
   manager.onOpenRequest((request) => opens.push(request));
   const send = (MessageType: string, Data: unknown) =>
@@ -94,7 +131,7 @@ const harness = () => {
       Command,
       EmittedAt: serverIso(Date.now()),
     });
-  return {api, manager, opens, groupUpdate, command};
+  return {api, manager, opens, groupUpdate, command, store, setSocketStatus};
 };
 
 const flush = async () => {
@@ -417,5 +454,84 @@ describe('SyncPlayManager', () => {
     groupUpdate('NotInGroup');
     expect(manager.isInGroup()).toBe(false);
     expect(manager.controlsPlayer('item-1')).toBe(false);
+  });
+});
+
+describe('SyncPlay rejoin after a restart', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(T0);
+  });
+  afterEach(() => jest.useRealTimers());
+
+  const group = {
+    GroupId: 'g1',
+    GroupName: 'Movie night',
+    State: 'Playing',
+    Participants: ['levi'],
+    LastUpdatedAt: '',
+  };
+  const saved = (patch: object = {}) =>
+    memoryStore({
+      'astra.syncPlay.membership': JSON.stringify({
+        serverUrl: 'http://server',
+        userId: 'u1',
+        groupId: 'g1',
+        groupName: 'Movie night',
+        savedAtMs: T0 - 60000,
+        ...patch,
+      }),
+    });
+
+  it('remembers the group it joins and forgets it on leaving', async () => {
+    const h = harness();
+    h.groupUpdate('GroupJoined', group);
+    await flush();
+    expect(
+      JSON.parse(h.store.items.get('astra.syncPlay.membership') ?? '{}'),
+    ).toMatchObject({serverUrl: 'http://server', userId: 'u1', groupId: 'g1'});
+    await h.manager.leave();
+    expect(h.store.items.has('astra.syncPlay.membership')).toBe(false);
+  });
+
+  it('rejoins a group that is still running once the socket is open', async () => {
+    const h = harness({store: saved(), socketStatus: 'connecting'});
+    h.api.list.mockResolvedValue([group] as never);
+    await flush();
+    expect(h.api.join).not.toHaveBeenCalled();
+    h.setSocketStatus('open');
+    await flush();
+    expect(h.api.join).toHaveBeenCalledWith('g1');
+    expect(h.manager.getSnapshot().lastEvent).toBe('Rejoining Movie night');
+  });
+
+  it('forgets a group that has ended', async () => {
+    const h = harness({store: saved()});
+    await flush();
+    expect(h.api.list).toHaveBeenCalled();
+    expect(h.api.join).not.toHaveBeenCalled();
+    expect(h.store.items.has('astra.syncPlay.membership')).toBe(false);
+  });
+
+  it('leaves alone a group from another user, server, or long ago', async () => {
+    for (const patch of [
+      {userId: 'someone-else'},
+      {serverUrl: 'http://elsewhere'},
+      {savedAtMs: T0 - 13 * 60 * 60 * 1000},
+    ]) {
+      const h = harness({store: saved(patch)});
+      h.api.list.mockResolvedValue([group] as never);
+      await flush();
+      expect(h.api.join).not.toHaveBeenCalled();
+    }
+  });
+
+  it('forgets the group when the server says this device left', async () => {
+    const h = harness();
+    h.groupUpdate('GroupJoined', group);
+    await flush();
+    h.groupUpdate('GroupLeft', 'g1');
+    await flush();
+    expect(h.store.items.has('astra.syncPlay.membership')).toBe(false);
   });
 });

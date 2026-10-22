@@ -15,6 +15,7 @@ import {
   type ServerSocketMessage,
   serverSocket as defaultSocket,
 } from '../serverSocket';
+import * as storageAdapter from '../storageAdapter';
 import {
   type SyncPlayApi,
   type SyncPlayCommand,
@@ -35,6 +36,9 @@ const SEEK_TOLERANCE_TICKS = 400 * TICKS_PER_MS;
 const BUFFERING_REPORT_DELAY_MS = 1000;
 const TIME_SYNC_SAMPLES = 5;
 const TIME_SYNC_INTERVAL_MS = 60000;
+const MEMBERSHIP_KEY = 'astra.syncPlay.membership';
+/** A group left behind longer ago than this is not rejoined on its own. */
+const REJOIN_WINDOW_MS = 12 * 60 * 60 * 1000;
 
 /** What SyncPlay needs from the player on screen. */
 export interface SyncPlayPlayer {
@@ -83,6 +87,29 @@ interface Timers {
 
 interface SocketSource {
   onMessage(listener: (message: ServerSocketMessage) => void): () => void;
+  onStateChange?(listener: (snapshot: {status: string}) => void): () => void;
+  getSnapshot?(): {status: string};
+}
+
+interface MembershipStore {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+}
+
+/** The group this device was last in, kept so a restart can rejoin it. */
+interface SavedMembership {
+  serverUrl: string;
+  userId?: string;
+  groupId: string;
+  groupName: string;
+  savedAtMs: number;
+}
+
+interface SyncPlayTarget {
+  serverUrl: string;
+  accessToken: string;
+  userId?: string;
 }
 
 const defaultTimers: Timers = {
@@ -140,6 +167,9 @@ export class SyncPlayManager {
     (request: SyncPlayOpenRequest) => void
   >();
   private unsubscribeSocket: (() => void) | null = null;
+  private target: SyncPlayTarget | null = null;
+  private pendingRejoin: SavedMembership | null = null;
+  private rejoining = false;
 
   constructor(
     private readonly socket: SocketSource = defaultSocket,
@@ -149,21 +179,114 @@ export class SyncPlayManager {
     ) => SyncPlayApi = createSyncPlayApi,
     private readonly now: () => number = Date.now,
     private readonly timers: Timers = defaultTimers,
+    private readonly store: MembershipStore = storageAdapter,
   ) {}
 
   /** Points SyncPlay at the signed-in server; null on sign-out. */
-  setServer(target: {serverUrl: string; accessToken: string} | null): void {
+  setServer(target: SyncPlayTarget | null): void {
     this.reset();
     this.unsubscribeSocket?.();
     this.unsubscribeSocket = null;
+    this.target = target;
+    this.pendingRejoin = null;
     this.api = target
       ? this.makeApi(target.serverUrl, target.accessToken)
       : null;
     if (this.api) {
-      this.unsubscribeSocket = this.socket.onMessage((message) =>
+      const offMessage = this.socket.onMessage((message) =>
         this.handleMessage(message),
       );
+      // The server answers a join on the socket, so a rejoin waits for it.
+      const offState = this.socket.onStateChange?.((snapshot) => {
+        if (snapshot.status === 'open') {
+          void this.tryRejoin();
+        }
+      });
+      this.unsubscribeSocket = () => {
+        offMessage();
+        offState?.();
+      };
+      void this.loadMembership(target as SyncPlayTarget);
     }
+  }
+
+  /**
+   * A device that was in a group when the app closed without leaving (the
+   * system ended it, or an update replaced it) goes back in when it starts,
+   * as long as the group is still running. Leaving on purpose forgets it.
+   */
+  private async loadMembership(target: SyncPlayTarget): Promise<void> {
+    let saved: SavedMembership | null = null;
+    try {
+      const raw = await this.store.getItem(MEMBERSHIP_KEY);
+      saved = raw ? (JSON.parse(raw) as SavedMembership) : null;
+    } catch {
+      return;
+    }
+    if (
+      this.target !== target ||
+      !saved?.groupId ||
+      saved.serverUrl !== target.serverUrl ||
+      (saved.userId ?? null) !== (target.userId ?? null) ||
+      this.now() - saved.savedAtMs > REJOIN_WINDOW_MS
+    ) {
+      return;
+    }
+    this.pendingRejoin = saved;
+    await this.tryRejoin();
+  }
+
+  private async tryRejoin(): Promise<void> {
+    const saved = this.pendingRejoin;
+    const api = this.api;
+    if (
+      !saved ||
+      !api ||
+      this.rejoining ||
+      this.snapshot.group ||
+      (this.socket.getSnapshot && this.socket.getSnapshot().status !== 'open')
+    ) {
+      return;
+    }
+    this.rejoining = true;
+    try {
+      const groups = await api.list();
+      if (this.api !== api || this.pendingRejoin !== saved) {
+        return;
+      }
+      this.pendingRejoin = null;
+      if (!groups.some((group) => group.GroupId === saved.groupId)) {
+        this.forgetMembership();
+        return;
+      }
+      this.update({lastEvent: `Rejoining ${saved.groupName}`});
+      await this.join(saved.groupId);
+    } catch {
+      // Left pending: the next time the socket opens tries again.
+    } finally {
+      this.rejoining = false;
+    }
+  }
+
+  private saveMembership(group: SyncPlayGroupInfo): void {
+    if (!this.target) {
+      return;
+    }
+    const saved: SavedMembership = {
+      serverUrl: this.target.serverUrl,
+      userId: this.target.userId,
+      groupId: group.GroupId,
+      groupName: group.GroupName,
+      savedAtMs: this.now(),
+    };
+    this.store
+      .setItem(MEMBERSHIP_KEY, JSON.stringify(saved))
+      .catch(() => undefined);
+  }
+
+  private forgetMembership(): void {
+    this.pendingRejoin = null;
+    this.store.removeItem(MEMBERSHIP_KEY).catch(() => undefined);
   }
 
   isInGroup(): boolean {
@@ -202,6 +325,7 @@ export class SyncPlayManager {
   }
 
   async leave(): Promise<void> {
+    this.forgetMembership();
     if (!this.api) {
       return;
     }
@@ -468,6 +592,7 @@ export class SyncPlayManager {
           lastError: null,
         });
         this.startClockRefresh();
+        this.saveMembership(group);
         break;
       }
       case 'UserJoined':
@@ -499,6 +624,7 @@ export class SyncPlayManager {
         break;
       case 'GroupLeft':
       case 'NotInGroup':
+        this.forgetMembership();
         this.reset();
         this.update({lastEvent: 'Left the group'});
         break;
