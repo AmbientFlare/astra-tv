@@ -189,6 +189,12 @@ export class SyncPlayManager {
     return this.requireApi().list();
   }
 
+  /** Starts a group with this device in it; nothing plays until asked. */
+  async create(groupName: string): Promise<void> {
+    await this.syncClock();
+    await this.requireApi().create(groupName);
+  }
+
   async join(groupId: string): Promise<void> {
     await this.syncClock();
     // The server answers on the socket: GroupJoined, then the play queue.
@@ -213,6 +219,29 @@ export class SyncPlayManager {
 
   requestUnpause(): void {
     void this.api?.unpause().catch(() => this.fail('Play request failed.'));
+  }
+
+  requestSeek(ticks: number): void {
+    void this.api
+      ?.seek(Math.max(0, ticks))
+      .catch(() => this.fail('Seek request failed.'));
+  }
+
+  /**
+   * Playing something while in a group plays it for the whole group. The
+   * server sends the new queue to every member, and this device opens it
+   * from that like everyone else.
+   */
+  async requestPlay(itemId: string, startPositionTicks: number): Promise<void> {
+    try {
+      await this.requireApi().setNewQueue(
+        [itemId],
+        Math.max(0, startPositionTicks),
+      );
+    } catch (error) {
+      this.fail('Could not start that for the group.');
+      throw error;
+    }
   }
 
   /** Whether the group, not the viewer's keys, drives this item's player. */

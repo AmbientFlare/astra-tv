@@ -956,7 +956,8 @@ export const PlayerScreen = ({
       });
   }, [returnToLibrary, stopPlayback]);
 
-  const seekToSeconds = useCallback(
+  /** Moves this player; the viewer's seeks go through seekToSeconds. */
+  const moveToSeconds = useCallback(
     async (
       targetSeconds: number,
       closeSettings = false,
@@ -1045,6 +1046,19 @@ export const PlayerScreen = ({
     [applyPosition, item.runTimeTicks, reportProgress, scheduleControlsHide],
   );
 
+  const seekToSeconds = useCallback(
+    async (targetSeconds: number, closeSettings = false) => {
+      if (syncPlay.controlsPlayer(item.id)) {
+        // The group moves everyone, this player included, when it seeks.
+        if (closeSettings) setSettingsPanel(null);
+        syncPlay.requestSeek(toTicks(Math.max(0, targetSeconds)));
+        return;
+      }
+      await moveToSeconds(targetSeconds, closeSettings);
+    },
+    [item.id, moveToSeconds],
+  );
+
   syncPlayHandlers.current = {
     getPositionTicks: currentPositionTicks,
     isPaused: () => videoRef.current?.paused ?? true,
@@ -1065,7 +1079,7 @@ export const PlayerScreen = ({
     seekTicks: async (ticks, allowReload) => {
       const before = videoRef.current;
       const wasPaused = before?.paused ?? true;
-      await seekToSeconds(ticks / TICKS_PER_SECOND, false, false, allowReload);
+      await moveToSeconds(ticks / TICKS_PER_SECOND, false, false, allowReload);
       const video = videoRef.current;
       if (!video) return;
       if (video !== before) {

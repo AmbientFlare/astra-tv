@@ -163,6 +163,23 @@ export const RootNavigator = () => {
     [],
   );
 
+  // In a SyncPlay group, Play plays for the whole group: the server sends
+  // the new item to every member, and this device opens it from there.
+  const playItem = useCallback(
+    (item: JellyfinMediaItem) => {
+      if (!syncPlay.isInGroup()) {
+        push({route: 'player', item});
+        return;
+      }
+      syncPlay
+        .requestPlay(item.id, item.resumePositionTicks ?? 0)
+        .catch((error) =>
+          console.warn('[Astra] SyncPlay could not start the item:', error),
+        );
+    },
+    [push],
+  );
+
   // Every place a media card can be tapped routes through here, so an item's
   // own type picks the screen. Without this an episode surfaced outside a
   // series — Continue Watching, Next Up, a search result, a view that mixes
@@ -599,7 +616,7 @@ export const RootNavigator = () => {
       <ItemDetailScreen
         item={current.item}
         onBack={pop}
-        onPlay={(item) => push({route: 'player', item})}
+        onPlay={playItem}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectItem={openItem}
         onSelectPerson={(personId, personName) =>
@@ -687,7 +704,13 @@ export const RootNavigator = () => {
           syncPlay.playerClosed();
           pop();
         }}
-        onPlayNext={(next, {automatic}) =>
+        onPlayNext={(next, {automatic}) => {
+          if (syncPlay.isInGroup()) {
+            // Every member reaches the end at once; letting each one start
+            // the next item would restart it for the group once per member.
+            if (!automatic) playItem(next);
+            return;
+          }
           replace({
             route: 'player',
             item: next,
@@ -695,8 +718,8 @@ export const RootNavigator = () => {
               autoAdvances,
               automatic,
             ),
-          })
-        }
+          });
+        }}
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
       />,
@@ -709,7 +732,7 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         onGoToSeries={(item) => push({route: 'detail', item})}
-        onPlay={(item) => push({route: 'player', item})}
+        onPlay={playItem}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectPerson={(personId, personName) =>
           push({route: 'personDetail', personId, personName})
