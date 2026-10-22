@@ -51,6 +51,10 @@ Appstore.
 - Select audio and subtitle tracks and inspect playback diagnostics.
 - Render SRT/WebVTT subtitles in-app and request server burn-in for formats
   Vega cannot render reliably.
+- Choose shadowed text (default) or a dark subtitle background in
+  Settings > Playback > Subtitle appearance. Text subtitles remain visible
+  when the title and controls hide and move above the controls when shown.
+  Subtitles burned into the video keep their original appearance.
 - Show unwatched episode badges on series posters, capped at `99+`.
 
 ### Music
