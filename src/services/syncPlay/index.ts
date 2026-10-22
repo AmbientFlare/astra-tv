@@ -131,6 +131,7 @@ export class SyncPlayManager {
   private exitByCommand = false;
   /** The player went away with the app; reopen the group item on return. */
   private reopenOnResume = false;
+  private inBackground = false;
   private lastQueue: SyncPlayQueueUpdate | null = null;
   private timeSyncTimer: unknown = null;
   private openNonce = 0;
@@ -235,6 +236,11 @@ export class SyncPlayManager {
       return;
     }
     if (this.reopenOnResume) {
+      // Releasing the media can take longer than the app takes to come
+      // back; if it is already back, reopen now.
+      if (!this.inBackground) {
+        this.reopenCurrent();
+      }
       return;
     }
     if (this.isInGroup()) {
@@ -250,16 +256,22 @@ export class SyncPlayManager {
   playerBackgrounded(player: SyncPlayPlayer): void {
     if (this.isTracking(player)) {
       this.reopenOnResume = true;
+      this.inBackground = true;
     }
   }
 
   /** The app is back on screen: reopen the group item where the group is. */
   appResumed(): void {
-    if (!this.reopenOnResume) {
-      return;
+    this.inBackground = false;
+    // A player still on screen has not closed yet; playerClosed reopens.
+    if (this.reopenOnResume && !this.player) {
+      this.reopenCurrent();
     }
+  }
+
+  private reopenCurrent(): void {
     this.reopenOnResume = false;
-    if (this.isInGroup() && this.lastQueue && !this.player) {
+    if (this.isInGroup() && this.lastQueue) {
       this.openCurrent(this.lastQueue);
     }
   }
@@ -661,6 +673,7 @@ export class SyncPlayManager {
     this.lastCommand = null;
     this.awaitingStart = false;
     this.reopenOnResume = false;
+    this.inBackground = false;
     this.lastQueue = null;
     this.applyingCommand = false;
     this.reportedBuffering = false;

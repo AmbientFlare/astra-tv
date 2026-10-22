@@ -313,6 +313,20 @@ describe('SyncPlayManager', () => {
     expect(opens).toHaveLength(count);
   });
 
+  it('reopens when the app returns before the player has let go', async () => {
+    const {api, manager, opens, player} = await joinedAndReady();
+    const count = opens.length;
+    manager.playerBackgrounded(player);
+    manager.appResumed();
+    expect(opens).toHaveLength(count);
+    // Releasing the media finishes after the app is already back.
+    manager.playerClosed();
+    manager.attachPlayer(player)();
+    await flush();
+    expect(api.leave).not.toHaveBeenCalled();
+    expect(opens).toHaveLength(count + 1);
+  });
+
   it('reports only stalls that last, then ready once playing again', async () => {
     const {api, manager, player} = await joinedAndReady();
     manager.notifyPlayerBuffering(player);

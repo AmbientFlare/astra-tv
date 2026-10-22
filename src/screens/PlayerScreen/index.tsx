@@ -1605,6 +1605,7 @@ export const PlayerScreen = ({
         recordPlaybackEvent('pause');
         isPausedRef.current = true;
         setPaused(true);
+        setStatusText('Paused');
         revealControls(false);
       });
       listen('loadedmetadata', () => {
