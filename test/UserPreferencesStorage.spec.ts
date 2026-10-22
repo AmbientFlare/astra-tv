@@ -63,3 +63,31 @@ describe('the persisted subtitle preference', () => {
     expect(preferences.subtitleMode).toBe('alwaysOff');
   });
 });
+
+describe('subtitle appearance', () => {
+  it('defaults to shadowed text for new installs and existing preferences', async () => {
+    expect((await getUserPreferences()).subtitleAppearance).toBe('shadow');
+    await AsyncStorage.setItem(KEY, JSON.stringify({subtitleMode: 'alwaysOn'}));
+    const preferences = await getUserPreferences();
+    expect(preferences.subtitleAppearance).toBe('shadow');
+    expect(preferences.subtitleMode).toBe('alwaysOn');
+  });
+
+  it('persists either appearance without changing subtitle selection', async () => {
+    await updateUserPreferences({subtitleMode: 'forcedOnly'});
+    for (const subtitleAppearance of ['background', 'shadow'] as const) {
+      await updateUserPreferences({subtitleAppearance});
+      const preferences = await getUserPreferences();
+      expect(preferences.subtitleAppearance).toBe(subtitleAppearance);
+      expect(preferences.subtitleMode).toBe('forcedOnly');
+    }
+  });
+
+  it('falls back to shadowed text for an unknown stored appearance', async () => {
+    await AsyncStorage.setItem(
+      KEY,
+      JSON.stringify({subtitleAppearance: 'unknown'}),
+    );
+    expect((await getUserPreferences()).subtitleAppearance).toBe('shadow');
+  });
+});

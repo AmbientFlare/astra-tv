@@ -68,6 +68,7 @@ jest.mock('../src/services/storage', () => ({
     preferredSubtitleLanguage: 'English',
     skipIntroCredits: 'ask',
     subtitleMode: 'default',
+    subtitleAppearance: 'shadow',
   },
   getDisplayPreferences: jest.fn(async () => ({
     imageSize: 'medium',
@@ -83,6 +84,7 @@ jest.mock('../src/services/storage', () => ({
     preferredSubtitleLanguage: 'English',
     skipIntroCredits: 'ask',
     subtitleMode: 'default',
+    subtitleAppearance: 'shadow',
   })),
   readPlaybackPreferences: jest.fn(async () => ({
     hlsSegmentLengthSeconds: 0,
@@ -179,6 +181,23 @@ describe('playback diagnostics entry points', () => {
     await waitFor(() =>
       expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
         subtitleMode: 'alwaysOff',
+      }),
+    );
+  });
+
+  it('offers subtitle appearance choices and saves the selection', async () => {
+    mockUpdateUserPreferences.mockClear();
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    await waitFor(() =>
+      expect(screen.getByText('Text with shadow')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-Subtitle appearance'));
+    expect(screen.getByText('Text with shadow')).toBeTruthy();
+    fireEvent.press(screen.getByText('Dark background'));
+    await waitFor(() =>
+      expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+        subtitleAppearance: 'background',
       }),
     );
   });
