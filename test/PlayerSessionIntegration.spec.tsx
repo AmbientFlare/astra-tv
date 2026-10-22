@@ -15,6 +15,7 @@ const deferred = <T,>() => {
 const mockVideos: any[] = [];
 const mockShakas: any[] = [];
 let mockRemote: (event: any) => void;
+let mockPlayEmitsPlaying = true;
 let mockAppState: (state: string) => void;
 const mockManager = {
   addAppStateListener: jest.fn((_event, callback) => {
@@ -30,6 +31,7 @@ jest.mock('@amazon-devices/react-native-kepler', () => ({
   },
 }));
 jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
+  KeplerMediaControlHandler: class {},
   KeplerVideoSurfaceView: 'KeplerVideoSurfaceView',
   VideoPlayer: jest.fn().mockImplementation(() => {
     const listeners = new Map<string, Set<() => void>>();
@@ -54,7 +56,9 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
     };
     v.play = jest.fn(() => {
       v.paused = false;
-      v.emit('playing');
+      if (mockPlayEmitsPlaying) {
+        v.emit('playing');
+      }
     });
     v.pause = jest.fn(() => {
       v.paused = true;
@@ -159,6 +163,267 @@ const start = async (view: ReturnType<typeof mount>) => {
 };
 
 describe('PlayerScreen native session integration', () => {
+  describe('remote seeking', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const atPosition = async (position = 100) => {
+      const view = mount();
+      await start(view);
+      const video = mockVideos[0];
+      await act(async () => {
+        video.currentTime = position;
+        video.emit('timeupdate');
+      });
+      return {view, video};
+    };
+    const press = async (eventType: string, eventKeyAction = 0) => {
+      await act(async () => {
+        mockRemote({eventType, eventKeyAction});
+        await flush();
+      });
+    };
+    const advance = async (ms = 800) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+        await flush();
+      });
+    };
+    const dispose = async (view: ReturnType<typeof mount>) => {
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    };
+
+    it('combines directional presses and ignores both key-up forms', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await press('right', 1);
+      await press('right_up');
+      await press('right');
+      await press('left');
+      expect(video.currentTime).toBe(100);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '1:50',
+      );
+      await advance();
+      expect(video.currentTime).toBe(110);
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('uses KMC exclusively for dedicated keys and shares the directional target', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      await press('skip_forward');
+      await act(async () => {
+        await handler.handleFastForward();
+      });
+      await press('right');
+      await press('skip_backward');
+      await act(async () => {
+        await handler.handleRewind();
+      });
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '1:50',
+      );
+      await advance();
+      expect(video.currentTime).toBe(110);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('cancels a preview with Back and commits early with Select', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await press('back');
+      await advance();
+      expect(video.currentTime).toBe(100);
+      await press('left');
+      await press('select');
+      expect(video.currentTime).toBe(90);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await press('select_up');
+      expect(video.paused).toBe(false);
+      await dispose(view);
+    });
+
+    it('holds the target through stale native updates and serializes subsequent seeks', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await advance();
+      await act(async () => {
+        video.currentTime = 100;
+        video.emit('timeupdate');
+      });
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '1:50',
+      );
+      await press('right');
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(100);
+      await act(async () => {
+        video.currentTime = 110;
+        video.emit('seeked');
+        await flush();
+      });
+      expect(video.currentTime).toBe(130);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('seeks a resumed HLS stream on its media timeline', async () => {
+      const {view, video} = await atPosition(0);
+      await act(async () => {
+        mockShakas[0].settings.onTimelineReady({skippedSeconds: 600});
+        video.emit('playing');
+      });
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(10);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '10:10',
+      );
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('reloads once for a combined long jump and keeps paused playback paused', async () => {
+      const {view, video} = await atPosition();
+      await act(async () => {
+        video.pause();
+      });
+      for (let n = 0; n < 6; n++) {
+        await press('right');
+      }
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await advance();
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(160 * 10000000);
+      expect(mockVideos[1].paused).toBe(true);
+      await dispose(view);
+    });
+
+    it('preserves pause after a short seek', async () => {
+      const {view, video} = await atPosition();
+      await act(async () => {
+        video.pause();
+      });
+      await press('right');
+      await advance();
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      expect(video.paused).toBe(true);
+      await dispose(view);
+    });
+
+    it('waits for a direct-file reload to seek instead of leaving a delayed resume timer', async () => {
+      (getStreamUrl as jest.Mock).mockResolvedValue({
+        ...stream,
+        url: 'https://server/video.mp4',
+      });
+      const {view} = await atPosition();
+      for (let n = 0; n < 6; n++) {
+        await press('right');
+      }
+      await advance();
+      const video = mockVideos[1];
+      expect(video.currentTime).toBe(160);
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(160);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      expect(video.currentTime).toBe(170);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('waits for a reloaded stream’s timeline before applying a queued skip', async () => {
+      const {view} = await atPosition();
+      mockPlayEmitsPlaying = false;
+      for (let n = 0; n < 6; n++) {
+        await press('right');
+      }
+      await advance();
+      expect(mockVideos).toHaveLength(2);
+      await press('right_down');
+      await advance();
+      const video = mockVideos[1];
+      expect(video.currentTime).toBe(0);
+      await act(async () => {
+        video.emit('playing');
+        await flush();
+      });
+      expect(video.currentTime).toBe(10);
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('routes absolute KMC seeks on the movie timeline', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      await act(async () => {
+        await handler.handleSeek({seconds: 120, nanoseconds: 500000000});
+      });
+      await advance();
+      expect(video.currentTime).toBe(120.5);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('recovers a missing seek completion by reloading at the requested target', async () => {
+      const {view} = await atPosition();
+      await press('right');
+      await advance();
+      await advance(15000);
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(110 * 10000000);
+      await dispose(view);
+    });
+
+    it('discards a delayed seek when the player is unmounted', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await dispose(view);
+      await advance();
+      expect(video.currentTime).toBe(100);
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('ignores duplicate surface creation while a session is playing', async () => {
     const view = mount();
     await start(view);
@@ -173,6 +438,7 @@ describe('PlayerScreen native session integration', () => {
     jest.clearAllMocks();
     mockVideos.length = 0;
     mockShakas.length = 0;
+    mockPlayEmitsPlaying = true;
     (getStreamUrl as jest.Mock).mockResolvedValue({...stream});
     (reportPlaybackStart as jest.Mock).mockResolvedValue(undefined);
     (reportPlaybackStopped as jest.Mock).mockResolvedValue(undefined);

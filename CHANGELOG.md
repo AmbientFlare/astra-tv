@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Left/right and fast-forward/rewind now accumulate into a visible target
+  using the configured seek duration. Astra seeks once after 800 ms without
+  another press; Select jumps immediately and Back dismisses the preview.
+- Video seeks wait for native completion before applying another requested
+  target. Media buttons use the same controller as directional buttons,
+  without also triggering chapter jumps. Paused playback stays paused.
+- A seek that does not complete within 15 seconds falls back to rebuilding
+  the stream at the requested position.
+
 ## 1.4.1 - 2026-10-20
 
 ### Fixed

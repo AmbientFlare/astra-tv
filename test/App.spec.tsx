@@ -99,6 +99,7 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => {
   }
 
   return {
+    KeplerMediaControlHandler: class {},
     KeplerCaptionsView: (props: Record<string, unknown>) =>
       MockReact.createElement(View, props),
     KeplerVideoSurfaceView: (props: Record<string, unknown>) =>
