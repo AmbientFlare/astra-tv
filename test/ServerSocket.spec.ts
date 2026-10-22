@@ -28,6 +28,12 @@ class FakeSocket {
   }
 }
 
+const flush = async () => {
+  for (let i = 0; i < 5; i += 1) {
+    await Promise.resolve();
+  }
+};
+
 const harness = () => {
   const sockets: FakeSocket[] = [];
   const socket = new ServerSocket((url, headers) => {
@@ -56,10 +62,12 @@ describe('ServerSocket', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  it('opens once per target and reports the open state', () => {
+  it('opens once per target and reports the open state', async () => {
     const {socket, sockets, latest} = harness();
     socket.connect('http://server', 'tok');
     socket.connect('http://server', 'tok');
+    await flush();
+    await flush();
     expect(sockets).toHaveLength(1);
     expect(latest().url).toContain('deviceId=device-1234');
     // Jellyfin 10.11 can refuse the token in the URL; the header always works.
@@ -69,9 +77,10 @@ describe('ServerSocket', () => {
     expect(socket.getSnapshot()).toMatchObject({status: 'open', opens: 1});
   });
 
-  it('answers ForceKeepAlive at half the timeout, then on an interval', () => {
+  it('answers ForceKeepAlive at half the timeout, then on an interval', async () => {
     const {socket, latest} = harness();
     socket.connect('http://server', 'tok');
+    await flush();
     latest().onopen?.();
     latest().serverSends({MessageType: 'ForceKeepAlive', Data: 60});
     expect(latest().sent).toEqual(['{"MessageType":"KeepAlive"}']);
@@ -84,11 +93,12 @@ describe('ServerSocket', () => {
     });
   });
 
-  it('passes messages to listeners and ignores junk', () => {
+  it('passes messages to listeners and ignores junk', async () => {
     const {socket, latest} = harness();
     const seen: string[] = [];
     socket.onMessage((message) => seen.push(message.MessageType));
     socket.connect('http://server', 'tok');
+    await flush();
     latest().onopen?.();
     latest().onmessage?.({data: 'not json'});
     latest().serverSends({MessageType: 'SyncPlayGroupUpdate', Data: {}});
@@ -98,9 +108,10 @@ describe('ServerSocket', () => {
     ]);
   });
 
-  it('reconnects with backoff after the server drops the socket', () => {
+  it('reconnects with backoff after the server drops the socket', async () => {
     const {socket, sockets, latest} = harness();
     socket.connect('http://server', 'tok');
+    await flush();
     latest().onopen?.();
     latest().serverSends({MessageType: 'ForceKeepAlive', Data: 60});
     latest().onclose?.({code: 1006});
@@ -109,39 +120,59 @@ describe('ServerSocket', () => {
       lastCloseCode: 1006,
     });
     jest.advanceTimersByTime(999);
+    await flush();
     expect(sockets).toHaveLength(1);
     jest.advanceTimersByTime(1);
+    await flush();
     expect(sockets).toHaveLength(2);
     // A failed retry doubles the wait.
     latest().onclose?.({code: 1006});
     jest.advanceTimersByTime(1999);
+    await flush();
     expect(sockets).toHaveLength(2);
     jest.advanceTimersByTime(1);
+    await flush();
     expect(sockets).toHaveLength(3);
     // The old socket's keep-alive died with it.
     expect(sockets[0].sent).toHaveLength(1);
   });
 
-  it('closes and stops retrying on disconnect, and ignores the old socket', () => {
+  it('closes and stops retrying on disconnect, and ignores the old socket', async () => {
     const {socket, sockets, latest} = harness();
     socket.connect('http://server', 'tok');
+    await flush();
     const first = latest();
     first.onopen?.();
     socket.disconnect();
     expect(first.closed).toBe(true);
     first.onclose?.({code: 1000});
     jest.advanceTimersByTime(60000);
+    await flush();
     expect(sockets).toHaveLength(1);
     expect(socket.getSnapshot().status).toBe('stopped');
   });
 
-  it('re-targets when the signed-in profile changes', () => {
+  it('re-targets when the signed-in profile changes', async () => {
     const {socket, sockets} = harness();
     socket.connect('http://server', 'tok-a');
+    await flush();
     socket.connect('http://server', 'tok-b');
+    await flush();
     expect(sockets).toHaveLength(2);
     expect(sockets[0].closed).toBe(true);
     expect(sockets[1].url).toContain('ApiKey=tok-b');
+  });
+
+  it('waits for the stored device id before opening', async () => {
+    const {socket, sockets} = harness();
+    socket.connect('http://server', 'tok');
+    expect(sockets).toHaveLength(0);
+    expect(socket.getSnapshot().status).toBe('connecting');
+    // A profile switch before storage answers opens only the newer target.
+    socket.connect('http://server', 'tok-b');
+    await flush();
+    expect(sockets).toHaveLength(1);
+    expect(sockets[0].url).toContain('ApiKey=tok-b');
   });
 });
 

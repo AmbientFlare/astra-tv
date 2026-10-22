@@ -8,7 +8,7 @@
  * socket open, answers the server's keep-alive and records what it saw so the
  * connection can be checked on a real device.
  */
-import {getDeviceId} from '../deviceIdentity';
+import {getDeviceId, initializeDeviceIdentity} from '../deviceIdentity';
 import {buildUrl, getAuthHeaders, getJson} from '../jellyfin/http';
 
 export type ServerSocketStatus =
@@ -196,7 +196,19 @@ export class ServerSocket {
       return;
     }
     this.update({status: 'connecting'});
+    // The socket joins the session named by its device id, and REST calls use
+    // the stored one. Opening on the placeholder id before storage is read
+    // puts the socket on a session of its own that hears nothing.
+    initializeDeviceIdentity()
+      .catch(() => undefined)
+      .then(() => {
+        if (this.target === target && !this.socket && !this.reconnectTimer) {
+          this.openSocket(target);
+        }
+      });
+  }
 
+  private openSocket(target: {serverUrl: string; accessToken: string}): void {
     let socket: SocketLike;
     try {
       socket = this.createSocket(

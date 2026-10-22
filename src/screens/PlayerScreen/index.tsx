@@ -130,6 +130,7 @@ import {
 } from '../../services/subtitles';
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {createPositionStore, PositionStore} from './positionStore';
+import {syncPlay, type SyncPlayPlayer} from '../../services/syncPlay';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -285,6 +286,22 @@ const assertPlayableUrl = (url: string) => {
   }
 };
 
+/** Resolves on the first of `events`, or after `timeoutMs` regardless. */
+const waitForVideoEvent = (
+  video: VideoPlayer,
+  events: string[],
+  timeoutMs = 8000,
+) =>
+  new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      events.forEach((event) => video.removeEventListener(event, done));
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    events.forEach((event) => video.addEventListener(event, done));
+  });
+
 export const PlayerScreen = ({
   accessToken,
   consecutiveAutoAdvances = 0,
@@ -345,6 +362,19 @@ export const PlayerScreen = ({
   const latestPositionTicks = useRef(item.resumePositionTicks ?? 0);
   const isPausedRef = useRef(false);
   const unmountedRef = useRef(false);
+  // SyncPlay holds one stable object; its methods call the latest handlers.
+  const syncPlayHandlers = useRef<Omit<SyncPlayPlayer, 'itemId'> | null>(null);
+  const syncPlayPlayer = useRef<SyncPlayPlayer>({
+    itemId: item.id,
+    getPositionTicks: () => syncPlayHandlers.current?.getPositionTicks() ?? 0,
+    isPaused: () => syncPlayHandlers.current?.isPaused() ?? true,
+    play: () => syncPlayHandlers.current?.play(),
+    pause: () => syncPlayHandlers.current?.pause(),
+    seekTicks: async (ticks, allowReload) =>
+      syncPlayHandlers.current?.seekTicks(ticks, allowReload),
+    release: async () => syncPlayHandlers.current?.release(),
+    exit: () => syncPlayHandlers.current?.exit(),
+  });
   const heartbeatRef = useRef<PlaybackHeartbeat | null>(null);
   // Last diagnostics sample, kept so session.end can report lifetime totals
   // without sampling a player that is already being torn down.
@@ -927,7 +957,12 @@ export const PlayerScreen = ({
   }, [returnToLibrary, stopPlayback]);
 
   const seekToSeconds = useCallback(
-    async (targetSeconds: number, closeSettings = false) => {
+    async (
+      targetSeconds: number,
+      closeSettings = false,
+      resume = true,
+      allowReload = true,
+    ) => {
       const video = videoRef.current;
 
       if (!video || !sessionReady.current || trackReloadInProgress.current) {
@@ -953,7 +988,9 @@ export const PlayerScreen = ({
       if (
         requiresStreamReload(fromSeconds, target, firstAvailableSeconds.current)
       ) {
-        await reloadAtSecondsRef.current?.(target);
+        if (allowReload) {
+          await reloadAtSecondsRef.current?.(target);
+        }
         return;
       }
       healthMonitor.current.reset();
@@ -987,7 +1024,7 @@ export const PlayerScreen = ({
       latestPositionTicks.current = positionTicks;
       applyPosition(target);
 
-      if (video.paused) {
+      if (video.paused && resume) {
         video.play();
         setPaused(false);
         isPausedRef.current = false;
@@ -1007,6 +1044,42 @@ export const PlayerScreen = ({
     },
     [applyPosition, item.runTimeTicks, reportProgress, scheduleControlsHide],
   );
+
+  syncPlayHandlers.current = {
+    getPositionTicks: currentPositionTicks,
+    isPaused: () => videoRef.current?.paused ?? true,
+    play: () => {
+      const video = videoRef.current;
+      if (!video || !sessionReady.current) return;
+      video.play();
+      isPausedRef.current = false;
+      setPaused(false);
+    },
+    pause: () => {
+      const video = videoRef.current;
+      if (!video) return;
+      video.pause();
+      isPausedRef.current = true;
+      setPaused(true);
+    },
+    seekTicks: async (ticks, allowReload) => {
+      const before = videoRef.current;
+      const wasPaused = before?.paused ?? true;
+      await seekToSeconds(ticks / TICKS_PER_SECOND, false, false, allowReload);
+      const video = videoRef.current;
+      if (!video) return;
+      if (video !== before) {
+        // A long jump reloaded the stream, which starts it playing.
+        if (wasPaused) syncPlayHandlers.current?.pause();
+        return;
+      }
+      await waitForVideoEvent(video, ['seeked', 'canplay', 'playing']);
+    },
+    release: () => stopPlayback(),
+    exit: handleBack,
+  };
+
+  useEffect(() => syncPlay.attachPlayer(syncPlayPlayer.current), []);
 
   const seek = useCallback(
     async (seconds: number) => {
@@ -1295,6 +1368,13 @@ export const PlayerScreen = ({
       return;
     }
 
+    if (syncPlay.controlsPlayer(item.id)) {
+      // The group decides; its command comes back and moves this player.
+      if (video.paused) syncPlay.requestUnpause();
+      else syncPlay.requestPause();
+      return;
+    }
+
     if (video.paused) {
       video.play();
       setPaused(false);
@@ -1302,7 +1382,7 @@ export const PlayerScreen = ({
       video.pause();
       setPaused(true);
     }
-  }, []);
+  }, [item.id]);
 
   const unloadAdaptivePlayer = useCallback(async () => {
     await unloadPlayer(shakaPlayerRef);
@@ -1477,6 +1557,7 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('playing');
+        syncPlay.notifyPlayerPlaying(syncPlayPlayer.current);
         const resumeTarget = pendingAdaptiveResumeSeconds.current;
         if (
           resumeTarget !== null &&
@@ -1547,6 +1628,7 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('waiting', 'waitingEventCount');
+        syncPlay.notifyPlayerBuffering(syncPlayPlayer.current);
         revealControls(false);
         setStatusText('Buffering...');
       });
@@ -1993,6 +2075,7 @@ export const PlayerScreen = ({
           isPausedRef.current = false;
           setPaused(false);
           setStarting(false);
+          syncPlay.notifyPlayerStarted(syncPlayPlayer.current);
           scheduleControlsHide();
           setStatusText('Starting video...');
         } catch (error) {
@@ -2264,6 +2347,7 @@ export const PlayerScreen = ({
       'change',
       (nextState) => {
         if (nextState === 'background') {
+          syncPlay.playerBackgrounded(syncPlayPlayer.current);
           // Release VOD resources and return to details with the saved item context.
           void stopPlaybackRef
             .current()

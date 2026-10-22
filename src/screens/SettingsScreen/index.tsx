@@ -23,6 +23,11 @@ import {
   serverSocket,
   type ServerSocketSnapshot,
 } from '../../services/serverSocket';
+import {
+  syncPlay,
+  type SyncPlayGroupInfo,
+  type SyncPlayGroupState,
+} from '../../services/syncPlay';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
 import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
 import {
@@ -73,6 +78,7 @@ type SettingsRoute =
   | {route: 'maxBitrate'}
   | {route: 'connectionTest'}
   | {route: 'liveConnection'}
+  | {route: 'syncPlay'}
   | {route: 'hlsSegmentLength'}
   | {route: 'audioChannels'}
   | {route: 'serverTranscoding'}
@@ -668,6 +674,12 @@ export const SettingsScreen = ({
               onPress={() => push({route: 'liveConnection'})}
             />
             <MenuRow
+              icon="◈"
+              title="SyncPlay"
+              subtitle="Watch in step with a group on this server"
+              onPress={() => push({route: 'syncPlay'})}
+            />
+            <MenuRow
               icon="◎"
               title="Audio output"
               subtitle="Match your TV or receiver's channel capability"
@@ -764,6 +776,8 @@ export const SettingsScreen = ({
             serverProfile={serverProfile}
           />
         );
+      case 'syncPlay':
+        return <SyncPlayPage onBack={pop} />;
       case 'liveConnection':
         return (
           <LiveConnectionPage onBack={pop} serverProfile={serverProfile} />
@@ -1251,6 +1265,124 @@ const LiveConnectionPage = ({
         onPress={runCheck}
       />
       {check ? <Text style={styles.infoText}>{check}</Text> : null}
+    </Page>
+  );
+};
+
+const syncPlayStateLabel: Record<SyncPlayGroupState, string> = {
+  Idle: 'nothing playing',
+  Waiting: 'waiting for everyone to load',
+  Paused: 'paused',
+  Playing: 'playing',
+};
+
+const SyncPlayPage = ({onBack}: {onBack: () => void}) => {
+  const [snapshot, setSnapshot] = useState(() => syncPlay.getSnapshot());
+  const [groups, setGroups] = useState<SyncPlayGroupInfo[] | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => syncPlay.onChange(setSnapshot), []);
+
+  const refresh = useCallback(async () => {
+    setMessage('Looking for groups…');
+    try {
+      const found = await syncPlay.listGroups();
+      setGroups(found);
+      setMessage(found.length ? null : 'No groups on this server right now.');
+    } catch (error) {
+      setGroups([]);
+      setMessage(
+        error instanceof Error && error.message.includes(' 403')
+          ? 'This account is not allowed to use SyncPlay.'
+          : 'Could not list groups.',
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!snapshot.group) void refresh();
+  }, [refresh, snapshot.group]);
+
+  const join = async (group: SyncPlayGroupInfo) => {
+    setMessage(`Joining ${group.GroupName}…`);
+    try {
+      await syncPlay.join(group.GroupId);
+      setMessage(null);
+    } catch {
+      setMessage('Could not join that group.');
+    }
+  };
+
+  const leave = async () => {
+    try {
+      await syncPlay.leave();
+    } catch {
+      setMessage('Could not reach the server; left the group here anyway.');
+    }
+  };
+
+  const group = snapshot.group;
+  return (
+    <Page title="SyncPlay" onBack={onBack}>
+      <Text style={styles.description}>
+        Join a group someone started from another Jellyfin app. Astra opens what
+        the group is watching and keeps it in step: play, pause and seek for
+        everyone go through the group.
+      </Text>
+      {group ? (
+        <>
+          <Text style={styles.infoText}>
+            In {group.GroupName}:{' '}
+            {snapshot.state ? syncPlayStateLabel[snapshot.state] : 'joining'}
+          </Text>
+          <Text style={styles.infoText}>
+            With: {group.Participants.join(', ') || 'just you'}
+          </Text>
+          {snapshot.lastEvent ? (
+            <Text style={styles.infoText}>Last: {snapshot.lastEvent}</Text>
+          ) : null}
+          <MenuRow
+            icon="×"
+            preferred={true}
+            title="Leave group"
+            subtitle="Stop following the group"
+            onPress={leave}
+          />
+        </>
+      ) : (
+        <>
+          {groups?.map((candidate, index) => (
+            <MenuRow
+              icon="◈"
+              key={candidate.GroupId}
+              preferred={index === 0}
+              title={candidate.GroupName}
+              subtitle={`${candidate.Participants.join(', ')} · ${
+                syncPlayStateLabel[candidate.State] ?? candidate.State
+              }`}
+              onPress={() => void join(candidate)}
+            />
+          ))}
+          <MenuRow
+            icon="↻"
+            preferred={!groups?.length}
+            title="Look again"
+            subtitle="Refresh the list of groups"
+            onPress={() => void refresh()}
+          />
+        </>
+      )}
+      {snapshot.clockOffsetMs !== null ? (
+        <Text style={styles.infoText}>
+          Server clock {snapshot.clockOffsetMs >= 0 ? '+' : ''}
+          {Math.round(snapshot.clockOffsetMs)} ms, round trip{' '}
+          {Math.round(snapshot.pingMs ?? 0)} ms
+        </Text>
+      ) : null}
+      {snapshot.lastError ? (
+        <Text style={styles.infoText}>{snapshot.lastError}</Text>
+      ) : null}
+      {message ? <Text style={styles.infoText}>{message}</Text> : null}
     </Page>
   );
 };
