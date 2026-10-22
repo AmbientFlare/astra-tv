@@ -1,4 +1,5 @@
 import React from 'react';
+import {getTrickplayInfo} from '../src/services/jellyfin/trickplay';
 import {render, act} from '@testing-library/react-native';
 import {
   startVideoEngagement,
@@ -67,6 +68,10 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
     mockVideos.push(v);
     return v;
   }),
+}));
+jest.mock('../src/services/jellyfin/trickplay', () => ({
+  ...jest.requireActual('../src/services/jellyfin/trickplay'),
+  getTrickplayInfo: jest.fn(async () => null),
 }));
 jest.mock('../src/components/VideoPauseIdleVisual', () => ({
   VideoPauseIdleVisual: () => null,
@@ -196,6 +201,72 @@ describe('PlayerScreen native session integration', () => {
       });
     };
 
+    it('accelerates a held direction without seeking at each preview step', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      for (let n = 1; n <= 25; n++) {
+        await advance(100);
+        await press('right_down');
+      }
+      expect(video.currentTime).toBe(100);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '60s steps',
+      );
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '11:50',
+      );
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await press('right_up');
+      await advance();
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(710 * 10000000);
+      await dispose(view);
+    });
+
+    it('keeps rapid taps precise when every press has a release', async () => {
+      const {view, video} = await atPosition();
+      for (let n = 0; n < 15; n++) {
+        await press('right');
+        await press('right', 1);
+        await advance(100);
+      }
+      expect(video.currentTime).toBe(100);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '4:10',
+      );
+      await advance();
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(250 * 10000000);
+      await dispose(view);
+    });
+
+    it('accelerates dedicated transport commands and resets on reversal', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      for (let n = 0; n <= 10; n++) {
+        await act(async () => {
+          await handler.handleFastForward();
+        });
+        if (n < 10) {
+          await advance(100);
+        }
+      }
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '30s steps',
+      );
+      await act(async () => {
+        await handler.handleRewind();
+      });
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '10s steps',
+      );
+      await press('skip_backward_up');
+      await press('back');
+      await advance();
+      expect(video.currentTime).toBe(100);
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await dispose(view);
+    });
+
     it('combines directional presses and ignores both key-up forms', async () => {
       const {view, video} = await atPosition();
       await press('right');
@@ -210,6 +281,22 @@ describe('PlayerScreen native session integration', () => {
       await advance();
       expect(video.currentTime).toBe(110);
       expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('keeps seeking available when thumbnail metadata fails', async () => {
+      (getTrickplayInfo as jest.Mock).mockRejectedValueOnce(
+        new Error('no previews'),
+      );
+      const {view, video} = await atPosition();
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(110);
+      expect(view.queryByTestId('player-seek-thumbnail')).toBeNull();
       await act(async () => {
         video.emit('seeked');
         await flush();
