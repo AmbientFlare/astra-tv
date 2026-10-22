@@ -29,11 +29,17 @@ import {
 } from '../screens/MusicCollectionScreen';
 import {detailRouteForItem} from './itemRoute';
 import {audioPlayback} from '../services/audioPlayer';
+import {serverSocket} from '../services/serverSocket';
+import {syncPlay} from '../services/syncPlay';
 import {NowPlayingBar} from '../components/NowPlayingBar';
 import {AudioIdleVisual} from '../components/AudioIdleVisual';
 import {NowPlayingScreen} from '../screens/NowPlayingScreen';
 import {SettingsScreen} from '../screens/SettingsScreen';
-import {JellyfinLibrary, JellyfinMediaItem} from '../services/jellyfin';
+import {
+  getItemDetails,
+  JellyfinLibrary,
+  JellyfinMediaItem,
+} from '../services/jellyfin';
 import {
   getLastUsedServerProfile,
   getUserPreferences,
@@ -66,6 +72,8 @@ type RouteEntry =
       item: JellyfinMediaItem;
       /** Unattended episode advances that led here; see PlayerScreen. */
       consecutiveAutoAdvances?: number;
+      /** Set when a SyncPlay group opened it; a new one remounts the player. */
+      syncPlayNonce?: number;
     }
   | {route: 'music'; tab?: MusicTab}
   | {route: 'musicArtist'; artistId: string}
@@ -91,6 +99,20 @@ export const RootNavigator = () => {
   // than per screen, because playback outlives any individual screen.
   useEffect(() => {
     audioPlayback.setComponentInstance(appStateManager.getComponentInstance());
+  }, [appStateManager]);
+
+  // A SyncPlay player closed by the app going to the background comes back
+  // with the app, at wherever the group has got to.
+  useEffect(() => {
+    const subscription = appStateManager.addAppStateListener(
+      'change',
+      (nextState) => {
+        if (nextState === 'active') {
+          syncPlay.appResumed();
+        }
+      },
+    );
+    return () => subscription.remove();
   }, [appStateManager]);
 
   const [route, setRoute] = useState<LaunchRoute>('loading');
@@ -139,6 +161,23 @@ export const RootNavigator = () => {
   const push = useCallback(
     (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
     [],
+  );
+
+  // In a SyncPlay group, Play plays for the whole group: the server sends
+  // the new item to every member, and this device opens it from there.
+  const playItem = useCallback(
+    (item: JellyfinMediaItem) => {
+      if (!syncPlay.isInGroup()) {
+        push({route: 'player', item});
+        return;
+      }
+      syncPlay
+        .requestPlay(item.id, item.resumePositionTicks ?? 0)
+        .catch((error) =>
+          console.warn('[Astra] SyncPlay could not start the item:', error),
+        );
+    },
+    [push],
   );
 
   // Every place a media card can be tapped routes through here, so an item's
@@ -277,6 +316,61 @@ export const RootNavigator = () => {
     pop,
     serverProfile,
   ]);
+
+  // Keep the server's live connection pointed at whoever is signed in. It
+  // follows profile switches and drops on sign-out, so pushed messages are
+  // never delivered to a session that is no longer on screen.
+  const socketServerUrl = serverProfile?.serverUrl;
+  const socketAccessToken = serverProfile?.accessToken;
+  const socketUserId = serverProfile?.userId;
+  useEffect(() => {
+    if (socketServerUrl && socketAccessToken) {
+      serverSocket.connect(socketServerUrl, socketAccessToken);
+      syncPlay.setServer({
+        serverUrl: socketServerUrl,
+        accessToken: socketAccessToken,
+        userId: socketUserId,
+      });
+    } else {
+      serverSocket.disconnect();
+      syncPlay.setServer(null);
+    }
+  }, [socketServerUrl, socketAccessToken, socketUserId]);
+
+  // A SyncPlay group picks what plays. Its item opens at the group position,
+  // replacing whatever player is on screen once that one lets go of the media.
+  useEffect(
+    () =>
+      syncPlay.onOpenRequest((request) => {
+        if (!socketServerUrl || !socketAccessToken || !socketUserId) {
+          return;
+        }
+        void (async () => {
+          try {
+            const item = await getItemDetails(
+              socketServerUrl,
+              socketAccessToken,
+              socketUserId,
+              request.itemId,
+            );
+            await syncPlay.releasePlayer();
+            const entry: RouteEntry = {
+              route: 'player',
+              item: {...item, resumePositionTicks: request.startPositionTicks},
+              syncPlayNonce: request.nonce,
+            };
+            setStack((entries) =>
+              entries[entries.length - 1]?.route === 'player'
+                ? [...entries.slice(0, -1), entry]
+                : [...entries, entry],
+            );
+          } catch (error) {
+            console.warn('[Astra] SyncPlay could not open the item:', error);
+          }
+        })();
+      }),
+    [socketServerUrl, socketAccessToken, socketUserId],
+  );
 
   const serverId = serverProfile
     ? serverCapabilityKey(serverProfile.serverUrl)
@@ -523,7 +617,7 @@ export const RootNavigator = () => {
       <ItemDetailScreen
         item={current.item}
         onBack={pop}
-        onPlay={(item) => push({route: 'player', item})}
+        onPlay={playItem}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectItem={openItem}
         onSelectPerson={(personId, personName) =>
@@ -606,9 +700,18 @@ export const RootNavigator = () => {
         item={current.item}
         // A new item is a new player: remounting releases the old media
         // element and starts the next one from a clean surface.
-        key={current.item.id}
-        onBack={pop}
-        onPlayNext={(next, {automatic}) =>
+        key={`${current.item.id}:${current.syncPlayNonce ?? ''}`}
+        onBack={() => {
+          syncPlay.playerClosed();
+          pop();
+        }}
+        onPlayNext={(next, {automatic}) => {
+          if (syncPlay.isInGroup()) {
+            // Every member reaches the end at once; letting each one start
+            // the next item would restart it for the group once per member.
+            if (!automatic) playItem(next);
+            return;
+          }
           replace({
             route: 'player',
             item: next,
@@ -616,8 +719,8 @@ export const RootNavigator = () => {
               autoAdvances,
               automatic,
             ),
-          })
-        }
+          });
+        }}
         serverUrl={serverProfile.serverUrl}
         userId={serverProfile.userId}
       />,
@@ -630,7 +733,7 @@ export const RootNavigator = () => {
         item={current.item}
         onBack={pop}
         onGoToSeries={(item) => push({route: 'detail', item})}
-        onPlay={(item) => push({route: 'player', item})}
+        onPlay={playItem}
         onSelectEpisode={(item) => push({route: 'episodeDetail', item})}
         onSelectPerson={(personId, personName) =>
           push({route: 'personDetail', personId, personName})
