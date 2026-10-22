@@ -124,6 +124,8 @@ import {
   VideoSeekController,
 } from '../../services/videoSeeking';
 import {SeekMediaControlHandler} from './SeekMediaControlHandler';
+import {SeekThumbnail} from './SeekThumbnail';
+import {SeekAcceleration} from '../../services/videoSeeking/acceleration';
 import {VideoPauseIdleVisual} from '../../components/VideoPauseIdleVisual';
 import {
   startVideoEngagement,
@@ -337,6 +339,7 @@ export const PlayerScreen = ({
     ((targetSeconds: number) => Promise<void>) | null
   >(null);
   const seekController = useRef<VideoSeekController | null>(null);
+  const seekAcceleration = useRef(new SeekAcceleration());
   const seekInPlaceAbort = useRef<AbortController | null>(null);
   const requestSkip = useRef<(delta?: number, direction?: 1 | -1) => void>(
     () => undefined,
@@ -385,6 +388,7 @@ export const PlayerScreen = ({
   const [showControls, setShowControls] = useState(true);
   const [seekPreview, setSeekPreview] = useState<number | null>(null);
   const [seekInProgress, setSeekInProgress] = useState(false);
+  const [scanStep, setScanStep] = useState<number | null>(null);
   const [isPaused, setPaused] = useState(false);
   // Playback reached its natural end and the player is sitting on the finished
   // frame. Distinct from `isPaused`: a paused movie is still the viewer's, a
@@ -1067,7 +1071,13 @@ export const PlayerScreen = ({
       apply: (target, signal) =>
         seekCallbacks.current.apply(target, false, signal),
       preview: (target) => {
+        if (target === null) {
+          seekAcceleration.current.reset();
+        }
         if (!unmountedRef.current) {
+          if (target === null) {
+            setScanStep(null);
+          }
           setSeekPreview(target);
         }
       },
@@ -1095,13 +1105,26 @@ export const PlayerScreen = ({
       return;
     }
     revealControls(false);
-    seekController.current?.skip(delta ?? direction * preferredSeekSeconds);
+    if (delta === undefined) {
+      const step = seekAcceleration.current.step(
+        direction,
+        preferredSeekSeconds,
+      );
+      setScanStep(step);
+      seekController.current?.skip(direction * step);
+    } else {
+      seekAcceleration.current.reset();
+      setScanStep(null);
+      seekController.current?.skip(delta);
+    }
   };
   requestSeek.current = (position) => {
     if (!canRequestSeek()) {
       return;
     }
     revealControls(false);
+    seekAcceleration.current.reset();
+    setScanStep(null);
     seekController.current?.request(position);
   };
 
@@ -2204,10 +2227,7 @@ export const PlayerScreen = ({
 
   useTVEventHandler((event) => {
     const rawKey = event.eventType ?? '';
-    if (rawKey.endsWith('_up') || event.eventKeyAction === 1) {
-      return;
-    }
-    const key = rawKey.replace(/_down$/, '');
+    const key = rawKey.replace(/_(up|down)$/, '');
     const seekDirection = [
       'right',
       'forward',
@@ -2218,6 +2238,12 @@ export const PlayerScreen = ({
       : ['left', 'rewind', 'skip_backward'].includes(key)
       ? -1
       : 0;
+    if (rawKey.endsWith('_up') || event.eventKeyAction === 1) {
+      if (seekDirection && seekAcceleration.current.release(seekDirection)) {
+        setScanStep(null);
+      }
+      return;
+    }
     if (seekDirection) {
       const isTransportKey = !['left', 'right'].includes(key);
       if (!isTransportKey || !mediaControlsOwnSeeking.current) {
@@ -2714,6 +2740,16 @@ export const PlayerScreen = ({
         cues={externalSubtitleCues}
         positionStore={positionStore}
       />
+      {currentStream?.mediaSourceId ? (
+        <SeekThumbnail
+          serverUrl={serverUrl}
+          accessToken={accessToken}
+          itemId={item.id}
+          mediaSourceId={currentStream.mediaSourceId}
+          userId={userId}
+          target={seekPreview}
+        />
+      ) : null}
       {isStarting || startupError ? (
         <View style={styles.startupOverlay} testID="player-startup-state">
           <Text numberOfLines={1} style={styles.startupTitle}>
@@ -2769,7 +2805,9 @@ export const PlayerScreen = ({
                 )}${
                   seekInProgress
                     ? '  •  Seeking…'
-                    : '  •  Select to jump · Back to cancel'
+                    : `  •  ${
+                        scanStep ?? preferredSeekSeconds
+                      }s steps · Select to jump · Back to cancel`
                 }`}
           </Text>
           <View style={styles.progressTrack}>
