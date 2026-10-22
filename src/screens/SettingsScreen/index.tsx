@@ -777,7 +777,7 @@ export const SettingsScreen = ({
           />
         );
       case 'syncPlay':
-        return <SyncPlayPage onBack={pop} />;
+        return <SyncPlayPage onBack={pop} userName={serverProfile.username} />;
       case 'liveConnection':
         return (
           <LiveConnectionPage onBack={pop} serverProfile={serverProfile} />
@@ -1276,7 +1276,13 @@ const syncPlayStateLabel: Record<SyncPlayGroupState, string> = {
   Playing: 'playing',
 };
 
-const SyncPlayPage = ({onBack}: {onBack: () => void}) => {
+const SyncPlayPage = ({
+  onBack,
+  userName,
+}: {
+  onBack: () => void;
+  userName?: string;
+}) => {
   const [snapshot, setSnapshot] = useState(() => syncPlay.getSnapshot());
   const [groups, setGroups] = useState<SyncPlayGroupInfo[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -1313,6 +1319,21 @@ const SyncPlayPage = ({onBack}: {onBack: () => void}) => {
     }
   };
 
+  const groupName = userName ? `${userName}'s group` : 'Astra group';
+  const create = async () => {
+    setMessage(`Starting ${groupName}…`);
+    try {
+      await syncPlay.create(groupName);
+      setMessage(null);
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message.includes(' 403')
+          ? 'This account may not start SyncPlay groups.'
+          : 'Could not start a group.',
+      );
+    }
+  };
+
   const leave = async () => {
     try {
       await syncPlay.leave();
@@ -1325,22 +1346,32 @@ const SyncPlayPage = ({onBack}: {onBack: () => void}) => {
   return (
     <Page title="SyncPlay" onBack={onBack}>
       <Text style={styles.description}>
-        Join a group someone started from another Jellyfin app. Astra opens what
-        the group is watching and keeps it in step: play, pause and seek for
-        everyone go through the group.
+        Watch together with other Jellyfin apps. Join a group, or start one and
+        pick something to play: everyone in the group opens it, and play, pause
+        and seek on any of them go to all.
       </Text>
       {group ? (
         <>
-          <Text style={styles.infoText}>
-            In {group.GroupName}:{' '}
-            {snapshot.state ? syncPlayStateLabel[snapshot.state] : 'joining'}
-          </Text>
-          <Text style={styles.infoText}>
-            With: {group.Participants.join(', ') || 'just you'}
-          </Text>
-          {snapshot.lastEvent ? (
-            <Text style={styles.infoText}>Last: {snapshot.lastEvent}</Text>
-          ) : null}
+          <View style={styles.statusLines}>
+            <Text style={[styles.infoText, styles.statusLine]}>
+              In {group.GroupName}:{' '}
+              {snapshot.state ? syncPlayStateLabel[snapshot.state] : 'joining'}
+            </Text>
+            <Text style={[styles.infoText, styles.statusLine]}>
+              With: {group.Participants.join(', ') || 'just you'}
+            </Text>
+            {!snapshot.playingItemId ? (
+              <Text style={[styles.infoText, styles.statusLine]}>
+                Nothing playing yet. Pick something and press Play to start it
+                for the group.
+              </Text>
+            ) : null}
+            {snapshot.lastEvent ? (
+              <Text style={[styles.infoText, styles.statusLine]}>
+                Last: {snapshot.lastEvent}
+              </Text>
+            ) : null}
+          </View>
           <MenuRow
             icon="×"
             preferred={true}
@@ -1364,8 +1395,15 @@ const SyncPlayPage = ({onBack}: {onBack: () => void}) => {
             />
           ))}
           <MenuRow
-            icon="↻"
+            icon="+"
             preferred={!groups?.length}
+            title="Start a group"
+            subtitle={`Others can join ${groupName}`}
+            onPress={() => void create()}
+          />
+          <MenuRow
+            icon="↻"
+            preferred={false}
             title="Look again"
             subtitle="Refresh the list of groups"
             onPress={() => void refresh()}
@@ -1587,6 +1625,12 @@ const styles = StyleSheet.create({
     color: '#B8C5CC',
     fontSize: 22,
     marginBottom: 18,
+  },
+  statusLines: {
+    gap: 4,
+  },
+  statusLine: {
+    marginTop: 0,
   },
   infoText: {
     color: '#9FB0BA',

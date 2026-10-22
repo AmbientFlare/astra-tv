@@ -20,6 +20,9 @@ const fakeApi = () => {
     leave: jest.fn(async () => undefined),
     pause: jest.fn(async () => undefined),
     unpause: jest.fn(async () => undefined),
+    seek: jest.fn(async () => undefined),
+    setNewQueue: jest.fn(async () => undefined),
+    create: jest.fn(async () => undefined),
     buffering: jest.fn(async () => undefined),
     ready: jest.fn(async () => undefined),
     ping: jest.fn(async () => undefined),
@@ -325,6 +328,45 @@ describe('SyncPlayManager', () => {
     await flush();
     expect(api.leave).not.toHaveBeenCalled();
     expect(opens).toHaveLength(count + 1);
+  });
+
+  it('hosts: creates a group, and plays for everyone through the queue', async () => {
+    const {api, groupUpdate, manager, opens} = harness();
+    await manager.create('test group');
+    expect(api.utcTime).toHaveBeenCalled();
+    expect(api.create).toHaveBeenCalledWith('test group');
+    groupUpdate('GroupJoined', {
+      GroupId: 'g1',
+      GroupName: 'test group',
+      State: 'Idle',
+      Participants: ['test'],
+      LastUpdatedAt: serverIso(Date.now()),
+    });
+    expect(manager.isInGroup()).toBe(true);
+
+    await manager.requestPlay('item-9', 30e7);
+    expect(api.setNewQueue).toHaveBeenCalledWith(['item-9'], 30e7);
+    // Nothing opens until the server hands the queue back.
+    expect(opens).toHaveLength(0);
+    groupUpdate('PlayQueue', {
+      Reason: 'NewPlaylist',
+      LastUpdate: serverIso(Date.now()),
+      Playlist: [{ItemId: 'item-9', PlaylistItemId: 'pl-9'}],
+      PlayingItemIndex: 0,
+      StartPositionTicks: 30e7,
+      IsPlaying: false,
+    });
+    expect(opens).toEqual([
+      expect.objectContaining({itemId: 'item-9', startPositionTicks: 30e7}),
+    ]);
+  });
+
+  it('asks the group to seek', async () => {
+    const {api, manager} = await joinedAndReady();
+    manager.requestSeek(-5);
+    manager.requestSeek(12e7);
+    expect(api.seek).toHaveBeenNthCalledWith(1, 0);
+    expect(api.seek).toHaveBeenNthCalledWith(2, 12e7);
   });
 
   it('reports only stalls that last, then ready once playing again', async () => {

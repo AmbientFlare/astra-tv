@@ -60,10 +60,14 @@ export const parseServerDate = (value: string): number =>
 
 export interface SyncPlayApi {
   list(): Promise<SyncPlayGroupInfo[]>;
+  create(groupName: string): Promise<void>;
   join(groupId: string): Promise<void>;
   leave(): Promise<void>;
   pause(): Promise<void>;
   unpause(): Promise<void>;
+  seek(positionTicks: number): Promise<void>;
+  /** Replaces what the group plays; every member opens it, this one too. */
+  setNewQueue(itemIds: string[], startPositionTicks: number): Promise<void>;
   buffering(report: SyncPlayReadyReport): Promise<void>;
   ready(report: SyncPlayReadyReport): Promise<void>;
   ping(ms: number): Promise<void>;
@@ -92,10 +96,22 @@ export const createSyncPlayApi = (
     );
   return {
     list: async () => (await call<SyncPlayGroupInfo[]>('SyncPlay/List')) ?? [],
+    // The group's details arrive on the socket, as they do for a join.
+    create: async (groupName) => {
+      await call('SyncPlay/New', {GroupName: groupName});
+    },
     join: (groupId) => call('SyncPlay/Join', {GroupId: groupId}),
     leave: () => call('SyncPlay/Leave', {}),
     pause: () => call('SyncPlay/Pause', {}),
     unpause: () => call('SyncPlay/Unpause', {}),
+    seek: (positionTicks) =>
+      call('SyncPlay/Seek', {PositionTicks: Math.round(positionTicks)}),
+    setNewQueue: (itemIds, startPositionTicks) =>
+      call('SyncPlay/SetNewQueue', {
+        PlayingQueue: itemIds,
+        PlayingItemPosition: 0,
+        StartPositionTicks: Math.round(startPositionTicks),
+      }),
     buffering: (report) => call('SyncPlay/Buffering', report),
     ready: (report) => call('SyncPlay/Ready', report),
     ping: (ms) => call('SyncPlay/Ping', {Ping: Math.round(ms)}),
