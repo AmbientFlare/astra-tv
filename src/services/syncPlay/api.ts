@@ -58,7 +58,12 @@ export interface SyncPlayReadyReport {
 export const parseServerDate = (value: string): number =>
   Date.parse(value.replace(/(\.\d{3})\d+/, '$1'));
 
+/** What the account may do, as set on the server per user. */
+export type SyncPlayAccess = 'CreateAndJoinGroups' | 'JoinGroups' | 'None';
+
 export interface SyncPlayApi {
+  /** This account's SyncPlay permission. */
+  access(): Promise<SyncPlayAccess>;
   list(): Promise<SyncPlayGroupInfo[]>;
   create(groupName: string): Promise<void>;
   join(groupId: string): Promise<void>;
@@ -95,6 +100,13 @@ export const createSyncPlayApi = (
       15000,
     );
   return {
+    access: async () => {
+      const user = await call<{Policy?: {SyncPlayAccess?: SyncPlayAccess}}>(
+        'Users/Me',
+      );
+      // Servers from before the setting allowed everyone.
+      return user?.Policy?.SyncPlayAccess ?? 'CreateAndJoinGroups';
+    },
     list: async () => (await call<SyncPlayGroupInfo[]>('SyncPlay/List')) ?? [],
     // The group's details arrive on the socket, as they do for a join.
     create: async (groupName) => {

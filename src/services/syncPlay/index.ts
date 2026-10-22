@@ -17,6 +17,7 @@ import {
 } from '../serverSocket';
 import * as storageAdapter from '../storageAdapter';
 import {
+  type SyncPlayAccess,
   type SyncPlayApi,
   type SyncPlayCommand,
   type SyncPlayGroupInfo,
@@ -36,6 +37,11 @@ const SEEK_TOLERANCE_TICKS = 400 * TICKS_PER_MS;
 const BUFFERING_REPORT_DELAY_MS = 1000;
 const TIME_SYNC_SAMPLES = 5;
 const TIME_SYNC_INTERVAL_MS = 60000;
+/**
+ * A second play/pause sooner than this would only undo the first before the
+ * group has answered it: a held or bouncing key, not a change of mind.
+ */
+const PLAY_PAUSE_REPEAT_MS = 1000;
 const MEMBERSHIP_KEY = 'astra.syncPlay.membership';
 /** A group left behind longer ago than this is not rejoined on its own. */
 const REJOIN_WINDOW_MS = 12 * 60 * 60 * 1000;
@@ -170,6 +176,7 @@ export class SyncPlayManager {
   private target: SyncPlayTarget | null = null;
   private pendingRejoin: SavedMembership | null = null;
   private rejoining = false;
+  private lastPlayPauseMs = -Infinity;
 
   constructor(
     private readonly socket: SocketSource = defaultSocket,
@@ -308,6 +315,10 @@ export class SyncPlayManager {
     return () => this.openListeners.delete(listener);
   }
 
+  getAccess(): Promise<SyncPlayAccess> {
+    return this.requireApi().access();
+  }
+
   listGroups(): Promise<SyncPlayGroupInfo[]> {
     return this.requireApi().list();
   }
@@ -338,11 +349,24 @@ export class SyncPlayManager {
 
   /** Local pause/play while in a group asks the group instead. */
   requestPause(): void {
-    void this.api?.pause().catch(() => this.fail('Pause request failed.'));
+    if (this.takePlayPauseTurn()) {
+      void this.api?.pause().catch(() => this.fail('Pause request failed.'));
+    }
   }
 
   requestUnpause(): void {
-    void this.api?.unpause().catch(() => this.fail('Play request failed.'));
+    if (this.takePlayPauseTurn()) {
+      void this.api?.unpause().catch(() => this.fail('Play request failed.'));
+    }
+  }
+
+  private takePlayPauseTurn(): boolean {
+    const now = this.now();
+    if (now - this.lastPlayPauseMs < PLAY_PAUSE_REPEAT_MS) {
+      return false;
+    }
+    this.lastPlayPauseMs = now;
+    return true;
   }
 
   requestSeek(ticks: number): void {

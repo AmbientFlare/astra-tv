@@ -15,6 +15,7 @@ const serverIso = (localMs: number) =>
 
 const fakeApi = () => {
   const api = {
+    access: jest.fn(async () => 'CreateAndJoinGroups' as const),
     list: jest.fn(async () => []),
     join: jest.fn(async () => undefined),
     leave: jest.fn(async () => undefined),
@@ -442,9 +443,13 @@ describe('SyncPlayManager', () => {
     expect(manager.controlsPlayer('item-1')).toBe(true);
     expect(manager.controlsPlayer('something-else')).toBe(false);
     manager.requestPause();
+    expect(api.pause).toHaveBeenCalledTimes(1);
+    // A second press before the group has answered is the same press again.
     manager.requestUnpause();
-    expect(api.pause).toHaveBeenCalled();
-    expect(api.unpause).toHaveBeenCalled();
+    expect(api.unpause).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1000);
+    manager.requestUnpause();
+    expect(api.unpause).toHaveBeenCalledTimes(1);
   });
 
   it('explains a refusal and forgets the group when the server drops it', async () => {
