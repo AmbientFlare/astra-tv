@@ -25,6 +25,7 @@ import {
 } from '../../services/serverSocket';
 import {
   syncPlay,
+  type SyncPlayAccess,
   type SyncPlayGroupInfo,
   type SyncPlayGroupState,
 } from '../../services/syncPlay';
@@ -1286,15 +1287,34 @@ const SyncPlayPage = ({
   const [snapshot, setSnapshot] = useState(() => syncPlay.getSnapshot());
   const [groups, setGroups] = useState<SyncPlayGroupInfo[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [access, setAccess] = useState<SyncPlayAccess>('CreateAndJoinGroups');
 
   useEffect(() => syncPlay.onChange(setSnapshot), []);
 
   const refresh = useCallback(async () => {
     setMessage('Looking for groups…');
+    // Unknown counts as allowed: the server still refuses what it must.
+    const allowed = await syncPlay
+      .getAccess()
+      .catch((): SyncPlayAccess => 'CreateAndJoinGroups');
+    setAccess(allowed);
+    if (allowed === 'None') {
+      setGroups([]);
+      setMessage(
+        'This account is not allowed to use SyncPlay. A server admin can allow it in the user’s settings on the server.',
+      );
+      return;
+    }
     try {
       const found = await syncPlay.listGroups();
       setGroups(found);
-      setMessage(found.length ? null : 'No groups on this server right now.');
+      setMessage(
+        found.length
+          ? null
+          : allowed === 'JoinGroups'
+          ? 'No groups on this server right now. This account can join groups but not start them.'
+          : 'No groups on this server right now.',
+      );
     } catch (error) {
       setGroups([]);
       setMessage(
@@ -1394,16 +1414,18 @@ const SyncPlayPage = ({
               onPress={() => void join(candidate)}
             />
           ))}
-          <MenuRow
-            icon="+"
-            preferred={!groups?.length}
-            title="Start a group"
-            subtitle={`Others can join ${groupName}`}
-            onPress={() => void create()}
-          />
+          {access === 'CreateAndJoinGroups' ? (
+            <MenuRow
+              icon="+"
+              preferred={!groups?.length}
+              title="Start a group"
+              subtitle={`Others can join ${groupName}`}
+              onPress={() => void create()}
+            />
+          ) : null}
           <MenuRow
             icon="↻"
-            preferred={false}
+            preferred={!groups?.length && access !== 'CreateAndJoinGroups'}
             title="Look again"
             subtitle="Refresh the list of groups"
             onPress={() => void refresh()}
