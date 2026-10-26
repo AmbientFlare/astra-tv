@@ -1,6 +1,6 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.5.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.5.1-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.5.0`, build `20261026.1`, for Fire TV
+The current release is Astra `1.5.1`, build `20261026.14`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -31,14 +31,16 @@ Appstore.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
-- Release validation: 611 tests in 66 suites, ESLint, TypeScript, Vega
+- Release validation: 732 tests in 75 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
   film was played start to finish on the same device to confirm the
   engagement fix. For 1.5.0, SyncPlay was exercised on a Vega OS 2.0 stick
   alongside Jellyfin Web: joining, hosting, play, pause, seek, rejoining after
-  a restart, and each SyncPlay permission level.
+  a restart, and each SyncPlay permission level. For 1.5.1, the crash fixes
+  were exercised on the same stick: fast focus moves on Home and the grids,
+  pressing Home mid-playback, and leaving playback twice in a row.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -53,7 +55,13 @@ Appstore.
 - Select audio and subtitle tracks and inspect playback diagnostics.
 - Render SRT/WebVTT subtitles in-app and request server burn-in for formats
   Vega cannot render reliably.
+- Choose shadowed text (default) or a dark subtitle background in
+  Settings > Playback > Subtitle appearance. Text subtitles remain visible
+  when the title and controls hide and move above the controls when shown.
+  Subtitles burned into the video keep their original appearance.
 - Show unwatched episode badges on series posters, capped at `99+`.
+- Show how many episodes of the season are left on Next Up cards and episode
+  pages.
 
 ### Music
 
@@ -98,6 +106,24 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.5.1 — Crash fixes, season counts and faster seeking — 2026-10-26
+
+- Fixed the most frequent crashes Amazon reported: leaving playback while
+  video was still loading, very large libraries loading in one response (now
+  100 items at a time), the system closing Astra in the background on 1 GB
+  sticks (caches are freed), the video surface being released late, and the
+  background image swapping after focus had moved on.
+- Added season counts to Next Up cards and episode pages (#28).
+- Seeking adds taps up into one jump, speeds up when held, and shows Trickplay
+  scene previews (#31).
+- Added Settings > Playback > Subtitle appearance and restored control
+  auto-hide after resuming (#32).
+- Added 4, 8, 12 and 20 Mbps bitrate caps, a clearer Dolby Vision Profile 5
+  error (#26), and a decoder width cap so HD-only sticks are not sent 4K
+  (#21, #25). Stats for Nerds shows the decoder the device reported.
+- Fixed home library tiles showing posters from other libraries of the same
+  kind.
 
 ### 1.5.0 — Watch together with SyncPlay — 2026-10-26
 

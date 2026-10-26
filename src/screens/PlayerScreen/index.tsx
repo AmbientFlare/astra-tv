@@ -38,6 +38,7 @@ import {
   reportPlaybackStopped,
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
+import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {getTraces, resetTraces, trace} from '../../services/logging/trace';
@@ -90,6 +91,8 @@ import {
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   DECODER_RISK_WARNING,
+  SERVER_CONVERSION_FAILED,
+  requiresServerConversion,
 } from '../../services/playbackHealth';
 import {
   getServerCapabilities,
@@ -118,6 +121,14 @@ import {
   resolveNextEpisode,
 } from '../../services/episodePlayback';
 import {audioPlayback} from '../../services/audioPlayer';
+import {
+  playMedia,
+  seekMedia,
+  VideoSeekController,
+} from '../../services/videoSeeking';
+import {SeekMediaControlHandler} from './SeekMediaControlHandler';
+import {SeekThumbnail} from './SeekThumbnail';
+import {SeekAcceleration} from '../../services/videoSeeking/acceleration';
 import {VideoPauseIdleVisual} from '../../components/VideoPauseIdleVisual';
 import {
   startVideoEngagement,
@@ -236,12 +247,17 @@ const episodeLabel = (episode: JellyfinMediaItem) => {
   return code ? `${code}  ${episode.name}` : episode.name;
 };
 
+/** Names the likely cause when a title can only play through a server re-encode. */
+export const startupFailureMessage = (
+  sourceVideoRangeType: string | undefined,
+  fallback: string,
+) =>
+  requiresServerConversion(sourceVideoRangeType)
+    ? SERVER_CONVERSION_FAILED
+    : fallback;
+
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
-
-// For content without embedded chapters, the FF/RW keys jump across this
-// many evenly spaced synthetic chapters instead.
-const SYNTHETIC_CHAPTER_COUNT = 12;
 
 /**
  * Jumps at least this far reload the stream at the target instead of seeking
@@ -286,22 +302,6 @@ const assertPlayableUrl = (url: string) => {
   }
 };
 
-/** Resolves on the first of `events`, or after `timeoutMs` regardless. */
-const waitForVideoEvent = (
-  video: VideoPlayer,
-  events: string[],
-  timeoutMs = 8000,
-) =>
-  new Promise<void>((resolve) => {
-    const done = () => {
-      clearTimeout(timer);
-      events.forEach((event) => video.removeEventListener(event, done));
-      resolve();
-    };
-    const timer = setTimeout(done, timeoutMs);
-    events.forEach((event) => video.addEventListener(event, done));
-  });
-
 export const PlayerScreen = ({
   accessToken,
   consecutiveAutoAdvances = 0,
@@ -315,6 +315,8 @@ export const PlayerScreen = ({
   const shakaPlayerRef = useRef<ShakaPlayerInstance | null>(null);
   const surfaceHandle = useRef<string | null>(null);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
+  // Survives releaseMedia, which clears streamInfo before the error is shown.
+  const sourceVideoRangeType = useRef<string | undefined>();
   const sessionController = useRef(new PlaybackSessionController());
   const activeContext = useRef<PlaybackSessionContext | null>(null);
   const reporter = useRef<OrderedPlaybackReporter<PlaybackReportInput> | null>(
@@ -347,11 +349,18 @@ export const PlayerScreen = ({
   const playbackErrorHandler = useRef<(failure: PlaybackFailure) => void>(
     () => undefined,
   );
-  // Assigned once the reload machinery below exists. jumpChapter is defined
-  // before it, so it cannot take the function as a dependency directly.
+  // Source changes and remote commands share the current seek callbacks.
   const reloadAtSecondsRef = useRef<
     ((targetSeconds: number) => Promise<void>) | null
   >(null);
+  const seekController = useRef<VideoSeekController | null>(null);
+  const seekAcceleration = useRef(new SeekAcceleration());
+  const seekInPlaceAbort = useRef<AbortController | null>(null);
+  const requestSkip = useRef<(delta?: number, direction?: 1 | -1) => void>(
+    () => undefined,
+  );
+  const requestSeek = useRef<(position: number) => void>(() => undefined);
+  const mediaControlsOwnSeeking = useRef(false);
   const playbackRecoveryAttempt = useRef(0);
   const trackReloadInProgress = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
@@ -395,6 +404,9 @@ export const PlayerScreen = ({
   const handoffInProgress = useRef(false);
   const endedHandler = useRef<() => void>(() => undefined);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controlsPinned = useRef(false);
+  const controlsAwaitingProgress = useRef(false);
+  const controlsProgressPosition = useRef(0);
   const lastHandledKeyEvent = useRef<{
     time: number;
     type?: string;
@@ -405,7 +417,14 @@ export const PlayerScreen = ({
   );
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [showControls, setShowControls] = useState(true);
+  const [seekPreview, setSeekPreview] = useState<number | null>(null);
+  const [seekInProgress, setSeekInProgress] = useState(false);
+  const [scanStep, setScanStep] = useState<number | null>(null);
   const [isPaused, setPaused] = useState(false);
+  const [isBuffering, setBuffering] = useState(false);
+  const [subtitleAppearance, setSubtitleAppearance] = useState<
+    UserPreferences['subtitleAppearance']
+  >(defaultUserPreferences.subtitleAppearance);
   // Playback reached its natural end and the player is sitting on the finished
   // frame. Distinct from `isPaused`: a paused movie is still the viewer's, a
   // finished one is not. Drives the user-engagement release below.
@@ -569,6 +588,7 @@ export const PlayerScreen = ({
       .then((preferences) => {
         if (mounted) {
           episodePreferences.current = preferences;
+          setSubtitleAppearance(preferences.subtitleAppearance);
         }
       })
       .catch((error) => {
@@ -698,9 +718,23 @@ export const PlayerScreen = ({
     };
   }, [currentStream, selectedSubtitleTrackIndex]);
 
+  const keepControlsVisible = Boolean(
+    isPaused ||
+      isBuffering ||
+      isStarting ||
+      startupError ||
+      settingsPanel ||
+      showExitConfirm ||
+      creditsPrompt ||
+      endPrompt ||
+      playbackFinished,
+  );
+  controlsPinned.current = keepControlsVisible;
+
   const currentPositionTicks = useCallback(() => {
     if (
       !sessionReady.current ||
+      seekController.current?.seeking ||
       pendingAdaptiveResumeSeconds.current !== null
     ) {
       return latestPositionTicks.current;
@@ -740,12 +774,15 @@ export const PlayerScreen = ({
     clearControlsHideTimer();
     controlsHideTimer.current = setTimeout(() => {
       const video = videoRef.current;
-      if (!video || unmountedRef.current) {
+      if (
+        !video ||
+        unmountedRef.current ||
+        !sessionReady.current ||
+        controlsPinned.current
+      ) {
         return;
       }
-      if (!video.paused) {
-        setShowControls(false);
-      }
+      setShowControls(false);
     }, CONTROL_HIDE_DELAY_MS);
   }, [clearControlsHideTimer]);
 
@@ -760,6 +797,22 @@ export const PlayerScreen = ({
     },
     [clearControlsHideTimer, scheduleControlsHide],
   );
+
+  // React state owns whether controls must stay open. Native pause getters can
+  // lag behind playback, and a timer that fires during startup must be rearmed.
+  useEffect(() => {
+    if (showControls && !keepControlsVisible) {
+      scheduleControlsHide();
+    } else {
+      clearControlsHideTimer();
+    }
+    return clearControlsHideTimer;
+  }, [
+    showControls,
+    keepControlsVisible,
+    scheduleControlsHide,
+    clearControlsHideTimer,
+  ]);
 
   const applyPendingInitialSeek = useCallback(
     (video: VideoPlayer) => {
@@ -873,6 +926,8 @@ export const PlayerScreen = ({
     setTelemetrySession(undefined);
     reportStopped();
     sessionReady.current = false;
+    seekInPlaceAbort.current?.abort();
+    seekInPlaceAbort.current = null;
     activeContext.current = null;
     healthMonitor.current.reset();
     const video = videoRef.current;
@@ -891,6 +946,14 @@ export const PlayerScreen = ({
       clearTimeout(initialSeekTimer.current);
       initialSeekTimer.current = null;
     }
+    // The surface goes first, before anything that waits: unloading can take
+    // seconds while appends finish, and a surface the system destroys in that
+    // time must not still be attached when the player is finally torn down.
+    try {
+      if (handle) video?.clearSurfaceHandle(handle);
+    } catch {
+      /* Already detached by the native surface. */
+    }
     try {
       video?.pause();
     } catch {
@@ -900,11 +963,7 @@ export const PlayerScreen = ({
       try {
         await shaka?.unload();
       } finally {
-        try {
-          if (handle) video?.clearSurfaceHandle(handle);
-        } finally {
-          await video?.deinitialize();
-        }
+        await video?.deinitialize();
       }
     })();
     releasePromise.current = cleanup;
@@ -921,6 +980,7 @@ export const PlayerScreen = ({
 
   const stopPlayback = useCallback(() => {
     latestPositionTicks.current = currentPositionTicks();
+    seekController.current?.cancel();
     sessionController.current.invalidate();
     sessionReady.current = false;
     countdownRef.current?.cancel();
@@ -961,15 +1021,21 @@ export const PlayerScreen = ({
     async (
       targetSeconds: number,
       closeSettings = false,
-      resume = true,
+      signal?: AbortController['signal'],
       allowReload = true,
     ) => {
       const video = videoRef.current;
 
-      if (!video || !sessionReady.current || trackReloadInProgress.current) {
+      if (
+        !video ||
+        !sessionReady.current ||
+        trackReloadInProgress.current ||
+        signal?.aborted
+      ) {
         return;
       }
 
+      const paused = isPausedRef.current;
       const requestedAtMs = Date.now();
       const fromSeconds = mediaToLogicalTime(
         video.currentTime,
@@ -984,7 +1050,9 @@ export const PlayerScreen = ({
         TICKS_PER_SECOND;
       const target = Math.max(
         0,
-        duration > 0 ? Math.min(duration, targetSeconds) : targetSeconds,
+        duration > 0
+          ? Math.min(Math.max(0, duration - 1), targetSeconds)
+          : targetSeconds,
       );
       if (
         requiresStreamReload(fromSeconds, target, firstAvailableSeconds.current)
@@ -1005,32 +1073,45 @@ export const PlayerScreen = ({
           : 0;
       const clampedMediaTarget =
         mediaDuration > 0 ? Math.min(mediaDuration, mediaTarget) : mediaTarget;
-      const seekableVideo = video as VideoPlayer & {
-        fastSeek?: (time: number) => void;
-      };
-
-      if (typeof seekableVideo.fastSeek === 'function') {
-        seekableVideo.fastSeek(clampedMediaTarget);
-      } else {
-        video.currentTime = clampedMediaTarget;
-      }
-      console.info('[Astra] Seek applied:', {
-        dispatchMs: Date.now() - requestedAtMs,
-        fromSeconds: Math.round(fromSeconds * 1000) / 1000,
-        mediaTargetSeconds: Math.round(clampedMediaTarget * 1000) / 1000,
-        targetSeconds: Math.round(target * 1000) / 1000,
-      });
-
       const positionTicks = toTicks(target);
       latestPositionTicks.current = positionTicks;
       applyPosition(target);
-
-      if (video.paused && resume) {
-        video.play();
-        setPaused(false);
-        isPausedRef.current = false;
+      const operation = new AbortController();
+      seekInPlaceAbort.current = operation;
+      const abort = () => operation.abort();
+      signal?.addEventListener('abort', abort, {once: true});
+      try {
+        // Let native appends settle, then wait for the seek to finish before
+        // the controller can issue another one.
+        await shakaPlayerRef.current?.waitForAppendComplete();
+        if (operation.signal.aborted || videoRef.current !== video) {
+          return;
+        }
+        await seekMedia(video, clampedMediaTarget, operation.signal);
+        if (operation.signal.aborted || videoRef.current !== video) {
+          return;
+        }
+      } catch (error) {
+        if (operation.signal.aborted || videoRef.current !== video) {
+          return;
+        }
+        trace('seek.reload', error instanceof Error ? error.message : 'failed');
+        await reloadAtSecondsRef.current?.(target);
+        return;
+      } finally {
+        signal?.removeEventListener('abort', abort);
+        if (seekInPlaceAbort.current === operation) {
+          seekInPlaceAbort.current = null;
+        }
       }
-
+      console.info('[Astra] Seek completed:', {
+        elapsedMs: Date.now() - requestedAtMs,
+        fromSeconds,
+        targetSeconds: target,
+      });
+      if (paused) {
+        video.pause();
+      }
       if (closeSettings) {
         setSettingsPanel(null);
       }
@@ -1041,20 +1122,24 @@ export const PlayerScreen = ({
         ).padStart(2, '0')}`,
       );
 
-      reportProgress(positionTicks, false);
+      reportProgress(positionTicks, paused);
     },
     [applyPosition, item.runTimeTicks, reportProgress, scheduleControlsHide],
   );
 
   const seekToSeconds = useCallback(
-    async (targetSeconds: number, closeSettings = false) => {
+    async (
+      targetSeconds: number,
+      closeSettings = false,
+      signal?: AbortController['signal'],
+    ) => {
       if (syncPlay.controlsPlayer(item.id)) {
         // The group moves everyone, this player included, when it seeks.
         if (closeSettings) setSettingsPanel(null);
         syncPlay.requestSeek(toTicks(Math.max(0, targetSeconds)));
         return;
       }
-      await moveToSeconds(targetSeconds, closeSettings);
+      await moveToSeconds(targetSeconds, closeSettings, signal);
     },
     [item.id, moveToSeconds],
   );
@@ -1079,15 +1164,19 @@ export const PlayerScreen = ({
     seekTicks: async (ticks, allowReload) => {
       const before = videoRef.current;
       const wasPaused = before?.paused ?? true;
-      await moveToSeconds(ticks / TICKS_PER_SECOND, false, false, allowReload);
+      // Resolves once the native seek has finished, and keeps a paused
+      // player paused.
+      await moveToSeconds(
+        ticks / TICKS_PER_SECOND,
+        false,
+        undefined,
+        allowReload,
+      );
       const video = videoRef.current;
-      if (!video) return;
-      if (video !== before) {
+      if (video && video !== before && wasPaused) {
         // A long jump reloaded the stream, which starts it playing.
-        if (wasPaused) syncPlayHandlers.current?.pause();
-        return;
+        syncPlayHandlers.current?.pause();
       }
-      await waitForVideoEvent(video, ['seeked', 'canplay', 'playing']);
     },
     release: () => stopPlayback(),
     exit: handleBack,
@@ -1095,87 +1184,88 @@ export const PlayerScreen = ({
 
   useEffect(() => syncPlay.attachPlayer(syncPlayPlayer.current), []);
 
-  const seek = useCallback(
-    async (seconds: number) => {
-      const video = videoRef.current;
-
-      if (!video || typeof video.currentTime !== 'number') {
-        return;
-      }
-
-      await seekToSeconds(
-        mediaToLogicalTime(
-          video.currentTime,
-          mediaTimelineOffsetSeconds.current,
-        ) + seconds,
-      );
-    },
-    [seekToSeconds],
-  );
-
-  const jumpChapter = useCallback(
-    async (direction: 1 | -1) => {
-      const video = videoRef.current;
-
-      if (!video || typeof video.currentTime !== 'number') {
-        return;
-      }
-
-      const duration = logicalDurationSeconds(
+  const seekCallbacks = useRef({
+    apply: seekToSeconds,
+    duration: (): number => 0,
+  });
+  seekCallbacks.current = {
+    apply: seekToSeconds,
+    duration: () =>
+      logicalDurationSeconds(
         streamInfo.current?.runTimeTicks ?? item.runTimeTicks,
-        video.duration,
+        videoRef.current?.duration,
         mediaTimelineOffsetSeconds.current,
-      );
-
-      if (duration <= 0) {
-        await seek(direction * preferredSeekSeconds);
-        return;
-      }
-
-      const realChapters = (item.chapters ?? [])
-        .map((chapter) => chapter.startPositionTicks / TICKS_PER_SECOND)
-        .filter((seconds) => seconds >= 0 && seconds < duration)
-        .sort((a, b) => a - b);
-      const boundaries =
-        realChapters.length >= 2
-          ? realChapters
-          : Array.from(
-              {length: SYNTHETIC_CHAPTER_COUNT},
-              (_, index) => (duration * index) / SYNTHETIC_CHAPTER_COUNT,
-            );
-      const current = mediaToLogicalTime(
-        video.currentTime,
-        mediaTimelineOffsetSeconds.current,
-      );
-      // Backward uses a small grace window so a quick double-press crosses
-      // into the previous chapter instead of re-snapping to the current one.
-      const target =
-        direction > 0
-          ? boundaries.find((seconds) => seconds > current + 2)
-          : [...boundaries].reverse().find((seconds) => seconds < current - 3);
-
-      if (target === undefined) {
-        if (direction < 0) {
-          await seekToSeconds(0);
+      ),
+  };
+  if (!seekController.current) {
+    seekController.current = new VideoSeekController({
+      position: () => currentPositionTicks() / TICKS_PER_SECOND,
+      duration: () => seekCallbacks.current.duration(),
+      apply: (target, signal) =>
+        seekCallbacks.current.apply(target, false, signal),
+      preview: (target) => {
+        if (target === null) {
+          seekAcceleration.current.reset();
         }
-        // Already in the last chapter: do nothing rather than jump to the
-        // end and accidentally finish the movie.
-        return;
-      }
+        if (!unmountedRef.current) {
+          if (target === null) {
+            setScanStep(null);
+          }
+          setSeekPreview(target);
+        }
+      },
+      onSeeking: (active) => {
+        if (!unmountedRef.current) {
+          setSeekInProgress(active);
+        }
+      },
+      onError: (error) => {
+        console.warn('[Astra] Unable to seek:', error);
+        setStatusText('Unable to seek. Please try again.');
+      },
+    });
+  }
+  const canRequestSeek = () =>
+    !unmountedRef.current &&
+    !handoffInProgress.current &&
+    !settingsPanel &&
+    !showExitConfirm &&
+    !creditsPrompt &&
+    !endPrompt &&
+    (sessionReady.current || Boolean(seekController.current?.seeking));
+  requestSkip.current = (delta, direction = 1) => {
+    if (!canRequestSeek()) {
+      return;
+    }
+    revealControls(false);
+    if (delta === undefined) {
+      const step = seekAcceleration.current.step(
+        direction,
+        preferredSeekSeconds,
+      );
+      setScanStep(step);
+      seekController.current?.skip(direction * step);
+    } else {
+      seekAcceleration.current.reset();
+      setScanStep(null);
+      seekController.current?.skip(delta);
+    }
+  };
+  requestSeek.current = (position) => {
+    if (!canRequestSeek()) {
+      return;
+    }
+    revealControls(false);
+    seekAcceleration.current.reset();
+    setScanStep(null);
+    seekController.current?.request(position);
+  };
 
-      const reloadAtSeconds = reloadAtSecondsRef.current;
-      if (
-        reloadAtSeconds &&
-        Math.abs(target - current) >= RELOAD_JUMP_THRESHOLD_SECONDS
-      ) {
-        await reloadAtSeconds(target);
-        return;
-      }
-
-      await seekToSeconds(target);
-    },
-    [item, preferredSeekSeconds, seek, seekToSeconds],
-  );
+  useEffect(() => {
+    if (seekPreview === null && !isPaused) {
+      scheduleControlsHide();
+    }
+  }, [isPaused, scheduleControlsHide, seekPreview]);
 
   const cancelCountdown = useCallback(() => {
     countdownRef.current?.cancel();
@@ -1341,6 +1431,8 @@ export const PlayerScreen = ({
   useEffect(() => {
     const inside =
       creditsWindow !== null &&
+      seekPreview === null &&
+      !seekInProgress &&
       !isStarting &&
       !endPrompt &&
       handledCreditsWindow.current !== creditsWindow.key &&
@@ -1368,7 +1460,15 @@ export const PlayerScreen = ({
       trace('credits.prompt', creditsWindow.key);
       return creditsWindow;
     });
-  }, [creditsWindow, endPrompt, isStarting, positionSeconds, skipCredits]);
+  }, [
+    creditsWindow,
+    endPrompt,
+    isStarting,
+    positionSeconds,
+    seekPreview,
+    seekInProgress,
+    skipCredits,
+  ]);
 
   const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
@@ -1572,6 +1672,9 @@ export const PlayerScreen = ({
         }
         recordPlaybackEvent('playing');
         syncPlay.notifyPlayerPlaying(syncPlayPlayer.current);
+        controlsAwaitingProgress.current = false;
+        setBuffering(false);
+        isPausedRef.current = false;
         const resumeTarget = pendingAdaptiveResumeSeconds.current;
         if (
           resumeTarget !== null &&
@@ -1644,6 +1747,9 @@ export const PlayerScreen = ({
         }
         recordPlaybackEvent('waiting', 'waitingEventCount');
         syncPlay.notifyPlayerBuffering(syncPlayPlayer.current);
+        controlsAwaitingProgress.current = true;
+        setBuffering(true);
+        controlsProgressPosition.current = video.currentTime;
         revealControls(false);
         setStatusText('Buffering...');
       });
@@ -1652,6 +1758,9 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('stalled', 'stalledEventCount');
+        controlsAwaitingProgress.current = true;
+        setBuffering(true);
+        controlsProgressPosition.current = video.currentTime;
         revealControls(false);
         setStatusText('Playback stalled. Buffering...');
       });
@@ -1661,9 +1770,22 @@ export const PlayerScreen = ({
         }
         if (
           sessionReady.current &&
+          !seekController.current?.seeking &&
           typeof video.currentTime === 'number' &&
           Number.isFinite(video.currentTime)
         ) {
+          // Some Vega streams resume with timeupdate but no new playing event.
+          // Rearm once on real progress, not on every subtitle clock tick.
+          if (
+            controlsAwaitingProgress.current &&
+            !isPausedRef.current &&
+            !video.paused &&
+            video.currentTime > controlsProgressPosition.current + 0.05
+          ) {
+            controlsAwaitingProgress.current = false;
+            setBuffering(false);
+          }
+          controlsProgressPosition.current = video.currentTime;
           const logicalTime =
             pendingAdaptiveResumeSeconds.current ??
             mediaToLogicalTime(
@@ -1738,9 +1860,23 @@ export const PlayerScreen = ({
       try {
         await video.setMediaControlFocus(
           keplerAppStateManager.getComponentInstance(),
+          new SeekMediaControlHandler(
+            (delta, direction) => {
+              if (videoRef.current === video) {
+                requestSkip.current(delta, direction);
+              }
+            },
+            (position) => {
+              if (videoRef.current === video) {
+                requestSeek.current(position);
+              }
+            },
+          ),
         );
+        mediaControlsOwnSeeking.current = true;
       } catch {
         context.assertCurrent();
+        mediaControlsOwnSeeking.current = false;
         console.warn('[Astra] Unable to claim Vega Media Controls.');
       }
       context.assertCurrent();
@@ -1783,6 +1919,7 @@ export const PlayerScreen = ({
       const sourceVideoStream = item.mediaStreams?.find(
         (track) => track.type === 'Video',
       );
+      sourceVideoRangeType.current = sourceVideoStream?.videoRangeType;
       // Most of the library is well within this decoder's comfort zone, so
       // this is a narrow exception rather than a routine re-encode: it fires
       // only for the high-bitrate Dolby Vision / HDR10+ tail. When the server
@@ -1979,6 +2116,9 @@ export const PlayerScreen = ({
       failure?: PlaybackFailure;
       reason?: string;
     } = {}) => {
+      if (reason !== 'seek') {
+        seekController.current?.cancel();
+      }
       const sourceId = streamInfo.current?.mediaSourceId;
       const priorAudioDelivery = streamInfo.current?.audioDeliveryMethod;
       reportStopped();
@@ -1989,6 +2129,7 @@ export const PlayerScreen = ({
         0,
         duration > 0 ? Math.min(duration - 1, position) : position,
       );
+      const restorePaused = reason === 'seek' && isPausedRef.current;
       const targetTicks = toTicks(target);
       trackReloadInProgress.current = true;
       sessionReady.current = false;
@@ -2066,11 +2207,10 @@ export const PlayerScreen = ({
             },
             () => trace('report.error', 'Jellyfin playback report failed'),
           );
-          pendingInitialSeekSeconds.current = isAdaptiveStream(stream.url)
-            ? null
-            : target;
+          pendingInitialSeekSeconds.current =
+            isAdaptiveStream(stream.url) || reason === 'seek' ? null : target;
           initialSeekApplied.current =
-            isAdaptiveStream(stream.url) || target === 0;
+            isAdaptiveStream(stream.url) || reason === 'seek' || target === 0;
           addSelectedSubtitleTrack(video, stream);
           await loadVideoSource(video, stream, target, context);
           context.assertCurrent();
@@ -2083,12 +2223,23 @@ export const PlayerScreen = ({
             audioStreamIndex: selectedAudioIndex.current,
             subtitleStreamIndex: selectedSubtitleIndex.current,
             positionTicks: targetTicks,
-            isPaused: false,
+            isPaused: restorePaused,
           });
-          await video.play();
+          if (reason === 'seek') {
+            await playMedia(video, context.signal);
+            context.assertCurrent();
+            if (!isAdaptiveStream(stream.url)) {
+              await seekMedia(video, target, context.signal);
+            }
+          } else {
+            await video.play();
+          }
           context.assertCurrent();
-          isPausedRef.current = false;
-          setPaused(false);
+          if (restorePaused) {
+            video.pause();
+          }
+          isPausedRef.current = restorePaused;
+          setPaused(restorePaused);
           setStarting(false);
           syncPlay.notifyPlayerStarted(syncPlayPlayer.current);
           scheduleControlsHide();
@@ -2102,7 +2253,10 @@ export const PlayerScreen = ({
           trace('session.failed', 'generation=' + context.generation);
           setStarting(false);
           setStartupError(
-            'Playback could not continue. Retry or return to the library.',
+            startupFailureMessage(
+              sourceVideoRangeType.current,
+              'Playback could not continue. Retry or return to the library.',
+            ),
           );
           setStatusText('Unable to play this stream.');
         } finally {
@@ -2172,7 +2326,7 @@ export const PlayerScreen = ({
   reloadAtSecondsRef.current = async (position) => {
     if (trackReloadInProgress.current) return;
     trace('jump.reload.start', 'toSeconds=' + position.toFixed(1));
-    await startPlayback({position, reason: 'jump'});
+    await startPlayback({position, reason: 'seek'});
   };
 
   playbackErrorHandler.current = (failure) => {
@@ -2229,7 +2383,10 @@ export const PlayerScreen = ({
           if (!unmountedRef.current) {
             setStarting(false);
             setStartupError(
-              'Playback stopped unexpectedly. Retry or return to the library.',
+              startupFailureMessage(
+                sourceVideoRangeType.current,
+                'Playback stopped unexpectedly. Retry or return to the library.',
+              ),
             );
           }
         })
@@ -2241,12 +2398,44 @@ export const PlayerScreen = ({
   };
 
   useTVEventHandler((event) => {
+    const rawKey = event.eventType ?? '';
+    const key = rawKey.replace(/_(up|down)$/, '');
+    const seekDirection = [
+      'right',
+      'forward',
+      'fast_forward',
+      'skip_forward',
+    ].includes(key)
+      ? 1
+      : ['left', 'rewind', 'skip_backward'].includes(key)
+      ? -1
+      : 0;
+    if (rawKey.endsWith('_up') || event.eventKeyAction === 1) {
+      if (seekDirection && seekAcceleration.current.release(seekDirection)) {
+        setScanStep(null);
+      }
+      return;
+    }
+    if (seekDirection) {
+      const isTransportKey = !['left', 'right'].includes(key);
+      if (!isTransportKey || !mediaControlsOwnSeeking.current) {
+        requestSkip.current(undefined, seekDirection);
+      }
+      return;
+    }
+    if (seekController.current?.pending) {
+      if (key === 'select' || key === 'back') {
+        if (key === 'select') {
+          seekController.current.commit();
+        } else {
+          seekController.current.cancelPreview();
+        }
+        return;
+      }
+    }
     const now = Date.now();
-    // Vega delivers both key phases of one physical press (down + up, and
-    // for some keys a separate "_up" event type). Deduplicate on the
-    // normalized event type alone so a single press is a single command —
-    // keying on eventKeyAction made select/menu/back fire twice.
-    const key = (event.eventType ?? '').replace(/_up$/, '');
+    // Keep duplicate non-seek actions collapsed. Seek repeats are accumulated
+    // above; key-up events never dispatch another action.
 
     if (
       lastHandledKeyEvent.current.type === key &&
@@ -2316,6 +2505,7 @@ export const PlayerScreen = ({
         break;
       case 'menu':
       case 'context_menu':
+        seekController.current?.cancelPreview();
         revealControls(false);
         setSettingsPanel((panel) => (panel ? null : 'audio'));
         break;
@@ -2329,20 +2519,6 @@ export const PlayerScreen = ({
           break;
         }
         togglePlayPause();
-        break;
-      case 'right':
-        seek(preferredSeekSeconds);
-        break;
-      case 'forward':
-      case 'skip_forward':
-        jumpChapter(1);
-        break;
-      case 'left':
-        seek(-preferredSeekSeconds);
-        break;
-      case 'rewind':
-      case 'skip_backward':
-        jumpChapter(-1);
         break;
     }
   });
@@ -2369,6 +2545,7 @@ export const PlayerScreen = ({
             .then(returnToLibrary)
             .catch(() => trace('session.background', 'native release failed'));
         } else if (nextState === 'inactive') {
+          seekController.current?.cancelPreview();
           videoRef.current?.pause();
           isPausedRef.current = true;
           setPaused(true);
@@ -2416,7 +2593,9 @@ export const PlayerScreen = ({
         healthMonitor.current.observe(
           Date.now(),
           ticks / TICKS_PER_SECOND,
-          !isPausedRef.current && !trackReloadInProgress.current,
+          !isPausedRef.current &&
+            !trackReloadInProgress.current &&
+            !seekController.current?.seeking,
         )
       ) {
         const ranges = shakaPlayerRef.current?.getDebugStats()?.buffered;
@@ -2685,6 +2864,14 @@ export const PlayerScreen = ({
   const onSurfaceViewDestroyed = useCallback(
     (handle: string) => {
       if (surfaceHandle.current !== handle) return;
+      // Detach now, as the surface goes, rather than when the queued release
+      // reaches it; the release then has no surface left to clear.
+      surfaceHandle.current = null;
+      try {
+        videoRef.current?.clearSurfaceHandle(handle);
+      } catch {
+        /* The native side may already have let it go. */
+      }
       void stopPlaybackRef
         .current()
         .then(returnToLibrary)
@@ -2702,12 +2889,18 @@ export const PlayerScreen = ({
     durationSeconds > 0
       ? `${Math.min(
           100,
-          Math.max(0, (positionSeconds / durationSeconds) * 100),
+          Math.max(
+            0,
+            ((seekPreview ?? positionSeconds) / durationSeconds) * 100,
+          ),
         )}%`
       : '0%';
   const progressWidth = progressPercent as `${number}%`;
   const controlsVisible =
-    showControls || Boolean(settingsPanel) || showExitConfirm;
+    showControls ||
+    seekPreview !== null ||
+    Boolean(settingsPanel) ||
+    showExitConfirm;
   const startupItemLabel =
     item.type === 'Episode'
       ? 'episode'
@@ -2727,7 +2920,19 @@ export const PlayerScreen = ({
       <ExternalSubtitleOverlay
         cues={externalSubtitleCues}
         positionStore={positionStore}
+        controlsVisible={controlsVisible}
+        appearance={subtitleAppearance}
       />
+      {currentStream?.mediaSourceId ? (
+        <SeekThumbnail
+          serverUrl={serverUrl}
+          accessToken={accessToken}
+          itemId={item.id}
+          mediaSourceId={currentStream.mediaSourceId}
+          userId={userId}
+          target={seekPreview}
+        />
+      ) : null}
       {isStarting || startupError ? (
         <View style={styles.startupOverlay} testID="player-startup-state">
           <Text numberOfLines={1} style={styles.startupTitle}>
@@ -2771,11 +2976,23 @@ export const PlayerScreen = ({
         </View>
       ) : null}
       {controlsVisible ? (
-        <View style={styles.overlay}>
+        <View style={styles.overlay} testID="player-controls-overlay">
           <Text numberOfLines={1} style={styles.title}>
             {item.name}
           </Text>
-          <Text style={styles.status}>{statusText}</Text>
+          <Text style={styles.status} testID="player-seek-preview">
+            {seekPreview === null
+              ? statusText
+              : `${formatDiagnosticTime(seekPreview)} / ${formatDiagnosticTime(
+                  durationSeconds,
+                )}${
+                  seekInProgress
+                    ? '  •  Seeking…'
+                    : `  •  ${
+                        scanStep ?? preferredSeekSeconds
+                      }s steps · Select to jump · Back to cancel`
+                }`}
+          </Text>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, {width: progressWidth}]} />
           </View>
@@ -3087,9 +3304,13 @@ const formatDiagnosticTime = (seconds: number) =>
 export const ExternalSubtitleOverlay = ({
   cues,
   positionStore,
+  controlsVisible = false,
+  appearance = 'shadow',
 }: {
   cues: WebVttCue[];
   positionStore: PositionStore;
+  controlsVisible?: boolean;
+  appearance?: UserPreferences['subtitleAppearance'];
 }) => {
   const [text, setText] = useState(() =>
     activeWebVttText(cues, positionStore.get()),
@@ -3113,9 +3334,18 @@ export const ExternalSubtitleOverlay = ({
   return (
     <View
       pointerEvents="none"
-      style={styles.subtitleOverlay}
+      style={[
+        styles.subtitleOverlay,
+        controlsVisible && styles.subtitleAboveControls,
+      ]}
       testID="player-external-subtitle">
-      <Text style={styles.subtitleText}>{text}</Text>
+      <Text
+        style={[
+          styles.subtitleText,
+          appearance === 'background' && styles.subtitleBackground,
+        ]}>
+        {text}
+      </Text>
     </View>
   );
 };
@@ -3232,6 +3462,11 @@ export const PlaybackStatsOverlay = ({
           }`}
         </Text>
       ) : null}
+      {streamInfo.videoDecodeLimits ? (
+        <Text style={styles.statsLine}>
+          {`Decoder  ${describeDecodeLimits(streamInfo.videoDecodeLimits)}`}
+        </Text>
+      ) : null}
       <Text style={styles.statsLine}>
         {`Audio policy  ${
           streamInfo.audioTranscodePolicy?.toUpperCase() ?? 'AAC'
@@ -3293,7 +3528,7 @@ export const PlaybackStatsOverlay = ({
       </Text>
       {streamInfo.transcodeReasons?.length ? (
         <Text style={styles.statsLine}>
-          {`Reason  ${streamInfo.transcodeReasons.join(', ')}`}
+          {`Server reason  ${streamInfo.transcodeReasons.join(', ')}`}
         </Text>
       ) : null}
       {/* Playback traces. JS console output reaches no artifact that
@@ -3376,8 +3611,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   subtitleText: {
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 5,
+    backgroundColor: 'transparent',
     color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '600',
@@ -3385,6 +3619,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     textAlign: 'center',
+    textShadowColor: '#000000',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 3,
+  },
+  subtitleBackground: {
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderRadius: 5,
+    textShadowRadius: 0,
+  },
+  subtitleAboveControls: {
+    bottom: 240,
   },
   decoderWarning: {
     position: 'absolute',

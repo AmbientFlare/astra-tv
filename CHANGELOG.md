@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.5.1 - 2026-10-26
+
+### Added
+
+- Next Up cards show how many episodes of that season are still unwatched,
+  and an episode's page lists the rest of its season with the count in its
+  info line, so you can tell how much is left (#28).
+- Seeking: left/right and fast-forward/rewind add up into a visible target
+  using the configured seek step. Astra seeks once after 800 ms without
+  another press; Select jumps at once and Back cancels. Holding a direction
+  speeds the step up after one second and again after 2.5 seconds, up to 60
+  seconds a step. Scene thumbnails show while seeking when Jellyfin has
+  generated Trickplay images. Paused playback stays paused (#31).
+- Settings → Playback → Subtitle appearance: text with a shadow (the new
+  default) or on a dark background. The playback controls hide again five
+  seconds after playback resumes (#32).
+- Bitrate caps of 4, 8, 12 and 20 Mbps. The lowest was 40 Mbps, too high to
+  make the server downscale (#21, #26).
+- Stats for Nerds shows what the device reported its video decoder can take
+  and whether that capped the stream. The line that showed Jellyfin's
+  transcode reason is now labelled "Server reason": it explains why the
+  server converts the file, not why playback failed (#21).
+
+### Fixed
+
+- 4K files would not play on HD-only (1080p) sticks: the server offered the
+  stream at full 4K, which the stick cannot decode. When the device reports a
+  decoder narrower than 4K, Astra now asks the server to downscale (#21, #25).
+- When a Dolby Vision Profile 5 film fails to start, Astra says the server's
+  conversion failed and points at tone mapping and the bitrate cap, instead
+  of a generic error (#26).
+- Home library tiles showed the newest posters from every library of that
+  kind, so a private library's posters could appear on another tile. Each
+  tile now shows only its own library.
+- Crashes:
+  - Leaving playback while video was still loading could crash the player.
+    Stopping now waits for the data already being loaded, for up to three
+    seconds.
+  - A very large library loaded as one response, long enough for the system
+    to kill Astra as unresponsive. The grid now loads 100 items at a time.
+  - Astra frees cached library details when sent to the background or warned
+    about memory, so the system is less likely to close it on 1 GB sticks.
+  - The video surface is released as soon as it goes away, instead of after
+    the rest of playback shuts down.
+  - Moving quickly between items could swap the background image after the
+    screen had moved on.
+
 ## 1.5.0 - 2026-10-26
 
 ### Added

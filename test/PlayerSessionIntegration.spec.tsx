@@ -1,4 +1,6 @@
 import React from 'react';
+import {StyleSheet} from 'react-native';
+import {getTrickplayInfo} from '../src/services/jellyfin/trickplay';
 import {render, act} from '@testing-library/react-native';
 import {
   startVideoEngagement,
@@ -15,6 +17,7 @@ const deferred = <T,>() => {
 const mockVideos: any[] = [];
 const mockShakas: any[] = [];
 let mockRemote: (event: any) => void;
+let mockPlayEmitsPlaying = true;
 let mockAppState: (state: string) => void;
 const mockManager = {
   addAppStateListener: jest.fn((_event, callback) => {
@@ -30,6 +33,7 @@ jest.mock('@amazon-devices/react-native-kepler', () => ({
   },
 }));
 jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
+  KeplerMediaControlHandler: class {},
   KeplerVideoSurfaceView: 'KeplerVideoSurfaceView',
   VideoPlayer: jest.fn().mockImplementation(() => {
     const listeners = new Map<string, Set<() => void>>();
@@ -54,7 +58,9 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
     };
     v.play = jest.fn(() => {
       v.paused = false;
-      v.emit('playing');
+      if (mockPlayEmitsPlaying) {
+        v.emit('playing');
+      }
     });
     v.pause = jest.fn(() => {
       v.paused = true;
@@ -63,6 +69,10 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
     mockVideos.push(v);
     return v;
   }),
+}));
+jest.mock('../src/services/jellyfin/trickplay', () => ({
+  ...jest.requireActual('../src/services/jellyfin/trickplay'),
+  getTrickplayInfo: jest.fn(async () => null),
 }));
 jest.mock('../src/components/VideoPauseIdleVisual', () => ({
   VideoPauseIdleVisual: () => null,
@@ -80,6 +90,7 @@ jest.mock('../src/services/storage', () => ({
     nextEpisodeAutoplay: false,
     nextEpisodeCountdownSeconds: 15,
     skipIntroCredits: 'ask',
+    subtitleAppearance: 'shadow',
   },
   readPlaybackPreferences: jest.fn(async () => ({
     seekDurationSeconds: 10,
@@ -89,6 +100,7 @@ jest.mock('../src/services/storage', () => ({
     nextEpisodeAutoplay: false,
     nextEpisodeCountdownSeconds: 15,
     skipIntroCredits: 'ask',
+    subtitleAppearance: 'shadow',
   })),
 }));
 jest.mock('../src/services/jellyfin', () => ({
@@ -118,7 +130,10 @@ jest.mock('../src/w3cmedia/shakaplayer/ShakaPlayer', () => ({
 import {
   PlayerScreen,
   PlaybackSettingsOverlay,
+  ExternalSubtitleOverlay,
 } from '../src/screens/PlayerScreen';
+import {getUserPreferences} from '../src/services/storage';
+import {createPositionStore} from '../src/screens/PlayerScreen/positionStore';
 import {
   getStreamUrl,
   reportPlaybackStart,
@@ -159,6 +174,349 @@ const start = async (view: ReturnType<typeof mount>) => {
 };
 
 describe('PlayerScreen native session integration', () => {
+  describe('remote seeking', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const atPosition = async (position = 100) => {
+      const view = mount();
+      await start(view);
+      const video = mockVideos[0];
+      await act(async () => {
+        video.currentTime = position;
+        video.emit('timeupdate');
+      });
+      return {view, video};
+    };
+    const press = async (eventType: string, eventKeyAction = 0) => {
+      await act(async () => {
+        mockRemote({eventType, eventKeyAction});
+        await flush();
+      });
+    };
+    const advance = async (ms = 800) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+        await flush();
+      });
+    };
+    const dispose = async (view: ReturnType<typeof mount>) => {
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    };
+
+    it('accelerates a held direction without seeking at each preview step', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      for (let n = 1; n <= 25; n++) {
+        await advance(100);
+        await press('right_down');
+      }
+      expect(video.currentTime).toBe(100);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '60s steps',
+      );
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '11:50',
+      );
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await press('right_up');
+      await advance();
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(710 * 10000000);
+      await dispose(view);
+    });
+
+    it('keeps rapid taps precise when every press has a release', async () => {
+      const {view, video} = await atPosition();
+      for (let n = 0; n < 15; n++) {
+        await press('right');
+        await press('right', 1);
+        await advance(100);
+      }
+      expect(video.currentTime).toBe(100);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '4:10',
+      );
+      await advance();
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(250 * 10000000);
+      await dispose(view);
+    });
+
+    it('accelerates dedicated transport commands and resets on reversal', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      for (let n = 0; n <= 10; n++) {
+        await act(async () => {
+          await handler.handleFastForward();
+        });
+        if (n < 10) {
+          await advance(100);
+        }
+      }
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '30s steps',
+      );
+      await act(async () => {
+        await handler.handleRewind();
+      });
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '10s steps',
+      );
+      await press('skip_backward_up');
+      await press('back');
+      await advance();
+      expect(video.currentTime).toBe(100);
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await dispose(view);
+    });
+
+    it('combines directional presses and ignores both key-up forms', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await press('right', 1);
+      await press('right_up');
+      await press('right');
+      await press('left');
+      expect(video.currentTime).toBe(100);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '1:50',
+      );
+      await advance();
+      expect(video.currentTime).toBe(110);
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('keeps seeking available when thumbnail metadata fails', async () => {
+      (getTrickplayInfo as jest.Mock).mockRejectedValueOnce(
+        new Error('no previews'),
+      );
+      const {view, video} = await atPosition();
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(110);
+      expect(view.queryByTestId('player-seek-thumbnail')).toBeNull();
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('uses KMC exclusively for dedicated keys and shares the directional target', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      await press('skip_forward');
+      await act(async () => {
+        await handler.handleFastForward();
+      });
+      await press('right');
+      await press('skip_backward');
+      await act(async () => {
+        await handler.handleRewind();
+      });
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '1:50',
+      );
+      await advance();
+      expect(video.currentTime).toBe(110);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('cancels a preview with Back and commits early with Select', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await press('back');
+      await advance();
+      expect(video.currentTime).toBe(100);
+      await press('left');
+      await press('select');
+      expect(video.currentTime).toBe(90);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await press('select_up');
+      expect(video.paused).toBe(false);
+      await dispose(view);
+    });
+
+    it('holds the target through stale native updates and serializes subsequent seeks', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await advance();
+      await act(async () => {
+        video.currentTime = 100;
+        video.emit('timeupdate');
+      });
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '1:50',
+      );
+      await press('right');
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(100);
+      await act(async () => {
+        video.currentTime = 110;
+        video.emit('seeked');
+        await flush();
+      });
+      expect(video.currentTime).toBe(130);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('seeks a resumed HLS stream on its media timeline', async () => {
+      const {view, video} = await atPosition(0);
+      await act(async () => {
+        mockShakas[0].settings.onTimelineReady({skippedSeconds: 600});
+        video.emit('playing');
+      });
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(10);
+      expect(view.getByTestId('player-seek-preview').props.children).toContain(
+        '10:10',
+      );
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('reloads once for a combined long jump and keeps paused playback paused', async () => {
+      const {view, video} = await atPosition();
+      await act(async () => {
+        video.pause();
+      });
+      for (let n = 0; n < 6; n++) {
+        await press('right');
+      }
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      await advance();
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(160 * 10000000);
+      expect(mockVideos[1].paused).toBe(true);
+      await dispose(view);
+    });
+
+    it('preserves pause after a short seek', async () => {
+      const {view, video} = await atPosition();
+      await act(async () => {
+        video.pause();
+      });
+      await press('right');
+      await advance();
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      expect(video.paused).toBe(true);
+      await dispose(view);
+    });
+
+    it('waits for a direct-file reload to seek instead of leaving a delayed resume timer', async () => {
+      (getStreamUrl as jest.Mock).mockResolvedValue({
+        ...stream,
+        url: 'https://server/video.mp4',
+      });
+      const {view} = await atPosition();
+      for (let n = 0; n < 6; n++) {
+        await press('right');
+      }
+      await advance();
+      const video = mockVideos[1];
+      expect(video.currentTime).toBe(160);
+      await press('right');
+      await advance();
+      expect(video.currentTime).toBe(160);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      expect(video.currentTime).toBe(170);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('waits for a reloaded stream’s timeline before applying a queued skip', async () => {
+      const {view} = await atPosition();
+      mockPlayEmitsPlaying = false;
+      for (let n = 0; n < 6; n++) {
+        await press('right');
+      }
+      await advance();
+      expect(mockVideos).toHaveLength(2);
+      await press('right_down');
+      await advance();
+      const video = mockVideos[1];
+      expect(video.currentTime).toBe(0);
+      await act(async () => {
+        video.emit('playing');
+        await flush();
+      });
+      expect(video.currentTime).toBe(10);
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('routes absolute KMC seeks on the movie timeline', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      await act(async () => {
+        await handler.handleSeek({seconds: 120, nanoseconds: 500000000});
+      });
+      await advance();
+      expect(video.currentTime).toBe(120.5);
+      await act(async () => {
+        video.emit('seeked');
+        await flush();
+      });
+      await dispose(view);
+    });
+
+    it('recovers a missing seek completion by reloading at the requested target', async () => {
+      const {view} = await atPosition();
+      await press('right');
+      await advance();
+      await advance(15000);
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(110 * 10000000);
+      await dispose(view);
+    });
+
+    it('discards a delayed seek when the player is unmounted', async () => {
+      const {view, video} = await atPosition();
+      await press('right');
+      await dispose(view);
+      await advance();
+      expect(video.currentTime).toBe(100);
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('ignores duplicate surface creation while a session is playing', async () => {
     const view = mount();
     await start(view);
@@ -173,6 +531,7 @@ describe('PlayerScreen native session integration', () => {
     jest.clearAllMocks();
     mockVideos.length = 0;
     mockShakas.length = 0;
+    mockPlayEmitsPlaying = true;
     (getStreamUrl as jest.Mock).mockResolvedValue({...stream});
     (reportPlaybackStart as jest.Mock).mockResolvedValue(undefined);
     (reportPlaybackStopped as jest.Mock).mockResolvedValue(undefined);
@@ -429,5 +788,245 @@ describe('PlayerScreen native session integration', () => {
     expect(mockVideos[0].deinitialize).toHaveBeenCalledTimes(1);
     expect(onBack).toHaveBeenCalledTimes(1);
     view.unmount();
+  });
+
+  it('lets go of a destroyed surface at once, before the release that waits', async () => {
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+      />,
+    );
+    await start(view);
+    const video = mockVideos[0];
+    act(() => {
+      view
+        .getByTestId('player-video-surface')
+        .props.onSurfaceViewDestroyed('surface');
+    });
+    // Synchronous: nothing queued has run yet.
+    expect(video.clearSurfaceHandle).toHaveBeenCalledWith('surface');
+    expect(video.deinitialize).not.toHaveBeenCalled();
+    await act(async () => {
+      await flush();
+    });
+    expect(video.clearSurfaceHandle).toHaveBeenCalledTimes(1);
+    expect(video.deinitialize).toHaveBeenCalledTimes(1);
+    expect(video.clearSurfaceHandle.mock.invocationCallOrder[0]).toBeLessThan(
+      video.pause.mock.invocationCallOrder.at(-1),
+    );
+    view.unmount();
+  });
+
+  it('clears the surface before pausing when playback is closed', async () => {
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+      />,
+    );
+    await start(view);
+    const video = mockVideos[0];
+    video.pause.mockClear();
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+    expect(video.clearSurfaceHandle).toHaveBeenCalledTimes(1);
+    expect(video.clearSurfaceHandle.mock.invocationCallOrder[0]).toBeLessThan(
+      video.pause.mock.invocationCallOrder[0],
+    );
+    expect(video.deinitialize).toHaveBeenCalledTimes(1);
+  });
+
+  describe('subtitle presentation and controls', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const advance = async (milliseconds = 5000) => {
+      await act(async () => {
+        jest.advanceTimersByTime(milliseconds);
+        await flush();
+      });
+    };
+    const dispose = async (view: ReturnType<typeof mount>) => {
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    };
+
+    it('renders readable subtitle text over the video without a background box', () => {
+      const positionStore = createPositionStore(10);
+      const cues = [
+        {startTime: 10, endTime: 15, text: 'First line\nSecond line'},
+      ];
+      const view = render(
+        <ExternalSubtitleOverlay cues={cues} positionStore={positionStore} />,
+      );
+      const textStyle = StyleSheet.flatten(
+        view.getByText('First line\nSecond line').props.style,
+      );
+      expect(textStyle.backgroundColor).toBe('transparent');
+      expect(textStyle.color).toBe('#FFFFFF');
+      expect(textStyle.textShadowColor).toBe('#000000');
+      expect(textStyle.textShadowRadius).toBeGreaterThan(0);
+      const normalBottom = StyleSheet.flatten(
+        view.getByTestId('player-external-subtitle').props.style,
+      ).bottom;
+      view.update(
+        <ExternalSubtitleOverlay
+          cues={cues}
+          positionStore={positionStore}
+          controlsVisible
+        />,
+      );
+      expect(
+        StyleSheet.flatten(
+          view.getByTestId('player-external-subtitle').props.style,
+        ).bottom,
+      ).toBeGreaterThan(normalBottom);
+      view.update(
+        <ExternalSubtitleOverlay
+          cues={cues}
+          positionStore={positionStore}
+          appearance="background"
+        />,
+      );
+      expect(
+        StyleSheet.flatten(
+          view.getByText('First line\nSecond line').props.style,
+        ).backgroundColor,
+      ).toBe('rgba(0,0,0,0.78)');
+      act(() => positionStore.set(16));
+      expect(view.queryByTestId('player-external-subtitle')).toBeNull();
+      view.unmount();
+    });
+
+    it.each(['shadow', 'background'] as const)(
+      'loads the saved %s appearance and keeps cues updating after controls hide',
+      async (appearance) => {
+        (getUserPreferences as jest.Mock).mockResolvedValueOnce({
+          nextEpisodeAutoplay: false,
+          nextEpisodeCountdownSeconds: 15,
+          skipIntroCredits: 'ask',
+          subtitleAppearance: appearance,
+        });
+        const previousFetch = global.fetch;
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          text: async () =>
+            'WEBVTT\n\n00:00:00.000 --> 00:00:10.000\nFirst subtitle\n\n00:00:10.000 --> 00:00:20.000\nNext subtitle',
+        });
+        (getStreamUrl as jest.Mock).mockResolvedValue({
+          ...stream,
+          subtitleStreamIndex: 2,
+          subtitleTracks: [
+            {
+              index: 2,
+              deliveryUrl: 'https://server/subtitles.vtt',
+              burnInRequired: false,
+            },
+          ],
+        });
+        const view = mount();
+        try {
+          await start(view);
+          expect(
+            StyleSheet.flatten(view.getByText('First subtitle').props.style)
+              .backgroundColor,
+          ).toBe(appearance === 'shadow' ? 'transparent' : 'rgba(0,0,0,0.78)');
+          const raisedBottom = StyleSheet.flatten(
+            view.getByTestId('player-external-subtitle').props.style,
+          ).bottom;
+          await advance();
+          expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+          expect(view.getByText('First subtitle')).toBeTruthy();
+          expect(
+            StyleSheet.flatten(
+              view.getByTestId('player-external-subtitle').props.style,
+            ).bottom,
+          ).toBeLessThan(raisedBottom);
+          await act(async () => {
+            mockVideos[0].currentTime = 12;
+            mockVideos[0].emit('timeupdate');
+          });
+          expect(view.getByText('Next subtitle')).toBeTruthy();
+          expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+        } finally {
+          await dispose(view);
+          global.fetch = previousFetch;
+        }
+      },
+    );
+
+    it('keeps controls visible while paused, then hides after playback resumes', async () => {
+      const view = mount();
+      await start(view);
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await act(async () => {
+        mockVideos[0].pause();
+      });
+      await advance(6000);
+      expect(view.getByTestId('player-controls-overlay')).toBeTruthy();
+      await act(async () => {
+        mockVideos[0].play();
+      });
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await dispose(view);
+    });
+
+    it.each(['waiting', 'stalled'])(
+      'rearms hiding after %s ends with progress but no playing event',
+      async (event) => {
+        const view = mount();
+        await start(view);
+        await advance();
+        await act(async () => {
+          mockVideos[0].emit(event);
+        });
+        await advance(6000);
+        expect(view.getByTestId('player-controls-overlay')).toBeTruthy();
+        for (let seconds = 1; seconds <= 5; seconds++) {
+          await act(async () => {
+            mockVideos[0].currentTime = seconds;
+            mockVideos[0].emit('timeupdate');
+          });
+          await advance(1000);
+        }
+        expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+        await dispose(view);
+      },
+    );
+
+    it('uses playback state when the native paused getter lags behind playing', async () => {
+      const view = mount();
+      await start(view);
+      // No pause event: the getter alone is stale, playback is still active.
+      mockVideos[0].paused = true;
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await dispose(view);
+    });
+
+    it('pins settings until closed, then restarts the hide timer', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => {
+        mockRemote({eventType: 'menu'});
+      });
+      await advance(6000);
+      expect(view.getByTestId('player-controls-overlay')).toBeTruthy();
+      await act(async () => {
+        mockRemote({eventType: 'back'});
+      });
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await dispose(view);
+    });
   });
 });

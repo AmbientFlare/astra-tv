@@ -153,4 +153,58 @@ describe('actual Shaka wrapper error and cancellation channels', () => {
     expect(mockPlayers[0].unload).toHaveBeenCalledTimes(1);
     expect(mockPlayers[0].destroy).toHaveBeenCalledTimes(1);
   });
+
+  const appendingBuffer = () => {
+    const listeners = new Map<string, () => void>();
+    return {
+      updating: true,
+      addEventListener: (event: string, fn: () => void) => {
+        listeners.set(event, fn);
+      },
+      removeEventListener: (event: string) => {
+        listeners.delete(event);
+      },
+      emit: (event: string) => listeners.get(event)?.(),
+    };
+  };
+  const startNativeAppend = (wrapper: ShakaPlayer) => {
+    const source = appendingBuffer();
+    (wrapper as any).bufferOperations.track(source, () => undefined, true);
+    return source;
+  };
+  const flush = async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
+  };
+
+  it('does not unload Shaka while a native append is still in flight', async () => {
+    const wrapper = new ShakaPlayer(null, settings);
+    await wrapper.load(content, false);
+    const source = startNativeAppend(wrapper);
+    const cancelled = wrapper.cancelLoad();
+    await flush();
+    expect(mockPlayers[0].unload).not.toHaveBeenCalled();
+    source.updating = false;
+    source.emit('updateend');
+    await cancelled;
+    expect(mockPlayers[0].unload).toHaveBeenCalledTimes(1);
+  });
+
+  it('unloads anyway once a stalled append outlasts the cancel bound', async () => {
+    jest.useFakeTimers();
+    try {
+      const wrapper = new ShakaPlayer(null, settings);
+      await wrapper.load(content, false);
+      startNativeAppend(wrapper);
+      const cancelled = wrapper.cancelLoad();
+      await flush();
+      expect(mockPlayers[0].unload).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(3000);
+      await cancelled;
+      expect(mockPlayers[0].unload).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });

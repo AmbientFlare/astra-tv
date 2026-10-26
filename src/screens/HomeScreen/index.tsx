@@ -3,7 +3,7 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
-import {MediaCard} from '../../components/MediaCard';
+import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
@@ -13,6 +13,7 @@ import {
   getLibraries,
   getLatestItems,
   getLatestItemsInLibrary,
+  getLibraryArtwork,
   getNextUp,
   getResumeItems,
   JellyfinLibrary,
@@ -50,8 +51,11 @@ export const HomeScreen = ({
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
+  // Keyed by library id. Keying by kind once gave every movie library the
+  // same collage, drawn from all of them, so a private library's posters
+  // showed on the others' tiles.
   const [libraryArtwork, setLibraryArtwork] = useState<
-    Partial<Record<NavEntry['kind'], string[]>>
+    Record<string, string[]>
   >({});
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
@@ -169,42 +173,53 @@ export const HomeScreen = ({
           .sort(() => Math.random() - 0.5)
           .slice(0, 6);
 
-      const results = await Promise.allSettled([
-        getLatestItems(
-          serverProfile.serverUrl,
-          serverProfile.accessToken,
-          serverProfile.userId,
-          'Movie',
-        ),
-        getLatestItems(
-          serverProfile.serverUrl,
-          serverProfile.accessToken,
-          serverProfile.userId,
-          'Series',
-        ),
-        musicSession
-          ? getAlbums(musicSession, {limit: 24})
-          : Promise.resolve({items: []}),
-      ]);
+      const {accessToken, serverUrl, userId} = serverProfile;
+      const loadFor = async (
+        library: JellyfinLibrary,
+      ): Promise<Array<{imageUrl?: string}> | null> => {
+        switch (library.type?.toLowerCase()) {
+          case 'movies':
+            return getLibraryArtwork(
+              serverUrl,
+              accessToken,
+              userId,
+              library.id,
+              'Movie',
+            );
+          case 'tvshows':
+            return getLibraryArtwork(
+              serverUrl,
+              accessToken,
+              userId,
+              library.id,
+              'Series',
+            );
+          case 'music':
+            return musicSession
+              ? (await getAlbums(musicSession, {limit: 24})).items
+              : null;
+          default:
+            // Everything else keeps the library's own image.
+            return null;
+        }
+      };
+      const results = await Promise.allSettled(libraries.map(loadFor));
 
       if (!active) {
         return;
       }
 
-      setLibraryArtwork({
-        movies:
-          results[0].status === 'fulfilled'
-            ? shuffleImages(results[0].value)
-            : [],
-        tvshows:
-          results[1].status === 'fulfilled'
-            ? shuffleImages(results[1].value)
-            : [],
-        music:
-          results[2].status === 'fulfilled'
-            ? shuffleImages(results[2].value.items)
-            : [],
-      });
+      setLibraryArtwork(
+        Object.fromEntries(
+          libraries.flatMap((library, index) => {
+            const result = results[index];
+
+            return result.status === 'fulfilled' && result.value
+              ? [[library.id, shuffleImages(result.value)]]
+              : [];
+          }),
+        ),
+      );
     };
 
     loadLibraryArtwork();
@@ -212,7 +227,7 @@ export const HomeScreen = ({
     return () => {
       active = false;
     };
-  }, [musicSession, serverProfile]);
+  }, [libraries, musicSession, serverProfile]);
 
   const makeRowLoader = useCallback(
     (kind: 'resume' | 'nextUp' | 'latestMovies' | 'latestShows') =>
@@ -340,7 +355,7 @@ export const HomeScreen = ({
         />
         {libraries.length ? (
           <LibraryNav
-            artworkByKind={libraryArtwork}
+            artworkByLibrary={libraryArtwork}
             hasTVPreferredFocus={true}
             libraries={libraries}
             musicAvailable={musicAvailable}
@@ -445,6 +460,8 @@ const HomeMediaRow = ({
         <TVFocusGuideView style={styles.libraryRow}>
           {items.map((item) => (
             <MediaCard
+              // Only Next Up episodes carry a season count.
+              badgeText={formatUnplayedBadge(item.seasonUnplayedCount)}
               imageUrl={item.imageUrl}
               key={item.id}
               onFocus={() =>

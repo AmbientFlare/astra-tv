@@ -43,6 +43,30 @@ export const declaredMaxVideoWidth = (
   return maxWidth;
 };
 
+/**
+ * One line for Stats for Nerds: what the decoder reported and whether that
+ * became a cap. Reporters on HD-only sticks can read it back, which is the
+ * only way to learn what those devices really answer.
+ */
+export const describeDecodeLimits = (limits: VideoDecodeLimits): string => {
+  if (!limits.probeSucceeded) {
+    return 'not reported, no cap sent';
+  }
+
+  if (limits.controlsFailed) {
+    return 'answer not trusted (controls failed), no cap sent';
+  }
+
+  const reported = limits.maxWidth
+    ? `${limits.maxWidth}x${limits.maxHeight ?? '?'}`
+    : 'no answer';
+  const cap = declaredMaxVideoWidth(limits);
+
+  return cap === undefined
+    ? `${reported}, no cap sent`
+    : `${reported}, capped at ${cap} wide`;
+};
+
 const segmentLengthPreference = (prefs: PlaybackPreferences) =>
   prefs.hlsSegmentLengthSeconds
     ? {SegmentLength: prefs.hlsSegmentLengthSeconds}
