@@ -16,6 +16,7 @@ import {
   JellyfinMediaItem,
   JellyfinSortBy,
 } from '../../services/jellyfin';
+import {onMemoryTrim} from '../../services/memoryTrim';
 import {
   DisplayPreferences,
   getDisplayPreferences,
@@ -140,6 +141,21 @@ const librarySessions = new Map<string, LibrarySession>();
 /** Enough for every library on a server, and a bound in case it is not. */
 const LIBRARY_SESSION_LIMIT = 12;
 
+/**
+ * Remembered grids are a convenience. In the background each keeps its list
+ * and place but loses its detail cache, the bulk of it (see
+ * DETAIL_CACHE_LIMIT); on a memory warning they all go.
+ */
+onMemoryTrim((level) => {
+  if (level === 'critical') {
+    librarySessions.clear();
+    return;
+  }
+  librarySessions.forEach((session, id) => {
+    librarySessions.set(id, {...session, itemDetails: {}});
+  });
+});
+
 /** Test seam: drops every remembered grid. */
 export const resetLibrarySessions = () => {
   librarySessions.clear();
@@ -231,6 +247,7 @@ export const LibraryScreen = ({
   const pageInFlightRef = useRef(false);
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const focusedItemIdRef = useRef<string | undefined>(undefined);
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
@@ -255,6 +272,7 @@ export const LibraryScreen = ({
   );
   const focusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  focusedItemIdRef.current = focusedItem?.id;
 
   const queueBackdrop = useCallback((url?: string) => {
     if (!url) {
@@ -371,6 +389,20 @@ export const LibraryScreen = ({
       }
     };
   }, []);
+
+  // The open grid keeps its items, but only the focused card's details: the
+  // rest refetch as focus reaches them.
+  useEffect(
+    () =>
+      onMemoryTrim(() => {
+        const keepId = focusedItemIdRef.current;
+        setItemDetails((current) =>
+          keepId && current[keepId] ? {[keepId]: current[keepId]} : {},
+        );
+        detailRequestsRef.current = new Set(keepId ? [keepId] : []);
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!focusedItem && items.length > 0) {

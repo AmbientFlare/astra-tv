@@ -9,6 +9,7 @@ import {FocusableItem} from '../components/FocusableItem';
 import {ProfileSwitcher} from '../components/ProfileSwitcher';
 import {CURRENT_NOTICE_ID, WhatsNewNotice} from '../components/WhatsNewNotice';
 import {CapabilityNotice} from '../components/CapabilityNotice';
+import {trimMemory} from '../services/memoryTrim';
 import {readAppState, writeAppState} from '../services/storage';
 import {nextAutoAdvanceCount} from '../services/episodePlayback';
 import {HomeScreen} from '../screens/HomeScreen';
@@ -102,17 +103,27 @@ export const RootNavigator = () => {
   }, [appStateManager]);
 
   // A SyncPlay player closed by the app going to the background comes back
-  // with the app, at wherever the group has got to.
+  // with the app, at wherever the group has got to. Leaving the screen, or a
+  // system memory warning, also sheds caches (see services/memoryTrim).
   useEffect(() => {
     const subscription = appStateManager.addAppStateListener(
       'change',
       (nextState) => {
         if (nextState === 'active') {
           syncPlay.appResumed();
+        } else if (nextState === 'background') {
+          trimMemory('background');
         }
       },
     );
-    return () => subscription.remove();
+    const memoryWarning = appStateManager.addAppStateListener(
+      'memoryWarning',
+      () => trimMemory('critical'),
+    );
+    return () => {
+      subscription.remove();
+      memoryWarning.remove();
+    };
   }, [appStateManager]);
 
   const [route, setRoute] = useState<LaunchRoute>('loading');
