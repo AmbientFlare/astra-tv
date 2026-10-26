@@ -945,6 +945,14 @@ export const PlayerScreen = ({
       clearTimeout(initialSeekTimer.current);
       initialSeekTimer.current = null;
     }
+    // The surface goes first, before anything that waits: unloading can take
+    // seconds while appends finish, and a surface the system destroys in that
+    // time must not still be attached when the player is finally torn down.
+    try {
+      if (handle) video?.clearSurfaceHandle(handle);
+    } catch {
+      /* Already detached by the native surface. */
+    }
     try {
       video?.pause();
     } catch {
@@ -954,11 +962,7 @@ export const PlayerScreen = ({
       try {
         await shaka?.unload();
       } finally {
-        try {
-          if (handle) video?.clearSurfaceHandle(handle);
-        } finally {
-          await video?.deinitialize();
-        }
+        await video?.deinitialize();
       }
     })();
     releasePromise.current = cleanup;
@@ -2859,6 +2863,14 @@ export const PlayerScreen = ({
   const onSurfaceViewDestroyed = useCallback(
     (handle: string) => {
       if (surfaceHandle.current !== handle) return;
+      // Detach now, as the surface goes, rather than when the queued release
+      // reaches it; the release then has no surface left to clear.
+      surfaceHandle.current = null;
+      try {
+        videoRef.current?.clearSurfaceHandle(handle);
+      } catch {
+        /* The native side may already have let it go. */
+      }
       void stopPlaybackRef
         .current()
         .then(returnToLibrary)

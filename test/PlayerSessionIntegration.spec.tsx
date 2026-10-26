@@ -790,6 +790,57 @@ describe('PlayerScreen native session integration', () => {
     view.unmount();
   });
 
+  it('lets go of a destroyed surface at once, before the release that waits', async () => {
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+      />,
+    );
+    await start(view);
+    const video = mockVideos[0];
+    act(() => {
+      view
+        .getByTestId('player-video-surface')
+        .props.onSurfaceViewDestroyed('surface');
+    });
+    // Synchronous: nothing queued has run yet.
+    expect(video.clearSurfaceHandle).toHaveBeenCalledWith('surface');
+    expect(video.deinitialize).not.toHaveBeenCalled();
+    await act(async () => {
+      await flush();
+    });
+    expect(video.clearSurfaceHandle).toHaveBeenCalledTimes(1);
+    expect(video.deinitialize).toHaveBeenCalledTimes(1);
+    expect(video.clearSurfaceHandle.mock.invocationCallOrder[0]).toBeLessThan(
+      video.pause.mock.invocationCallOrder.at(-1),
+    );
+    view.unmount();
+  });
+
+  it('clears the surface before pausing when playback is closed', async () => {
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+      />,
+    );
+    await start(view);
+    const video = mockVideos[0];
+    video.pause.mockClear();
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+    expect(video.clearSurfaceHandle).toHaveBeenCalledTimes(1);
+    expect(video.clearSurfaceHandle.mock.invocationCallOrder[0]).toBeLessThan(
+      video.pause.mock.invocationCallOrder[0],
+    );
+    expect(video.deinitialize).toHaveBeenCalledTimes(1);
+  });
+
   describe('subtitle presentation and controls', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());
