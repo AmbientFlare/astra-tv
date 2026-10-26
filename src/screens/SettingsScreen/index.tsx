@@ -86,6 +86,7 @@ type SettingsRoute =
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
   | {route: 'subtitleMode'}
+  | {route: 'subtitleAppearance'}
   | {route: 'autoplay'}
   | {route: 'autoplayCountdown'}
   | {route: 'seekDuration'}
@@ -721,6 +722,16 @@ export const SettingsScreen = ({
               subtitle={labelForSubtitleMode(preferences.subtitleMode)}
               onPress={() => push({route: 'subtitleMode'})}
             />
+            <MenuRow
+              icon="▱"
+              title="Subtitle appearance"
+              subtitle={
+                subtitleAppearanceOptions.find(
+                  (option) => option.value === preferences.subtitleAppearance,
+                )?.label ?? 'Text with shadow'
+              }
+              onPress={() => push({route: 'subtitleAppearance'})}
+            />
             <ToggleRow
               title="Next episode autoplay"
               subtitle={`Countdown: ${preferences.nextEpisodeCountdownSeconds}s`}
@@ -880,6 +891,25 @@ export const SettingsScreen = ({
             <Text style={styles.infoText}>
               Default (per video) follows the server's own subtitle choice for
               each title, including a track you picked for it before.
+            </Text>
+          </Page>
+        );
+      case 'subtitleAppearance':
+        return (
+          <Page title="Subtitle appearance" onBack={pop}>
+            <Text style={styles.description}>
+              Choose how subtitles appear over the video.
+            </Text>
+            <PreferenceRadioGroup
+              options={subtitleAppearanceOptions}
+              selectedValue={preferences.subtitleAppearance}
+              onSelect={(subtitleAppearance) =>
+                savePreferences({subtitleAppearance})
+              }
+            />
+            <Text style={styles.infoText}>
+              Applies to text subtitles displayed by Astra. Subtitles embedded
+              in the video keep their original appearance.
             </Text>
           </Page>
         );
@@ -1045,6 +1075,14 @@ export const SettingsScreen = ({
     </>
   );
 };
+
+const subtitleAppearanceOptions: Array<{
+  label: string;
+  value: UserPreferences['subtitleAppearance'];
+}> = [
+  {label: 'Text with shadow', value: 'shadow'},
+  {label: 'Dark background', value: 'background'},
+];
 
 const subtitleModeOptions: Array<{
   label: string;

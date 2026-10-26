@@ -408,6 +408,9 @@ export const PlayerScreen = ({
   const handoffInProgress = useRef(false);
   const endedHandler = useRef<() => void>(() => undefined);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const controlsPinned = useRef(false);
+  const controlsAwaitingProgress = useRef(false);
+  const controlsProgressPosition = useRef(0);
   const lastHandledKeyEvent = useRef<{
     time: number;
     type?: string;
@@ -419,6 +422,10 @@ export const PlayerScreen = ({
   const [statusText, setStatusText] = useState('Preparing playback...');
   const [showControls, setShowControls] = useState(true);
   const [isPaused, setPaused] = useState(false);
+  const [isBuffering, setBuffering] = useState(false);
+  const [subtitleAppearance, setSubtitleAppearance] = useState<
+    UserPreferences['subtitleAppearance']
+  >(defaultUserPreferences.subtitleAppearance);
   // Playback reached its natural end and the player is sitting on the finished
   // frame. Distinct from `isPaused`: a paused movie is still the viewer's, a
   // finished one is not. Drives the user-engagement release below.
@@ -582,6 +589,7 @@ export const PlayerScreen = ({
       .then((preferences) => {
         if (mounted) {
           episodePreferences.current = preferences;
+          setSubtitleAppearance(preferences.subtitleAppearance);
         }
       })
       .catch((error) => {
@@ -711,6 +719,19 @@ export const PlayerScreen = ({
     };
   }, [currentStream, selectedSubtitleTrackIndex]);
 
+  const keepControlsVisible = Boolean(
+    isPaused ||
+      isBuffering ||
+      isStarting ||
+      startupError ||
+      settingsPanel ||
+      showExitConfirm ||
+      creditsPrompt ||
+      endPrompt ||
+      playbackFinished,
+  );
+  controlsPinned.current = keepControlsVisible;
+
   const currentPositionTicks = useCallback(() => {
     if (
       !sessionReady.current ||
@@ -753,12 +774,15 @@ export const PlayerScreen = ({
     clearControlsHideTimer();
     controlsHideTimer.current = setTimeout(() => {
       const video = videoRef.current;
-      if (!video || unmountedRef.current) {
+      if (
+        !video ||
+        unmountedRef.current ||
+        !sessionReady.current ||
+        controlsPinned.current
+      ) {
         return;
       }
-      if (!video.paused) {
-        setShowControls(false);
-      }
+      setShowControls(false);
     }, CONTROL_HIDE_DELAY_MS);
   }, [clearControlsHideTimer]);
 
@@ -773,6 +797,22 @@ export const PlayerScreen = ({
     },
     [clearControlsHideTimer, scheduleControlsHide],
   );
+
+  // React state owns whether controls must stay open. Native pause getters can
+  // lag behind playback, and a timer that fires during startup must be rearmed.
+  useEffect(() => {
+    if (showControls && !keepControlsVisible) {
+      scheduleControlsHide();
+    } else {
+      clearControlsHideTimer();
+    }
+    return clearControlsHideTimer;
+  }, [
+    showControls,
+    keepControlsVisible,
+    scheduleControlsHide,
+    clearControlsHideTimer,
+  ]);
 
   const applyPendingInitialSeek = useCallback(
     (video: VideoPlayer) => {
@@ -1585,6 +1625,9 @@ export const PlayerScreen = ({
         }
         recordPlaybackEvent('playing');
         syncPlay.notifyPlayerPlaying(syncPlayPlayer.current);
+        controlsAwaitingProgress.current = false;
+        setBuffering(false);
+        isPausedRef.current = false;
         const resumeTarget = pendingAdaptiveResumeSeconds.current;
         if (
           resumeTarget !== null &&
@@ -1657,6 +1700,9 @@ export const PlayerScreen = ({
         }
         recordPlaybackEvent('waiting', 'waitingEventCount');
         syncPlay.notifyPlayerBuffering(syncPlayPlayer.current);
+        controlsAwaitingProgress.current = true;
+        setBuffering(true);
+        controlsProgressPosition.current = video.currentTime;
         revealControls(false);
         setStatusText('Buffering...');
       });
@@ -1665,6 +1711,9 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('stalled', 'stalledEventCount');
+        controlsAwaitingProgress.current = true;
+        setBuffering(true);
+        controlsProgressPosition.current = video.currentTime;
         revealControls(false);
         setStatusText('Playback stalled. Buffering...');
       });
@@ -1677,6 +1726,18 @@ export const PlayerScreen = ({
           typeof video.currentTime === 'number' &&
           Number.isFinite(video.currentTime)
         ) {
+          // Some Vega streams resume with timeupdate but no new playing event.
+          // Rearm once on real progress, not on every subtitle clock tick.
+          if (
+            controlsAwaitingProgress.current &&
+            !isPausedRef.current &&
+            !video.paused &&
+            video.currentTime > controlsProgressPosition.current + 0.05
+          ) {
+            controlsAwaitingProgress.current = false;
+            setBuffering(false);
+          }
+          controlsProgressPosition.current = video.currentTime;
           const logicalTime =
             pendingAdaptiveResumeSeconds.current ??
             mediaToLogicalTime(
@@ -2747,6 +2808,8 @@ export const PlayerScreen = ({
       <ExternalSubtitleOverlay
         cues={externalSubtitleCues}
         positionStore={positionStore}
+        controlsVisible={controlsVisible}
+        appearance={subtitleAppearance}
       />
       {isStarting || startupError ? (
         <View style={styles.startupOverlay} testID="player-startup-state">
@@ -2791,7 +2854,7 @@ export const PlayerScreen = ({
         </View>
       ) : null}
       {controlsVisible ? (
-        <View style={styles.overlay}>
+        <View style={styles.overlay} testID="player-controls-overlay">
           <Text numberOfLines={1} style={styles.title}>
             {item.name}
           </Text>
@@ -3107,9 +3170,13 @@ const formatDiagnosticTime = (seconds: number) =>
 export const ExternalSubtitleOverlay = ({
   cues,
   positionStore,
+  controlsVisible = false,
+  appearance = 'shadow',
 }: {
   cues: WebVttCue[];
   positionStore: PositionStore;
+  controlsVisible?: boolean;
+  appearance?: UserPreferences['subtitleAppearance'];
 }) => {
   const [text, setText] = useState(() =>
     activeWebVttText(cues, positionStore.get()),
@@ -3133,9 +3200,18 @@ export const ExternalSubtitleOverlay = ({
   return (
     <View
       pointerEvents="none"
-      style={styles.subtitleOverlay}
+      style={[
+        styles.subtitleOverlay,
+        controlsVisible && styles.subtitleAboveControls,
+      ]}
       testID="player-external-subtitle">
-      <Text style={styles.subtitleText}>{text}</Text>
+      <Text
+        style={[
+          styles.subtitleText,
+          appearance === 'background' && styles.subtitleBackground,
+        ]}>
+        {text}
+      </Text>
     </View>
   );
 };
@@ -3396,8 +3472,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   subtitleText: {
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 5,
+    backgroundColor: 'transparent',
     color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '600',
@@ -3405,6 +3480,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
     textAlign: 'center',
+    textShadowColor: '#000000',
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 3,
+  },
+  subtitleBackground: {
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderRadius: 5,
+    textShadowRadius: 0,
+  },
+  subtitleAboveControls: {
+    bottom: 240,
   },
   decoderWarning: {
     position: 'absolute',
