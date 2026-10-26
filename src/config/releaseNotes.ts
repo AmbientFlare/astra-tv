@@ -8,13 +8,16 @@ import {APP_VERSION, BUILD_NUMBER} from './app';
  * would actually notice.
  */
 export const RELEASE_HIGHLIGHTS: readonly string[] = [
-  'Watch together with SyncPlay. Join a group started in another Jellyfin ' +
-    'app, or start one from Astra and pick something to play: everyone in ' +
-    'the group opens it, and play, pause and seek on any of them goes to all.',
-  'If Astra is closed or restarted during a SyncPlay session, it rejoins the ' +
-    'group on its own when it opens again.',
-  'Accounts the server only lets join groups no longer see the option to ' +
-    'start one, and accounts without SyncPlay are told so.',
+  'Fewer crashes, especially when leaving a video, opening a very large ' +
+    'library, or coming back to Astra after using another app.',
+  'Next Up shows how many episodes of the season are left, and an ' +
+    "episode's page lists the rest of its season.",
+  'Faster seeking: taps add up before Astra jumps, holding speeds it up, ' +
+    'and scene previews show when your server has made them.',
+  'Subtitles now sit on the picture with a shadow; choose a dark box ' +
+    'instead under Settings → Playback.',
+  'On 1080p sticks Astra asks the server to shrink 4K films so they can ' +
+    'play, and lower bitrate limits are available for slow connections.',
 ];
 
 /**
