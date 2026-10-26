@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.0 - 2026-10-26
+
+### Added
+
+- SyncPlay: watch together with other Jellyfin apps. Settings has a SyncPlay
+  page that lists the server's groups to join and can start a new one. In a
+  group, picking something to play opens it for everyone, and play, pause and
+  seek from any member reach the whole group. Astra waits for the group when
+  a member is still loading and follows the group's position.
+- Astra rejoins its SyncPlay group after the app is closed or restarted, as
+  long as the group still exists and it is the same server and account.
+- The SyncPlay page follows the account's SyncPlay permission: join-only
+  accounts are not offered "Start a group", and accounts without SyncPlay see
+  why instead of a refused request.
+
+### Fixed
+
+- One play/pause press could reach a SyncPlay group as a pause followed at
+  once by a play, undoing it. Group play/pause requests less than a second
+  apart are now treated as the same press.
+
 ## 1.4.1 - 2026-10-20
 
 ### Fixed
