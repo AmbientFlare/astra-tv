@@ -389,9 +389,10 @@ const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
     hlsSegmentLengthSeconds: [0, 2, 3, 4].includes(hlsSegmentLengthSeconds)
       ? (hlsSegmentLengthSeconds as PlaybackPreferences['hlsSegmentLengthSeconds'])
       : defaultPlaybackPrefs.hlsSegmentLengthSeconds,
-    maxBitrateBps: [40000000, 80000000, 120000000, 200000000].includes(
-      maxBitrateBps,
-    )
+    maxBitrateBps: [
+      4000000, 8000000, 12000000, 20000000, 40000000, 80000000, 120000000,
+      200000000,
+    ].includes(maxBitrateBps)
       ? maxBitrateBps
       : defaultPlaybackPrefs.maxBitrateBps,
     maxAudioChannels: [2, 6, 8].includes(maxAudioChannels)

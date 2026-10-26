@@ -89,6 +89,21 @@ export const DECODER_RISK_WARNING =
   'different version of the file.';
 
 /**
+ * Dolby Vision with no fallback layer (Profile 5). Jellyfin names it `DOVI`;
+ * every layered variant carries a suffix (`DOVIWithHDR10` and so on) and has an
+ * HDR10, HLG or SDR base this device can show. Profile 5 has none, so this
+ * device never declares it and the server must re-encode it -- with working
+ * tone mapping, or the picture comes out wrong or not at all (issue #26).
+ */
+export const requiresServerConversion = (videoRangeType?: string) =>
+  videoRangeType?.trim().toUpperCase() === 'DOVI';
+
+export const SERVER_CONVERSION_FAILED =
+  'This video is Dolby Vision with no HDR10 version inside, so your Jellyfin ' +
+  'server has to convert it, and that did not work. Check that tone mapping ' +
+  'works on the server, or lower Max streaming bitrate in Settings.';
+
+/**
  * `EnableVideoPlaybackTranscoding` is the only transcoding signal a non-admin
  * client can read, and it reports permission rather than capability. A CPU-only
  * NAS grants it and then cannot start a 4K Dolby Vision re-encode at all: the

@@ -101,6 +101,13 @@ const bitrateOptions: Array<{
   label: string;
   value: PlaybackPreferences['maxBitrateBps'];
 }> = [
+  // The low caps are for servers that struggle to re-encode 4K -- a Dolby
+  // Vision Profile 5 title has to be re-encoded for this device (issue #26).
+  // A lower cap makes the server downscale, which is far lighter work.
+  {label: '4 Mbps', value: 4000000},
+  {label: '8 Mbps', value: 8000000},
+  {label: '12 Mbps', value: 12000000},
+  {label: '20 Mbps', value: 20000000},
   {label: '40 Mbps', value: 40000000},
   {label: '80 Mbps', value: 80000000},
   {label: '120 Mbps', value: 120000000},

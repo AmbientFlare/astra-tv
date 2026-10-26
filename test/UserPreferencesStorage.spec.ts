@@ -1,8 +1,11 @@
 import {AsyncStorage} from '@amazon-devices/react-native-kepler';
 import {
   defaultUserPreferences,
+  defaultPlaybackPrefs,
   getUserPreferences,
+  readPlaybackPreferences,
   updateUserPreferences,
+  writePlaybackPreferences,
 } from '../src/services/storage';
 
 jest.mock('@amazon-devices/react-native-kepler', () => {
@@ -61,5 +64,29 @@ describe('the persisted subtitle preference', () => {
     const preferences = await getUserPreferences();
     expect(preferences.nextEpisodeAutoplay).toBe(true);
     expect(preferences.subtitleMode).toBe('alwaysOff');
+  });
+});
+
+describe('the persisted bitrate cap', () => {
+  beforeEach(async () => {
+    await AsyncStorage.removeItem('astra.playbackPrefs.v1');
+  });
+
+  // Issue #26: a server that cannot re-encode 4K needs a cap low enough that
+  // it downscales instead.
+  it('keeps the low caps a struggling server needs', async () => {
+    for (const maxBitrateBps of [4000000, 8000000, 12000000, 20000000]) {
+      await writePlaybackPreferences({maxBitrateBps});
+      expect((await readPlaybackPreferences()).maxBitrateBps).toBe(
+        maxBitrateBps,
+      );
+    }
+  });
+
+  it('falls back to the default for a cap this build does not offer', async () => {
+    await writePlaybackPreferences({maxBitrateBps: 5000000});
+    expect((await readPlaybackPreferences()).maxBitrateBps).toBe(
+      defaultPlaybackPrefs.maxBitrateBps,
+    );
   });
 });
