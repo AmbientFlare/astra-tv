@@ -410,3 +410,38 @@ describe('LibraryScreen paging', () => {
     expect(second.getByText('151 | 250')).toBeTruthy();
   });
 });
+
+/**
+ * A library whose films sit in plain subfolders has only folders at its top
+ * level. Searching just that level showed 3 of a reader's 140 movies.
+ */
+describe('which items a library grid asks for', () => {
+  it('searches every folder of a movie library for its movies', async () => {
+    renderLibrary();
+    await settle();
+
+    expect((getItemsPage as jest.Mock).mock.calls[0][4]).toMatchObject({
+      includeItemTypes: 'Movie',
+      recursive: true,
+    });
+  });
+
+  it('keeps an unrecognised view to its top level, unfiltered', async () => {
+    render(
+      <LibraryScreen
+        libraryId="library-2"
+        libraryName="Home videos"
+        libraryType="homevideos"
+        menuVisible={false}
+        onMenuVisibleChange={() => undefined}
+        serverProfile={profile}
+      />,
+    );
+    await settle();
+
+    expect((getItemsPage as jest.Mock).mock.calls[0][4]).toMatchObject({
+      includeItemTypes: null,
+      recursive: false,
+    });
+  });
+});
