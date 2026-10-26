@@ -138,6 +138,18 @@ jest.mock('../src/services/jellyfin', () => ({
     type: 'Movie',
   })),
   getItems: jest.fn(async () => []),
+  // Pages whatever the getItems mock holds, the way the server pages a
+  // library, so a test sets its data once through getItems.
+  getItemsPage: jest.fn(async (...args: any[]) => {
+    const all = await jest
+      .requireMock('../src/services/jellyfin')
+      .getItems(...args);
+    const start = args[4]?.startIndex ?? 0;
+    return {
+      items: all.slice(start, start + (args[4]?.limit ?? all.length)),
+      totalRecordCount: all.length,
+    };
+  }),
   getLibraries: jest.fn(async () => []),
   getLatestItems: jest.fn(async () => []),
   getLatestItemsInLibrary: jest.fn(async () => []),

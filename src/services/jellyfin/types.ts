@@ -217,6 +217,15 @@ export interface GetItemsOptions {
   recursive?: boolean;
   sortBy?: JellyfinSortBy;
   sortDescending?: boolean;
+  /** Paging. Omitted means the whole collection in one response. */
+  startIndex?: number;
+  limit?: number;
+}
+
+export interface JellyfinItemsPage {
+  items: JellyfinMediaItem[];
+  /** Size of the whole collection, not of this page. */
+  totalRecordCount: number;
 }
 
 export interface PlaybackReportInput {

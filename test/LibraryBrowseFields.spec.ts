@@ -11,7 +11,12 @@ jest.mock('../src/services/deviceIdentity', () => ({
   getDeviceId: () => 'test-installation',
 }));
 
-import {browseItemFields, getItems, itemFields} from '../src/services/jellyfin';
+import {
+  browseItemFields,
+  getItems,
+  getItemsPage,
+  itemFields,
+} from '../src/services/jellyfin';
 import {detailPrefetchIds} from '../src/screens/LibraryScreen';
 
 const mockFetch = () => {
@@ -83,6 +88,22 @@ describe('getItems', () => {
     expect(calls).toHaveLength(1);
     expect(fieldsOf(calls[0])).toEqual(browseItemFields.split(','));
     expect(fieldsOf(calls[0])).not.toContain('People');
+  });
+
+  it('asks for one page when given a start and limit', async () => {
+    const calls = mockFetch();
+
+    await getItemsPage(
+      'https://media.example.com',
+      'token-123',
+      'library-1',
+      'user-1',
+      {startIndex: 200, limit: 100},
+    );
+
+    const params = new URL(calls[0]).searchParams;
+    expect(params.get('StartIndex')).toBe('200');
+    expect(params.get('Limit')).toBe('100');
   });
 });
 

@@ -18,6 +18,7 @@ import {
 } from '../src/screens/LibraryScreen';
 import {
   getItemDetails,
+  getItemsPage,
   getItems,
   JellyfinMediaItem,
 } from '../src/services/jellyfin';
@@ -60,6 +61,18 @@ jest.mock('../src/services/storage', () => ({
 jest.mock('../src/services/jellyfin', () => ({
   ...jest.requireActual('../src/services/jellyfin'),
   getItems: jest.fn(async () => []),
+  // Pages whatever the getItems mock holds, the way the server pages a
+  // library, so a test sets its data once through getItems.
+  getItemsPage: jest.fn(async (...args: any[]) => {
+    const all = await jest
+      .requireMock('../src/services/jellyfin')
+      .getItems(...args);
+    const start = args[4]?.startIndex ?? 0;
+    return {
+      items: all.slice(start, start + (args[4]?.limit ?? all.length)),
+      totalRecordCount: all.length,
+    };
+  }),
   getItemDetails: jest.fn(async () => ({})),
 }));
 
@@ -235,5 +248,113 @@ describe('LibraryScreen session restore', () => {
     expect(screen.getByText('Loading items...')).toBeTruthy();
     await settle();
     expect(screen.getByText('1 | 60')).toBeTruthy();
+  });
+});
+
+describe('LibraryScreen paging', () => {
+  /**
+   * Focus a card that may sit outside FlatList's rendered window, through the
+   * same onFocus the grid gives the card it renders there.
+   */
+  const focusAt = async (screen: ReturnType<typeof render>, index: number) => {
+    const grid = screen.UNSAFE_getByType(FlatList);
+    const card = grid.props.renderItem({item: grid.props.data[index], index});
+    await act(async () => {
+      card.props.onFocus();
+      await new Promise((resolve) => setTimeout(resolve, 220));
+    });
+    await settle();
+  };
+  const big = Array.from(
+    {length: 250},
+    (_, index) =>
+      ({
+        id: `movie-${index}`,
+        name: `Movie ${index}`,
+        type: 'Movie',
+      } as JellyfinMediaItem),
+  );
+  const pages = () => getItemsPage as jest.Mock;
+
+  beforeEach(() => {
+    mockedItems.mockResolvedValue(big);
+  });
+
+  it('loads the first page only, but counts the whole library', async () => {
+    const screen = renderLibrary();
+    await settle();
+
+    expect(pages()).toHaveBeenCalledTimes(1);
+    expect(pages().mock.calls[0][4]).toMatchObject({startIndex: 0, limit: 100});
+    expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(100);
+    expect(screen.getByText('1 | 250')).toBeTruthy();
+  });
+
+  it('fetches the next page as focus nears the end of what is loaded', async () => {
+    const screen = renderLibrary();
+    await settle();
+
+    await focusAt(screen, 30);
+    expect(pages()).toHaveBeenCalledTimes(1);
+
+    await focusAt(screen, 95);
+    expect(pages()).toHaveBeenCalledTimes(2);
+    expect(pages().mock.calls[1][4]).toMatchObject({
+      startIndex: 100,
+      limit: 100,
+    });
+    expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(200);
+    expect(screen.getByText('96 | 250')).toBeTruthy();
+  });
+
+  it('drops a page that lands after the sort changed', async () => {
+    const screen = renderLibrary();
+    await settle();
+
+    let releasePage!: () => void;
+    pages().mockImplementationOnce(
+      (...args: any[]) =>
+        new Promise((resolve) => {
+          releasePage = () =>
+            resolve({
+              items: big.slice(args[4].startIndex, args[4].startIndex + 100),
+              totalRecordCount: 250,
+            });
+        }),
+    );
+    await focusAt(screen, 95);
+
+    screen.rerender(
+      <LibraryScreen
+        libraryId="library-1"
+        libraryName="Movies"
+        libraryType="movies"
+        menuVisible
+        onMenuVisibleChange={() => undefined}
+        serverProfile={profile}
+      />,
+    );
+    fireEvent.press(screen.getByTestId('preference-radio-Sort by-Date Added'));
+    await settle();
+    await act(async () => releasePage());
+    await settle();
+
+    // The reload replaced the list; the stale second page was not appended.
+    expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(100);
+  });
+
+  it('refreshes a restored grid as far as the remembered card', async () => {
+    const first = renderLibrary();
+    await settle();
+    await focusAt(first, 95);
+    await focusAt(first, 150);
+    first.unmount();
+    pages().mockClear();
+
+    const second = renderLibrary();
+    await settle();
+
+    expect(pages().mock.calls[0][4]).toMatchObject({startIndex: 0, limit: 151});
+    expect(second.getByText('151 | 250')).toBeTruthy();
   });
 });
