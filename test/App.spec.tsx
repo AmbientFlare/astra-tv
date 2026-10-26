@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import {App} from '../src/App';
 import {SearchScreen} from '../src/screens/SearchScreen';
+import {onMemoryTrim} from '../src/services/memoryTrim';
 import {checkAstraProReceipt} from '../src/services/iap';
 import {
   getItems,
@@ -309,6 +310,44 @@ describe('App', () => {
       expect(screen.getByTestId('setup-screen')).toBeTruthy(),
     );
     expect(screen).toMatchSnapshot();
+  });
+
+  it('sheds caches when the app leaves the screen or memory runs short', async () => {
+    const {useKeplerAppStateManager} = jest.requireMock(
+      '@amazon-devices/react-native-kepler',
+    );
+    const listeners: Record<string, Array<(state?: string) => void>> = {};
+    const manager = {
+      addAppStateListener: jest.fn(
+        (event: string, callback: (state?: string) => void) => {
+          (listeners[event] ??= []).push(callback);
+          return {remove: jest.fn()};
+        },
+      ),
+      getComponentInstance: jest.fn(() => ({})),
+    };
+    (useKeplerAppStateManager as jest.Mock).mockReturnValue(manager);
+    const trim = jest.fn();
+    const off = onMemoryTrim(trim);
+
+    try {
+      const screen = render(<App />);
+      await waitFor(() =>
+        expect(screen.getByTestId('setup-screen')).toBeTruthy(),
+      );
+
+      listeners.change.forEach((callback) => callback('background'));
+      expect(trim).toHaveBeenLastCalledWith('background');
+
+      listeners.memoryWarning.forEach((callback) => callback());
+      expect(trim).toHaveBeenLastCalledWith('critical');
+    } finally {
+      off();
+      (useKeplerAppStateManager as jest.Mock).mockImplementation(() => ({
+        addAppStateListener: jest.fn(() => ({remove: jest.fn()})),
+        getComponentInstance: jest.fn(() => ({})),
+      }));
+    }
   });
 
   it('launches setup when no server profile exists', async () => {

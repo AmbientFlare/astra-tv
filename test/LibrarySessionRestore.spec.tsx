@@ -22,6 +22,7 @@ import {
   getItems,
   JellyfinMediaItem,
 } from '../src/services/jellyfin';
+import {trimMemory} from '../src/services/memoryTrim';
 import {ServerProfile} from '../src/services/storage';
 
 jest.mock('@amazon-devices/react-native-kepler', () => {
@@ -248,6 +249,57 @@ describe('LibraryScreen session restore', () => {
     expect(screen.getByText('Loading items...')).toBeTruthy();
     await settle();
     expect(screen.getByText('1 | 60')).toBeTruthy();
+  });
+});
+
+describe('LibraryScreen memory trim', () => {
+  const detailCalls = () =>
+    (getItemDetails as jest.Mock).mock.calls.map((call) => call[3]);
+
+  it('drops neighbour details in the background but keeps the focused one', async () => {
+    const screen = renderLibrary();
+    await settle();
+    await focusCard(screen, 27);
+    expect(detailCalls()).toEqual(
+      expect.arrayContaining(['movie-27', 'movie-28']),
+    );
+    (getItemDetails as jest.Mock).mockClear();
+
+    await act(async () => trimMemory('background'));
+    await focusCard(screen, 28);
+
+    // movie-28 was fetched before the trim and is fetched again; the focused
+    // card, movie-27, was kept and is not.
+    expect(detailCalls()).toContain('movie-28');
+    expect(detailCalls()).not.toContain('movie-27');
+    expect(screen.getByText('29 | 60')).toBeTruthy();
+  });
+
+  it('keeps a remembered grid through a background trim', async () => {
+    const first = renderLibrary();
+    await settle();
+    await focusCard(first, 27);
+    first.unmount();
+
+    trimMemory('background');
+    const second = renderLibrary();
+
+    expect(second.queryByText('Loading items...')).toBeNull();
+    expect(second.getByText('28 | 60')).toBeTruthy();
+  });
+
+  it('forgets remembered grids on a memory warning', async () => {
+    const first = renderLibrary();
+    await settle();
+    await focusCard(first, 27);
+    first.unmount();
+
+    trimMemory('critical');
+    const second = renderLibrary();
+
+    expect(second.getByText('Loading items...')).toBeTruthy();
+    await settle();
+    expect(second.getByText('1 | 60')).toBeTruthy();
   });
 });
 
