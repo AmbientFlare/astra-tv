@@ -17,7 +17,8 @@ import {
 } from './entries';
 
 interface LibraryNavProps {
-  artworkByKind?: Partial<Record<NavEntry['kind'], string[]>>;
+  /** Poster URLs per library id; a library without any shows its own image. */
+  artworkByLibrary?: Record<string, string[]>;
   hasTVPreferredFocus?: boolean;
   libraries: JellyfinLibrary[];
   musicAvailable: boolean;
@@ -25,7 +26,7 @@ interface LibraryNavProps {
 }
 
 export const LibraryNav = ({
-  artworkByKind = {},
+  artworkByLibrary = {},
   hasTVPreferredFocus = false,
   libraries,
   musicAvailable,
@@ -56,7 +57,10 @@ export const LibraryNav = ({
                 style={styles.item}
                 testID={`home-nav-${entry.kind}`}>
                 <View style={styles.collage}>
-                  {(artworkByKind[entry.kind] ?? [entry.library.imageUrl])
+                  {(artworkByLibrary[entry.library.id]?.length
+                    ? artworkByLibrary[entry.library.id]
+                    : [entry.library.imageUrl]
+                  )
                     .filter((url): url is string => Boolean(url))
                     .slice(0, 6)
                     .map((url, artIndex) => (

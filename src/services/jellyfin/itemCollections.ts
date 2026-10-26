@@ -163,6 +163,29 @@ export const getEpisodes = (
   });
 
 /**
+ * Posters for one library's home tile: its newest movies or series, asked for
+ * by the library's own id so a tile only ever shows what is inside it. Only
+ * the image is needed, so no extra fields are requested.
+ */
+export const getLibraryArtwork = (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  libraryId: string,
+  itemType: 'Movie' | 'Series',
+) =>
+  getItemCollection(serverUrl, accessToken, `/Users/${userId}/Items`, {
+    ParentId: libraryId,
+    Recursive: true,
+    IncludeItemTypes: itemType,
+    SortBy: 'DateCreated',
+    SortOrder: 'Descending',
+    ImageTypeLimit: 1,
+    EnableImageTypes: 'Primary',
+    Limit: 12,
+  });
+
+/**
  * The newest items inside one view. Lets the home screen surface a library
  * the server only just started returning, without the app knowing its name.
  */

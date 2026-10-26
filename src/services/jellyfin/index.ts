@@ -57,7 +57,7 @@ export {searchItems} from './items';
 export {getItemDetails} from './items';
 export {getSeasons} from './itemCollections';
 export {getEpisodes} from './itemCollections';
-export {getLatestItemsInLibrary} from './itemCollections';
+export {getLatestItemsInLibrary, getLibraryArtwork} from './itemCollections';
 export {reportPlaybackStart} from './reporting';
 export {reportPlaybackProgress} from './reporting';
 export {reportPlaybackStopped} from './reporting';
