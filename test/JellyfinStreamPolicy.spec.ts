@@ -1,9 +1,14 @@
 import {
   buildDeviceProfile,
   buildTranscodingAudioCodecs,
+  declaredMaxVideoWidth,
 } from '../src/services/jellyfin/deviceProfile';
 import {defaultPlaybackPrefs} from '../src/services/storage';
 import type {AudioOutputCapabilities} from '../src/services/mediaCapabilities';
+import {
+  VideoDecodeLimits,
+  defaultVideoDecodeLimits,
+} from '../src/services/mediaCapabilities/decodeLimits';
 import {
   sanitizeUrlForLog,
   subtitleMimeForDelivery,
@@ -247,5 +252,115 @@ describe('Jellyfin subtitle delivery policy', () => {
         'srt',
       ),
     ).toBe('application/x-subrip');
+  });
+});
+
+describe('Jellyfin video resolution policy', () => {
+  const decodeLimits = (
+    overrides: Partial<VideoDecodeLimits> = {},
+  ): VideoDecodeLimits => ({
+    probeSucceeded: true,
+    controlsFailed: false,
+    ...overrides,
+  });
+
+  const hdOnly = decodeLimits({maxWidth: 1920, maxHeight: 1080});
+
+  const hevcConditions = (limits: VideoDecodeLimits) =>
+    buildDeviceProfile(
+      defaultPlaybackPrefs,
+      capabilities(),
+      false,
+      limits,
+    ).CodecProfiles.find((profile) => profile.Codec === 'hevc')!.Conditions;
+
+  it('declares no width limit before a decoder has been measured', () => {
+    expect(declaredMaxVideoWidth(defaultVideoDecodeLimits)).toBeUndefined();
+    expect(hevcConditions(defaultVideoDecodeLimits)).toEqual([
+      expect.objectContaining({Property: 'VideoRangeType'}),
+    ]);
+  });
+
+  it('declares no width limit on a device whose decoder reaches UHD', () => {
+    expect(
+      declaredMaxVideoWidth(decodeLimits({maxWidth: 3840, maxHeight: 2160})),
+    ).toBeUndefined();
+  });
+
+  it('declares the decoder ceiling for an HD-only device', () => {
+    expect(declaredMaxVideoWidth(hdOnly)).toBe(1920);
+  });
+
+  it('declares no limit when the probe failed or its controls misbehaved', () => {
+    expect(
+      declaredMaxVideoWidth(decodeLimits({...hdOnly, probeSucceeded: false})),
+    ).toBeUndefined();
+    expect(
+      declaredMaxVideoWidth(decodeLimits({...hdOnly, controlsFailed: true})),
+    ).toBeUndefined();
+  });
+
+  it('never turns a zero or malformed ceiling into a zero-width limit', () => {
+    expect(declaredMaxVideoWidth(decodeLimits({maxWidth: 0}))).toBeUndefined();
+    expect(
+      declaredMaxVideoWidth(decodeLimits({maxWidth: Number.NaN})),
+    ).toBeUndefined();
+    expect(
+      declaredMaxVideoWidth(decodeLimits({maxWidth: -1920})),
+    ).toBeUndefined();
+  });
+
+  it('carries the ceiling into the HEVC profile as a width condition', () => {
+    // A CodecProfile condition and not DeviceProfile.MaxWidth/MaxHeight, which
+    // Jellyfin 12.1 ignores; and Width rather than Height, because a
+    // `Height <= 1080` condition still offers a 2573x1080 stream.
+    expect(hevcConditions(hdOnly)).toEqual([
+      {
+        Condition: 'EqualsAny',
+        Property: 'VideoRangeType',
+        Value: 'SDR|HDR10|HLG',
+        IsRequired: true,
+      },
+      {
+        Condition: 'LessThanEqual',
+        Property: 'Width',
+        Value: '1920',
+        IsRequired: true,
+      },
+    ]);
+  });
+
+  it('scales the condition to whatever ceiling the platform reports', () => {
+    expect(hevcConditions(decodeLimits({maxWidth: 2560}))).toContainEqual({
+      Condition: 'LessThanEqual',
+      Property: 'Width',
+      Value: '2560',
+      IsRequired: true,
+    });
+  });
+
+  it('leaves the audio, container and subtitle policy untouched', () => {
+    const description = capabilities({
+      ac3: true,
+      eac3: true,
+      preferredTranscodeCodec: 'ac3',
+    });
+    const capped = buildDeviceProfile(
+      defaultPlaybackPrefs,
+      description,
+      false,
+      hdOnly,
+    );
+    const uncapped = buildDeviceProfile(
+      defaultPlaybackPrefs,
+      description,
+      false,
+      defaultVideoDecodeLimits,
+    );
+
+    expect(capped.DirectPlayProfiles).toEqual(uncapped.DirectPlayProfiles);
+    expect(capped.TranscodingProfiles).toEqual(uncapped.TranscodingProfiles);
+    expect(capped.SubtitleProfiles).toEqual(uncapped.SubtitleProfiles);
+    expect(capped.ContainerProfiles).toEqual(uncapped.ContainerProfiles);
   });
 });

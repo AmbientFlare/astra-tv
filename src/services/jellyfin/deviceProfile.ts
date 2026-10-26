@@ -4,6 +4,44 @@ import {
   AudioOutputCapabilities,
   defaultAudioOutputCapabilities,
 } from '../mediaCapabilities';
+import {
+  VideoDecodeLimits,
+  defaultVideoDecodeLimits,
+} from '../mediaCapabilities/decodeLimits';
+
+/**
+ * UHD width. A decoder whose ceiling reaches it needs no condition: a limit is
+ * only worth declaring to stop the server offering something the device cannot
+ * decode, and this one can.
+ */
+const UHD_WIDTH = 3840;
+
+/**
+ * The width the server must not exceed, or undefined to declare no limit.
+ *
+ * There are two ways to get `undefined` and both are deliberate. An unanswered
+ * probe declares nothing, because `getMaxSupportedResolution` reports zero for
+ * a device that does not support the query as readily as for a codec string it
+ * cannot parse, and reading that as "cap this device at zero" would break every
+ * device. A ceiling that reaches UHD declares nothing, because a condition
+ * there would downscale 4K hardware for no gain. Only a definite answer below
+ * UHD -- an HD-only stick, which is issue #21 -- produces a condition.
+ */
+export const declaredMaxVideoWidth = (
+  limits: VideoDecodeLimits,
+): number | undefined => {
+  if (!limits.probeSucceeded || limits.controlsFailed) {
+    return undefined;
+  }
+
+  const {maxWidth} = limits;
+
+  if (!maxWidth || maxWidth <= 0 || maxWidth >= UHD_WIDTH) {
+    return undefined;
+  }
+
+  return maxWidth;
+};
 
 const segmentLengthPreference = (prefs: PlaybackPreferences) =>
   prefs.hlsSegmentLengthSeconds
@@ -32,6 +70,7 @@ export const buildDeviceProfile = (
   prefs: PlaybackPreferences,
   audioCapabilities: AudioOutputCapabilities = defaultAudioOutputCapabilities,
   enableUnverifiedDtsRemuxTrial = ENABLE_UNVERIFIED_DTS_REMUX_TRIAL,
+  videoDecodeLimits: VideoDecodeLimits = defaultVideoDecodeLimits,
 ) => {
   const audioCodecs = buildTranscodingAudioCodecs(
     audioCapabilities,
@@ -44,6 +83,21 @@ export const buildDeviceProfile = (
   // that AC3 delivery fixed. Isolate that codec variable only on the HEVC/TS
   // route; safely retain the normal capability policy when AC3 is unavailable.
   const mpegTsAudioCodecs = audioCapabilities.ac3 ? 'ac3' : audioCodecs;
+  const maxVideoWidth = declaredMaxVideoWidth(videoDecodeLimits);
+  // Empty when the device declared no ceiling; see `declaredMaxVideoWidth`.
+  // Jellyfin reads this as a decoder limit: a source wider than it is
+  // re-encoded, and therefore downscaled, instead of being offered as-is.
+  const videoWidthConditions =
+    maxVideoWidth === undefined
+      ? []
+      : [
+          {
+            Condition: 'LessThanEqual',
+            Property: 'Width',
+            Value: String(maxVideoWidth),
+            IsRequired: true,
+          },
+        ];
 
   return {
     DirectPlayProfiles: [
@@ -136,7 +190,8 @@ export const buildDeviceProfile = (
       // Do NOT add resolution conditions on h264 here: Jellyfin applies
       // conditions across every codec listed in a TranscodingProfile, so an
       // h264 width cap silently downscales HEVC output too (observed:
-      // Neighbors 4K forced to 1080p).
+      // Neighbors 4K forced to 1080p). The width condition below sits on the
+      // hevc profile on purpose -- that downscale is the whole point of it.
       {
         Type: 'Video',
         Codec: 'hevc',
@@ -147,6 +202,23 @@ export const buildDeviceProfile = (
             Value: 'SDR|HDR10|HLG',
             IsRequired: true,
           },
+          // Issue #21. An HD-only stick was offered a 4K stream for every 4K
+          // title, stopped at 0 ms, and never fetched a segment: the source
+          // fitted this profile, so the server had no reason to downscale. The
+          // condition is what gives it one.
+          //
+          // Verified against Jellyfin 12.1.0, replaying this profile at
+          // POST /Items/{id}/PlaybackInfo for a 3840x1612 HDR10 HEVC title:
+          // `MaxWidth`/`MaxHeight` on the DeviceProfile itself is ignored and
+          // the master playlist still offered 3840x1612 only; a
+          // `MaxStreamingBitrate` on the DeviceProfile is ignored too; and
+          // `AllowVideoStreamCopy: false` does not downscale either. A
+          // CodecProfile condition is the lever that moves the offered
+          // resolution.
+          //
+          // `Width` rather than `Height`: a `Height <= 1080` condition on the
+          // same title offered 2573x1080, which is still wider than the panel.
+          ...videoWidthConditions,
         ],
       },
     ],
