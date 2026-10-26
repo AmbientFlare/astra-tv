@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.5.1`, build `20261026.14`, for Fire TV
+The current release is Astra `1.5.1`, build `20261026.16`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
