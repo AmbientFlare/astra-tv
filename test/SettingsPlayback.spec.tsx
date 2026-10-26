@@ -40,6 +40,7 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
 });
 
 jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
+  KeplerMediaControlHandler: class {},
   KeplerVideoSurfaceView: 'KeplerVideoSurfaceView',
   VideoPlayer: jest.fn(),
 }));
