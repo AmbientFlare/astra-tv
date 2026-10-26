@@ -12,7 +12,7 @@ import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {
   getItemDetails,
-  getItems,
+  getItemsPage,
   JellyfinMediaItem,
   JellyfinSortBy,
 } from '../../services/jellyfin';
@@ -93,6 +93,16 @@ const DETAIL_PREFETCH_RADIUS = 6;
  */
 const DETAIL_CACHE_LIMIT = 240;
 
+/**
+ * Items per library request. Asking for a whole library at once meant one
+ * multi-megabyte response for a big collection, and parsing it on the JS
+ * thread was long enough for the system to kill the app as unresponsive.
+ */
+const LIBRARY_PAGE_SIZE = 100;
+
+/** Rows of cards left below focus at which the next page is fetched. */
+const PAGE_AHEAD_ROWS = 4;
+
 /** Cards per row, and the gap the grid styles put between rows. */
 const GRID_COLUMNS = 3;
 const GRID_ROW_GAP = 26;
@@ -114,6 +124,8 @@ const CARD_HEIGHT = 412;
  */
 interface LibrarySession {
   items: JellyfinMediaItem[];
+  /** Size of the whole library; `items` may hold only its first pages. */
+  totalCount: number;
   itemDetails: Record<string, JellyfinMediaItem>;
   sortBy: JellyfinSortBy;
   sortDescending: boolean;
@@ -178,6 +190,9 @@ export const LibraryScreen = ({
   const [items, setItems] = useState<JellyfinMediaItem[]>(
     restored?.items ?? [],
   );
+  const [totalCount, setTotalCount] = useState(
+    restored?.totalCount ?? restored?.items.length ?? 0,
+  );
   const [isLoading, setLoading] = useState(!restored);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<JellyfinSortBy>(
@@ -208,6 +223,14 @@ export const LibraryScreen = ({
    * the remembered grid up rather than replacing it with an error.
    */
   const refreshingRestoredRef = useRef(Boolean(restored));
+  /**
+   * Bumped by every full load, so a page that arrives after the sort or
+   * filter changed is recognised as belonging to the old list and dropped.
+   */
+  const loadGenerationRef = useRef(0);
+  const pageInFlightRef = useRef(false);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const [backdropUrl, setBackdropUrl] = useState<string | null>(null);
   const [displayPreferences, setDisplayPreferenceState] =
     useState<DisplayPreferences>({
@@ -372,6 +395,7 @@ export const LibraryScreen = ({
       items,
       sortBy,
       sortDescending,
+      totalCount,
     });
 
     if (librarySessions.size > LIBRARY_SESSION_LIMIT) {
@@ -389,6 +413,7 @@ export const LibraryScreen = ({
     libraryId,
     sortBy,
     sortDescending,
+    totalCount,
   ]);
 
   const filters = useMemo(
@@ -406,6 +431,8 @@ export const LibraryScreen = ({
       // screen and this call is refreshing it in place.
       const refreshingRestored = refreshingRestoredRef.current;
       refreshingRestoredRef.current = false;
+      loadGenerationRef.current += 1;
+      const generation = loadGenerationRef.current;
 
       if (!refreshingRestored) {
         setLoading(true);
@@ -413,13 +440,18 @@ export const LibraryScreen = ({
       setErrorText(null);
 
       try {
-        const results = await getItems(
+        const page = await getItemsPage(
           serverProfile.serverUrl,
           serverProfile.accessToken,
           libraryId,
           serverProfile.userId,
           {
             filters,
+            // A refresh re-fetches as far as the user had already scrolled, so
+            // the remembered card is still in the list it comes back with.
+            limit: refreshingRestored
+              ? Math.max(LIBRARY_PAGE_SIZE, initialFocusIndex + 1)
+              : LIBRARY_PAGE_SIZE,
             imageType: displayPreferences.imageType,
             // A view whose CollectionType we do not recognise is browsed at
             // its top level with no type filter, so whatever the server
@@ -433,10 +465,12 @@ export const LibraryScreen = ({
             recursive: false,
             sortBy,
             sortDescending,
+            startIndex: 0,
           },
         );
+        const results = page.items;
 
-        if (mounted) {
+        if (mounted && generation === loadGenerationRef.current) {
           // A refresh keeps the user where they were, clamped in case the
           // library shrank while they were away. Any other load -- a sort or
           // filter change -- is a new list, and starts at the top.
@@ -445,6 +479,7 @@ export const LibraryScreen = ({
             : 0;
 
           setItems(results);
+          setTotalCount(page.totalRecordCount);
           setFocusedIndex(index);
           setFocusedItem(results[index] ?? null);
           ensureDetails(detailPrefetchIds(results, index));
@@ -480,6 +515,78 @@ export const LibraryScreen = ({
   useEffect(() => {
     loadItems();
   }, [loadItems]);
+
+  /**
+   * Appends the next page. One at a time, and only while the list it extends
+   * is still the current one.
+   */
+  const loadNextPage = useCallback(async () => {
+    const loaded = itemsRef.current.length;
+    if (pageInFlightRef.current || isLoading || loaded >= totalCount) {
+      return;
+    }
+
+    pageInFlightRef.current = true;
+    const generation = loadGenerationRef.current;
+    try {
+      const page = await getItemsPage(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+        libraryId,
+        serverProfile.userId,
+        {
+          filters,
+          imageType: displayPreferences.imageType,
+          includeItemTypes:
+            libraryType === 'tvshows'
+              ? 'Series'
+              : libraryType === 'movies'
+              ? 'Movie'
+              : null,
+          limit: LIBRARY_PAGE_SIZE,
+          recursive: false,
+          sortBy,
+          sortDescending,
+          startIndex: loaded,
+        },
+      );
+
+      if (!mountedRef.current || generation !== loadGenerationRef.current) {
+        return;
+      }
+
+      setItems((current) => {
+        // Only extend the list this page was asked for. Ids already present
+        // are skipped: an item added on the server between pages shifts the
+        // next page by one, and a duplicate key would confuse the grid.
+        if (current.length !== loaded) {
+          return current;
+        }
+        const seen = new Set(current.map((item) => item.id));
+        return current.concat(page.items.filter((item) => !seen.has(item.id)));
+      });
+      // A short page means the library ended early; trust what came back.
+      setTotalCount(
+        page.items.length < LIBRARY_PAGE_SIZE
+          ? loaded + page.items.length
+          : page.totalRecordCount,
+      );
+    } catch {
+      // Left for the next focus move near the end to try again.
+    } finally {
+      pageInFlightRef.current = false;
+    }
+  }, [
+    displayPreferences.imageType,
+    filters,
+    isLoading,
+    libraryId,
+    libraryType,
+    serverProfile,
+    sortBy,
+    sortDescending,
+    totalCount,
+  ]);
 
   const saveDisplayPreferences = async (
     nextPreferences: DisplayPreferences,
@@ -564,7 +671,9 @@ export const LibraryScreen = ({
           <View style={styles.header}>
             <Text style={styles.title}>{libraryName}</Text>
             <Text style={styles.countText}>
-              {items.length ? `${focusedIndex + 1} | ${items.length}` : '0 | 0'}
+              {items.length
+                ? `${focusedIndex + 1} | ${Math.max(totalCount, items.length)}`
+                : '0 | 0'}
             </Text>
           </View>
           <LoadingOrError
@@ -587,6 +696,8 @@ export const LibraryScreen = ({
               keyExtractor={(item) => item.id}
               key="vertical"
               numColumns={GRID_COLUMNS}
+              onEndReached={() => loadNextPage()}
+              onEndReachedThreshold={1}
               renderItem={({index, item}) => (
                 <MediaCard
                   badgeText={
@@ -599,6 +710,12 @@ export const LibraryScreen = ({
                   imageScale={cardScale}
                   onFocus={() => {
                     setFocusedIndex(index);
+                    if (
+                      index >=
+                      items.length - GRID_COLUMNS * PAGE_AHEAD_ROWS
+                    ) {
+                      loadNextPage();
+                    }
                     handleCardFocus(item, index);
                     queueBackdrop(item.backdropUrl ?? item.imageUrl);
                   }}
