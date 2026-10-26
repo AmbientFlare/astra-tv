@@ -58,6 +58,8 @@ export interface JellyfinMediaItem {
   isFavorite?: boolean;
   isPlayed?: boolean;
   unplayedItemCount?: number;
+  /** Unwatched episodes in this episode's season, itself included. Next Up only. */
+  seasonUnplayedCount?: number;
   mediaSources?: JellyfinMediaSource[];
   mediaType?: string;
   mediaStreams?: JellyfinMediaStream[];
@@ -82,6 +84,7 @@ export interface JellyfinMediaItem {
   runTimeTicks?: number;
   resumePositionTicks?: number;
   remoteTrailers?: Array<{name?: string; url: string}>;
+  seasonId?: string;
   seriesId?: string;
   seriesName?: string;
 }

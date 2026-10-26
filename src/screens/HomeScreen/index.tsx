@@ -3,7 +3,7 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
-import {MediaCard} from '../../components/MediaCard';
+import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
@@ -445,6 +445,8 @@ const HomeMediaRow = ({
         <TVFocusGuideView style={styles.libraryRow}>
           {items.map((item) => (
             <MediaCard
+              // Only Next Up episodes carry a season count.
+              badgeText={formatUnplayedBadge(item.seasonUnplayedCount)}
               imageUrl={item.imageUrl}
               key={item.id}
               onFocus={() =>
