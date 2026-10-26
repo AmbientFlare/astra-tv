@@ -553,6 +553,7 @@ export const getStreamUrl = async (
     deliveredAudioStreamIndex,
     deliveredVideoCodec: videoDelivery.codec ?? selectedVideoStream?.Codec,
     audioOutputCapabilities,
+    videoDecodeLimits,
     // Report the policy matching the selected delivery route, not always the
     // first profile (which is video-oriented on some server versions).
     audioTranscodePolicy:

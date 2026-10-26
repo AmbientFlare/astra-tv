@@ -1,4 +1,5 @@
 import type {AudioOutputCapabilities} from '../mediaCapabilities';
+import type {VideoDecodeLimits} from '../mediaCapabilities/decodeLimits';
 import type {UserPreferences} from '../storage';
 
 export interface JellyfinServerInfo {
@@ -182,6 +183,8 @@ export interface JellyfinStreamInfo {
   deliveredAudioStreamIndex?: number;
   deliveredVideoCodec?: string;
   audioOutputCapabilities?: AudioOutputCapabilities;
+  /** What the device said its decoder can take, as sent in the profile. */
+  videoDecodeLimits?: VideoDecodeLimits;
   audioTranscodePolicy?: string;
   height?: number;
   hlsMinimumSegmentCount?: number;
