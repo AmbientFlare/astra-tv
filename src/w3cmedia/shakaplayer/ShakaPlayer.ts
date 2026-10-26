@@ -44,6 +44,8 @@ DOMParserPolyfill.install();
 
 const playerName: string = 'shaka';
 const playerVersion: string = '4.8.5';
+/** Longest a cancel waits for in-flight native appends before unloading. */
+const CANCEL_APPEND_SETTLE_MS = 3000;
 
 export interface ShakaPlayerSettings {
   secure: boolean;
@@ -846,13 +848,37 @@ export class ShakaPlayer implements PlayerInterface {
     if (this.cancellationPromise) return this.cancellationPromise;
     const player = this.player;
     if (!player || typeof player.unload !== 'function') return;
-    this.cancellationPromise = Promise.resolve()
+    // Shaka's unload tears down the MediaSource and its SourceBuffers. Doing
+    // that while the native pipeline is still applying an append crashes
+    // inside SourceBufferStateImpl (get_total_buffered_size /
+    // highest_end_time) -- the most frequent on-screen crash in Vitals for
+    // 1.4.0. Let the native work already handed over finish first, but bound
+    // the wait so a stalled append cannot keep the user in the player.
+    this.cancellationPromise = this.settleNativeBufferWork(
+      CANCEL_APPEND_SETTLE_MS,
+    )
       .then(() => player.unload())
       .then(
         () => undefined,
         () => undefined,
       );
     return this.cancellationPromise;
+  }
+
+  private async settleNativeBufferWork(timeoutMs: number): Promise<void> {
+    if (!this.bufferOperations.hasPendingOperations()) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        // A failed append is irrelevant here: the load is being abandoned.
+        this.waitForAppendComplete().catch(() => undefined),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private async unloadInternal(): Promise<void> {
