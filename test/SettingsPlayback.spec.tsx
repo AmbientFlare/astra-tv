@@ -6,6 +6,7 @@ import {
   PlaybackStatsOverlay,
   shouldUseHlsSequenceMode,
   shouldUseSequenceModeForMidFileStart,
+  startupFailureMessage,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
 import {RELEASE_HIGHLIGHTS} from '../src/config/releaseNotes';
@@ -410,5 +411,39 @@ describe('playback diagnostics entry points', () => {
     expect(shouldUseSequenceModeForMidFileStart('ts', 3343)).toBe(false);
     expect(shouldUseSequenceModeForMidFileStart('mpegts', 3343)).toBe(false);
     expect(shouldUseSequenceModeForMidFileStart(undefined, 3343)).toBe(false);
+  });
+});
+
+describe('the startup failure message', () => {
+  const generic =
+    'Playback stopped unexpectedly. Retry or return to the library.';
+
+  // Issue #26: a Profile 5 title only plays if the server converts it, so a
+  // failure there is the server's conversion, and retrying will not help.
+  it('points a Dolby Vision Profile 5 failure at the server conversion', () => {
+    const message = startupFailureMessage('DOVI', generic);
+    expect(message).toContain('Dolby Vision');
+    expect(message).toContain('Max streaming bitrate');
+  });
+
+  it('keeps the generic message for every other source', () => {
+    expect(startupFailureMessage('DOVIWithHDR10', generic)).toBe(generic);
+    expect(startupFailureMessage(undefined, generic)).toBe(generic);
+  });
+});
+
+describe('the bitrate cap options', () => {
+  it('offers caps low enough to make the server downscale', async () => {
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    fireEvent.press(screen.getByTestId('settings-Max streaming bitrate'));
+    fireEvent.press(screen.getByText('8 Mbps'));
+
+    await waitFor(() =>
+      expect(mockWritePlaybackPreferences).toHaveBeenCalledWith({
+        maxBitrateBps: 8000000,
+      }),
+    );
   });
 });

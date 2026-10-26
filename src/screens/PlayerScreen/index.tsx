@@ -90,6 +90,8 @@ import {
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   DECODER_RISK_WARNING,
+  SERVER_CONVERSION_FAILED,
+  requiresServerConversion,
 } from '../../services/playbackHealth';
 import {
   getServerCapabilities,
@@ -236,6 +238,15 @@ const episodeLabel = (episode: JellyfinMediaItem) => {
   return code ? `${code}  ${episode.name}` : episode.name;
 };
 
+/** Names the likely cause when a title can only play through a server re-encode. */
+export const startupFailureMessage = (
+  sourceVideoRangeType: string | undefined,
+  fallback: string,
+) =>
+  requiresServerConversion(sourceVideoRangeType)
+    ? SERVER_CONVERSION_FAILED
+    : fallback;
+
 const toTicks = (seconds?: number, fallback = 0) =>
   Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
 
@@ -315,6 +326,8 @@ export const PlayerScreen = ({
   const shakaPlayerRef = useRef<ShakaPlayerInstance | null>(null);
   const surfaceHandle = useRef<string | null>(null);
   const streamInfo = useRef<JellyfinStreamInfo | null>(null);
+  // Survives releaseMedia, which clears streamInfo before the error is shown.
+  const sourceVideoRangeType = useRef<string | undefined>();
   const sessionController = useRef(new PlaybackSessionController());
   const activeContext = useRef<PlaybackSessionContext | null>(null);
   const reporter = useRef<OrderedPlaybackReporter<PlaybackReportInput> | null>(
@@ -1783,6 +1796,7 @@ export const PlayerScreen = ({
       const sourceVideoStream = item.mediaStreams?.find(
         (track) => track.type === 'Video',
       );
+      sourceVideoRangeType.current = sourceVideoStream?.videoRangeType;
       // Most of the library is well within this decoder's comfort zone, so
       // this is a narrow exception rather than a routine re-encode: it fires
       // only for the high-bitrate Dolby Vision / HDR10+ tail. When the server
@@ -2102,7 +2116,10 @@ export const PlayerScreen = ({
           trace('session.failed', 'generation=' + context.generation);
           setStarting(false);
           setStartupError(
-            'Playback could not continue. Retry or return to the library.',
+            startupFailureMessage(
+              sourceVideoRangeType.current,
+              'Playback could not continue. Retry or return to the library.',
+            ),
           );
           setStatusText('Unable to play this stream.');
         } finally {
@@ -2229,7 +2246,10 @@ export const PlayerScreen = ({
           if (!unmountedRef.current) {
             setStarting(false);
             setStartupError(
-              'Playback stopped unexpectedly. Retry or return to the library.',
+              startupFailureMessage(
+                sourceVideoRangeType.current,
+                'Playback stopped unexpectedly. Retry or return to the library.',
+              ),
             );
           }
         })
