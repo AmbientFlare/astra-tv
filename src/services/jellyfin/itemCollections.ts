@@ -16,18 +16,61 @@ export const getResumeItems = (
     Limit: 24,
   });
 
-export const getNextUp = (
+/**
+ * Next Up, with how many episodes of each season are still unwatched so the
+ * viewer can tell whether another episode finishes the season. The counts
+ * come from one request for the seasons; if it fails the row still loads.
+ */
+export const getNextUp = async (
   serverUrl: string,
   accessToken: string,
   userId: string,
-) =>
-  getItemCollection(serverUrl, accessToken, '/Shows/NextUp', {
-    UserId: userId,
-    Fields: itemFields,
-    ImageTypeLimit: 1,
-    EnableImageTypes: 'Primary,Backdrop',
-    Limit: 24,
-  });
+): Promise<JellyfinMediaItem[]> => {
+  const episodes = await getItemCollection(
+    serverUrl,
+    accessToken,
+    '/Shows/NextUp',
+    {
+      UserId: userId,
+      Fields: itemFields,
+      ImageTypeLimit: 1,
+      EnableImageTypes: 'Primary,Backdrop',
+      Limit: 24,
+    },
+  );
+  const seasonIds = [
+    ...new Set(episodes.flatMap((episode) => episode.seasonId ?? [])),
+  ];
+
+  // An empty Ids filter is ignored by the server, which then returns the
+  // user's root folders instead of nothing.
+  if (seasonIds.length === 0) {
+    return episodes;
+  }
+
+  try {
+    const seasons = await getItemCollection(
+      serverUrl,
+      accessToken,
+      `/Users/${userId}/Items`,
+      {Ids: seasonIds.join(','), EnableImages: false},
+    );
+    const unplayedBySeason = new Map(
+      seasons.map((season) => [season.id, season.unplayedItemCount]),
+    );
+
+    return episodes.map((episode) =>
+      episode.seasonId && unplayedBySeason.has(episode.seasonId)
+        ? {
+            ...episode,
+            seasonUnplayedCount: unplayedBySeason.get(episode.seasonId),
+          }
+        : episode,
+    );
+  } catch {
+    return episodes;
+  }
+};
 
 /**
  * The item's neighbours in series order: the server returns the previous

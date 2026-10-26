@@ -63,6 +63,7 @@ export const mapItem = (
     ParentIndexNumber?: number;
     RecursiveItemCount?: number;
     RemoteTrailers?: Array<{Name?: string; Url?: string}>;
+    SeasonId?: string;
     SeriesId?: string;
     SeriesName?: string;
   },
@@ -149,6 +150,7 @@ export const mapItem = (
   indexNumber: item.IndexNumber,
   parentIndexNumber: item.ParentIndexNumber,
   recursiveItemCount: item.RecursiveItemCount ?? null,
+  seasonId: item.SeasonId,
   seriesId: item.SeriesId,
   seriesName: item.SeriesName,
 });

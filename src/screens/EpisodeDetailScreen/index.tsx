@@ -164,9 +164,19 @@ export const EpisodeDetailScreen = ({
   );
   const previousEpisode =
     currentEpisodeIndex > 0 ? seasonEpisodes[currentEpisodeIndex - 1] : null;
-  const nextEpisode =
-    currentEpisodeIndex >= 0 && currentEpisodeIndex < seasonEpisodes.length - 1
-      ? seasonEpisodes[currentEpisodeIndex + 1]
+  // The rest of the season, so the viewer can see how much is left before
+  // deciding on another episode.
+  const laterEpisodes =
+    currentEpisodeIndex >= 0
+      ? seasonEpisodes.slice(currentEpisodeIndex + 1)
+      : [];
+  // `detail` rather than the list for this episode, so marking it watched
+  // here updates the count straight away.
+  const seasonUnplayedCount =
+    currentEpisodeIndex >= 0
+      ? seasonEpisodes.filter((episode) =>
+          episode.id === detail.id ? !detail.isPlayed : !episode.isPlayed,
+        ).length
       : null;
   const videoStream = detail.mediaStreams?.find(
     (stream) => stream.type === 'Video',
@@ -193,6 +203,11 @@ export const EpisodeDetailScreen = ({
       ? `S${detail.parentIndexNumber}:E${detail.indexNumber}`
       : null,
     formatDate(detail.premiereDate),
+    seasonUnplayedCount === null
+      ? null
+      : seasonUnplayedCount === 0
+      ? 'Season watched'
+      : `${seasonUnplayedCount} unwatched in season`,
   ].filter(Boolean);
   const guestStars = useMemo(
     () =>
@@ -344,21 +359,31 @@ export const EpisodeDetailScreen = ({
         </View>
       </View>
 
-      {nextEpisode ? (
+      {laterEpisodes.length ? (
         <>
-          <Text style={styles.sectionTitle}>Next Episode</Text>
+          <Text style={styles.sectionTitle}>
+            {laterEpisodes.length === 1
+              ? 'Next Episode'
+              : `Rest of the Season (${laterEpisodes.length})`}
+          </Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
-              <MediaCard
-                imageUrl={nextEpisode.imageUrl}
-                onPress={() => onSelectEpisode?.(nextEpisode)}
-                subtitle={
-                  nextEpisode.indexNumber
-                    ? `Episode ${nextEpisode.indexNumber}`
-                    : 'Episode'
-                }
-                title={nextEpisode.name}
-              />
+              {laterEpisodes.map((episode) => (
+                <MediaCard
+                  imageUrl={episode.imageUrl}
+                  key={episode.id}
+                  onPress={() => onSelectEpisode?.(episode)}
+                  subtitle={[
+                    episode.indexNumber
+                      ? `Episode ${episode.indexNumber}`
+                      : 'Episode',
+                    episode.isPlayed ? 'Watched' : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  title={episode.name}
+                />
+              ))}
             </TVFocusGuideView>
           </ScrollView>
         </>
