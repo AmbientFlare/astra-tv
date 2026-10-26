@@ -78,6 +78,7 @@ export interface UserPreferences {
   seekDurationSeconds: 10 | 15 | 30 | 60;
   skipIntroCredits: 'ask' | 'auto' | 'ignore';
   subtitleMode: 'default' | 'alwaysOn' | 'alwaysOff' | 'forcedOnly';
+  subtitleAppearance: 'shadow' | 'background';
 }
 
 const STORAGE_KEY = 'astra.serverProfiles.v1';
@@ -129,6 +130,7 @@ export const defaultUserPreferences: UserPreferences = {
   seekDurationSeconds: 10,
   skipIntroCredits: 'ask',
   subtitleMode: 'default',
+  subtitleAppearance: 'shadow',
 };
 
 export const defaultPlaybackPrefs: PlaybackPreferences = {
@@ -337,6 +339,8 @@ const parseUserPreferences = (
         ...defaultUserPreferences.homeSections,
         ...(parsed.homeSections ?? {}),
       },
+      subtitleAppearance:
+        parsed.subtitleAppearance === 'background' ? 'background' : 'shadow',
       // The player applies this on every stream request, so a value this
       // build does not know must fall back to per-video behaviour rather
       // than silently disabling or forcing subtitles.

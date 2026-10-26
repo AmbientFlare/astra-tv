@@ -1,4 +1,5 @@
 import React from 'react';
+import {StyleSheet} from 'react-native';
 import {render, act} from '@testing-library/react-native';
 import {
   startVideoEngagement,
@@ -80,6 +81,7 @@ jest.mock('../src/services/storage', () => ({
     nextEpisodeAutoplay: false,
     nextEpisodeCountdownSeconds: 15,
     skipIntroCredits: 'ask',
+    subtitleAppearance: 'shadow',
   },
   readPlaybackPreferences: jest.fn(async () => ({
     seekDurationSeconds: 10,
@@ -89,6 +91,7 @@ jest.mock('../src/services/storage', () => ({
     nextEpisodeAutoplay: false,
     nextEpisodeCountdownSeconds: 15,
     skipIntroCredits: 'ask',
+    subtitleAppearance: 'shadow',
   })),
 }));
 jest.mock('../src/services/jellyfin', () => ({
@@ -118,7 +121,10 @@ jest.mock('../src/w3cmedia/shakaplayer/ShakaPlayer', () => ({
 import {
   PlayerScreen,
   PlaybackSettingsOverlay,
+  ExternalSubtitleOverlay,
 } from '../src/screens/PlayerScreen';
+import {getUserPreferences} from '../src/services/storage';
+import {createPositionStore} from '../src/screens/PlayerScreen/positionStore';
 import {
   getStreamUrl,
   reportPlaybackStart,
@@ -429,5 +435,194 @@ describe('PlayerScreen native session integration', () => {
     expect(mockVideos[0].deinitialize).toHaveBeenCalledTimes(1);
     expect(onBack).toHaveBeenCalledTimes(1);
     view.unmount();
+  });
+
+  describe('subtitle presentation and controls', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const advance = async (milliseconds = 5000) => {
+      await act(async () => {
+        jest.advanceTimersByTime(milliseconds);
+        await flush();
+      });
+    };
+    const dispose = async (view: ReturnType<typeof mount>) => {
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    };
+
+    it('renders readable subtitle text over the video without a background box', () => {
+      const positionStore = createPositionStore(10);
+      const cues = [
+        {startTime: 10, endTime: 15, text: 'First line\nSecond line'},
+      ];
+      const view = render(
+        <ExternalSubtitleOverlay cues={cues} positionStore={positionStore} />,
+      );
+      const textStyle = StyleSheet.flatten(
+        view.getByText('First line\nSecond line').props.style,
+      );
+      expect(textStyle.backgroundColor).toBe('transparent');
+      expect(textStyle.color).toBe('#FFFFFF');
+      expect(textStyle.textShadowColor).toBe('#000000');
+      expect(textStyle.textShadowRadius).toBeGreaterThan(0);
+      const normalBottom = StyleSheet.flatten(
+        view.getByTestId('player-external-subtitle').props.style,
+      ).bottom;
+      view.update(
+        <ExternalSubtitleOverlay
+          cues={cues}
+          positionStore={positionStore}
+          controlsVisible
+        />,
+      );
+      expect(
+        StyleSheet.flatten(
+          view.getByTestId('player-external-subtitle').props.style,
+        ).bottom,
+      ).toBeGreaterThan(normalBottom);
+      view.update(
+        <ExternalSubtitleOverlay
+          cues={cues}
+          positionStore={positionStore}
+          appearance="background"
+        />,
+      );
+      expect(
+        StyleSheet.flatten(
+          view.getByText('First line\nSecond line').props.style,
+        ).backgroundColor,
+      ).toBe('rgba(0,0,0,0.78)');
+      act(() => positionStore.set(16));
+      expect(view.queryByTestId('player-external-subtitle')).toBeNull();
+      view.unmount();
+    });
+
+    it.each(['shadow', 'background'] as const)(
+      'loads the saved %s appearance and keeps cues updating after controls hide',
+      async (appearance) => {
+        (getUserPreferences as jest.Mock).mockResolvedValueOnce({
+          nextEpisodeAutoplay: false,
+          nextEpisodeCountdownSeconds: 15,
+          skipIntroCredits: 'ask',
+          subtitleAppearance: appearance,
+        });
+        const previousFetch = global.fetch;
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          text: async () =>
+            'WEBVTT\n\n00:00:00.000 --> 00:00:10.000\nFirst subtitle\n\n00:00:10.000 --> 00:00:20.000\nNext subtitle',
+        });
+        (getStreamUrl as jest.Mock).mockResolvedValue({
+          ...stream,
+          subtitleStreamIndex: 2,
+          subtitleTracks: [
+            {
+              index: 2,
+              deliveryUrl: 'https://server/subtitles.vtt',
+              burnInRequired: false,
+            },
+          ],
+        });
+        const view = mount();
+        try {
+          await start(view);
+          expect(
+            StyleSheet.flatten(view.getByText('First subtitle').props.style)
+              .backgroundColor,
+          ).toBe(appearance === 'shadow' ? 'transparent' : 'rgba(0,0,0,0.78)');
+          const raisedBottom = StyleSheet.flatten(
+            view.getByTestId('player-external-subtitle').props.style,
+          ).bottom;
+          await advance();
+          expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+          expect(view.getByText('First subtitle')).toBeTruthy();
+          expect(
+            StyleSheet.flatten(
+              view.getByTestId('player-external-subtitle').props.style,
+            ).bottom,
+          ).toBeLessThan(raisedBottom);
+          await act(async () => {
+            mockVideos[0].currentTime = 12;
+            mockVideos[0].emit('timeupdate');
+          });
+          expect(view.getByText('Next subtitle')).toBeTruthy();
+          expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+        } finally {
+          await dispose(view);
+          global.fetch = previousFetch;
+        }
+      },
+    );
+
+    it('keeps controls visible while paused, then hides after playback resumes', async () => {
+      const view = mount();
+      await start(view);
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await act(async () => {
+        mockVideos[0].pause();
+      });
+      await advance(6000);
+      expect(view.getByTestId('player-controls-overlay')).toBeTruthy();
+      await act(async () => {
+        mockVideos[0].play();
+      });
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await dispose(view);
+    });
+
+    it.each(['waiting', 'stalled'])(
+      'rearms hiding after %s ends with progress but no playing event',
+      async (event) => {
+        const view = mount();
+        await start(view);
+        await advance();
+        await act(async () => {
+          mockVideos[0].emit(event);
+        });
+        await advance(6000);
+        expect(view.getByTestId('player-controls-overlay')).toBeTruthy();
+        for (let seconds = 1; seconds <= 5; seconds++) {
+          await act(async () => {
+            mockVideos[0].currentTime = seconds;
+            mockVideos[0].emit('timeupdate');
+          });
+          await advance(1000);
+        }
+        expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+        await dispose(view);
+      },
+    );
+
+    it('uses playback state when the native paused getter lags behind playing', async () => {
+      const view = mount();
+      await start(view);
+      // No pause event: the getter alone is stale, playback is still active.
+      mockVideos[0].paused = true;
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await dispose(view);
+    });
+
+    it('pins settings until closed, then restarts the hide timer', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => {
+        mockRemote({eventType: 'menu'});
+      });
+      await advance(6000);
+      expect(view.getByTestId('player-controls-overlay')).toBeTruthy();
+      await act(async () => {
+        mockRemote({eventType: 'back'});
+      });
+      await advance();
+      expect(view.queryByTestId('player-controls-overlay')).toBeNull();
+      await dispose(view);
+    });
   });
 });
