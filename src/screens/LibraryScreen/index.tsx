@@ -101,6 +101,22 @@ const DETAIL_CACHE_LIMIT = 240;
  */
 const LIBRARY_PAGE_SIZE = 100;
 
+/**
+ * What a library grid asks the server for. Movie and TV libraries are searched
+ * through every folder for their movies or series, the way Jellyfin's own
+ * apps do: a library whose files sit in plain subfolders has only folders at
+ * its top level, so a top-level-only search showed a handful of its films.
+ * A view whose CollectionType we do not recognise is browsed at its top
+ * level with no type filter, so whatever the server chose to put there is
+ * what the grid shows.
+ */
+export const libraryBrowseScope = (libraryType?: string) =>
+  libraryType === 'tvshows'
+    ? {includeItemTypes: 'Series', recursive: true}
+    : libraryType === 'movies'
+    ? {includeItemTypes: 'Movie', recursive: true}
+    : {includeItemTypes: null, recursive: false};
+
 /** Rows of cards left below focus at which the next page is fetched. */
 const PAGE_AHEAD_ROWS = 4;
 
@@ -485,16 +501,7 @@ export const LibraryScreen = ({
               ? Math.max(LIBRARY_PAGE_SIZE, initialFocusIndex + 1)
               : LIBRARY_PAGE_SIZE,
             imageType: displayPreferences.imageType,
-            // A view whose CollectionType we do not recognise is browsed at
-            // its top level with no type filter, so whatever the server
-            // chose to put there is what the grid shows.
-            includeItemTypes:
-              libraryType === 'tvshows'
-                ? 'Series'
-                : libraryType === 'movies'
-                ? 'Movie'
-                : null,
-            recursive: false,
+            ...libraryBrowseScope(libraryType),
             sortBy,
             sortDescending,
             startIndex: 0,
@@ -569,14 +576,8 @@ export const LibraryScreen = ({
         {
           filters,
           imageType: displayPreferences.imageType,
-          includeItemTypes:
-            libraryType === 'tvshows'
-              ? 'Series'
-              : libraryType === 'movies'
-              ? 'Movie'
-              : null,
+          ...libraryBrowseScope(libraryType),
           limit: LIBRARY_PAGE_SIZE,
-          recursive: false,
           sortBy,
           sortDescending,
           startIndex: loaded,
