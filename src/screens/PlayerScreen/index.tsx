@@ -38,6 +38,7 @@ import {
   reportPlaybackStopped,
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
+import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {getTraces, resetTraces, trace} from '../../services/logging/trace';
@@ -3461,6 +3462,11 @@ export const PlaybackStatsOverlay = ({
           }`}
         </Text>
       ) : null}
+      {streamInfo.videoDecodeLimits ? (
+        <Text style={styles.statsLine}>
+          {`Decoder  ${describeDecodeLimits(streamInfo.videoDecodeLimits)}`}
+        </Text>
+      ) : null}
       <Text style={styles.statsLine}>
         {`Audio policy  ${
           streamInfo.audioTranscodePolicy?.toUpperCase() ?? 'AAC'
@@ -3522,7 +3528,7 @@ export const PlaybackStatsOverlay = ({
       </Text>
       {streamInfo.transcodeReasons?.length ? (
         <Text style={styles.statsLine}>
-          {`Reason  ${streamInfo.transcodeReasons.join(', ')}`}
+          {`Server reason  ${streamInfo.transcodeReasons.join(', ')}`}
         </Text>
       ) : null}
       {/* Playback traces. JS console output reaches no artifact that
