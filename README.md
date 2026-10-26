@@ -1,10 +1,10 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.4.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.5.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
-[![Tests](https://img.shields.io/badge/tests-578%20in%2064%20suites-4c9a2a?style=flat-square)](#project-status)
+[![Tests](https://img.shields.io/badge/tests-611%20in%2066%20suites-4c9a2a?style=flat-square)](#project-status)
 [![License](https://img.shields.io/badge/license-source--available-8a8f9c?style=flat-square)](LICENSE.md)
 
 Astra is a couch-first Jellyfin client for Amazon Fire TV devices running Vega
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.4.1`, build `20261020.2`, for Fire TV
+The current release is Astra `1.5.0`, build `20261026.1`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -31,12 +31,14 @@ Appstore.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
-- Release validation: 578 tests in 64 suites, ESLint, TypeScript, Vega
+- Release validation: 611 tests in 66 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
   film was played start to finish on the same device to confirm the
-  engagement fix.
+  engagement fix. For 1.5.0, SyncPlay was exercised on a Vega OS 2.0 stick
+  alongside Jellyfin Web: joining, hosting, play, pause, seek, rejoining after
+  a restart, and each SyncPlay permission level.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -68,6 +70,17 @@ Music intentionally uses a simple, predictable playback model. Astra does not
 currently expose an editable queue, per-track popup actions, or playlist
 creation on Vega.
 
+### Watching together
+
+- Join a Jellyfin SyncPlay group started in any Jellyfin app, or start one
+  from Astra (Settings > Playback > SyncPlay).
+- Picking a title in a group opens it for every member; play, pause and seek
+  from any member reach the whole group, and Astra waits while a member is
+  still loading.
+- Astra rejoins its group after the app is closed or restarted, for the same
+  server and account, while the group still exists.
+- The SyncPlay page follows the account's server-side SyncPlay permission.
+
 ### TV interface and device behavior
 
 - Large Movies, TV Shows, and Music cards use collages from server artwork.
@@ -85,6 +98,27 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.5.0 — Watch together with SyncPlay — 2026-10-26
+
+- Added SyncPlay: join a group from another Jellyfin app, or host one from
+  Astra and pick something to play for the whole group. Play, pause and seek
+  from any member reach everyone, over a live WebSocket connection to the
+  server.
+- Added rejoining after the app is closed or restarted mid-session.
+- The SyncPlay page follows the account's `SyncPlayAccess` policy: join-only
+  accounts are not offered "Start a group", and accounts without SyncPlay see
+  why.
+- Fixed one play/pause press occasionally reaching the group as a pause
+  followed at once by a play.
+
+### 1.4.1 — Store package for armv7 — 2026-10-20
+
+- Fixed Astra failing to install on the Fire TV Stick 4K (2026). The store
+  package was built for x86_64, the Vega Virtual Device, instead of armv7;
+  Vega OS 2.0 rejects the mismatch, and on Vega OS 1.x the engagement native
+  module could not load. The submission build now targets armv7 and fails if
+  the package carries another architecture's library.
 
 ### 1.4.0 — Playback stability, subtitle rendering, and per-server capabilities — 2026-09-08
 
