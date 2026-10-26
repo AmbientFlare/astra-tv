@@ -60,6 +60,12 @@ Appstore.
   when the title and controls hide and move above the controls when shown.
   Subtitles burned into the video keep their original appearance.
 - Show unwatched episode badges on series posters, capped at `99+`.
+- Seek with the arrows or fast-forward/rewind: presses add up into one jump
+  by the configured seek step, holding speeds the step up to 60 seconds, and
+  Jellyfin Trickplay thumbnails show while seeking when the server has them.
+- Cap streaming bitrate from 4 Mbps to 120 Mbps. On devices that report an
+  HD-only video decoder, Astra asks the server to scale 4K down, and Stats
+  for Nerds shows what the decoder reported.
 - Show how many episodes of the season are left on Next Up cards and episode
   pages.
 
@@ -91,7 +97,8 @@ creation on Vega.
 
 ### TV interface and device behavior
 
-- Large Movies, TV Shows, and Music cards use collages from server artwork.
+- Large Movies, TV Shows, and Music cards use collages of the newest posters
+  from each library.
 - Multiple Jellyfin users and servers can be saved and switched from Home.
 - Quick Connect, local server discovery, and password sign-in are supported.
 - Moving in-app idle visuals protect against burn-in during music playback and
