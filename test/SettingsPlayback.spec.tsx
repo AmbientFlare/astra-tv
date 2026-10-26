@@ -6,6 +6,7 @@ import {
   PlaybackStatsOverlay,
   shouldUseHlsSequenceMode,
   shouldUseSequenceModeForMidFileStart,
+  startupFailureMessage,
 } from '../src/screens/PlayerScreen';
 import {SettingsScreen} from '../src/screens/SettingsScreen';
 import {RELEASE_HIGHLIGHTS} from '../src/config/releaseNotes';
@@ -39,6 +40,7 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
 });
 
 jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
+  KeplerMediaControlHandler: class {},
   KeplerVideoSurfaceView: 'KeplerVideoSurfaceView',
   VideoPlayer: jest.fn(),
 }));
@@ -68,6 +70,7 @@ jest.mock('../src/services/storage', () => ({
     preferredSubtitleLanguage: 'English',
     skipIntroCredits: 'ask',
     subtitleMode: 'default',
+    subtitleAppearance: 'shadow',
   },
   getDisplayPreferences: jest.fn(async () => ({
     imageSize: 'medium',
@@ -83,6 +86,7 @@ jest.mock('../src/services/storage', () => ({
     preferredSubtitleLanguage: 'English',
     skipIntroCredits: 'ask',
     subtitleMode: 'default',
+    subtitleAppearance: 'shadow',
   })),
   readPlaybackPreferences: jest.fn(async () => ({
     hlsSegmentLengthSeconds: 0,
@@ -183,6 +187,23 @@ describe('playback diagnostics entry points', () => {
     );
   });
 
+  it('offers subtitle appearance choices and saves the selection', async () => {
+    mockUpdateUserPreferences.mockClear();
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    await waitFor(() =>
+      expect(screen.getByText('Text with shadow')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-Subtitle appearance'));
+    expect(screen.getByText('Text with shadow')).toBeTruthy();
+    fireEvent.press(screen.getByText('Dark background'));
+    await waitFor(() =>
+      expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+        subtitleAppearance: 'background',
+      }),
+    );
+  });
+
   it('shows the release version and build number on the About page', async () => {
     const screen = render(<SettingsScreen serverProfile={serverProfile} />);
 
@@ -192,9 +213,9 @@ describe('playback diagnostics entry points', () => {
     fireEvent.press(screen.getByTestId('settings-About'));
 
     // The version and build are spelled out so a forgotten bump fails here.
-    expect(screen.getByText('Astra 1.5.0')).toBeTruthy();
-    expect(screen.getByText('Build: 20261026.1')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.5.0")).toBeTruthy();
+    expect(screen.getByText('Astra 1.5.1')).toBeTruthy();
+    expect(screen.getByText('Build: 20261026.14')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.5.1")).toBeTruthy();
     // The notes themselves are not: About and the What's New notice both read
     // RELEASE_HIGHLIGHTS, and pinning the prose here only made a version bump
     // mean editing the same sentences twice.
@@ -377,7 +398,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.5\.0 \(20261026\.1\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.5\.1 \(20261026\.14\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,
@@ -410,5 +431,39 @@ describe('playback diagnostics entry points', () => {
     expect(shouldUseSequenceModeForMidFileStart('ts', 3343)).toBe(false);
     expect(shouldUseSequenceModeForMidFileStart('mpegts', 3343)).toBe(false);
     expect(shouldUseSequenceModeForMidFileStart(undefined, 3343)).toBe(false);
+  });
+});
+
+describe('the startup failure message', () => {
+  const generic =
+    'Playback stopped unexpectedly. Retry or return to the library.';
+
+  // Issue #26: a Profile 5 title only plays if the server converts it, so a
+  // failure there is the server's conversion, and retrying will not help.
+  it('points a Dolby Vision Profile 5 failure at the server conversion', () => {
+    const message = startupFailureMessage('DOVI', generic);
+    expect(message).toContain('Dolby Vision');
+    expect(message).toContain('Max streaming bitrate');
+  });
+
+  it('keeps the generic message for every other source', () => {
+    expect(startupFailureMessage('DOVIWithHDR10', generic)).toBe(generic);
+    expect(startupFailureMessage(undefined, generic)).toBe(generic);
+  });
+});
+
+describe('the bitrate cap options', () => {
+  it('offers caps low enough to make the server downscale', async () => {
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    fireEvent.press(screen.getByTestId('settings-Max streaming bitrate'));
+    fireEvent.press(screen.getByText('8 Mbps'));
+
+    await waitFor(() =>
+      expect(mockWritePlaybackPreferences).toHaveBeenCalledWith({
+        maxBitrateBps: 8000000,
+      }),
+    );
   });
 });

@@ -1,5 +1,6 @@
 import {
   assessDecoderRisk,
+  requiresServerConversion,
   shouldAbandonForcedDecoderTranscode,
   shouldForceVideoConversion,
   shouldTranscodeForDecoder,
@@ -128,5 +129,26 @@ describe('shouldTripForcedDecoderTranscode', () => {
     expect(shouldTripForcedDecoderTranscode(false, false, 0, 0, 30_000)).toBe(
       false,
     );
+  });
+});
+
+describe('requiresServerConversion', () => {
+  it('names Dolby Vision with no fallback layer (Profile 5)', () => {
+    expect(requiresServerConversion('DOVI')).toBe(true);
+    expect(requiresServerConversion(' dovi ')).toBe(true);
+  });
+
+  it('leaves layered Dolby Vision and plain ranges alone', () => {
+    for (const range of [
+      'DOVIWithHDR10',
+      'DOVIWithHLG',
+      'DOVIWithSDR',
+      'HDR10',
+      'HDR10Plus',
+      'SDR',
+      undefined,
+    ]) {
+      expect(requiresServerConversion(range)).toBe(false);
+    }
   });
 });

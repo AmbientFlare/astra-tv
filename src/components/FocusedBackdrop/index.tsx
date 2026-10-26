@@ -13,13 +13,19 @@ export const FocusedBackdrop = ({imageUrl}: FocusedBackdropProps) => {
 
   useEffect(() => {
     if (!imageUrl || imageUrl === currentUrl) {
+      // Settle any fade the last change left half done.
+      if (currentUrl) {
+        currentOpacity.setValue(1);
+      }
+      nextOpacity.setValue(0);
+      setNextUrl(null);
       return;
     }
 
     setNextUrl(imageUrl);
     nextOpacity.setValue(0);
 
-    Animated.parallel([
+    const fade = Animated.parallel([
       Animated.timing(currentOpacity, {
         duration: 240,
         toValue: 0,
@@ -30,12 +36,22 @@ export const FocusedBackdrop = ({imageUrl}: FocusedBackdropProps) => {
         toValue: 1,
         useNativeDriver: true,
       }),
-    ]).start(() => {
+    ]);
+
+    fade.start(({finished}) => {
+      // A fade cut short means a newer image or an unmount took over. Swapping
+      // sources then repointed views that were already moving on, or gone.
+      if (!finished) {
+        return;
+      }
+
       setCurrentUrl(imageUrl);
       setNextUrl(null);
       currentOpacity.setValue(1);
       nextOpacity.setValue(0);
     });
+
+    return () => fade.stop();
   }, [currentOpacity, currentUrl, imageUrl, nextOpacity]);
 
   return (

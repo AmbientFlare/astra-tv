@@ -2,6 +2,7 @@ import {
   buildDeviceProfile,
   buildTranscodingAudioCodecs,
   declaredMaxVideoWidth,
+  describeDecodeLimits,
 } from '../src/services/jellyfin/deviceProfile';
 import {defaultPlaybackPrefs} from '../src/services/storage';
 import type {AudioOutputCapabilities} from '../src/services/mediaCapabilities';
@@ -289,6 +290,20 @@ describe('Jellyfin video resolution policy', () => {
 
   it('declares the decoder ceiling for an HD-only device', () => {
     expect(declaredMaxVideoWidth(hdOnly)).toBe(1920);
+  });
+
+  it('tells Stats for Nerds what the decoder said and whether it capped', () => {
+    expect(describeDecodeLimits(hdOnly)).toBe('1920x1080, capped at 1920 wide');
+    expect(
+      describeDecodeLimits(decodeLimits({maxWidth: 3840, maxHeight: 2160})),
+    ).toBe('3840x2160, no cap sent');
+    expect(describeDecodeLimits(decodeLimits())).toBe('no answer, no cap sent');
+    expect(describeDecodeLimits(defaultVideoDecodeLimits)).toBe(
+      'not reported, no cap sent',
+    );
+    expect(
+      describeDecodeLimits(decodeLimits({...hdOnly, controlsFailed: true})),
+    ).toBe('answer not trusted (controls failed), no cap sent');
   });
 
   it('declares no limit when the probe failed or its controls misbehaved', () => {

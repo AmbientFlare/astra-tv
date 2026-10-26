@@ -1,4 +1,5 @@
 import type {AudioOutputCapabilities} from '../mediaCapabilities';
+import type {VideoDecodeLimits} from '../mediaCapabilities/decodeLimits';
 import type {UserPreferences} from '../storage';
 
 export interface JellyfinServerInfo {
@@ -58,6 +59,8 @@ export interface JellyfinMediaItem {
   isFavorite?: boolean;
   isPlayed?: boolean;
   unplayedItemCount?: number;
+  /** Unwatched episodes in this episode's season, itself included. Next Up only. */
+  seasonUnplayedCount?: number;
   mediaSources?: JellyfinMediaSource[];
   mediaType?: string;
   mediaStreams?: JellyfinMediaStream[];
@@ -82,6 +85,7 @@ export interface JellyfinMediaItem {
   runTimeTicks?: number;
   resumePositionTicks?: number;
   remoteTrailers?: Array<{name?: string; url: string}>;
+  seasonId?: string;
   seriesId?: string;
   seriesName?: string;
 }
@@ -179,6 +183,8 @@ export interface JellyfinStreamInfo {
   deliveredAudioStreamIndex?: number;
   deliveredVideoCodec?: string;
   audioOutputCapabilities?: AudioOutputCapabilities;
+  /** What the device said its decoder can take, as sent in the profile. */
+  videoDecodeLimits?: VideoDecodeLimits;
   audioTranscodePolicy?: string;
   height?: number;
   hlsMinimumSegmentCount?: number;
@@ -217,6 +223,15 @@ export interface GetItemsOptions {
   recursive?: boolean;
   sortBy?: JellyfinSortBy;
   sortDescending?: boolean;
+  /** Paging. Omitted means the whole collection in one response. */
+  startIndex?: number;
+  limit?: number;
+}
+
+export interface JellyfinItemsPage {
+  items: JellyfinMediaItem[];
+  /** Size of the whole collection, not of this page. */
+  totalRecordCount: number;
 }
 
 export interface PlaybackReportInput {

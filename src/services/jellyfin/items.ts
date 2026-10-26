@@ -2,6 +2,7 @@ import type {
   JellyfinLibrary,
   JellyfinSortBy,
   GetItemsOptions,
+  JellyfinItemsPage,
   JellyfinMediaItem,
   JellyfinMediaSource,
   JellyfinMediaSegment,
@@ -100,10 +101,27 @@ export const getItems = async (
   libraryId: string,
   userId?: string,
   options: GetItemsOptions = {},
-): Promise<JellyfinMediaItem[]> => {
+): Promise<JellyfinMediaItem[]> =>
+  (await getItemsPage(serverUrl, accessToken, libraryId, userId, options))
+    .items;
+
+/**
+ * One page of a library plus the size of the whole thing. The library grid
+ * pages through big collections instead of parsing them in one response:
+ * a multi-thousand-title library with overviews is megabytes of JSON, and
+ * parsing it blocked the JS thread long enough to be killed as an ANR.
+ */
+export const getItemsPage = async (
+  serverUrl: string,
+  accessToken: string,
+  libraryId: string,
+  userId?: string,
+  options: GetItemsOptions = {},
+): Promise<JellyfinItemsPage> => {
   const baseUrl = normalizeServerUrl(serverUrl);
   const itemsPath = userId ? `/Users/${userId}/Items` : '/Items';
   const response = await getJson<{
+    TotalRecordCount?: number;
     Items?: Array<{
       Id?: string;
       Name?: string;
@@ -150,6 +168,8 @@ export const getItems = async (
       Filters: options.filters?.join(','),
       SortBy: sortByMap[options.sortBy ?? 'name'],
       SortOrder: options.sortDescending ? 'Descending' : 'Ascending',
+      StartIndex: options.startIndex,
+      Limit: options.limit,
       api_key: accessToken,
     }),
     {
@@ -157,9 +177,16 @@ export const getItems = async (
     },
   );
 
-  return (response.Items ?? []).map((item) =>
+  const items = (response.Items ?? []).map((item) =>
     mapItem(baseUrl, accessToken, item, options.imageType ?? 'Primary'),
   );
+  return {
+    items,
+    totalRecordCount: Math.max(
+      response.TotalRecordCount ?? 0,
+      (options.startIndex ?? 0) + items.length,
+    ),
+  };
 };
 
 /**
