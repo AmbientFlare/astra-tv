@@ -1,5 +1,8 @@
 # Changelog
 
+Code from outside contributors is credited on its entry and, permanently,
+in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
 ## 1.5.1 - 2026-10-26
 
 ### Added
@@ -12,10 +15,11 @@
   another press; Select jumps at once and Back cancels. Holding a direction
   speeds the step up after one second and again after 2.5 seconds, up to 60
   seconds a step. Scene thumbnails show while seeking when Jellyfin has
-  generated Trickplay images. Paused playback stays paused (#31).
+  generated Trickplay images. Paused playback stays paused (#31, by
+  @gerritsa).
 - Settings → Playback → Subtitle appearance: text with a shadow (the new
   default) or on a dark background. The playback controls hide again five
-  seconds after playback resumes (#32).
+  seconds after playback resumes (#32, by @gerritsa).
 - Bitrate caps of 4, 8, 12 and 20 Mbps. The lowest was 40 Mbps, too high to
   make the server downscale (#21, #26).
 - Stats for Nerds shows what the device reported its video decoder can take
@@ -27,7 +31,8 @@
 
 - 4K files would not play on HD-only (1080p) sticks: the server offered the
   stream at full 4K, which the stick cannot decode. When the device reports a
-  decoder narrower than 4K, Astra now asks the server to downscale (#21, #25).
+  decoder narrower than 4K, Astra now asks the server to downscale (#21, #25,
+  by @toomanybyt3s).
 - When a Dolby Vision Profile 5 film fails to start, Astra says the server's
   conversion failed and points at tone mapping and the bitrate cap, instead
   of a generic error (#26).

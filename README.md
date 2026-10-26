@@ -31,6 +31,7 @@ Appstore.
 - Supported server connections: local HTTP and remote HTTPS
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
+- Contributors: [CONTRIBUTORS.md](CONTRIBUTORS.md)
 - Release validation: 732 tests in 75 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
@@ -383,19 +384,19 @@ machine only. They are for study and are not incorporated into this codebase.
 
 ## Acknowledgements
 
-Astra is developed by AmbientFlare. Thanks to the people who have reported
-problems, tested builds on their own hardware, and sent code.
+Astra is developed by AmbientFlare. Code from outside contributors ships in
+Astra, and every one of them is thanked by name, with their pull requests and
+commits, in [CONTRIBUTORS.md](CONTRIBUTORS.md):
 
-- **[@brontodev](https://github.com/brontodev)** — Skip Credits and Next
-  Episode ([#14](https://github.com/AmbientFlare/astra-tv/pull/14)). The
-  Jellyfin media-segments client that Skip Credits runs on is his work, and
-  the shape of the feature — a pure decision module separate from the player,
-  credits sourced from the server's own `Outro` segments rather than guessed
-  offsets — is the design his patch proposed.
-- **[@eamcd](https://github.com/eamcd)**, **[@Jailbone](https://github.com/Jailbone)**
-  and **[@stspivey421](https://github.com/stspivey421)** — detailed playback,
-  subtitle and Live TV reports with server-side evidence, which is what made
-  the 1.2.1 and 1.3.0 fixes possible.
+- [@gerritsa](https://github.com/gerritsa): faster seeking with Trickplay
+  previews, and subtitle appearance (1.5.1)
+- [@toomanybyt3s](https://github.com/toomanybyt3s): decoder width ceiling for
+  HD-only devices (1.5.1)
+- [@brontodev](https://github.com/brontodev): Skip Credits and Next Episode
+  (1.2.1)
+
+Thanks also to everyone who reported problems and tested builds on their own
+hardware; the detailed reports are credited there too.
 
 ## License
 
