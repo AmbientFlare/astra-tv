@@ -30,7 +30,7 @@ import {
   type SyncPlayGroupState,
 } from '../../services/syncPlay';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
-import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
+import {releaseHighlights} from '../../config/releaseNotes';
 import {
   defaultUserPreferences,
   defaultPlaybackPrefs,
@@ -1038,7 +1038,7 @@ export const SettingsScreen = ({
                 <Text style={styles.releaseNotesTitle}>
                   {t('about.whatsNewIn', {version: APP_VERSION})}
                 </Text>
-                {RELEASE_HIGHLIGHTS.map((highlight) => (
+                {releaseHighlights().map((highlight) => (
                   <Text
                     key={highlight.slice(0, 24)}
                     style={styles.releaseNotesText}>

@@ -3,7 +3,11 @@ import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 
 import {APP_VERSION} from '../../config/app';
-import {CURRENT_NOTICE_ID, RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
+import {
+  CURRENT_NOTICE_ID,
+  languageLines,
+  releaseHighlights,
+} from '../../config/releaseNotes';
 import {t} from '../../i18n';
 
 /**
@@ -16,7 +20,9 @@ export {CURRENT_NOTICE_ID};
 
 export const noticeTitle = () => t('whatsNew.title', {version: APP_VERSION});
 
-export const NOTICE_BODY = RELEASE_HIGHLIGHTS;
+export const noticeBody = releaseHighlights;
+
+export {languageLines};
 
 interface WhatsNewNoticeProps {
   onDismiss: () => void;
@@ -47,11 +53,20 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
         trapFocusUp
         style={styles.card}>
         <Text style={styles.title}>{noticeTitle()}</Text>
-        {NOTICE_BODY.map((highlight) => (
+        {noticeBody().map((highlight) => (
           <Text key={highlight.slice(0, 24)} style={styles.body}>
             {`\u2022 ${highlight}`}
           </Text>
         ))}
+        {languageLines().length > 0 ? (
+          <View style={styles.languages} testID="whats-new-languages">
+            {languageLines().map((line) => (
+              <Text key={line.slice(0, 12)} style={styles.language}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        ) : null}
         <Text style={styles.signature}>— Levi</Text>
         <TouchableOpacity
           accessibilityLabel={t('whatsNew.dismissLabel')}
@@ -103,6 +118,18 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 32,
     marginBottom: 18,
+  },
+  languages: {
+    borderTopColor: '#2c313d',
+    borderTopWidth: 1,
+    marginBottom: 18,
+    paddingTop: 16,
+  },
+  language: {
+    color: '#a9b0c0',
+    fontSize: 18,
+    lineHeight: 26,
+    marginBottom: 4,
   },
   signature: {
     color: '#8f97a8',
