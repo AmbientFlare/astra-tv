@@ -1,6 +1,7 @@
 import React from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 import {JellyfinMediaItem as MediaItem} from '../../services/jellyfin';
+import {t, tn} from '../../i18n';
 
 const formatRuntime = (ticks: number | null): string => {
   if (!ticks) {
@@ -109,12 +110,12 @@ export const LibraryInfoPanel = ({
     item.locationType === 'Remote'
       ? []
       : [
-          {label: 'Quality', value: resolution},
-          {label: 'Video Codec', value: videoCodec},
-          {label: 'Audio', value: audioLabel},
-          {label: 'Container', value: container},
-          {label: 'Bitrate', value: bitrate},
-          {label: 'File Size', value: fileSize},
+          {label: t('media.quality'), value: resolution},
+          {label: t('media.videoCodec'), value: videoCodec},
+          {label: t('media.audio'), value: audioLabel},
+          {label: t('media.container'), value: container},
+          {label: t('media.bitrate'), value: bitrate},
+          {label: t('media.fileSize'), value: fileSize},
         ]
   ).filter((cell) => cell.value);
   const isMovie = item.type === 'Movie';
@@ -153,7 +154,7 @@ export const LibraryInfoPanel = ({
       ) : null}
       {isMovie && director ? (
         <Text style={styles.personRow}>
-          <Text style={styles.personLabel}>Director </Text>
+          <Text style={styles.personLabel}>{t('media.director')} </Text>
           <Text style={styles.personName}>
             {director.Name ?? director.name}
           </Text>
@@ -161,14 +162,14 @@ export const LibraryInfoPanel = ({
       ) : null}
       {cast ? (
         <Text style={styles.castRow}>
-          <Text style={styles.personLabel}>Cast </Text>
+          <Text style={styles.personLabel}>{t('media.cast')} </Text>
           <Text style={styles.personName}>{cast}</Text>
         </Text>
       ) : null}
       {isSeries && item.childCount !== null && item.childCount !== undefined ? (
         <Text style={styles.seriesSummary}>
-          {item.childCount} Season{item.childCount !== 1 ? 's' : ''} ·{' '}
-          {item.recursiveItemCount ?? 0} Episodes
+          {tn('media.seasonCount', item.childCount)} ·{' '}
+          {tn('media.episodeCount', item.recursiveItemCount ?? 0)}
         </Text>
       ) : null}
       {isMovie && source && fileCells.length ? (

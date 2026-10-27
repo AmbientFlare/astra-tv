@@ -1,5 +1,5 @@
 import {
-  CLEARTEXT_MEDIA_MESSAGE,
+  cleartextMediaMessage,
   getServerUrlCandidates,
   isCleartextUrl,
   normalizeServerUrl,
@@ -105,8 +105,8 @@ describe('isCleartextUrl', () => {
   });
 
   it('names the fix, not just the symptom', () => {
-    expect(CLEARTEXT_MEDIA_MESSAGE).toMatch(/https:\/\//);
-    expect(CLEARTEXT_MEDIA_MESSAGE).toMatch(/playback|play/i);
+    expect(cleartextMediaMessage()).toMatch(/https:\/\//);
+    expect(cleartextMediaMessage()).toMatch(/playback|play/i);
   });
 });
 

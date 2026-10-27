@@ -4,6 +4,7 @@ import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 
 import {APP_VERSION} from '../../config/app';
 import {CURRENT_NOTICE_ID, RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
+import {t} from '../../i18n';
 
 /**
  * Shown once after an update, then never again for that version.
@@ -13,7 +14,7 @@ import {CURRENT_NOTICE_ID, RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
  */
 export {CURRENT_NOTICE_ID};
 
-export const NOTICE_TITLE = `What's new in Astra ${APP_VERSION}`;
+export const noticeTitle = () => t('whatsNew.title', {version: APP_VERSION});
 
 export const NOTICE_BODY = RELEASE_HIGHLIGHTS;
 
@@ -45,7 +46,7 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
         trapFocusRight
         trapFocusUp
         style={styles.card}>
-        <Text style={styles.title}>{NOTICE_TITLE}</Text>
+        <Text style={styles.title}>{noticeTitle()}</Text>
         {NOTICE_BODY.map((highlight) => (
           <Text key={highlight.slice(0, 24)} style={styles.body}>
             {`\u2022 ${highlight}`}
@@ -53,7 +54,7 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
         ))}
         <Text style={styles.signature}>— Levi</Text>
         <TouchableOpacity
-          accessibilityLabel="Dismiss what's new notice"
+          accessibilityLabel={t('whatsNew.dismissLabel')}
           accessibilityRole="button"
           activeOpacity={1}
           hasTVPreferredFocus
@@ -63,7 +64,7 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
           ref={buttonRef}
           style={[styles.button, isFocused && styles.buttonFocused]}
           testID="whats-new-notice-ok">
-          <Text style={styles.buttonLabel}>OK</Text>
+          <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
         </TouchableOpacity>
       </TVFocusGuideView>
     </View>

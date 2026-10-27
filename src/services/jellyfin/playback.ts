@@ -40,6 +40,7 @@ import {
   getPositiveUrlNumber,
   qualityCaps,
 } from './playbackHelpers';
+import {t} from '../../i18n';
 
 export const getStreamUrl = async (
   serverUrl: string,
@@ -223,11 +224,10 @@ export const getStreamUrl = async (
     let result = await requestPlaybackInfo(...args);
     if (isDegradedSource(result)) {
       const permissionError = () =>
-        new Error(
-          'This server is not permitted to transcode video for your account, ' +
-            'and no compatible playback stream was returned.',
-        );
-      if (enableDirectStream) throw permissionError();
+        new Error(t('errors.transcodeNotPermitted'));
+      if (enableDirectStream) {
+        throw permissionError();
+      }
       enableDirectStream = true;
       result = await requestPlaybackInfo(...args);
       if (isDegradedSource(result) || !hasPlayableMediaSource(result)) {
@@ -249,11 +249,13 @@ export const getStreamUrl = async (
     console.log(
       '[Astra] PlaybackInfo returned no media source; retrying once.',
     );
-    if (options.signal?.aborted)
+    if (options.signal?.aborted) {
       throw Object.assign(new Error('Aborted'), {name: 'AbortError'});
+    }
     await wait(PLAYBACK_INFO_RETRY_MS);
-    if (options.signal?.aborted)
+    if (options.signal?.aborted) {
       throw Object.assign(new Error('Aborted'), {name: 'AbortError'});
+    }
     response = await postPlaybackInfo(
       options.audioStreamIndex,
       options.mediaSourceId,
@@ -261,9 +263,7 @@ export const getStreamUrl = async (
   }
 
   if (!hasPlayableMediaSource(response)) {
-    throw new Error(
-      'The server has no playable source for this item right now.',
-    );
+    throw new Error(t('errors.noPlayableSource'));
   }
 
   let selectedAudioStreamIndex: number | null = null;
@@ -419,7 +419,7 @@ export const getStreamUrl = async (
       sanitizeUrlForLog(url),
     );
   } else {
-    throw new Error('No playable URL returned from the server.');
+    throw new Error(t('errors.noPlayableUrl'));
   }
   const mapTrack = (track: (typeof streams)[number]): JellyfinMediaTrack => {
     const isSubtitle = track.Type === 'Subtitle';

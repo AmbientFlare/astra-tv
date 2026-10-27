@@ -10,6 +10,7 @@
  * rendered rather than dropped.
  */
 import {JellyfinLibrary} from '../../services/jellyfin';
+import {MessageKey, t} from '../../i18n';
 
 export type NavEntryKind =
   | 'movies'
@@ -47,20 +48,20 @@ const KIND_ORDER: NavEntryKind[] = [
   'other',
 ];
 
-const LABELS: Record<NavEntryKind, string> = {
-  movies: 'Movies',
-  music: 'Music',
-  other: 'Library',
-  playlists: 'Playlists',
-  tvshows: 'TV Shows',
+const LABELS: Record<NavEntryKind, MessageKey> = {
+  movies: 'nav.movies',
+  music: 'nav.music',
+  other: 'nav.library',
+  playlists: 'nav.playlists',
+  tvshows: 'nav.tvShows',
 };
 
-const SECTION_TITLES: Record<NavEntryKind, string> = {
-  movies: 'Movies',
-  music: 'Music',
-  other: 'Libraries',
-  playlists: 'Playlists',
-  tvshows: 'TV Shows',
+const SECTION_TITLES: Record<NavEntryKind, MessageKey> = {
+  movies: 'nav.movies',
+  music: 'nav.music',
+  other: 'nav.libraries',
+  playlists: 'nav.playlists',
+  tvshows: 'nav.tvShows',
 };
 
 /**
@@ -138,7 +139,7 @@ export const buildNavEntries = (
     const label =
       kind === 'other' || (countByKind[kind] ?? 0) > 1
         ? library.name
-        : LABELS[kind];
+        : t(LABELS[kind]);
 
     return {
       id: library.id,
@@ -192,7 +193,7 @@ export const buildNavSections = (
 
     grouped.push({
       id: kind,
-      title: SECTION_TITLES[kind],
+      title: t(SECTION_TITLES[kind]),
       entries: ofKind.map((entry) => ({
         ...entry,
         label: trimRedundantTypeWords(entry.label, kind),

@@ -25,6 +25,7 @@ import {
   ServerProfile,
   UserPreferences,
 } from '../../services/storage';
+import {t} from '../../i18n';
 
 interface HomeScreenProps {
   onOpenMusic?: () => void;
@@ -147,7 +148,7 @@ export const HomeScreen = ({
       setLibraries(libraryResults);
     } catch (error) {
       setErrorText(
-        error instanceof Error ? error.message : 'Unable to load libraries.',
+        error instanceof Error ? error.message : t('home.loadLibrariesFailed'),
       );
     } finally {
       setLoading(false);
@@ -318,7 +319,9 @@ export const HomeScreen = ({
               </Text>
             </View>
             <Text numberOfLines={1} style={styles.profileName}>
-              {serverProfile?.username ?? serverProfile?.name ?? 'Account'}
+              {serverProfile?.username ??
+                serverProfile?.name ??
+                t('settings.account')}
             </Text>
           </FocusableItem>
           <TVFocusGuideView style={styles.actions}>
@@ -326,30 +329,30 @@ export const HomeScreen = ({
               focusedStyle={styles.pillFocused}
               style={[styles.pillButton, styles.pillSelected]}
               testID="home-pill-button">
-              <Text style={styles.pillText}>Home</Text>
+              <Text style={styles.pillText}>{t('home.home')}</Text>
             </FocusableItem>
             <FocusableItem
               focusedStyle={styles.pillFocused}
               onPress={onSearch}
               style={styles.pillButton}
               testID="home-search-button">
-              <Text style={styles.pillText}>Search</Text>
+              <Text style={styles.pillText}>{t('search.title')}</Text>
             </FocusableItem>
             <FocusableItem
               focusedStyle={styles.pillFocused}
               onPress={onSettings}
               style={styles.pillButton}
               testID="home-settings-button">
-              <Text style={styles.pillText}>Settings</Text>
+              <Text style={styles.pillText}>{t('home.settings')}</Text>
             </FocusableItem>
           </TVFocusGuideView>
         </View>
         <LoadingOrError
-          emptyText="No libraries found on this server."
+          emptyText={t('home.noLibraries')}
           errorText={errorText}
           isEmpty={libraries.length === 0}
           isLoading={isLoading}
-          loadingText="Loading libraries..."
+          loadingText={t('home.loadingLibraries')}
           onRetry={loadLibraries}
           testID="home-libraries"
         />
@@ -367,7 +370,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.resume}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
-            title="Continue Watching"
+            title={t('home.continueWatching')}
           />
         ) : null}
         {preferences.homeSections.nextUp ? (
@@ -375,7 +378,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.nextUp}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
-            title="Next Up"
+            title={t('home.nextUp')}
           />
         ) : null}
         {preferences.homeSections.latestMovies ? (
@@ -383,7 +386,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.latestMovies}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
-            title="Latest Movies"
+            title={t('home.latestMovies')}
           />
         ) : null}
         {preferences.homeSections.latestShows ? (
@@ -391,7 +394,7 @@ export const HomeScreen = ({
             loadItems={rowLoaders.latestShows}
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
-            title="Latest Shows"
+            title={t('home.latestShows')}
           />
         ) : null}
         {extraLibraryRows.map((row) => (
@@ -431,7 +434,9 @@ const HomeMediaRow = ({
       setItems(await loadItems());
     } catch (error) {
       setErrorText(
-        error instanceof Error ? error.message : `Unable to load ${title}.`,
+        error instanceof Error
+          ? error.message
+          : t('home.loadRowFailed', {title}),
       );
     } finally {
       setLoading(false);
@@ -452,7 +457,7 @@ const HomeMediaRow = ({
       <LoadingOrError
         errorText={errorText}
         isLoading={isLoading}
-        loadingText={`Loading ${title}...`}
+        loadingText={t('home.loadingRow', {title})}
         onRetry={load}
         testID={`home-row-${title}`}
       />

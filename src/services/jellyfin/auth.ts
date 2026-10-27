@@ -11,6 +11,7 @@ import {
   buildUrl,
 } from './http';
 import {initializeDeviceIdentity} from '../deviceIdentity';
+import {t} from '../../i18n';
 
 // Each scheme candidate gets a shorter budget than a normal request so that
 // falling back to the alternate scheme stays within the time a single attempt
@@ -30,7 +31,7 @@ export const connect = async (
   const candidates = getServerUrlCandidates(serverUrl);
 
   if (!candidates.length) {
-    throw new Error('Enter a server address.');
+    throw new Error(t('errors.enterServerAddress'));
   }
 
   let firstError: unknown;
@@ -60,7 +61,7 @@ export const connect = async (
 
   throw firstError instanceof Error
     ? firstError
-    : new Error('Unable to reach the server.');
+    : new Error(t('setup.unreachable'));
 };
 
 export const authenticate = async (

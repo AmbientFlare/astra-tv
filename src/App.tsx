@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {AppState} from 'react-native';
 import {
   bootstrapTelemetry,
@@ -16,8 +16,19 @@ import {
   getDeliveryRouteSupport,
 } from './services/mediaCapabilities/deliveryRoute';
 import {RootNavigator} from './navigation';
+import {LanguageContext, Locale, setActiveLocale, storeLocale} from './i18n';
 
 export const App = () => {
+  // The navigator is keyed on this, so a language change remounts every
+  // screen and they re-read their text. This returns the user to Home.
+  const [generation, setGeneration] = useState(0);
+  const changeLanguage = useCallback((next: Locale) => {
+    setActiveLocale(next);
+    storeLocale(next)
+      .catch(() => undefined)
+      .then(() => setGeneration((value) => value + 1));
+  }, []);
+
   useEffect(() => {
     void bootstrapTelemetry()
       .then(async () => {
@@ -61,5 +72,9 @@ export const App = () => {
     );
     return () => subscription.remove();
   }, []);
-  return <RootNavigator />;
+  return (
+    <LanguageContext.Provider value={changeLanguage}>
+      <RootNavigator key={generation} />
+    </LanguageContext.Provider>
+  );
 };

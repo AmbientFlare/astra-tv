@@ -7,6 +7,7 @@ import {
   readServerProfiles,
   ServerProfile,
 } from '../../services/storage';
+import {t} from '../../i18n';
 
 interface ProfileSwitcherProps {
   currentProfileId?: string;
@@ -16,7 +17,7 @@ interface ProfileSwitcherProps {
 }
 
 const displayName = (profile: ServerProfile) =>
-  profile.username ?? profile.name ?? 'User';
+  profile.username ?? profile.name ?? t('profiles.user');
 
 export const ProfileSwitcher = ({
   currentProfileId,
@@ -58,7 +59,7 @@ export const ProfileSwitcher = ({
   return (
     <View style={styles.overlay} testID="profile-switcher">
       <View style={styles.dialog}>
-        <Text style={styles.title}>Who's watching?</Text>
+        <Text style={styles.title}>{t('profiles.title')}</Text>
         <ScrollView style={styles.list}>
           <TVFocusGuideView style={styles.listContent}>
             {profiles.map((profile, index) => {
@@ -84,11 +85,13 @@ export const ProfileSwitcher = ({
                     </Text>
                     <Text numberOfLines={1} style={styles.rowServer}>
                       {profile.name}
-                      {signedOut ? '  ·  Signed out' : ''}
+                      {signedOut ? `  ·  ${t('profiles.signedOut')}` : ''}
                     </Text>
                   </View>
                   {isCurrent ? (
-                    <Text style={styles.currentTag}>Current</Text>
+                    <Text style={styles.currentTag}>
+                      {t('profiles.current')}
+                    </Text>
                   ) : null}
                 </FocusableItem>
               );
@@ -103,15 +106,15 @@ export const ProfileSwitcher = ({
                 <Text style={styles.avatarText}>+</Text>
               </View>
               <View style={styles.rowBody}>
-                <Text style={styles.rowName}>Add user</Text>
+                <Text style={styles.rowName}>{t('profiles.addUser')}</Text>
                 <Text style={styles.rowServer}>
-                  Sign in on this or another server
+                  {t('profiles.addUserHint')}
                 </Text>
               </View>
             </FocusableItem>
           </TVFocusGuideView>
         </ScrollView>
-        <Text style={styles.hint}>Press Back to close</Text>
+        <Text style={styles.hint}>{t('common.pressBackToClose')}</Text>
       </View>
     </View>
   );

@@ -18,6 +18,7 @@ import {
   setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {t} from '../../i18n';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -148,7 +149,7 @@ export const ItemDetailScreen = ({
           setEpisodesError(
             error instanceof Error
               ? error.message
-              : 'Unable to load episodes for this show.',
+              : t('detail.loadShowEpisodesFailed'),
           );
         }
       }
@@ -197,10 +198,10 @@ export const ItemDetailScreen = ({
         // than showing the raw request failure.
         setErrorText(
           isMissingItemError(error)
-            ? 'This item is no longer on the server.'
+            ? t('detail.itemGone')
             : error instanceof Error
             ? error.message
-            : 'Unable to load item details.',
+            : t('detail.loadItemFailed'),
         );
       }
     } finally {
@@ -282,7 +283,9 @@ export const ItemDetailScreen = ({
       } catch (error) {
         if (mounted) {
           setEpisodesError(
-            error instanceof Error ? error.message : 'Unable to load episodes.',
+            error instanceof Error
+              ? error.message
+              : t('detail.loadEpisodesFailed'),
           );
         }
       } finally {
@@ -337,7 +340,9 @@ export const ItemDetailScreen = ({
     } catch (error) {
       setDetail((current) => ({...current, isFavorite: !nextValue}));
       setErrorText(
-        error instanceof Error ? error.message : 'Unable to update favorite.',
+        error instanceof Error
+          ? error.message
+          : t('detail.updateFavoriteFailed'),
       );
     } finally {
       setUpdatingUserData(false);
@@ -363,7 +368,7 @@ export const ItemDetailScreen = ({
       setErrorText(
         error instanceof Error
           ? error.message
-          : 'Unable to update watched state.',
+          : t('detail.updateWatchedFailed'),
       );
     } finally {
       setUpdatingUserData(false);
@@ -384,7 +389,7 @@ export const ItemDetailScreen = ({
             <Text style={styles.title}>{detail.name}</Text>
             <Text style={styles.meta}>{meta.join('  |  ')}</Text>
             <Text numberOfLines={5} style={styles.overview}>
-              {detail.overview ?? 'No synopsis available.'}
+              {detail.overview ?? t('detail.noSynopsis')}
             </Text>
             {detail.genres?.length ? (
               <Text style={styles.genres}>{detail.genres.join(' / ')}</Text>
@@ -392,7 +397,7 @@ export const ItemDetailScreen = ({
             <LoadingOrError
               errorText={errorText}
               isLoading={isLoading}
-              loadingText="Loading details..."
+              loadingText={t('detail.loadingDetails')}
               onRetry={loadDetail}
               testID="detail-status"
             />
@@ -414,18 +419,18 @@ export const ItemDetailScreen = ({
                   // Never swallow the press: say why nothing started.
                   setEpisodesError(
                     isLoadingChildren || isAwaitingServerTree
-                      ? 'Still loading episodes for this show.'
-                      : 'No episodes are available to play yet.',
+                      ? t('detail.stillLoadingEpisodes')
+                      : t('detail.noEpisodesToPlay'),
                   );
                 }}
                 style={styles.actionButton}
                 testID="detail-play-button">
                 <Text style={styles.actionText}>
                   {hasChildren
-                    ? 'Play All'
+                    ? t('detail.playAll')
                     : detail.resumePositionTicks
-                    ? 'Resume'
-                    : 'Play'}
+                    ? t('detail.resume')
+                    : t('player.play')}
                 </Text>
               </FocusableItem>
               {detail.type === 'Movie' && detail.resumePositionTicks ? (
@@ -434,7 +439,9 @@ export const ItemDetailScreen = ({
                   onPress={() => onPlay?.({...detail, resumePositionTicks: 0})}
                   style={styles.actionButton}
                   testID="detail-play-from-start-button">
-                  <Text style={styles.actionText}>Play from Start</Text>
+                  <Text style={styles.actionText}>
+                    {t('detail.playFromStart')}
+                  </Text>
                 </FocusableItem>
               ) : null}
               {hasChildren && episodes.length ? (
@@ -453,7 +460,9 @@ export const ItemDetailScreen = ({
                   }}
                   style={styles.actionButton}
                   testID="detail-shuffle-button">
-                  <Text style={styles.actionText}>Shuffle All</Text>
+                  <Text style={styles.actionText}>
+                    {t('detail.shuffleAll')}
+                  </Text>
                 </FocusableItem>
               ) : null}
               <FocusableItem
@@ -463,7 +472,9 @@ export const ItemDetailScreen = ({
                 style={styles.actionButton}
                 testID="detail-watched-button">
                 <Text style={styles.actionText}>
-                  {detail.isPlayed ? 'Unwatched' : 'Watched'}
+                  {detail.isPlayed
+                    ? t('detail.unwatched')
+                    : t('detail.watched')}
                 </Text>
               </FocusableItem>
               <FocusableItem
@@ -473,7 +484,9 @@ export const ItemDetailScreen = ({
                 style={styles.actionButton}
                 testID="detail-favorite-button">
                 <Text style={styles.actionText}>
-                  {detail.isFavorite ? 'Unfavorite' : 'Favorite'}
+                  {detail.isFavorite
+                    ? t('media.unfavorite')
+                    : t('media.favorite')}
                 </Text>
               </FocusableItem>
               {detail.type === 'Movie' && firstTrailer ? (
@@ -482,7 +495,7 @@ export const ItemDetailScreen = ({
                   onPress={() => Linking.openURL(firstTrailer.url)}
                   style={styles.actionButton}
                   testID="detail-trailer-button">
-                  <Text style={styles.actionText}>Trailer</Text>
+                  <Text style={styles.actionText}>{t('detail.trailer')}</Text>
                 </FocusableItem>
               ) : null}
               <FocusableItem
@@ -490,11 +503,13 @@ export const ItemDetailScreen = ({
                 onPress={onBack}
                 style={styles.actionButton}
                 testID="detail-back-button">
-                <Text style={styles.actionText}>Back</Text>
+                <Text style={styles.actionText}>{t('common.back')}</Text>
               </FocusableItem>
             </TVFocusGuideView>
             {director ? (
-              <Text style={styles.director}>Directed by {director.name}</Text>
+              <Text style={styles.director}>
+                {t('detail.directedBy', {name: director.name ?? ''})}
+              </Text>
             ) : null}
           </View>
         </View>
@@ -502,7 +517,7 @@ export const ItemDetailScreen = ({
 
       {seasons.length ? (
         <>
-          <Text style={styles.sectionTitle}>Seasons</Text>
+          <Text style={styles.sectionTitle}>{t('detail.seasons')}</Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {seasons.map((season) => (
@@ -511,7 +526,9 @@ export const ItemDetailScreen = ({
                   key={season.id}
                   onPress={() => setSelectedSeason(season)}
                   subtitle={
-                    selectedSeason?.id === season.id ? 'Selected' : 'Season'
+                    selectedSeason?.id === season.id
+                      ? t('detail.selected')
+                      : t('detail.season')
                   }
                   title={season.name}
                 />
@@ -523,13 +540,13 @@ export const ItemDetailScreen = ({
 
       {hasChildren && !episodes.length ? (
         <>
-          <Text style={styles.sectionTitle}>Episodes</Text>
+          <Text style={styles.sectionTitle}>{t('detail.episodes')}</Text>
           <LoadingOrError
-            emptyText="This show has no episodes to show yet."
+            emptyText={t('detail.noEpisodesYet')}
             errorText={episodesError}
             isEmpty={true}
             isLoading={isLoadingChildren || isAwaitingServerTree}
-            loadingText="Loading episodes..."
+            loadingText={t('detail.loadingEpisodes')}
             onRetry={retryChildren}
             testID="detail-episodes-status"
           />
@@ -538,7 +555,7 @@ export const ItemDetailScreen = ({
 
       {episodes.length ? (
         <>
-          <Text style={styles.sectionTitle}>Episodes</Text>
+          <Text style={styles.sectionTitle}>{t('detail.episodes')}</Text>
           <LoadingOrError
             errorText={episodesError}
             onRetry={retryChildren}
@@ -553,8 +570,8 @@ export const ItemDetailScreen = ({
                   onPress={() => onSelectEpisode?.(episode)}
                   subtitle={
                     episode.indexNumber
-                      ? `Episode ${episode.indexNumber}`
-                      : 'Episode'
+                      ? t('detail.episodeNumber', {number: episode.indexNumber})
+                      : t('detail.episode')
                   }
                   title={episode.name}
                 />
@@ -566,7 +583,7 @@ export const ItemDetailScreen = ({
 
       {actors.length ? (
         <>
-          <Text style={styles.sectionTitle}>Cast & Crew</Text>
+          <Text style={styles.sectionTitle}>{t('detail.castCrew')}</Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {actors.map((person) => (
@@ -587,7 +604,7 @@ export const ItemDetailScreen = ({
 
       {similarItems.length ? (
         <>
-          <Text style={styles.sectionTitle}>More Like This</Text>
+          <Text style={styles.sectionTitle}>{t('detail.moreLikeThis')}</Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {similarItems.map((similarItem) => (
@@ -634,7 +651,7 @@ const PersonCard = ({
       {name}
     </Text>
     <Text numberOfLines={1} style={styles.personRole}>
-      {role ?? 'Actor'}
+      {role ?? t('detail.actor')}
     </Text>
   </FocusableItem>
 );

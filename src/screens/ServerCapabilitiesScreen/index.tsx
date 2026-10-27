@@ -13,6 +13,7 @@ import {
   audioChannelChoices,
   videoTranscodeChoices,
 } from './questions';
+import {t} from '../../i18n';
 
 interface ServerCapabilitiesScreenProps {
   onDone: () => void;
@@ -54,7 +55,9 @@ export const ServerCapabilitiesScreen = ({
   };
 
   const chooseAudio = (value: 2 | 6) => {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
     setSaving(true);
     void Promise.all([
       updateServerCapabilities(serverId, {
@@ -73,14 +76,12 @@ export const ServerCapabilitiesScreen = ({
   const question =
     step === 'video'
       ? {
-          title: 'Can your server convert video?',
-          body:
-            `Some video has to be converted before this device can play it. ` +
-            `How ${serverName} does that decides how Astra asks for it.`,
+          title: t('capabilities.videoTitle'),
+          body: t('capabilities.videoBody', {name: serverName}),
         }
       : {
-          title: 'How is your sound set up?',
-          body: 'This decides how many audio channels Astra requests.',
+          title: t('capabilities.audioTitle'),
+          body: t('capabilities.audioBody'),
         };
 
   const renderChoice = <Value,>(
@@ -104,23 +105,20 @@ export const ServerCapabilitiesScreen = ({
     <View style={styles.screen} testID="server-capabilities-screen">
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.step}>
-          {step === 'video' ? 'Step 1 of 2' : 'Step 2 of 2'}
+          {t('capabilities.stepOf', {step: step === 'video' ? 1 : 2, total: 2})}
         </Text>
         <Text style={styles.title}>{question.title}</Text>
         <Text style={styles.body}>{question.body}</Text>
         <TVFocusGuideView style={styles.choices}>
           {step === 'video'
-            ? videoTranscodeChoices.map((choice, index) =>
+            ? videoTranscodeChoices().map((choice, index) =>
                 renderChoice(choice, index, chooseVideo),
               )
-            : audioChannelChoices.map((choice, index) =>
+            : audioChannelChoices().map((choice, index) =>
                 renderChoice(choice, index, chooseAudio),
               )}
         </TVFocusGuideView>
-        <Text style={styles.footnote}>
-          You can change these later in Settings, and they are saved separately
-          for each server you connect to.
-        </Text>
+        <Text style={styles.footnote}>{t('capabilities.footnote')}</Text>
       </ScrollView>
     </View>
   );

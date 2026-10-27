@@ -90,8 +90,8 @@ import {
   computeBufferBudget,
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
-  DECODER_RISK_WARNING,
-  SERVER_CONVERSION_FAILED,
+  decoderRiskWarning,
+  serverConversionFailed,
   requiresServerConversion,
 } from '../../services/playbackHealth';
 import {
@@ -142,6 +142,7 @@ import {
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {createPositionStore, PositionStore} from './positionStore';
 import {syncPlay, type SyncPlayPlayer} from '../../services/syncPlay';
+import {t} from '../../i18n';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -242,7 +243,7 @@ const episodeLabel = (episode: JellyfinMediaItem) => {
     episode.parentIndexNumber !== undefined && episode.indexNumber !== undefined
       ? `S${episode.parentIndexNumber}:E${episode.indexNumber}`
       : episode.indexNumber !== undefined
-      ? `Episode ${episode.indexNumber}`
+      ? t('detail.episodeNumber', {number: episode.indexNumber})
       : undefined;
   return code ? `${code}  ${episode.name}` : episode.name;
 };
@@ -253,7 +254,7 @@ export const startupFailureMessage = (
   fallback: string,
 ) =>
   requiresServerConversion(sourceVideoRangeType)
-    ? SERVER_CONVERSION_FAILED
+    ? serverConversionFailed()
     : fallback;
 
 const toTicks = (seconds?: number, fallback = 0) =>
@@ -415,7 +416,7 @@ export const PlayerScreen = ({
   const [currentStream, setCurrentStream] = useState<JellyfinStreamInfo | null>(
     null,
   );
-  const [statusText, setStatusText] = useState('Preparing playback...');
+  const [statusText, setStatusText] = useState(() => t('player.preparing'));
   const [showControls, setShowControls] = useState(true);
   const [seekPreview, setSeekPreview] = useState<number | null>(null);
   const [seekInProgress, setSeekInProgress] = useState(false);
@@ -491,7 +492,9 @@ export const PlayerScreen = ({
     let mounted = true;
     getServerCapabilities(serverKey)
       .then((capabilities) => {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         const now = Date.now();
         transcodeProbeArmed.current = shouldProbeTranscode(
           capabilities.videoTranscode,
@@ -852,13 +855,15 @@ export const PlayerScreen = ({
           latestPositionTicks.current = toTicks(clampedTarget);
           applyPosition(clampedTarget);
           setStatusText(
-            `Resumed at ${Math.floor(clampedTarget / 60)}:${String(
-              Math.floor(clampedTarget % 60),
-            ).padStart(2, '0')}`,
+            t('player.resumedAt', {
+              time: `${Math.floor(clampedTarget / 60)}:${String(
+                Math.floor(clampedTarget % 60),
+              ).padStart(2, '0')}`,
+            }),
           );
         } catch (error) {
           console.warn('Failed to apply resume position', error);
-          setStatusText('Playing from start');
+          setStatusText(t('player.playingFromStart'));
         }
       }, 250);
     },
@@ -868,7 +873,9 @@ export const PlayerScreen = ({
   const reportProgress = useCallback(
     (positionTicks = currentPositionTicks(), paused = isPausedRef.current) => {
       const stream = streamInfo.current;
-      if (!stream || !sessionReady.current) return;
+      if (!stream || !sessionReady.current) {
+        return;
+      }
       void reporter.current?.progress({
         ...stream,
         audioStreamIndex: selectedAudioIndex.current,
@@ -884,7 +891,9 @@ export const PlayerScreen = ({
     const stream = streamInfo.current;
     const reporting = reporter.current;
     reporter.current = null;
-    if (!stream || !reporting) return;
+    if (!stream || !reporting) {
+      return;
+    }
     // Snapshot before refs/media are released. Telemetry never owns media lifetime.
     reportBarrier.current = reporting.stop({
       ...stream,
@@ -896,7 +905,9 @@ export const PlayerScreen = ({
   }, [currentPositionTicks]);
 
   const releaseMedia = useCallback((): Promise<void> => {
-    if (releasePromise.current) return releasePromise.current;
+    if (releasePromise.current) {
+      return releasePromise.current;
+    }
     // Telemetry closes out before the media refs go away, in the same spirit
     // as reportStopped() above: snapshot, never own the media lifetime.
     heartbeatRef.current?.stop();
@@ -950,7 +961,9 @@ export const PlayerScreen = ({
     // seconds while appends finish, and a surface the system destroys in that
     // time must not still be attached when the player is finally torn down.
     try {
-      if (handle) video?.clearSurfaceHandle(handle);
+      if (handle) {
+        video?.clearSurfaceHandle(handle);
+      }
     } catch {
       /* Already detached by the native surface. */
     }
@@ -971,7 +984,9 @@ export const PlayerScreen = ({
     // a new player to attach to resources whose lifetime is still unresolved.
     void cleanup.then(
       () => {
-        if (releasePromise.current === cleanup) releasePromise.current = null;
+        if (releasePromise.current === cleanup) {
+          releasePromise.current = null;
+        }
       },
       () => undefined,
     );
@@ -990,7 +1005,9 @@ export const PlayerScreen = ({
   stopPlaybackRef.current = stopPlayback;
 
   const returnToLibrary = useCallback(() => {
-    if (unmountedRef.current || navigationSent.current) return;
+    if (unmountedRef.current || navigationSent.current) {
+      return;
+    }
     navigationSent.current = true;
     onBack?.();
   }, [onBack]);
@@ -1012,7 +1029,7 @@ export const PlayerScreen = ({
     void stopPlayback()
       .then(returnToLibrary)
       .catch(() => {
-        setStatusText('Unable to release playback. Please reopen Astra.');
+        setStatusText(t('player.releaseFailed'));
       });
   }, [returnToLibrary, stopPlayback]);
 
@@ -1117,9 +1134,11 @@ export const PlayerScreen = ({
       }
       scheduleControlsHide();
       setStatusText(
-        `Jumped to ${Math.floor(target / 60)}:${String(
-          Math.floor(target % 60),
-        ).padStart(2, '0')}`,
+        t('player.jumpedTo', {
+          time: `${Math.floor(target / 60)}:${String(
+            Math.floor(target % 60),
+          ).padStart(2, '0')}`,
+        }),
       );
 
       reportProgress(positionTicks, paused);
@@ -1135,7 +1154,9 @@ export const PlayerScreen = ({
     ) => {
       if (syncPlay.controlsPlayer(item.id)) {
         // The group moves everyone, this player included, when it seeks.
-        if (closeSettings) setSettingsPanel(null);
+        if (closeSettings) {
+          setSettingsPanel(null);
+        }
         syncPlay.requestSeek(toTicks(Math.max(0, targetSeconds)));
         return;
       }
@@ -1149,14 +1170,18 @@ export const PlayerScreen = ({
     isPaused: () => videoRef.current?.paused ?? true,
     play: () => {
       const video = videoRef.current;
-      if (!video || !sessionReady.current) return;
+      if (!video || !sessionReady.current) {
+        return;
+      }
       video.play();
       isPausedRef.current = false;
       setPaused(false);
     },
     pause: () => {
       const video = videoRef.current;
-      if (!video) return;
+      if (!video) {
+        return;
+      }
       video.pause();
       isPausedRef.current = true;
       setPaused(true);
@@ -1221,7 +1246,7 @@ export const PlayerScreen = ({
       },
       onError: (error) => {
         console.warn('[Astra] Unable to seek:', error);
-        setStatusText('Unable to seek. Please try again.');
+        setStatusText(t('player.seekFailed'));
       },
     });
   }
@@ -1332,7 +1357,7 @@ export const PlayerScreen = ({
       setShowExitConfirm(false);
       setSettingsPanel(null);
       setStarting(true);
-      setStatusText('Starting next episode...');
+      setStatusText(t('player.startingNext'));
 
       try {
         await releaseForHandoff();
@@ -1344,7 +1369,7 @@ export const PlayerScreen = ({
           error,
         );
         handoffInProgress.current = false;
-        setStatusText('Unable to release playback. Please reopen Astra.');
+        setStatusText(t('player.releaseFailed'));
         return;
       }
 
@@ -1478,14 +1503,19 @@ export const PlayerScreen = ({
     }
 
     if (!sessionReady.current) {
-      if (!trackReloadInProgress.current) void reloadAtSecondsRef.current?.(0);
+      if (!trackReloadInProgress.current) {
+        void reloadAtSecondsRef.current?.(0);
+      }
       return;
     }
 
     if (syncPlay.controlsPlayer(item.id)) {
       // The group decides; its command comes back and moves this player.
-      if (video.paused) syncPlay.requestUnpause();
-      else syncPlay.requestPause();
+      if (video.paused) {
+        syncPlay.requestUnpause();
+      } else {
+        syncPlay.requestPause();
+      }
       return;
     }
 
@@ -1572,10 +1602,14 @@ export const PlayerScreen = ({
             ? startTimeSeconds
             : undefined,
         onError: (failure: PlaybackFailure) => {
-          if (context?.isCurrent()) playbackErrorHandler.current(failure);
+          if (context?.isCurrent()) {
+            playbackErrorHandler.current(failure);
+          }
         },
         onTimelineReady: ({skippedSeconds}: {skippedSeconds: number}) => {
-          if (!context?.isCurrent()) return;
+          if (!context?.isCurrent()) {
+            return;
+          }
           firstAvailableSeconds.current = skippedSeconds;
           pendingAdaptiveResumeSeconds.current = skippedSeconds;
         },
@@ -1709,9 +1743,11 @@ export const PlayerScreen = ({
           videoWithDimensions.videoHeight || streamInfo.current?.height;
         const resolution = width && height ? ` ${width}x${height}` : '';
         setStatusText(
-          `Playing (${
-            streamInfo.current?.playMethod ?? 'stream'
-          }${resolution})`,
+          t('player.playingMethod', {
+            method: `${
+              streamInfo.current?.playMethod ?? 'stream'
+            }${resolution}`,
+          }),
         );
         scheduleControlsHide();
       });
@@ -1722,7 +1758,7 @@ export const PlayerScreen = ({
         recordPlaybackEvent('pause');
         isPausedRef.current = true;
         setPaused(true);
-        setStatusText('Paused');
+        setStatusText(t('nowPlaying.paused'));
         revealControls(false);
       });
       listen('loadedmetadata', () => {
@@ -1730,7 +1766,7 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('loadedmetadata');
-        setStatusText('Stream loaded');
+        setStatusText(t('player.streamLoaded'));
         applyPendingInitialSeek(video);
       });
       listen('canplay', () => {
@@ -1738,7 +1774,7 @@ export const PlayerScreen = ({
           return;
         }
         recordPlaybackEvent('canplay');
-        setStatusText('Ready to play');
+        setStatusText(t('player.ready'));
         applyPendingInitialSeek(video);
       });
       listen('waiting', () => {
@@ -1751,7 +1787,7 @@ export const PlayerScreen = ({
         setBuffering(true);
         controlsProgressPosition.current = video.currentTime;
         revealControls(false);
-        setStatusText('Buffering...');
+        setStatusText(t('player.buffering'));
       });
       listen('stalled', () => {
         if (!isCurrentPlayer()) {
@@ -1762,7 +1798,7 @@ export const PlayerScreen = ({
         setBuffering(true);
         controlsProgressPosition.current = video.currentTime;
         revealControls(false);
-        setStatusText('Playback stalled. Buffering...');
+        setStatusText(t('player.stalled'));
       });
       listen('timeupdate', () => {
         if (!isCurrentPlayer()) {
@@ -1812,7 +1848,9 @@ export const PlayerScreen = ({
         if (!isCurrentPlayer()) {
           return;
         }
-        if (!sessionReady.current) return;
+        if (!sessionReady.current) {
+          return;
+        }
         if (
           isPrematureEnd(
             currentPositionTicks() / TICKS_PER_SECOND,
@@ -1827,7 +1865,7 @@ export const PlayerScreen = ({
         sessionReady.current = false;
         recordPlaybackEvent('ended');
         revealControls(false);
-        setStatusText('Finished');
+        setStatusText(t('player.finished'));
         setPlaybackFinished(true);
         if (endedHandledForGeneration.current === generation) {
           return;
@@ -1852,7 +1890,9 @@ export const PlayerScreen = ({
     async (context: PlaybackSessionContext) => {
       context.assertCurrent();
       const handle = surfaceHandle.current;
-      if (!handle) throw new Error('Video surface is unavailable.');
+      if (!handle) {
+        throw new Error('Video surface is unavailable.');
+      }
       const video = new VideoPlayer();
       videoRef.current = video;
       activeContext.current = context;
@@ -2079,9 +2119,9 @@ export const PlayerScreen = ({
       setStatusText(
         stream.playMethod === 'Transcode'
           ? isAdaptiveStream(stream.url)
-            ? 'Loading HLS transcode...'
-            : 'Loading transcoded MP4 stream...'
-          : 'Loading direct stream...',
+            ? t('player.loadingHls')
+            : t('player.loadingMp4')
+          : t('player.loadingDirect'),
       );
       assertPlayableUrl(stream.url);
 
@@ -2140,9 +2180,7 @@ export const PlayerScreen = ({
       setEndPrompt(null);
       cancelCountdown();
       setStatusText(
-        reason === 'recovery'
-          ? 'Recovering playback...'
-          : 'Preparing playback...',
+        reason === 'recovery' ? t('player.recovering') : t('player.preparing'),
       );
       const transition = sessionController.current.replace(async (context) => {
         context.assertCurrent();
@@ -2170,10 +2208,12 @@ export const PlayerScreen = ({
               attempt: decoderRequiresConversion.current ? 2 : 0,
               audioDeliveryMethod: priorAudioDelivery,
             });
-            if (recovery?.disableAudioStreamCopy)
+            if (recovery?.disableAudioStreamCopy) {
               selectedAllowAudioStreamCopy.current = false;
-            if (recovery?.forceVideoTranscode)
+            }
+            if (recovery?.forceVideoTranscode) {
               decoderRequiresConversion.current = true;
+            }
           }
           latestPositionTicks.current = targetTicks;
           sessionFailed.current = false;
@@ -2199,10 +2239,12 @@ export const PlayerScreen = ({
           reporter.current = new OrderedPlaybackReporter<PlaybackReportInput>(
             async (event, value) => {
               await previousReports;
-              if (event === 'start')
+              if (event === 'start') {
                 return reportPlaybackStart(serverUrl, accessToken, value);
-              if (event === 'stop')
+              }
+              if (event === 'stop') {
                 return reportPlaybackStopped(serverUrl, accessToken, value);
+              }
               return reportPlaybackProgress(serverUrl, accessToken, value);
             },
             () => trace('report.error', 'Jellyfin playback report failed'),
@@ -2243,24 +2285,28 @@ export const PlayerScreen = ({
           setStarting(false);
           syncPlay.notifyPlayerStarted(syncPlayPlayer.current);
           scheduleControlsHide();
-          setStatusText('Starting video...');
+          setStatusText(t('player.startingVideo'));
         } catch (error) {
           const cancelled = !context.isCurrent() || isPlaybackCancelled(error);
           sessionFailed.current = !cancelled;
           await releaseMedia();
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
           context.assertCurrent();
           trace('session.failed', 'generation=' + context.generation);
           setStarting(false);
           setStartupError(
             startupFailureMessage(
               sourceVideoRangeType.current,
-              'Playback could not continue. Retry or return to the library.',
+              t('player.couldNotContinue'),
             ),
           );
-          setStatusText('Unable to play this stream.');
+          setStatusText(t('player.unableToPlay'));
         } finally {
-          if (context.isCurrent()) trackReloadInProgress.current = false;
+          if (context.isCurrent()) {
+            trackReloadInProgress.current = false;
+          }
         }
       });
       try {
@@ -2268,9 +2314,7 @@ export const PlayerScreen = ({
       } catch (error) {
         if (!isPlaybackCancelled(error) && !unmountedRef.current) {
           setStarting(false);
-          setStartupError(
-            'Unable to release the media player. Please reopen Astra.',
-          );
+          setStartupError(t('player.releasePlayerFailed'));
         }
       }
     },
@@ -2296,7 +2340,9 @@ export const PlayerScreen = ({
       audioTrack?: JellyfinMediaTrack;
       subtitleTrack?: JellyfinMediaTrack | null;
     }) => {
-      if (trackReloadInProgress.current) return;
+      if (trackReloadInProgress.current) {
+        return;
+      }
       // A subtitle the app draws itself never touches the video stream, so
       // switching between text tracks (or turning them off) is a state change,
       // not a new session. Only a burn-in track — the one being left behind or
@@ -2324,13 +2370,17 @@ export const PlayerScreen = ({
   );
 
   reloadAtSecondsRef.current = async (position) => {
-    if (trackReloadInProgress.current) return;
+    if (trackReloadInProgress.current) {
+      return;
+    }
     trace('jump.reload.start', 'toSeconds=' + position.toFixed(1));
     await startPlayback({position, reason: 'seek'});
   };
 
   playbackErrorHandler.current = (failure) => {
-    if (!activeContext.current?.isCurrent() || unmountedRef.current) return;
+    if (!activeContext.current?.isCurrent() || unmountedRef.current) {
+      return;
+    }
     const diagnostics = playbackEventDiagnostics.current;
     diagnostics.errorEventCount += 1;
     if (failure.source === 'shaka') {
@@ -2348,8 +2398,12 @@ export const PlayerScreen = ({
       playMethod: streamInfo.current?.playMethod,
     });
     // Nonfatal Shaka events are observable while its own retries continue.
-    if (failure.source === 'shaka' && failure.severity === 1) return;
-    if (trackReloadInProgress.current || !sessionReady.current) return;
+    if (failure.source === 'shaka' && failure.severity === 1) {
+      return;
+    }
+    if (trackReloadInProgress.current || !sessionReady.current) {
+      return;
+    }
     sessionFailed.current = true;
     // A forced re-encode that never produced a single frame is a server that
     // cannot do the work, not a transient fault. Retrying the identical
@@ -2385,7 +2439,7 @@ export const PlayerScreen = ({
             setStartupError(
               startupFailureMessage(
                 sourceVideoRangeType.current,
-                'Playback stopped unexpectedly. Retry or return to the library.',
+                t('player.stoppedUnexpectedly'),
               ),
             );
           }
@@ -2456,7 +2510,7 @@ export const PlayerScreen = ({
       // countdown and stay on the finished video.
       cancelCountdown();
       setEndPrompt(null);
-      setStatusText('Finished');
+      setStatusText(t('player.finished'));
       return;
     }
     if (key === 'back' && creditsPrompt) {
@@ -2564,7 +2618,9 @@ export const PlayerScreen = ({
   useEffect(() => {
     const interval = setInterval(() => {
       const video = videoRef.current;
-      if (!video || !sessionReady.current || unmountedRef.current) return;
+      if (!video || !sessionReady.current || unmountedRef.current) {
+        return;
+      }
       const ticks = currentPositionTicks();
       applyPosition(ticks / TICKS_PER_SECOND);
       reportProgress(ticks);
@@ -2844,12 +2900,15 @@ export const PlayerScreen = ({
 
   const onSurfaceViewCreated = useCallback(
     async (handle: string) => {
-      if (unmountedRef.current || handoffInProgress.current) return;
+      if (unmountedRef.current || handoffInProgress.current) {
+        return;
+      }
       if (
         surfaceHandle.current === handle &&
         (trackReloadInProgress.current || sessionReady.current)
-      )
+      ) {
         return;
+      }
       surfaceHandle.current = handle;
       resetTraces();
       await startPlayback({
@@ -2863,7 +2922,9 @@ export const PlayerScreen = ({
 
   const onSurfaceViewDestroyed = useCallback(
     (handle: string) => {
-      if (surfaceHandle.current !== handle) return;
+      if (surfaceHandle.current !== handle) {
+        return;
+      }
       // Detach now, as the surface goes, rather than when the queued release
       // reaches it; the release then has no surface left to clear.
       surfaceHandle.current = null;
@@ -2901,12 +2962,12 @@ export const PlayerScreen = ({
     seekPreview !== null ||
     Boolean(settingsPanel) ||
     showExitConfirm;
-  const startupItemLabel =
+  const startupFailedTitle =
     item.type === 'Episode'
-      ? 'episode'
+      ? t('player.couldNotStartEpisode')
       : item.type === 'Movie'
-      ? 'movie'
-      : 'item';
+      ? t('player.couldNotStartMovie')
+      : t('player.couldNotStartItem');
 
   return (
     <View style={styles.screen} testID="player-screen">
@@ -2941,13 +3002,13 @@ export const PlayerScreen = ({
           {isStarting ? (
             <View style={styles.startupRow}>
               <ActivityIndicator color="#4CC9F0" size="large" />
-              <Text style={styles.startupText}>Starting playback...</Text>
+              <Text style={styles.startupText}>
+                {t('player.startingPlayback')}
+              </Text>
             </View>
           ) : (
             <>
-              <Text style={styles.startupText}>
-                Couldn't start this {startupItemLabel}.
-              </Text>
+              <Text style={styles.startupText}>{startupFailedTitle}</Text>
               <Text style={styles.startupDetail}>{startupError}</Text>
               <View style={styles.startupButtons}>
                 <FocusableItem
@@ -2956,14 +3017,14 @@ export const PlayerScreen = ({
                   onPress={retryStartup}
                   style={styles.button}
                   testID="player-startup-retry">
-                  <Text style={styles.buttonText}>Retry</Text>
+                  <Text style={styles.buttonText}>{t('common.retry')}</Text>
                 </FocusableItem>
                 <FocusableItem
                   focusedStyle={styles.focusedButton}
                   onPress={handleBack}
                   style={styles.button}
                   testID="player-startup-back">
-                  <Text style={styles.buttonText}>Back</Text>
+                  <Text style={styles.buttonText}>{t('common.back')}</Text>
                 </FocusableItem>
               </View>
             </>
@@ -2972,7 +3033,7 @@ export const PlayerScreen = ({
       ) : null}
       {decoderRiskWarned ? (
         <View style={styles.decoderWarning}>
-          <Text style={styles.decoderWarningText}>{DECODER_RISK_WARNING}</Text>
+          <Text style={styles.decoderWarningText}>{decoderRiskWarning()}</Text>
         </View>
       ) : null}
       {controlsVisible ? (
@@ -2987,10 +3048,10 @@ export const PlayerScreen = ({
                   durationSeconds,
                 )}${
                   seekInProgress
-                    ? '  •  Seeking…'
-                    : `  •  ${
-                        scanStep ?? preferredSeekSeconds
-                      }s steps · Select to jump · Back to cancel`
+                    ? `  •  ${t('player.seeking')}`
+                    : `  •  ${t('player.seekHint', {
+                        seconds: scanStep ?? preferredSeekSeconds,
+                      })}`
                 }`}
           </Text>
           <View style={styles.progressTrack}>
@@ -3033,7 +3094,7 @@ export const PlayerScreen = ({
       ) : null}
       {showExitConfirm ? (
         <View style={styles.exitOverlay} testID="player-exit-confirm">
-          <Text style={styles.exitTitle}>Stop Playback?</Text>
+          <Text style={styles.exitTitle}>{t('player.stopConfirm')}</Text>
           <View style={styles.exitButtons}>
             <FocusableItem
               focusedStyle={styles.focusedButton}
@@ -3041,21 +3102,21 @@ export const PlayerScreen = ({
               onPress={() => setShowExitConfirm(false)}
               style={styles.button}
               testID="player-exit-stay">
-              <Text style={styles.buttonText}>Stay</Text>
+              <Text style={styles.buttonText}>{t('player.stay')}</Text>
             </FocusableItem>
             <FocusableItem
               focusedStyle={styles.focusedButton}
               onPress={handleBack}
               style={styles.button}
               testID="player-exit-leave">
-              <Text style={styles.buttonText}>Leave</Text>
+              <Text style={styles.buttonText}>{t('player.leave')}</Text>
             </FocusableItem>
           </View>
         </View>
       ) : null}
       {creditsPrompt && !endPrompt && !showExitConfirm && !settingsPanel ? (
         <View style={styles.promptCard} testID="player-credits-prompt">
-          <Text style={styles.promptTitle}>Credits</Text>
+          <Text style={styles.promptTitle}>{t('player.credits')}</Text>
           <View style={styles.exitButtons}>
             <FocusableItem
               focusedStyle={styles.focusedButton}
@@ -3067,7 +3128,7 @@ export const PlayerScreen = ({
               }}
               style={styles.button}
               testID="player-skip-credits">
-              <Text style={styles.buttonText}>Skip Credits</Text>
+              <Text style={styles.buttonText}>{t('player.skipCredits')}</Text>
             </FocusableItem>
             {nextEpisode && onPlayNext ? (
               <FocusableItem
@@ -3082,7 +3143,7 @@ export const PlayerScreen = ({
                 }}
                 style={styles.button}
                 testID="player-next-episode">
-                <Text style={styles.buttonText}>Next Episode</Text>
+                <Text style={styles.buttonText}>{t('detail.nextEpisode')}</Text>
               </FocusableItem>
             ) : null}
           </View>
@@ -3091,15 +3152,17 @@ export const PlayerScreen = ({
       {endPrompt && nextEpisode && !showExitConfirm ? (
         <View style={styles.exitOverlay} testID="player-end-prompt">
           <Text style={styles.exitTitle}>
-            {endPrompt.kind === 'countdown' ? 'Up next' : 'Continue watching?'}
+            {endPrompt.kind === 'countdown'
+              ? t('player.upNext')
+              : t('player.continueWatching')}
           </Text>
           <Text numberOfLines={1} style={styles.promptSubtitle}>
             {episodeLabel(nextEpisode)}
           </Text>
           <Text style={styles.promptHint}>
             {endPrompt.kind === 'countdown'
-              ? `Playing in ${endPrompt.remainingSeconds}s  •  Back to cancel`
-              : 'Press Next Episode to keep watching'}
+              ? t('player.playingIn', {seconds: endPrompt.remainingSeconds})
+              : t('player.pressNextEpisode')}
           </Text>
           <View style={styles.exitButtons}>
             <FocusableItem
@@ -3120,7 +3183,9 @@ export const PlayerScreen = ({
                   : 'player-continue-watching'
               }>
               <Text style={styles.buttonText}>
-                {endPrompt.kind === 'countdown' ? 'Play now' : 'Next Episode'}
+                {endPrompt.kind === 'countdown'
+                  ? t('player.playNow')
+                  : t('detail.nextEpisode')}
               </Text>
             </FocusableItem>
             <FocusableItem
@@ -3129,7 +3194,7 @@ export const PlayerScreen = ({
                 if (endPrompt.kind === 'countdown') {
                   cancelCountdown();
                   setEndPrompt(null);
-                  setStatusText('Finished');
+                  setStatusText(t('player.finished'));
                 } else {
                   handleBack();
                 }
@@ -3141,7 +3206,9 @@ export const PlayerScreen = ({
                   : 'player-finished-done'
               }>
               <Text style={styles.buttonText}>
-                {endPrompt.kind === 'countdown' ? 'Cancel' : 'Done'}
+                {endPrompt.kind === 'countdown'
+                  ? t('common.cancel')
+                  : t('player.done')}
               </Text>
             </FocusableItem>
           </View>
@@ -3181,7 +3248,7 @@ export const PlaybackSettingsOverlay = ({
   streamInfo: JellyfinStreamInfo;
 }) => (
   <View style={styles.settingsOverlay} testID="player-settings-overlay">
-    <Text style={styles.settingsTitle}>Playback Options</Text>
+    <Text style={styles.settingsTitle}>{t('player.options')}</Text>
     <Text style={styles.settingsStreamInfo}>
       {[
         streamInfo.width && streamInfo.height
@@ -3196,7 +3263,7 @@ export const PlaybackSettingsOverlay = ({
         .join('  •  ')}
     </Text>
     <View style={styles.settingsGrid}>
-      <SettingsColumn title="Audio">
+      <SettingsColumn title={t('media.audio')}>
         {streamInfo.audioTracks.length ? (
           streamInfo.audioTracks.map((track) => (
             <SettingsButton
@@ -3207,12 +3274,12 @@ export const PlaybackSettingsOverlay = ({
             />
           ))
         ) : (
-          <Text style={styles.settingsEmpty}>Default audio</Text>
+          <Text style={styles.settingsEmpty}>{t('player.defaultAudio')}</Text>
         )}
       </SettingsColumn>
-      <SettingsColumn title="Subtitles">
+      <SettingsColumn title={t('player.subtitles')}>
         <SettingsButton
-          label="Off"
+          label={t('player.off')}
           onPress={() => onSelectSubtitle(null)}
           selected={selectedSubtitleIndex === undefined}
         />
@@ -3225,36 +3292,32 @@ export const PlaybackSettingsOverlay = ({
             // track title says which is which, so the badge does.
             badge={
               track.burnInRequired
-                ? {label: 'Reloads', tone: 'reload'}
-                : {label: 'Instant', tone: 'instant'}
+                ? {label: t('player.reloads'), tone: 'reload'}
+                : {label: t('player.instant'), tone: 'instant'}
             }
             label={track.title}
             onPress={() => onSelectSubtitle(track)}
             selected={track.index === selectedSubtitleIndex}
           />
         ))}
-        <Text style={styles.settingsHint}>
-          Instant tracks are drawn by Astra and switch without touching the
-          video. Reloads tracks are picture-based, so the server has to build a
-          new stream with them painted in.
-        </Text>
+        <Text style={styles.settingsHint}>{t('player.subtitleBadgeHint')}</Text>
       </SettingsColumn>
-      <SettingsColumn title="Diagnostics">
+      <SettingsColumn title={t('player.diagnostics')}>
         <SettingsButton
-          label={`Stats for Nerds: ${showStats ? 'On' : 'Off'}`}
+          label={`${t('settings.statsForNerds')}: ${
+            showStats ? t('player.on') : t('player.off')
+          }`}
           onPress={onToggleStats}
           selected={showStats}
         />
         <SettingsButton
-          label={`Stats for Nerds with logs: ${showTraces ? 'On' : 'Off'}`}
+          label={`${t('settings.statsWithLogs')}: ${
+            showTraces ? t('player.on') : t('player.off')
+          }`}
           onPress={onToggleTraces}
           selected={showTraces}
         />
-        <Text style={styles.settingsHint}>
-          Shows the stream actually delivered by Jellyfin and live player
-          health. With logs adds playback timings for manifest handling and load
-          duration.
-        </Text>
+        <Text style={styles.settingsHint}>{t('player.diagnosticsHint')}</Text>
       </SettingsColumn>
     </View>
   </View>

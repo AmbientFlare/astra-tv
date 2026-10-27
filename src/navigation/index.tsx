@@ -17,6 +17,7 @@ import {ItemDetailScreen} from '../screens/ItemDetailScreen';
 import {EpisodeDetailScreen} from '../screens/EpisodeDetailScreen';
 import {LibraryScreen} from '../screens/LibraryScreen';
 import {SetupScreen} from '../screens/SetupScreen';
+import {LanguagePickerScreen} from '../screens/LanguagePickerScreen';
 import {ServerCapabilitiesScreen} from '../screens/ServerCapabilitiesScreen';
 import {PlayerScreen} from '../screens/PlayerScreen';
 import {PersonDetailScreen} from '../screens/PersonDetailScreen';
@@ -57,6 +58,7 @@ import {
 } from '../services/serverCapabilities';
 import {defaultServerCapabilities} from '../services/serverCapabilities/defaults';
 import type {ServerCapabilities} from '../services/serverCapabilities/types';
+import {readStoredLocale, setActiveLocale, t, useChangeLanguage} from '../i18n';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -127,6 +129,8 @@ export const RootNavigator = () => {
   }, [appStateManager]);
 
   const [route, setRoute] = useState<LaunchRoute>('loading');
+  const [askLanguage, setAskLanguage] = useState(false);
+  const changeLanguage = useChangeLanguage();
   const [exitPromptVisible, setExitPromptVisible] = useState(false);
   const [serverProfile, setServerProfile] = useState<ServerProfile | null>(
     null,
@@ -449,6 +453,7 @@ export const RootNavigator = () => {
 
     const bootstrap = async () => {
       const profiles = await readServerProfiles();
+      const storedLocale = await readStoredLocale();
       const preferences = await getUserPreferences();
       const lastUsedProfile =
         preferences.autoSignIn === 'mostRecent'
@@ -459,6 +464,10 @@ export const RootNavigator = () => {
       }
 
       setServerProfile(lastUsedProfile);
+      // Existing users have saved servers and keep English until they pick a
+      // language in Settings.
+      setActiveLocale(storedLocale ?? 'en');
+      setAskLanguage(!storedLocale && profiles.length === 0);
       setRoute('setup');
       if (profiles.length > 0) {
         resetStack();
@@ -546,9 +555,13 @@ export const RootNavigator = () => {
     return withExitPrompt(
       <View style={styles.loading} testID="navigation-loading">
         <ActivityIndicator color="#4CC9F0" size="large" />
-        <Text style={styles.loadingText}>Loading Astra</Text>
+        <Text style={styles.loadingText}>{t('app.loading')}</Text>
       </View>,
     );
+  }
+
+  if (route === 'setup' && !serverProfile && askLanguage) {
+    return withExitPrompt(<LanguagePickerScreen onSelect={changeLanguage} />);
   }
 
   if (route === 'setup' && !serverProfile) {
@@ -720,7 +733,9 @@ export const RootNavigator = () => {
           if (syncPlay.isInGroup()) {
             // Every member reaches the end at once; letting each one start
             // the next item would restart it for the group once per member.
-            if (!automatic) playItem(next);
+            if (!automatic) {
+              playItem(next);
+            }
             return;
           }
           replace({
@@ -836,10 +851,8 @@ interface ExitPromptProps {
 const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
   <View style={styles.exitOverlay} testID="exit-confirmation">
     <View style={styles.exitDialog}>
-      <Text style={styles.exitTitle}>Exit Astra?</Text>
-      <Text style={styles.exitCopy}>
-        Press Back to stay, or choose Exit to close the app.
-      </Text>
+      <Text style={styles.exitTitle}>{t('exit.title')}</Text>
+      <Text style={styles.exitCopy}>{t('exit.body')}</Text>
       <TVFocusGuideView style={styles.exitActions}>
         <FocusableItem
           focusedStyle={styles.exitButtonFocused}
@@ -847,14 +860,14 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
           onPress={onCancel}
           style={styles.exitButton}
           testID="exit-cancel-button">
-          <Text style={styles.exitButtonText}>Stay</Text>
+          <Text style={styles.exitButtonText}>{t('exit.stay')}</Text>
         </FocusableItem>
         <FocusableItem
           focusedStyle={styles.exitDangerFocused}
           onPress={onExit}
           style={[styles.exitButton, styles.exitDangerButton]}
           testID="exit-confirm-button">
-          <Text style={styles.exitButtonText}>Exit</Text>
+          <Text style={styles.exitButtonText}>{t('exit.exit')}</Text>
         </FocusableItem>
       </TVFocusGuideView>
     </View>

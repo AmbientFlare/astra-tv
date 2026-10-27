@@ -27,6 +27,7 @@ import {
   createSyncPlayApi,
   parseServerDate,
 } from './api';
+import {MessageKey, t} from '../../i18n';
 
 export * from './api';
 
@@ -137,13 +138,12 @@ const emptySnapshot = (): SyncPlaySnapshot => ({
   playingItemId: null,
 });
 
-const GROUP_ERRORS: Record<string, string> = {
-  GroupDoesNotExist: 'That group has ended.',
-  CreateGroupDenied: 'This account may not create SyncPlay groups.',
-  JoinGroupDenied: 'This account may not join SyncPlay groups.',
-  LibraryAccessDenied:
-    'This account cannot see everything the group is playing.',
-  SyncPlayIsDisabled: 'SyncPlay is turned off for this account.',
+const GROUP_ERRORS: Record<string, MessageKey> = {
+  GroupDoesNotExist: 'syncPlay.groupEnded',
+  CreateGroupDenied: 'syncPlay.createDenied',
+  JoinGroupDenied: 'syncPlay.joinDenied',
+  LibraryAccessDenied: 'syncPlay.libraryDenied',
+  SyncPlayIsDisabled: 'syncPlay.disabled',
 };
 
 export class SyncPlayManager {
@@ -350,13 +350,13 @@ export class SyncPlayManager {
   /** Local pause/play while in a group asks the group instead. */
   requestPause(): void {
     if (this.takePlayPauseTurn()) {
-      void this.api?.pause().catch(() => this.fail('Pause request failed.'));
+      void this.api?.pause().catch(() => this.fail(t('syncPlay.pauseFailed')));
     }
   }
 
   requestUnpause(): void {
     if (this.takePlayPauseTurn()) {
-      void this.api?.unpause().catch(() => this.fail('Play request failed.'));
+      void this.api?.unpause().catch(() => this.fail(t('syncPlay.playFailed')));
     }
   }
 
@@ -372,7 +372,7 @@ export class SyncPlayManager {
   requestSeek(ticks: number): void {
     void this.api
       ?.seek(Math.max(0, ticks))
-      .catch(() => this.fail('Seek request failed.'));
+      .catch(() => this.fail(t('syncPlay.seekFailed')));
   }
 
   /**
@@ -387,7 +387,7 @@ export class SyncPlayManager {
         Math.max(0, startPositionTicks),
       );
     } catch (error) {
-      this.fail('Could not start that for the group.');
+      this.fail(t('syncPlay.startFailed'));
       throw error;
     }
   }
@@ -549,7 +549,7 @@ export class SyncPlayManager {
   private reportReady(isPlaying: boolean): void {
     void this.api
       ?.ready(this.report(isPlaying))
-      .catch(() => this.fail('Could not tell the group this device is ready.'));
+      .catch(() => this.fail(t('syncPlay.readyFailed')));
   }
 
   /**
@@ -574,7 +574,7 @@ export class SyncPlayManager {
       }
     }
     if (!best) {
-      this.fail('Could not read the server clock.');
+      this.fail(t('syncPlay.clockFailed'));
       return;
     }
     this.update({clockOffsetMs: best.offset, pingMs: best.rtt});
@@ -654,7 +654,7 @@ export class SyncPlayManager {
         break;
       default:
         if (GROUP_ERRORS[update.Type]) {
-          this.fail(GROUP_ERRORS[update.Type]);
+          this.fail(t(GROUP_ERRORS[update.Type]));
         }
     }
   }
@@ -817,7 +817,7 @@ export class SyncPlayManager {
       // stall this player far longer than the drift it corrects.
       await player.seekTicks(target, always);
     } catch {
-      this.fail('Could not move to the group position.');
+      this.fail(t('syncPlay.moveFailed'));
     } finally {
       this.applyingCommand = false;
     }
@@ -825,7 +825,7 @@ export class SyncPlayManager {
 
   private requireApi(): SyncPlayApi {
     if (!this.api) {
-      throw new Error('Sign in to a server first.');
+      throw new Error(t('syncPlay.signInFirst'));
     }
     return this.api;
   }

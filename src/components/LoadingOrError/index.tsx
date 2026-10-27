@@ -6,6 +6,7 @@
 import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
+import {t} from '../../i18n';
 
 interface LoadingOrErrorProps {
   /** Shown instead of the spinner row once loading has finished with nothing. */
@@ -24,9 +25,9 @@ export const LoadingOrError = ({
   errorText,
   isEmpty = false,
   isLoading = false,
-  loadingText = 'Loading...',
+  loadingText = t('common.loading'),
   onRetry,
-  retryLabel = 'Retry',
+  retryLabel = t('common.retry'),
   testID = 'loading-or-error',
 }: LoadingOrErrorProps) => {
   if (isLoading) {

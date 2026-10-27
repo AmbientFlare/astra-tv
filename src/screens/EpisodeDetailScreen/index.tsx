@@ -13,6 +13,7 @@ import {
   setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {getLocaleTag, t} from '../../i18n';
 
 const TICKS_PER_SECOND = 10000000;
 
@@ -45,7 +46,9 @@ const formatDate = (dateText?: string) => {
 
   const date = new Date(dateText);
 
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toLocaleDateString(getLocaleTag());
 };
 
 const formatEndsAt = (ticks?: number) => {
@@ -55,7 +58,10 @@ const formatEndsAt = (ticks?: number) => {
 
   const end = new Date(Date.now() + (ticks / TICKS_PER_SECOND) * 1000);
 
-  return end.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+  return end.toLocaleTimeString(getLocaleTag(), {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 };
 
 const audioLayout = (channels?: number) => {
@@ -71,7 +77,7 @@ const audioLayout = (channels?: number) => {
     return '5.1';
   }
 
-  return channels === 2 ? 'Stereo' : `${channels}ch`;
+  return channels === 2 ? t('detail.stereo') : `${channels}ch`;
 };
 
 export const EpisodeDetailScreen = ({
@@ -138,10 +144,10 @@ export const EpisodeDetailScreen = ({
           // The episode may have gone between the list and this request.
           setErrorText(
             isMissingItemError(error)
-              ? 'This item is no longer on the server.'
+              ? t('detail.itemGone')
               : error instanceof Error
               ? error.message
-              : 'Unable to load episode details.',
+              : t('detail.loadEpisodeFailed'),
           );
         }
       }
@@ -206,8 +212,8 @@ export const EpisodeDetailScreen = ({
     seasonUnplayedCount === null
       ? null
       : seasonUnplayedCount === 0
-      ? 'Season watched'
-      : `${seasonUnplayedCount} unwatched in season`,
+      ? t('detail.seasonWatched')
+      : t('detail.unwatchedInSeason', {count: seasonUnplayedCount}),
   ].filter(Boolean);
   const guestStars = useMemo(
     () =>
@@ -269,7 +275,7 @@ export const EpisodeDetailScreen = ({
         <View style={styles.heroShade} />
         <View style={styles.heroContent}>
           <Text style={styles.seriesName}>
-            {detail.seriesName ?? 'Episode'}
+            {detail.seriesName ?? t('detail.episode')}
           </Text>
           <Text style={styles.title}>{detail.name}</Text>
           <Text style={styles.meta}>{meta.join('  |  ')}</Text>
@@ -287,14 +293,16 @@ export const EpisodeDetailScreen = ({
               detail.genres?.join(' / '),
               formatRuntime(detail.runTimeTicks),
               formatEndsAt(detail.runTimeTicks)
-                ? `Ends at ${formatEndsAt(detail.runTimeTicks)}`
+                ? t('detail.endsAt', {
+                    time: formatEndsAt(detail.runTimeTicks) ?? '',
+                  })
                 : null,
             ]
               .filter(Boolean)
               .join('  |  ')}
           </Text>
           <Text numberOfLines={5} style={styles.overview}>
-            {detail.overview ?? 'No synopsis available.'}
+            {detail.overview ?? t('detail.noSynopsis')}
           </Text>
           <LoadingOrError
             errorText={errorText}
@@ -308,7 +316,7 @@ export const EpisodeDetailScreen = ({
               onPress={() => onPlay?.(detail)}
               style={styles.actionButton}
               testID="episode-play-button">
-              <Text style={styles.actionText}>Play</Text>
+              <Text style={styles.actionText}>{t('player.play')}</Text>
             </FocusableItem>
             <FocusableItem
               disabled={isUpdatingUserData}
@@ -317,7 +325,7 @@ export const EpisodeDetailScreen = ({
               style={styles.actionButton}
               testID="episode-watched-button">
               <Text style={styles.actionText}>
-                {detail.isPlayed ? 'Unwatched' : 'Watched'}
+                {detail.isPlayed ? t('detail.unwatched') : t('detail.watched')}
               </Text>
             </FocusableItem>
             <FocusableItem
@@ -327,7 +335,9 @@ export const EpisodeDetailScreen = ({
               style={styles.actionButton}
               testID="episode-favorite-button">
               <Text style={styles.actionText}>
-                {detail.isFavorite ? 'Unfavorite' : 'Favorite'}
+                {detail.isFavorite
+                  ? t('media.unfavorite')
+                  : t('media.favorite')}
               </Text>
             </FocusableItem>
             {previousEpisode ? (
@@ -336,7 +346,7 @@ export const EpisodeDetailScreen = ({
                 onPress={() => onSelectEpisode?.(previousEpisode)}
                 style={styles.actionButton}
                 testID="episode-previous-button">
-                <Text style={styles.actionText}>Previous</Text>
+                <Text style={styles.actionText}>{t('detail.previous')}</Text>
               </FocusableItem>
             ) : null}
             {seriesItem ? (
@@ -345,7 +355,7 @@ export const EpisodeDetailScreen = ({
                 onPress={() => onGoToSeries?.(seriesItem)}
                 style={styles.actionButton}
                 testID="episode-series-button">
-                <Text style={styles.actionText}>Go to Series</Text>
+                <Text style={styles.actionText}>{t('detail.goToSeries')}</Text>
               </FocusableItem>
             ) : null}
             <FocusableItem
@@ -353,7 +363,7 @@ export const EpisodeDetailScreen = ({
               onPress={onBack}
               style={styles.actionButton}
               testID="episode-back-button">
-              <Text style={styles.actionText}>Back</Text>
+              <Text style={styles.actionText}>{t('common.back')}</Text>
             </FocusableItem>
           </TVFocusGuideView>
         </View>
@@ -363,8 +373,8 @@ export const EpisodeDetailScreen = ({
         <>
           <Text style={styles.sectionTitle}>
             {laterEpisodes.length === 1
-              ? 'Next Episode'
-              : `Rest of the Season (${laterEpisodes.length})`}
+              ? t('detail.nextEpisode')
+              : t('detail.restOfSeason', {count: laterEpisodes.length})}
           </Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
@@ -375,9 +385,9 @@ export const EpisodeDetailScreen = ({
                   onPress={() => onSelectEpisode?.(episode)}
                   subtitle={[
                     episode.indexNumber
-                      ? `Episode ${episode.indexNumber}`
-                      : 'Episode',
-                    episode.isPlayed ? 'Watched' : null,
+                      ? t('detail.episodeNumber', {number: episode.indexNumber})
+                      : t('detail.episode'),
+                    episode.isPlayed ? t('detail.watched') : null,
                   ]
                     .filter(Boolean)
                     .join(' · ')}
@@ -391,7 +401,7 @@ export const EpisodeDetailScreen = ({
 
       {guestStars.length ? (
         <>
-          <Text style={styles.sectionTitle}>Guest Stars</Text>
+          <Text style={styles.sectionTitle}>{t('detail.guestStars')}</Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {guestStars.map((person) => (
@@ -412,7 +422,7 @@ export const EpisodeDetailScreen = ({
 
       {detail.chapters?.length ? (
         <>
-          <Text style={styles.sectionTitle}>Chapters</Text>
+          <Text style={styles.sectionTitle}>{t('detail.chapters')}</Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {detail.chapters.map((chapter, index) => (
@@ -469,7 +479,7 @@ const PersonCard = ({
       {name}
     </Text>
     <Text numberOfLines={1} style={styles.personRole}>
-      {role ?? 'Guest Star'}
+      {role ?? t('detail.guestStar')}
     </Text>
   </FocusableItem>
 );

@@ -3,7 +3,7 @@ import {fireEvent, render} from '@testing-library/react-native';
 import {
   CURRENT_NOTICE_ID,
   NOTICE_BODY,
-  NOTICE_TITLE,
+  noticeTitle,
   WhatsNewNotice,
 } from '../src/components/WhatsNewNotice';
 import {APP_VERSION, BUILD_NUMBER} from '../src/config/app';
@@ -12,7 +12,7 @@ describe("what's new notice", () => {
   it('renders the title, every highlight and a dismiss control', () => {
     const screen = render(<WhatsNewNotice onDismiss={jest.fn()} />);
 
-    expect(screen.getByText(NOTICE_TITLE)).toBeTruthy();
+    expect(screen.getByText(noticeTitle())).toBeTruthy();
     expect(NOTICE_BODY.length).toBeGreaterThan(0);
     NOTICE_BODY.forEach((highlight) => {
       expect(screen.getByText(`• ${highlight}`)).toBeTruthy();
@@ -52,7 +52,7 @@ describe("what's new notice", () => {
   });
 
   it('does not promise anything on Amazon behalf or link outside the app', () => {
-    const text = [NOTICE_TITLE, ...NOTICE_BODY].join(' ').toLowerCase();
+    const text = [noticeTitle(), ...NOTICE_BODY].join(' ').toLowerCase();
     expect(text).not.toMatch(/https?:\/\//);
     expect(text).not.toMatch(/refund|purchase|subscribe|pay/);
   });

@@ -15,6 +15,7 @@ import {Image, StyleSheet, Text, View} from 'react-native';
 import {audioPlayback, PlaybackStatus} from '../../services/audioPlayer';
 import {formatSeconds} from '../../utils/duration';
 import {FocusableItem} from '../FocusableItem';
+import {t} from '../../i18n';
 
 interface NowPlayingBarProps {
   /** Shows the stream URL and player readyState. */
@@ -52,9 +53,10 @@ export const NowPlayingBar = ({
 
   return (
     <FocusableItem
-      accessibilityLabel={`Now playing ${status.track?.name ?? ''}. ${
-        status.isPlaying ? 'Pause' : 'Play'
-      }`}
+      accessibilityLabel={t('nowPlaying.barLabel', {
+        name: status.track?.name ?? '',
+        action: status.isPlaying ? t('player.pause') : t('player.play'),
+      })}
       focusedStyle={styles.focused}
       onPress={onOpen ?? (() => audioPlayback.togglePlayPause())}
       style={styles.bar}
@@ -73,7 +75,7 @@ export const NowPlayingBar = ({
 
         <View style={styles.text}>
           <Text numberOfLines={1} style={styles.title}>
-            {status.track?.name ?? 'Nothing playing'}
+            {status.track?.name ?? t('nowPlaying.nothingPlaying')}
           </Text>
           <Text numberOfLines={1} style={styles.subtitle}>
             {[status.track?.artistName, status.track?.albumName]
@@ -85,12 +87,12 @@ export const NowPlayingBar = ({
         <View style={styles.state}>
           <Text style={styles.stateText}>
             {status.lastError
-              ? 'ERROR'
+              ? t('nowPlaying.error')
               : status.isBuffering
-              ? 'Buffering'
+              ? t('nowPlaying.buffering')
               : status.isPlaying
-              ? 'Playing'
-              : 'Paused'}
+              ? t('nowPlaying.playing')
+              : t('nowPlaying.paused')}
           </Text>
           <Text style={styles.time}>
             {formatSeconds(positionSeconds)}

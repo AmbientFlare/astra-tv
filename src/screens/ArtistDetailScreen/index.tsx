@@ -41,6 +41,7 @@ import {
 import {audioPlayback} from '../../services/audioPlayer';
 import {ServerProfile} from '../../services/storage';
 import {formatTotalRuntime, metaLine} from '../../utils/duration';
+import {t, tn} from '../../i18n';
 
 interface ArtistDetailScreenProps {
   artistId: string;
@@ -128,7 +129,9 @@ export const ArtistDetailScreen = ({
       } catch (error) {
         if (active) {
           setErrorText(
-            error instanceof Error ? error.message : 'Unable to load artist.',
+            error instanceof Error
+              ? error.message
+              : t('music.loadArtistFailed'),
           );
         }
       } finally {
@@ -187,7 +190,7 @@ export const ArtistDetailScreen = ({
     try {
       await loadEverything();
     } catch {
-      setErrorText('Unable to load every album for this artist.');
+      setErrorText(t('music.loadAllAlbumsFailed'));
     } finally {
       setExpanding(false);
     }
@@ -261,7 +264,7 @@ export const ArtistDetailScreen = ({
           onPress={onBack}
           style={styles.action}
           testID="artist-back">
-          <Text style={styles.actionText}>Back</Text>
+          <Text style={styles.actionText}>{t('common.back')}</Text>
         </FocusableItem>
       </View>
     );
@@ -286,12 +289,17 @@ export const ArtistDetailScreen = ({
             </Text>
             <Text style={styles.meta}>
               {metaLine(
-                albums.length ? `${albums.length} albums` : undefined,
+                albums.length
+                  ? tn('music.albumsCount', albums.length)
+                  : undefined,
                 expanded
-                  ? `${expanded.reduce(
-                      (sum, entry) => sum + entry.tracks.length,
-                      0,
-                    )} tracks`
+                  ? tn(
+                      'music.trackCount',
+                      expanded.reduce(
+                        (sum, entry) => sum + entry.tracks.length,
+                        0,
+                      ),
+                    )
                   : undefined,
               )}
             </Text>
@@ -303,14 +311,14 @@ export const ArtistDetailScreen = ({
                 onPress={() => playAll(false)}
                 style={styles.action}
                 testID="artist-play-all">
-                <Text style={styles.actionText}>Play all</Text>
+                <Text style={styles.actionText}>{t('music.playAll')}</Text>
               </FocusableItem>
               <FocusableItem
                 focusedStyle={styles.actionFocused}
                 onPress={() => playAll(true)}
                 style={styles.action}
                 testID="artist-shuffle">
-                <Text style={styles.actionText}>Shuffle</Text>
+                <Text style={styles.actionText}>{t('music.shuffle')}</Text>
               </FocusableItem>
               <FocusableItem
                 focusedStyle={styles.actionFocused}
@@ -321,8 +329,8 @@ export const ArtistDetailScreen = ({
                   {isExpanding
                     ? 'Loading...'
                     : expanded
-                    ? 'Collapse albums'
-                    : 'Expand all albums'}
+                    ? t('music.collapseAlbums')
+                    : t('music.expandAlbums')}
                 </Text>
               </FocusableItem>
               <FocusableItem
@@ -330,7 +338,7 @@ export const ArtistDetailScreen = ({
                 onPress={onBack}
                 style={styles.action}
                 testID="artist-back">
-                <Text style={styles.actionText}>Back</Text>
+                <Text style={styles.actionText}>{t('common.back')}</Text>
               </FocusableItem>
             </TVFocusGuideView>
           </View>
@@ -341,7 +349,7 @@ export const ArtistDetailScreen = ({
         {topTracks.length && !expanded ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              {hasPlayCounts ? 'Popular' : 'Tracks'}
+              {hasPlayCounts ? t('music.popular') : t('music.tracks')}
             </Text>
             {topTracks.map((track, index) => (
               <TrackRow
@@ -357,7 +365,7 @@ export const ArtistDetailScreen = ({
 
         {expanded ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>All tracks</Text>
+            <Text style={styles.sectionTitle}>{t('music.allTracks')}</Text>
             {expanded.map((entry) => (
               <View key={entry.album.id}>
                 <View style={styles.albumHeading}>
@@ -395,7 +403,7 @@ export const ArtistDetailScreen = ({
           </View>
         ) : (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Albums</Text>
+            <Text style={styles.sectionTitle}>{t('music.albums')}</Text>
             <ScrollView horizontal={true}>
               <TVFocusGuideView style={styles.albumRow}>
                 {albums.map((album) => (
@@ -431,7 +439,7 @@ export const ArtistDetailScreen = ({
               </TVFocusGuideView>
             </ScrollView>
             {!albums.length ? (
-              <Text style={styles.status}>No albums for this artist.</Text>
+              <Text style={styles.status}>{t('music.noArtistAlbums')}</Text>
             ) : null}
           </View>
         )}

@@ -23,6 +23,7 @@ import {
   ServerProfile,
   setDisplayPreferences,
 } from '../../services/storage';
+import {t} from '../../i18n';
 
 interface LibraryScreenProps {
   libraryId: string;
@@ -34,44 +35,44 @@ interface LibraryScreenProps {
   serverProfile: ServerProfile;
 }
 
-const sortOptions: Array<{label: string; value: JellyfinSortBy}> = [
-  {label: 'Name', value: 'name'},
-  {label: 'Date Added', value: 'dateAdded'},
-  {label: 'Release Date', value: 'releaseDate'},
-  {label: 'Rating', value: 'rating'},
+const sortOptions = (): Array<{label: string; value: JellyfinSortBy}> => [
+  {label: t('settings.name'), value: 'name'},
+  {label: t('library.dateAdded'), value: 'dateAdded'},
+  {label: t('library.releaseDate'), value: 'releaseDate'},
+  {label: t('library.rating'), value: 'rating'},
 ];
 
-const sortOrderOptions = [
-  {label: 'Ascending', value: false},
-  {label: 'Descending', value: true},
+const sortOrderOptions = () => [
+  {label: t('library.ascending'), value: false},
+  {label: t('library.descending'), value: true},
 ];
 
-const filterOptions = [
-  {label: 'All', value: false},
-  {label: 'Unwatched Only', value: true},
+const filterOptions = () => [
+  {label: t('library.all'), value: false},
+  {label: t('library.unwatchedOnly'), value: true},
 ];
 
-const favoriteOptions = [
-  {label: 'All', value: false},
-  {label: 'Favorites Only', value: true},
+const favoriteOptions = () => [
+  {label: t('library.all'), value: false},
+  {label: t('library.favoritesOnly'), value: true},
 ];
 
-const imageSizeOptions: Array<{
+const imageSizeOptions = (): Array<{
   label: string;
   value: DisplayPreferences['imageSize'];
-}> = [
-  {label: 'Small', value: 'small'},
-  {label: 'Medium', value: 'medium'},
-  {label: 'Large', value: 'large'},
+}> => [
+  {label: t('settings.small'), value: 'small'},
+  {label: t('settings.medium'), value: 'medium'},
+  {label: t('settings.large'), value: 'large'},
 ];
 
-const imageTypeOptions: Array<{
+const imageTypeOptions = (): Array<{
   label: string;
   value: DisplayPreferences['imageType'];
-}> = [
-  {label: 'Poster', value: 'Primary'},
-  {label: 'Thumb', value: 'Thumb'},
-  {label: 'Banner', value: 'Banner'},
+}> => [
+  {label: t('settings.poster'), value: 'Primary'},
+  {label: t('settings.thumb'), value: 'Thumb'},
+  {label: t('settings.banner'), value: 'Banner'},
 ];
 
 const imageSizeScale: Record<DisplayPreferences['imageSize'], number> = {
@@ -529,7 +530,7 @@ export const LibraryScreen = ({
         // would be a worse answer than the one already there.
         if (mounted && !refreshingRestored) {
           setErrorText(
-            error instanceof Error ? error.message : 'Unable to load library.',
+            error instanceof Error ? error.message : t('library.loadFailed'),
           );
         }
       } finally {
@@ -710,11 +711,11 @@ export const LibraryScreen = ({
             </Text>
           </View>
           <LoadingOrError
-            emptyText="Nothing here yet. The server may still be filling this library."
+            emptyText={t('library.empty')}
             errorText={errorText}
             isEmpty={items.length === 0}
             isLoading={isLoading}
-            loadingText="Loading items..."
+            loadingText={t('library.loadingItems')}
             onRetry={() => loadItems()}
             testID="library-status"
           />
@@ -777,44 +778,44 @@ export const LibraryScreen = ({
       {menuVisible ? (
         <Panel
           onClose={() => onMenuVisibleChange(false)}
-          title="Library options">
+          title={t('library.options')}>
           <PreferenceRadioGroup
-            options={sortOptions}
+            options={sortOptions()}
             selectedValue={sortBy}
-            title="Sort by"
+            title={t('library.sortBy')}
             onSelect={setSortBy}
             preferredFocusValue={sortBy}
           />
           <PreferenceRadioGroup
-            options={sortOrderOptions}
+            options={sortOrderOptions()}
             selectedValue={sortDescending}
-            title="Sort order"
+            title={t('library.sortOrder')}
             onSelect={setSortDescending}
           />
           <PreferenceRadioGroup
-            options={filterOptions}
+            options={filterOptions()}
             selectedValue={filterUnwatched}
-            title="Filter"
+            title={t('library.filter')}
             onSelect={setFilterUnwatched}
           />
           <PreferenceRadioGroup
-            options={favoriteOptions}
+            options={favoriteOptions()}
             selectedValue={filterFavorites}
-            title="Favorites"
+            title={t('library.favorites')}
             onSelect={setFilterFavorites}
           />
           <PreferenceRadioGroup
-            options={imageSizeOptions}
+            options={imageSizeOptions()}
             selectedValue={displayPreferences.imageSize}
-            title="Display: Image size"
+            title={t('library.displayImageSize')}
             onSelect={(imageSize) =>
               saveDisplayPreferences({...displayPreferences, imageSize})
             }
           />
           <PreferenceRadioGroup
-            options={imageTypeOptions}
+            options={imageTypeOptions()}
             selectedValue={displayPreferences.imageType}
-            title="Display: Image type"
+            title={t('library.displayImageType')}
             onSelect={(imageType) =>
               saveDisplayPreferences({...displayPreferences, imageType})
             }
@@ -841,7 +842,7 @@ const Panel = ({
         onPress={onClose}
         style={styles.panelButton}
         testID="library-panel-close">
-        <Text style={styles.panelButtonText}>Close</Text>
+        <Text style={styles.panelButtonText}>{t('common.close')}</Text>
       </FocusableItem>
     </View>
   </View>

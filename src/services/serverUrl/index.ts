@@ -1,3 +1,5 @@
+import {t} from '../../i18n';
+
 /**
  * Shared server-URL handling.
  *
@@ -102,6 +104,4 @@ export const isCleartextUrl = (url?: string | null) =>
  * Shown after a playback failure from an http:// server, as the most likely
  * explanation. Worded as a suggestion because the cause is not confirmed.
  */
-export const CLEARTEXT_MEDIA_MESSAGE =
-  'Playback from an unencrypted (http://) server may not be supported on this ' +
-  'device. If your server also has an https:// address, try adding it that way.';
+export const cleartextMediaMessage = (): string => t('errors.cleartextMedia');
