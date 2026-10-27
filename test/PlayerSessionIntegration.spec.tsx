@@ -1,7 +1,7 @@
 import React from 'react';
 import {StyleSheet} from 'react-native';
 import {getTrickplayInfo} from '../src/services/jellyfin/trickplay';
-import {render, act} from '@testing-library/react-native';
+import {render, act, fireEvent} from '@testing-library/react-native';
 import {
   startVideoEngagement,
   stopVideoEngagement,
@@ -18,6 +18,7 @@ const mockVideos: any[] = [];
 const mockShakas: any[] = [];
 let mockRemote: (event: any) => void;
 let mockPlayEmitsPlaying = true;
+let mockLoadGate: Promise<void> | undefined;
 let mockAppState: (state: string) => void;
 const mockManager = {
   addAppStateListener: jest.fn((_event, callback) => {
@@ -27,6 +28,7 @@ const mockManager = {
   getComponentInstance: jest.fn(),
 };
 jest.mock('@amazon-devices/react-native-kepler', () => ({
+  TVFocusGuideView: 'TVFocusGuideView',
   useKeplerAppStateManager: () => mockManager,
   useTVEventHandler: (handler: any) => {
     mockRemote = handler;
@@ -69,6 +71,18 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
     mockVideos.push(v);
     return v;
   }),
+}));
+let mockNetListener: ((state: {isConnected: boolean}) => void) | null = null;
+const mockNetRefresh = jest.fn(async () => ({isConnected: true}));
+jest.mock('@amazon-devices/keplerscript-netmgr-lib', () => ({
+  configure: jest.fn(),
+  addEventListener: (listener: typeof mockNetListener) => {
+    mockNetListener = listener;
+    return () => {
+      mockNetListener = null;
+    };
+  },
+  refresh: () => mockNetRefresh(),
 }));
 jest.mock('../src/services/jellyfin/trickplay', () => ({
   ...jest.requireActual('../src/services/jellyfin/trickplay'),
@@ -116,7 +130,7 @@ jest.mock('../src/w3cmedia/shakaplayer/ShakaPlayer', () => ({
   ShakaPlayer: jest.fn().mockImplementation((_video, settings) => {
     const player = {
       settings,
-      load: jest.fn(async () => undefined),
+      load: jest.fn(() => mockLoadGate ?? Promise.resolve()),
       unload: jest.fn(async () => undefined),
       cancelLoad: jest.fn(async () => undefined),
       getDebugStats: jest.fn(() => ({buffered: {total: []}})),
@@ -532,6 +546,7 @@ describe('PlayerScreen native session integration', () => {
     mockVideos.length = 0;
     mockShakas.length = 0;
     mockPlayEmitsPlaying = true;
+    mockLoadGate = undefined;
     (getStreamUrl as jest.Mock).mockResolvedValue({...stream});
     (reportPlaybackStart as jest.Mock).mockResolvedValue(undefined);
     (reportPlaybackStopped as jest.Mock).mockResolvedValue(undefined);
@@ -788,6 +803,79 @@ describe('PlayerScreen native session integration', () => {
     expect(mockVideos[0].deinitialize).toHaveBeenCalledTimes(1);
     expect(onBack).toHaveBeenCalledTimes(1);
     view.unmount();
+  });
+
+  it('reports the stop on background while a load is still running', async () => {
+    const load = deferred<void>();
+    mockLoadGate = load.promise;
+    const view = mount();
+    // The surface callback waits for the load, so it is not awaited here.
+    let started!: Promise<void>;
+    await act(async () => {
+      started = view
+        .getByTestId('player-video-surface')
+        .props.onSurfaceViewCreated('surface');
+      await flush();
+    });
+    expect(mockShakas[0].load).toHaveBeenCalled();
+    await act(async () => {
+      mockAppState('background');
+      await flush();
+    });
+    expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
+    expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
+    await act(async () => {
+      load.resolve();
+      await Promise.resolve(started).catch(() => undefined);
+      await flush();
+    });
+    expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it('pauses on a lost connection and restarts from the same point on Retry', async () => {
+    jest.useFakeTimers();
+    try {
+      const view = mount();
+      await start(view);
+      const video = mockVideos[0];
+      await act(async () => {
+        video.currentTime = 300;
+        video.emit('timeupdate');
+        await flush();
+      });
+      expect(video.paused).toBe(false);
+
+      await act(async () => {
+        mockNetListener?.({isConnected: false});
+        jest.advanceTimersByTime(3000);
+        await flush();
+      });
+      expect(view.getByTestId('connection-notice')).toBeTruthy();
+      expect(video.paused).toBe(true);
+
+      mockNetRefresh.mockResolvedValueOnce({isConnected: false});
+      await act(async () => {
+        fireEvent.press(view.getByTestId('connection-retry'));
+        await flush();
+      });
+      expect(view.getByTestId('connection-still-offline')).toBeTruthy();
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        fireEvent.press(view.getByTestId('connection-retry'));
+        await flush();
+      });
+      expect(view.queryByTestId('connection-notice')).toBeNull();
+      expect(getStreamUrl).toHaveBeenCalledTimes(2);
+      expect((getStreamUrl as jest.Mock).mock.calls[1][4]).toBe(300 * 10000000);
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('lets go of a destroyed surface at once, before the release that waits', async () => {

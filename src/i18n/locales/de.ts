@@ -132,9 +132,15 @@ export const de: Messages = {
   'app.loading': 'Astra wird geladen',
   'exit.title': 'Astra beenden?',
   'exit.body':
-    'Drücke Zurück, um zu bleiben, oder wähle Beenden, um die App zu schließen.',
+    'Drücke noch einmal Zurück, um die App zu schließen, oder wähle Bleiben.',
   'exit.stay': 'Bleiben',
   'exit.exit': 'Beenden',
+  'connection.title': 'Keine Verbindung',
+  'connection.body':
+    'Astra erreicht das Netzwerk nicht. Prüfe das WLAN oder Netzwerkkabel und wähle dann Erneut versuchen.',
+  'connection.stillOffline':
+    'Immer noch keine Verbindung. Versuch es gleich noch einmal.',
+  'connection.checking': 'Wird geprüft…',
   'capabilities.hardwareLabel': 'Ja, er hat eine Grafikkarte',
   'capabilities.hardwareDetail':
     'Eine eigene GPU übernimmt die Umwandlung. Am besten für 4K und HDR.',

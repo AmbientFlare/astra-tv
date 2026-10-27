@@ -129,9 +129,14 @@ export const pt: Messages = {
   'home.latestIn': 'Novidades em {name}',
   'app.loading': 'Carregando o Astra',
   'exit.title': 'Sair do Astra?',
-  'exit.body': 'Pressione Voltar para ficar ou escolha Sair para fechar o app.',
+  'exit.body': 'Pressione Voltar de novo para fechar o app ou escolha Ficar.',
   'exit.stay': 'Ficar',
   'exit.exit': 'Sair',
+  'connection.title': 'Sem conexão',
+  'connection.body':
+    'O Astra não consegue acessar a rede. Verifique o Wi-Fi ou o cabo de rede e escolha Tentar de novo.',
+  'connection.stillOffline': 'Ainda sem conexão. Tente de novo daqui a pouco.',
+  'connection.checking': 'Verificando…',
   'capabilities.hardwareLabel': 'Sim, tem placa de vídeo',
   'capabilities.hardwareDetail':
     'Uma GPU dedicada faz a conversão. Melhores resultados em 4K e HDR.',
