@@ -40,6 +40,8 @@ export interface DisplayPreferences {
 export interface PlaybackPreferences {
   version: 1;
   hlsSegmentLengthSeconds: 0 | 2 | 3 | 4;
+  /** Experiment: send HEVC transcodes as fMP4 instead of MPEG-TS. */
+  hevcFmp4Experiment: boolean;
   maxBitrateBps: number;
   maxAudioChannels: 2 | 6 | 8;
   preferredAudioLanguage: string;
@@ -136,6 +138,7 @@ export const defaultUserPreferences: UserPreferences = {
 export const defaultPlaybackPrefs: PlaybackPreferences = {
   version: 1,
   hlsSegmentLengthSeconds: 0,
+  hevcFmp4Experiment: false,
   maxBitrateBps: 80000000,
   maxAudioChannels: 6,
   preferredAudioLanguage: 'en',
@@ -393,6 +396,7 @@ const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
     hlsSegmentLengthSeconds: [0, 2, 3, 4].includes(hlsSegmentLengthSeconds)
       ? (hlsSegmentLengthSeconds as PlaybackPreferences['hlsSegmentLengthSeconds'])
       : defaultPlaybackPrefs.hlsSegmentLengthSeconds,
+    hevcFmp4Experiment: parsed.hevcFmp4Experiment === true,
     maxBitrateBps: [
       4000000, 8000000, 12000000, 20000000, 40000000, 80000000, 120000000,
       200000000,

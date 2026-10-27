@@ -282,12 +282,16 @@ export const en = {
     'Applies to text subtitles displayed by Astra. Subtitles embedded in the video keep their original appearance.',
   'settings.hlsSegmentLengthHint':
     'Leave this on Auto unless MP4 or MOV playback stutters. Shorter segments increase network requests and player append operations.',
+  'settings.hevcFmp4': 'HEVC as fMP4 (experiment)',
+  'settings.hevcFmp4Hint':
+    'Sends 4K and HDR streams as fMP4 with 2-second segments instead of MPEG-TS. Turn it off if playback stutters.',
   'settings.skipAsk': 'Ask',
   'settings.skipAuto': 'Auto-skip',
   'settings.skipIgnore': 'Ignore',
   'settings.about': 'About',
   'about.build': 'Build: {build}',
   'about.buildDate': 'Build date: {date}',
+  'about.device': 'Device: {device}',
   'about.license': 'License: Astra Source-Available License v1.0',
   'about.openSource': 'Open source: React, React Native',
   'about.compatible':

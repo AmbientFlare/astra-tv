@@ -290,12 +290,16 @@ export const de: Messages = {
     'Gilt für Textuntertitel, die Astra anzeigt. In das Video eingebettete Untertitel behalten ihr ursprüngliches Aussehen.',
   'settings.hlsSegmentLengthHint':
     'Lass das auf Automatisch, außer MP4- oder MOV-Wiedergabe ruckelt. Kürzere Segmente erhöhen die Netzwerkanfragen und die Arbeit des Players.',
+  'settings.hevcFmp4': 'HEVC als fMP4 (Experiment)',
+  'settings.hevcFmp4Hint':
+    'Sendet 4K- und HDR-Streams als fMP4 mit 2-Sekunden-Segmenten statt als MPEG-TS. Schalte es aus, wenn die Wiedergabe ruckelt.',
   'settings.skipAsk': 'Fragen',
   'settings.skipAuto': 'Automatisch überspringen',
   'settings.skipIgnore': 'Ignorieren',
   'settings.about': 'Info',
   'about.build': 'Build: {build}',
   'about.buildDate': 'Build-Datum: {date}',
+  'about.device': 'Gerät: {device}',
   'about.license': 'Lizenz: Astra Source-Available License v1.0',
   'about.openSource': 'Open Source: React, React Native',
   'about.compatible': 'Kompatibel mit: Jellyfin (Marke der jeweiligen Inhaber)',

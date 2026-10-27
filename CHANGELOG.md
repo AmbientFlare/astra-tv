@@ -3,6 +3,20 @@
 Code from outside contributors is credited on its entry and, permanently,
 in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
+## 1.6.0 - unreleased
+
+### Added
+
+- Each Fire TV model gets the H.264 bitrate limit Amazon publishes for it
+  (30 Mbps on the 4K Select, 20 Mbps on the 2026 sticks and anything
+  unrecognised). A file above it is converted by the server instead of
+  failing to decode. HEVC keeps no limit, so 4K remuxes still play
+  untouched.
+- Settings → Playback → HLS segment length: an off-by-default experiment that
+  sends 4K and HDR streams as fMP4 in 2-second segments instead of MPEG-TS.
+- Stats for Nerds shows the device model and OS version, and so does Settings
+  → About once the model is known. Developer telemetry events carry them too.
+
 ## 1.5.1 - 2026-10-26
 
 ### Added

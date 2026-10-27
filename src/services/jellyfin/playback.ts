@@ -3,6 +3,7 @@ import type {
   JellyfinMediaStream,
   JellyfinMediaTrack,
 } from './types';
+import {knownDevice, readDeviceModel} from '../deviceModel';
 import {initializeDeviceIdentity} from '../deviceIdentity';
 import {
   normalizeServerUrl,
@@ -95,6 +96,7 @@ export const getStreamUrl = async (
     audioOutputCapabilities,
     undefined,
     videoDecodeLimits,
+    knownDevice(readDeviceModel().model).h264MaxBitrate,
   );
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
     api_key: accessToken,
