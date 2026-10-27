@@ -105,12 +105,12 @@ Unknown Error`; the container retains a GPU DeviceRequest. No server
   The restored package was force-stopped, installed, and launched on the stick.
   SHA-256: `509be59a316928ef7a61305f7817c01aaf1ea92b23bfe2e43cd119194476d0e5`.
 
-## Optional Nebula Bridge integration and Jellyfin Versions — complete
+## Optional ServerExtension integration and Jellyfin Versions — complete
 
 - [x] Preserved Astra's standard Jellyfin data path: seasons still come from
       `/Shows/{seriesId}/Seasons`, episodes from `/Shows/{seriesId}/Episodes`, and playback from
       `/Items/{itemId}/PlaybackInfo`.
-- [x] Added a short, failure-isolated probe for Nebula Bridge capability API version 1 when a
+- [x] Added a short, failure-isolated probe for ServerExtension capability API version 1 when a
       server profile becomes active. Missing endpoints, timeouts, unsupported revisions, and
       failures leave Astra behaving as an ordinary Jellyfin client.
 - [x] Added non-blocking hierarchy prefetch on Series/Season TV focus, with ten-minute client
@@ -126,11 +126,11 @@ Unknown Error`; the container retains a GPU DeviceRequest. No server
 - [x] PlaybackInfo used to populate the Versions menu sets `AutoOpenLiveStream: false`; merely
       showing the menu does not open a provider stream.
 
-### Nebula/Versions verification
+### Server-extension/versions verification
 
 - TypeScript typecheck and ESLint pass.
 - Full Jest suite: 280 passing tests across 33 suites.
-- Regression coverage includes absent/unsupported Nebula capability APIs, rapid-request
+- Regression coverage includes absent/unsupported server-extension capability APIs, rapid-request
   deduplication, complete MediaSource discovery, and selecting a non-default source.
 
 This document preserves reusable implementation findings, rejected hypotheses,

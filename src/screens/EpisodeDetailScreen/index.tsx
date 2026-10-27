@@ -15,7 +15,7 @@ import {
   setPlayed,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
-import {hydrateNebulaHierarchy} from '../../services/nebula';
+import {hydrateServerExtensionHierarchy} from '../../services/serverExtension';
 
 const TICKS_PER_SECOND = 10000000;
 
@@ -113,7 +113,7 @@ export const EpisodeDetailScreen = ({
         setDetail(result);
 
         if (result.seriesId && result.parentId) {
-          await hydrateNebulaHierarchy(serverProfile, {
+          await hydrateServerExtensionHierarchy(serverProfile, {
             id: result.parentId,
             name: result.seriesName ?? 'Season',
             seriesId: result.seriesId,

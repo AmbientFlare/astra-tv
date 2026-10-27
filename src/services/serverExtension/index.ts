@@ -3,7 +3,7 @@ import {normalizeServerUrl} from '../serverUrl';
 import {ServerProfile} from '../storage';
 import {APP_VERSION} from '../../config/app';
 
-export interface NebulaCapabilities {
+export interface ServerExtensionCapabilities {
   apiVersion: number;
   features: {
     hierarchyPrefetch?: boolean;
@@ -19,7 +19,7 @@ const PREFETCH_TTL_MS = 10 * 60 * 1000;
 
 const capabilityRequests = new Map<
   string,
-  Promise<NebulaCapabilities | null>
+  Promise<ServerExtensionCapabilities | null>
 >();
 const hydrationRequests = new Map<
   string,
@@ -51,7 +51,7 @@ const requestJson = async <ResponseBody>(
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`Nebula capability request failed (${response.status}).`);
+      throw new Error(`ServerExtension capability request failed (${response.status}).`);
     }
     const text = await response.text();
     return (text ? JSON.parse(text) : undefined) as ResponseBody;
@@ -60,7 +60,7 @@ const requestJson = async <ResponseBody>(
   }
 };
 
-const nebulaUrl = (
+const serverExtensionUrl = (
   profile: ServerProfile,
   path: string,
   includeUserId = false,
@@ -75,27 +75,27 @@ const nebulaUrl = (
 const serverKey = (profile: ServerProfile) =>
   `${normalizeServerUrl(profile.serverUrl)}:${profile.userId}`;
 
-export const detectNebulaCapabilities = (
+export const detectServerExtensionCapabilities = (
   profile: ServerProfile,
-): Promise<NebulaCapabilities | null> => {
+): Promise<ServerExtensionCapabilities | null> => {
   const key = serverKey(profile);
   const existing = capabilityRequests.get(key);
   if (existing) {
     return existing;
   }
 
-  const request = requestJson<NebulaCapabilities>(
-    nebulaUrl(profile, '/NebulaBridge/Capabilities'),
+  const request = requestJson<ServerExtensionCapabilities>(
+    serverExtensionUrl(profile, '/astra-extension/Capabilities'),
     profile.accessToken,
   )
     .then((capabilities) => {
       if (capabilities?.apiVersion !== 1) {
-        console.log('[Astra] Nebula Bridge capability API is unsupported.');
+        console.log('[Astra] ServerExtension capability API is unsupported.');
         return null;
       }
 
       console.log(
-        '[Astra] Nebula Bridge detected: API version 1; hierarchy prefetch',
+        '[Astra] ServerExtension detected: API version 1; hierarchy prefetch',
         capabilities.features?.hierarchyPrefetch ? 'supported' : 'unsupported',
       );
       return capabilities;
@@ -107,12 +107,12 @@ export const detectNebulaCapabilities = (
 };
 
 /** Starts capability discovery without making connection success depend on it. */
-export const probeNebulaCapabilities = (profile: ServerProfile) => {
-  detectNebulaCapabilities(profile).catch(() => null);
+export const probeServerExtensionCapabilities = (profile: ServerProfile) => {
+  detectServerExtensionCapabilities(profile).catch(() => null);
 };
 
 const hydrationRoute = (
-  capabilities: NebulaCapabilities,
+  capabilities: ServerExtensionCapabilities,
   item: JellyfinMediaItem,
 ) => {
   if (
@@ -120,14 +120,14 @@ const hydrationRoute = (
     capabilities.features.hierarchyPrefetch &&
     capabilities.features.seriesHydration
   ) {
-    return `/NebulaBridge/Hydrate/Series/${item.id}`;
+    return `/astra-extension/Hydrate/Series/${item.id}`;
   }
   if (
     item.type === 'Season' &&
     capabilities.features.hierarchyPrefetch &&
     capabilities.features.seasonHydration
   ) {
-    return `/NebulaBridge/Hydrate/Season/${item.id}`;
+    return `/astra-extension/Hydrate/Season/${item.id}`;
   }
   return null;
 };
@@ -136,7 +136,7 @@ const hydrationRoute = (
  * Ensures a Series/Season hierarchy is being prepared. Concurrent focus/open calls join the
  * same request, successful work is briefly cached, and every optional failure becomes false.
  */
-export const hydrateNebulaHierarchy = async (
+export const hydrateServerExtensionHierarchy = async (
   profile: ServerProfile,
   item: JellyfinMediaItem,
 ): Promise<boolean> => {
@@ -147,11 +147,11 @@ export const hydrateNebulaHierarchy = async (
   // Connection/focus normally starts discovery first. If a screen is rendered directly on an
   // ordinary server, start the optional probe but do not hold up its standard Jellyfin request.
   if (!capabilityRequests.has(serverKey(profile))) {
-    detectNebulaCapabilities(profile).catch(() => null);
+    detectServerExtensionCapabilities(profile).catch(() => null);
     return false;
   }
 
-  const capabilities = await detectNebulaCapabilities(profile);
+  const capabilities = await detectServerExtensionCapabilities(profile);
   if (!capabilities) {
     return false;
   }
@@ -167,9 +167,9 @@ export const hydrateNebulaHierarchy = async (
     return existing.request;
   }
 
-  console.log(`[Astra] Nebula hierarchy prefetch requested: ${item.type}`);
+  console.log(`[Astra] ServerExtension hierarchy prefetch requested: ${item.type}`);
   const request = requestJson(
-    nebulaUrl(profile, route, true),
+    serverExtensionUrl(profile, route, true),
     profile.accessToken,
     'POST',
     HYDRATION_TIMEOUT_MS,
@@ -185,19 +185,19 @@ export const hydrateNebulaHierarchy = async (
 };
 
 /** Non-blocking TV-focus hook. */
-export const prefetchNebulaHierarchy = (
+export const prefetchServerExtensionHierarchy = (
   profile: ServerProfile,
   item: JellyfinMediaItem,
 ) => {
   if (item.type !== 'Series' && item.type !== 'Season') {
     return;
   }
-  detectNebulaCapabilities(profile)
-    .then(() => hydrateNebulaHierarchy(profile, item))
+  detectServerExtensionCapabilities(profile)
+    .then(() => hydrateServerExtensionHierarchy(profile, item))
     .catch(() => false);
 };
 
-export const clearNebulaSessionCache = () => {
+export const clearServerExtensionSessionCache = () => {
   capabilityRequests.clear();
   hydrationRequests.clear();
 };

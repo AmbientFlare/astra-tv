@@ -9,7 +9,7 @@ import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
-import {prefetchNebulaHierarchy} from '../../services/nebula';
+import {prefetchServerExtensionHierarchy} from '../../services/serverExtension';
 import {
   getLibraries,
   getLatestItems,
@@ -458,7 +458,7 @@ const HomeMediaRow = ({
               onFocus={() => {
                 onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl);
                 if (serverProfile) {
-                  prefetchNebulaHierarchy(serverProfile, item);
+                  prefetchServerExtensionHierarchy(serverProfile, item);
                 }
               }}
               onPress={() => onSelectItem?.(item)}

@@ -1,8 +1,8 @@
 import {
-  clearNebulaSessionCache,
-  detectNebulaCapabilities,
-  hydrateNebulaHierarchy,
-} from '../src/services/nebula';
+  clearServerExtensionSessionCache,
+  detectServerExtensionCapabilities,
+  hydrateServerExtensionHierarchy,
+} from '../src/services/serverExtension';
 import {ServerProfile} from '../src/services/storage';
 
 const profile: ServerProfile = {
@@ -23,22 +23,22 @@ const response = (body: unknown, ok = true) => ({
 });
 
 beforeEach(() => {
-  clearNebulaSessionCache();
+  clearServerExtensionSessionCache();
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe('optional Nebula capability integration', () => {
+describe('optional ServerExtension capability integration', () => {
   it('treats a missing plugin as an ordinary Jellyfin server', async () => {
     global.fetch = jest.fn(async () =>
       response({}, false),
     ) as unknown as typeof fetch;
 
-    await expect(detectNebulaCapabilities(profile)).resolves.toBeNull();
+    await expect(detectServerExtensionCapabilities(profile)).resolves.toBeNull();
     await expect(
-      hydrateNebulaHierarchy(profile, {
+      hydrateServerExtensionHierarchy(profile, {
         id: 'series-1',
         name: 'Show',
         type: 'Series',
@@ -61,17 +61,17 @@ describe('optional Nebula capability integration', () => {
     ) as unknown as typeof fetch;
     const item = {id: 'series-1', name: 'Show', type: 'Series'};
 
-    await detectNebulaCapabilities(profile);
+    await detectServerExtensionCapabilities(profile);
 
     await Promise.all([
-      hydrateNebulaHierarchy(profile, item),
-      hydrateNebulaHierarchy(profile, item),
-      hydrateNebulaHierarchy(profile, item),
+      hydrateServerExtensionHierarchy(profile, item),
+      hydrateServerExtensionHierarchy(profile, item),
+      hydrateServerExtensionHierarchy(profile, item),
     ]);
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
     expect((global.fetch as jest.Mock).mock.calls[1][0]).toContain(
-      '/NebulaBridge/Hydrate/Series/series-1',
+      '/astra-extension/Hydrate/Series/series-1',
     );
   });
 
@@ -80,6 +80,6 @@ describe('optional Nebula capability integration', () => {
       response({apiVersion: 2, features: {hierarchyPrefetch: true}}),
     ) as unknown as typeof fetch;
 
-    await expect(detectNebulaCapabilities(profile)).resolves.toBeNull();
+    await expect(detectServerExtensionCapabilities(profile)).resolves.toBeNull();
   });
 });

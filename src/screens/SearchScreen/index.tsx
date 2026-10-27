@@ -7,7 +7,7 @@ import {MediaCard} from '../../components/MediaCard';
 import {TVTextInput} from '../../components/TVTextInput';
 import {JellyfinMediaItem, searchItems} from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
-import {prefetchNebulaHierarchy} from '../../services/nebula';
+import {prefetchServerExtensionHierarchy} from '../../services/serverExtension';
 
 interface SearchScreenProps {
   onBack?: () => void;
@@ -146,7 +146,7 @@ export const SearchScreen = ({
           renderItem={({item}) => (
             <MediaCard
               imageUrl={item.imageUrl}
-              onFocus={() => prefetchNebulaHierarchy(serverProfile, item)}
+              onFocus={() => prefetchServerExtensionHierarchy(serverProfile, item)}
               onPress={() => handleSelectItem(item)}
               subtitle={
                 item.productionYear ? String(item.productionYear) : item.type

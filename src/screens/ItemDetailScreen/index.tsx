@@ -21,9 +21,9 @@ import {
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 import {
-  hydrateNebulaHierarchy,
-  prefetchNebulaHierarchy,
-} from '../../services/nebula';
+  hydrateServerExtensionHierarchy,
+  prefetchServerExtensionHierarchy,
+} from '../../services/serverExtension';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -196,7 +196,7 @@ export const ItemDetailScreen = ({
       setDetail(result);
 
       if (result.type === 'Series') {
-        await hydrateNebulaHierarchy(serverProfile, result);
+        await hydrateServerExtensionHierarchy(serverProfile, result);
         await loadSeriesChildren(result.id);
       }
     } catch (error) {
@@ -280,7 +280,7 @@ export const ItemDetailScreen = ({
         const hydrationItem =
           detail.type === 'Season' ? detail : selectedSeason;
         if (hydrationItem) {
-          await hydrateNebulaHierarchy(serverProfile, hydrationItem);
+          await hydrateServerExtensionHierarchy(serverProfile, hydrationItem);
         }
         const results = await getEpisodes(
           serverProfile.serverUrl,
@@ -537,7 +537,7 @@ export const ItemDetailScreen = ({
                 <MediaCard
                   imageUrl={season.imageUrl}
                   key={season.id}
-                  onFocus={() => prefetchNebulaHierarchy(serverProfile, season)}
+                  onFocus={() => prefetchServerExtensionHierarchy(serverProfile, season)}
                   onPress={() => setSelectedSeason(season)}
                   subtitle={
                     selectedSeason?.id === season.id ? 'Selected' : 'Season'
@@ -580,7 +580,7 @@ export const ItemDetailScreen = ({
                   imageUrl={episode.imageUrl}
                   key={episode.id}
                   onFocus={() =>
-                    prefetchNebulaHierarchy(serverProfile, episode)
+                    prefetchServerExtensionHierarchy(serverProfile, episode)
                   }
                   onPress={() => onSelectEpisode?.(episode)}
                   subtitle={
@@ -627,7 +627,7 @@ export const ItemDetailScreen = ({
                   imageUrl={similarItem.imageUrl}
                   key={similarItem.id}
                   onFocus={() =>
-                    prefetchNebulaHierarchy(serverProfile, similarItem)
+                    prefetchServerExtensionHierarchy(serverProfile, similarItem)
                   }
                   onPress={() => onSelectItem?.(similarItem)}
                   subtitle={

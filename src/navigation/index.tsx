@@ -37,9 +37,9 @@ import {
   upsertServerProfile,
 } from '../services/storage';
 import {
-  prefetchNebulaHierarchy,
-  probeNebulaCapabilities,
-} from '../services/nebula';
+  prefetchServerExtensionHierarchy,
+  probeServerExtensionCapabilities,
+} from '../services/serverExtension';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -101,7 +101,7 @@ export const RootNavigator = () => {
   const openItem = useCallback(
     (item: JellyfinMediaItem) => {
       if (serverProfile) {
-        prefetchNebulaHierarchy(serverProfile, item);
+        prefetchServerExtensionHierarchy(serverProfile, item);
       }
       const target = detailRouteForItem(item);
 
@@ -120,7 +120,7 @@ export const RootNavigator = () => {
 
   useEffect(() => {
     if (serverProfile?.accessToken) {
-      probeNebulaCapabilities(serverProfile);
+      probeServerExtensionCapabilities(serverProfile);
     }
   }, [serverProfile]);
 
