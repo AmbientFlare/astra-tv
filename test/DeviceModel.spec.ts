@@ -1,4 +1,10 @@
 import {Platform} from 'react-native';
+
+const mockDeviceInfo = {
+  getModel: jest.fn(() => 'unknown'),
+  getSystemVersion: jest.fn(() => 'unknown'),
+};
+jest.mock('@amazon-devices/react-native-device-info', () => mockDeviceInfo);
 import {buildDeviceProfile} from '../src/services/jellyfin/deviceProfile';
 import {defaultPlaybackPrefs} from '../src/services/storage';
 import {
@@ -22,7 +28,35 @@ const h264Conditions = (profile: ReturnType<typeof buildDeviceProfile>) =>
   ).flatMap((candidate) => candidate.Conditions);
 
 describe('device model', () => {
-  afterEach(() => resetDeviceModelCache());
+  afterEach(() => {
+    resetDeviceModelCache();
+    mockDeviceInfo.getModel.mockImplementation(() => 'unknown');
+    mockDeviceInfo.getSystemVersion.mockImplementation(() => 'unknown');
+  });
+
+  it('prefers Amazon’s device-info module', () => {
+    mockDeviceInfo.getModel.mockImplementation(() => 'AFTCA002');
+    mockDeviceInfo.getSystemVersion.mockImplementation(() => '2.0.3');
+    setConstants({Model: 'OTHER', Release: '9'});
+
+    expect(readDeviceModel()).toEqual({model: 'AFTCA002', os: '2.0.3'});
+  });
+
+  it('fills what device-info leaves unknown from the platform constants', () => {
+    mockDeviceInfo.getModel.mockImplementation(() => 'AFTCR001');
+    setConstants({Release: '2.0.1'});
+
+    expect(readDeviceModel()).toEqual({model: 'AFTCR001', os: '2.0.1'});
+  });
+
+  it('survives a device-info module that throws', () => {
+    mockDeviceInfo.getModel.mockImplementation(() => {
+      throw new Error('no native module');
+    });
+    setConstants({Model: 'AFTCL001'});
+
+    expect(readDeviceModel().model).toBe('AFTCL001');
+  });
 
   it('reads the model and OS release from the platform constants', () => {
     setConstants({Model: 'aftcr001 ', Release: '2.0.1'});

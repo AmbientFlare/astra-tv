@@ -14,8 +14,8 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
   untouched.
 - Settings → Playback → HLS segment length: an off-by-default experiment that
   sends 4K and HDR streams as fMP4 in 2-second segments instead of MPEG-TS.
-- Stats for Nerds shows the device model and OS version, and so does Settings
-  → About once the model is known. Developer telemetry events carry them too.
+- Settings → About and Stats for Nerds show the Fire TV model and OS version.
+  Developer telemetry events carry them too.
 
 ## 1.5.1 - 2026-10-26
 

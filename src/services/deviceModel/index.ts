@@ -3,8 +3,9 @@ import {Platform} from 'react-native';
 /**
  * Which Fire TV this is, and the decoder limits Amazon publishes for it.
  *
- * The model code comes from the platform constants React Native already
- * carries on Kepler, so no native module or privilege is needed. The table is
+ * The model code comes from Amazon's device-info module. Kepler's platform
+ * constants are typed with a model too but leave it out on real sticks, so
+ * they are only a fallback. The table is
  * Amazon's device specification page for the Vega sticks; a model missing from
  * it gets the strictest published limits, which are the newer sticks'.
  * https://developer.amazon.com/docs/device-specs/device-specifications-fire-tv-streaming-media-player.html
@@ -47,21 +48,59 @@ const text = (value: unknown) =>
     ? String(value).trim().slice(0, 64)
     : '';
 
-let cached: DeviceModel | undefined;
+type DeviceInfoModule = {
+  getModel?: () => unknown;
+  getSystemVersion?: () => unknown;
+};
 
-export const readDeviceModel = (): DeviceModel => {
-  if (cached) {
-    return cached;
+// The library answers 'unknown' rather than nothing when it cannot tell.
+const reported = (value: unknown) => {
+  const result = text(value);
+  return result.toLowerCase() === 'unknown' ? '' : result;
+};
+
+const fromDeviceInfo = (): DeviceModel => {
+  try {
+    const deviceInfo =
+      require('@amazon-devices/react-native-device-info') as DeviceInfoModule & {
+        default?: DeviceInfoModule;
+      };
+    const api = deviceInfo.default ?? deviceInfo;
+    return {
+      model: reported(api.getModel?.()),
+      os: reported(api.getSystemVersion?.()),
+    };
+  } catch {
+    // No native module (tests, the virtual device): use the fallback.
+    return {model: '', os: ''};
   }
+};
+
+const fromPlatformConstants = (): DeviceModel => {
   let constants: KeplerConstants = {};
   try {
     constants = (Platform.constants ?? {}) as KeplerConstants;
   } catch {
     // A host without the constants module answers nothing, not an error.
   }
-  cached = {
-    model: text(constants.Model).toUpperCase(),
+  return {
+    model: text(constants.Model),
     os: text(constants.Release) || text(constants.Version),
+  };
+};
+
+let cached: DeviceModel | undefined;
+
+export const readDeviceModel = (): DeviceModel => {
+  if (cached) {
+    return cached;
+  }
+  const primary = fromDeviceInfo();
+  const fallback =
+    primary.model && primary.os ? primary : fromPlatformConstants();
+  cached = {
+    model: (primary.model || fallback.model).toUpperCase(),
+    os: primary.os || fallback.os,
   };
   return cached;
 };

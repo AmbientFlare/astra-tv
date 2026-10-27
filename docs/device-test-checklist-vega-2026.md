@@ -23,8 +23,8 @@ The model is in `/etc/platform-info`
 
 ## 2. Device model (P0)
 
-- [ ] Settings → About shows the stick's name and OS version (needs the
-      model source; see the P0 PR).
+- [ ] Settings → About shows the stick's name and OS version (AFTCR001:
+      "Fire TV Stick 4K (3rd Gen) · OS 2.0", seen 2026-10-27).
 - [ ] Stats for Nerds shows the same `Device` line.
 - [ ] With telemetry armed, `app.start` carries `model` and `os`.
 
