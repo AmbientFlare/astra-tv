@@ -6,7 +6,7 @@ Last updated: 2026-09-11 (Jellyfin 12 compatibility and server support floor)
 
 - Changed Astra-generated Jellyfin query authentication to `ApiKey`, including
   video/HLS, subtitles, artwork, music, bandwidth testing, collection/detail
-  requests, reports, user state, and optional Nebula Bridge requests.
+  requests, reports, user state, and optional server extension requests.
 - Added the centralized Jellyfin `10.10.0` support floor and setup warning
   path. Older parseable servers remain connectable, and unknown versions do
   not receive a false unsupported warning.

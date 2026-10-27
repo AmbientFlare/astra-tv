@@ -5,10 +5,10 @@ jest.mock('../src/services/deviceIdentity', () => ({
 }));
 
 import {
-  getNebulaBridgeCapabilities,
-  hydrateNebulaBridgeSeries,
-  resetNebulaBridgeCapabilityCacheForTests,
-} from '../src/services/nebulabridge';
+  getServerExtensionCapabilities,
+  hydrateServerExtensionSeries,
+  resetServerExtensionCapabilityCacheForTests,
+} from '../src/services/serverExtension';
 
 const SERVER = 'https://media.example.com';
 const TOKEN = 'token-123';
@@ -21,7 +21,7 @@ const response = (body: unknown, status = 200) => ({
 });
 
 afterEach(() => {
-  resetNebulaBridgeCapabilityCacheForTests();
+  resetServerExtensionCapabilityCacheForTests();
   jest.restoreAllMocks();
 });
 
@@ -30,9 +30,9 @@ it('silently treats a missing endpoint as ordinary Jellyfin', async () => {
     response({}, 404),
   ) as unknown as typeof fetch;
 
-  await expect(getNebulaBridgeCapabilities(SERVER, TOKEN, USER)).resolves.toBe(
-    null,
-  );
+  await expect(
+    getServerExtensionCapabilities(SERVER, TOKEN, USER),
+  ).resolves.toBe(null);
 });
 
 it('caches a capability result per server and user', async () => {
@@ -43,9 +43,9 @@ it('caches a capability result per server and user', async () => {
     }),
   ) as unknown as typeof fetch);
 
-  await getNebulaBridgeCapabilities(SERVER, TOKEN, USER);
-  await getNebulaBridgeCapabilities(`${SERVER}/`, TOKEN, USER);
-  await getNebulaBridgeCapabilities(SERVER, TOKEN, 'user-2');
+  await getServerExtensionCapabilities(SERVER, TOKEN, USER);
+  await getServerExtensionCapabilities(`${SERVER}/`, TOKEN, USER);
+  await getServerExtensionCapabilities(SERVER, TOKEN, 'user-2');
 
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
@@ -60,7 +60,7 @@ it('does not hydrate when the plugin is disabled for this user', async () => {
   ) as unknown as typeof fetch);
 
   await expect(
-    hydrateNebulaBridgeSeries(SERVER, TOKEN, USER, 'series-1'),
+    hydrateServerExtensionSeries(SERVER, TOKEN, USER, 'series-1'),
   ).resolves.toBe(false);
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
@@ -81,10 +81,10 @@ it('hydrates only an advertised hierarchy feature through the optional API', asy
   ) as unknown as typeof fetch;
 
   await expect(
-    hydrateNebulaBridgeSeries(SERVER, TOKEN, USER, 'series-1'),
+    hydrateServerExtensionSeries(SERVER, TOKEN, USER, 'series-1'),
   ).resolves.toBe(true);
 
   expect(calls).toHaveLength(2);
   expect(calls[1]).toMatchObject({method: 'POST'});
-  expect(calls[1].url).toContain('/nebulabridge/hydrate/series/series-1');
+  expect(calls[1].url).toContain('/astra-extension/hydrate/series/series-1');
 });

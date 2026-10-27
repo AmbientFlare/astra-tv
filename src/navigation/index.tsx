@@ -50,7 +50,7 @@ import {
 } from '../services/serverCapabilities';
 import {defaultServerCapabilities} from '../services/serverCapabilities/defaults';
 import type {ServerCapabilities} from '../services/serverCapabilities/types';
-import {getNebulaBridgeCapabilities} from '../services/nebulabridge';
+import {getServerExtensionCapabilities} from '../services/serverExtension';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -293,7 +293,7 @@ export const RootNavigator = () => {
     ) {
       return;
     }
-    getNebulaBridgeCapabilities(
+    getServerExtensionCapabilities(
       serverProfile.serverUrl,
       serverProfile.accessToken,
       serverProfile.userId,

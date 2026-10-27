@@ -19,9 +19,9 @@ import {
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 import {
-  hydrateNebulaBridgeSeason,
-  hydrateNebulaBridgeSeries,
-} from '../../services/nebulabridge';
+  hydrateServerExtensionSeason,
+  hydrateServerExtensionSeries,
+} from '../../services/serverExtension';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -108,7 +108,7 @@ export const ItemDetailScreen = ({
       try {
         if (!hydratedSeriesIds.current.has(seriesId)) {
           hydratedSeriesIds.current.add(seriesId);
-          await hydrateNebulaBridgeSeries(
+          await hydrateServerExtensionSeries(
             serverProfile.serverUrl,
             serverProfile.accessToken,
             serverProfile.userId,
@@ -287,7 +287,7 @@ export const ItemDetailScreen = ({
       try {
         if (!hydratedSeasonIds.current.has(seasonId)) {
           hydratedSeasonIds.current.add(seasonId);
-          await hydrateNebulaBridgeSeason(
+          await hydrateServerExtensionSeason(
             serverProfile.serverUrl,
             serverProfile.accessToken,
             serverProfile.userId,

@@ -5,8 +5,8 @@ import {
   normalizeServerUrl,
 } from './jellyfin/http';
 
-/** Capability contract advertised by the optional Nebula Bridge plugin. */
-export interface NebulaBridgeCapabilities {
+/** Capability contract advertised by the optional server extension. */
+export interface ServerExtensionCapabilities {
   apiVersion: number;
   availability?: {
     available?: boolean;
@@ -24,7 +24,7 @@ const CAPABILITY_CACHE_MS = 5 * 60 * 1000;
 
 interface CachedCapabilityProbe {
   expiresAt: number;
-  result: Promise<NebulaBridgeCapabilities | null>;
+  result: Promise<ServerExtensionCapabilities | null>;
 }
 
 // This intentionally remains an in-memory cache. The endpoint is optional,
@@ -35,7 +35,7 @@ const capabilityCache = new Map<string, CachedCapabilityProbe>();
 const capabilityKey = (serverUrl: string, userId: string) =>
   `${normalizeServerUrl(serverUrl).toLowerCase()}|${userId}`;
 
-const isCompatible = (response: NebulaBridgeCapabilities | undefined) =>
+const isCompatible = (response: ServerExtensionCapabilities | undefined) =>
   response?.apiVersion === 1 &&
   (response.supportedVersions === undefined ||
     response.supportedVersions.includes(1));
@@ -45,19 +45,19 @@ const isCompatible = (response: NebulaBridgeCapabilities | undefined) =>
  * Missing, disabled, malformed, or unreachable endpoints are deliberately
  * indistinguishable to callers: they all mean use normal Jellyfin behavior.
  */
-export const getNebulaBridgeCapabilities = (
+export const getServerExtensionCapabilities = (
   serverUrl: string,
   accessToken: string,
   userId: string,
-): Promise<NebulaBridgeCapabilities | null> => {
+): Promise<ServerExtensionCapabilities | null> => {
   const key = capabilityKey(serverUrl, userId);
   const cached = capabilityCache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.result;
   }
 
-  const result = getJson<NebulaBridgeCapabilities>(
-    buildUrl(normalizeServerUrl(serverUrl), '/nebulabridge/capabilities', {
+  const result = getJson<ServerExtensionCapabilities>(
+    buildUrl(normalizeServerUrl(serverUrl), '/astra-extension/capabilities', {
       ApiKey: accessToken,
     }),
     {headers: getAuthHeaders(accessToken)},
@@ -81,7 +81,7 @@ export const getNebulaBridgeCapabilities = (
 };
 
 const canHydrate = (
-  capabilities: NebulaBridgeCapabilities | null,
+  capabilities: ServerExtensionCapabilities | null,
   kind: 'seriesHydration' | 'seasonHydration',
 ) =>
   capabilities?.availability?.hierarchyPrefetchAllowed !== false &&
@@ -95,7 +95,7 @@ const hydrate = async (
   kind: 'series' | 'season',
   itemId: string,
 ) => {
-  const capabilities = await getNebulaBridgeCapabilities(
+  const capabilities = await getServerExtensionCapabilities(
     serverUrl,
     accessToken,
     userId,
@@ -108,7 +108,7 @@ const hydrate = async (
     await getJson(
       buildUrl(
         normalizeServerUrl(serverUrl),
-        `/nebulabridge/hydrate/${kind}/${itemId}`,
+        `/astra-extension/hydrate/${kind}/${itemId}`,
         {ApiKey: accessToken},
       ),
       {headers: getAuthHeaders(accessToken), method: 'POST'},
@@ -121,14 +121,14 @@ const hydrate = async (
   }
 };
 
-export const hydrateNebulaBridgeSeries = (
+export const hydrateServerExtensionSeries = (
   serverUrl: string,
   accessToken: string,
   userId: string,
   seriesId: string,
 ) => hydrate(serverUrl, accessToken, userId, 'series', seriesId);
 
-export const hydrateNebulaBridgeSeason = (
+export const hydrateServerExtensionSeason = (
   serverUrl: string,
   accessToken: string,
   userId: string,
@@ -136,6 +136,6 @@ export const hydrateNebulaBridgeSeason = (
 ) => hydrate(serverUrl, accessToken, userId, 'season', seasonId);
 
 /** Test-only cache reset; production entries expire naturally. */
-export const resetNebulaBridgeCapabilityCacheForTests = () => {
+export const resetServerExtensionCapabilityCacheForTests = () => {
   capabilityCache.clear();
 };
