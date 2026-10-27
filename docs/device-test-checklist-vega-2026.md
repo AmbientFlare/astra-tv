@@ -72,15 +72,29 @@ Compare the same title with the switch off (MPEG-TS) and on.
 
 ## 6. Features (P2)
 
-- [ ] Sleep timer 15 minutes: playback pauses at 15:00, and the server shows
-      the position.
-- [ ] Sleep timer "end of episode": playback stops at the credits or the end,
-      and autoplay does not start the next episode.
-- [ ] A new series with the Jellyfin user's audio language set (Dashboard →
-      Users → Playback) starts in that language with no Astra setting changed.
+- [ ] Menu → Sleep timer → 15 min: playback pauses at 15:00, the "Sleep timer
+      ended" notice shows, and the Jellyfin dashboard shows the session stopped
+      at that position.
+- [ ] Press Play or Select on that notice: playback carries on from the same
+      point and the dashboard shows a new session.
+- [ ] Sleep timer "End of episode": playback holds at the end of the video
+      (not at the credits), and autoplay does not start the next episode.
+- [ ] A 30-minute timer set near the end of episode 1 is still counting in
+      episode 2 (Menu shows the minutes left). Leaving the player cancels it.
+- [ ] On a fresh install, a series with the Jellyfin user's audio language set
+      (Dashboard → Users → Playback) starts in that language with no Astra
+      setting changed.
 - [ ] Commentary and audio-description tracks are never picked automatically.
-- [ ] Pick a different audio or subtitle track in episode 1; episode 2 of the
-      same series starts with the same pick.
+- [ ] Second-choice language: set preferred audio to a language the file
+      lacks; the second choice plays.
+- [x] Pick a different audio track in one episode; another episode of the
+      same series starts with the same pick, even after a force-stop
+      (Cardcaptor Sakura S2E3 → S2E4, Japanese over English; AFTCR001, build
+      2026102707, 2026-10-27).
+- [ ] The same for a subtitle pick, and turning subtitles off in a series
+      keeps them off.
+- [x] Menu shows the Sleep timer column between Subtitles and Diagnostics, and
+      all four columns fit (AFTCR001, build 2026102707, 2026-10-27).
 
 ## 7. Memory and long play
 

@@ -557,6 +557,23 @@ export const en = {
   'player.on': 'On',
   'player.diagnosticsHint':
     'Shows the stream actually delivered by Jellyfin and live player health. With logs adds playback timings for manifest handling and load duration.',
+  'settings.audioFromAccount': 'Same as my Jellyfin account',
+  'settings.audioLanguageNote':
+    'Same as my Jellyfin account uses the audio language set for your user on the server. Commentary and audio description play only when you choose them. A track you choose in a series is used for its next episodes too.',
+  'settings.fallbackLanguage': 'Second-choice language',
+  'settings.fallbackNone': 'None',
+  'settings.fallbackLanguageHint':
+    'Used for audio, and for subtitles with All subtitles on, when a video has nothing in your preferred language.',
+  'player.sleepTimer': 'Sleep timer',
+  'player.sleepMinutes': '{minutes} min',
+  'player.sleepEndOfEpisode': 'End of episode',
+  'player.sleepEndOfVideo': 'End of video',
+  'player.sleepPausesIn': 'Pauses in {minutes} min.',
+  'player.sleepPausesAtEnd': 'Pauses when this video ends.',
+  'player.sleepHint': 'Pauses playback and saves your place on the server.',
+  'player.sleepEnded': 'Sleep timer ended',
+  'player.sleepResume':
+    'Your place is saved. Press Play or Select to keep watching, or Back to leave.',
   // @@END
 } as const;
 

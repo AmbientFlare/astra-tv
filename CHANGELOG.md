@@ -19,16 +19,33 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 - A "No connection" notice with Retry when the network drops for more than a
   few seconds. In a video it pauses first, and Retry starts again from the
   same point. On other screens, Retry reloads the screen.
+- Sleep timer in the player's options (Menu): 15, 30, 60 or 90 minutes, or
+  the end of the episode. When it runs out, Astra pauses and saves your place
+  on the server; Play or Select picks up from there. It carries over into the
+  next episode, and leaving the player cancels it.
+- Settings → Playback → Second-choice language, used for audio (and for
+  subtitles with All subtitles on) when a video has nothing in your preferred
+  language.
+- An audio or subtitle track you pick during a series is used for the next
+  episodes of that series too. Picks are kept per account.
 
 ### Changed
 
 - On the exit prompt, Back now closes Astra. Stay is still the focused button.
+- Preferred audio language has a new first option, "Same as my Jellyfin
+  account", which follows the audio language set for your user on the server.
+  New installs start on it; existing installs keep the language they had.
+- Commentary and audio-description tracks are no longer picked
+  automatically, even when the file marks one as the default.
 
 ### Fixed
 
 - Leaving a video with the Home button reports the stop and position to
   Jellyfin straight away. Before, the report waited for the player to finish
   releasing, and could be lost if the system closed Astra first.
+- A two-letter subtitle language from Settings (such as "en") now matches
+  files tagged with three letters ("eng"), so All subtitles on finds the
+  right track.
 
 ## 1.5.1 - 2026-10-26
 

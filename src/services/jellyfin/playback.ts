@@ -2,6 +2,7 @@ import type {
   JellyfinStreamInfo,
   JellyfinMediaStream,
   JellyfinMediaTrack,
+  SeriesTrackPick,
 } from './types';
 import {knownDevice, readDeviceModel} from '../deviceModel';
 import {initializeDeviceIdentity} from '../deviceIdentity';
@@ -65,6 +66,11 @@ export const getStreamUrl = async (
      */
     subtitleSelectionIsManual?: boolean;
     subtitleStreamIndex?: number;
+    /**
+     * The viewer's last track choice for this series. Used only for choices
+     * the request leaves open: an explicit index or a manual subtitle wins.
+     */
+    seriesTrackPick?: SeriesTrackPick;
     signal?: AbortController['signal'];
   } = {},
 ): Promise<JellyfinStreamInfo> => {
@@ -110,6 +116,7 @@ export const getStreamUrl = async (
     PlaySessionId?: string;
     MediaSources?: Array<{
       Id?: string;
+      DefaultAudioStreamIndex?: number;
       DefaultSubtitleStreamIndex?: number;
       RunTimeTicks?: number;
       Container?: string;
@@ -281,16 +288,19 @@ export const getStreamUrl = async (
         index: stream.Index,
         isDefault: stream.IsDefault,
         language: stream.Language,
+        title: stream.Title,
         type: stream.Type,
       }),
     );
     selectedAudioStreamIndex =
       options.audioStreamIndex ??
-      selectAudioStreamIndex(
-        firstMediaStreams ?? [],
-        prefs.preferredAudioLanguage,
-        prefs.maxAudioChannels,
-      );
+      selectAudioStreamIndex(firstMediaStreams ?? [], {
+        fallbackLanguage: prefs.fallbackLanguage,
+        maxChannels: prefs.maxAudioChannels,
+        preferredLanguage: prefs.preferredAudioLanguage,
+        seriesPick: options.seriesTrackPick?.audio,
+        serverDefaultIndex: response.MediaSources?.[0]?.DefaultAudioStreamIndex,
+      });
 
     const audioNeedsPinning =
       options.audioStreamIndex === undefined &&
@@ -304,11 +314,15 @@ export const getStreamUrl = async (
       (firstMediaSource?.MediaStreams ?? [])
         .filter((stream) => stream.Type === 'Subtitle')
         .map((stream) => ({
+          displayTitle: stream.DisplayTitle,
           index: stream.Index,
           isForced: stream.IsForced,
           language: stream.Language,
+          title: stream.Title,
         })),
       {
+        fallbackLanguage: prefs.fallbackLanguage,
+        seriesPick: options.seriesTrackPick?.subtitle,
         mode: userPreferences.subtitleMode,
         preferredLanguage: userPreferences.preferredSubtitleLanguage,
         serverDefaultSubtitleStreamIndex:

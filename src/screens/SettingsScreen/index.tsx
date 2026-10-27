@@ -96,6 +96,7 @@ type SettingsRoute =
   | {route: 'serverTranscoding'}
   | {route: 'audioLanguage'}
   | {route: 'subtitleLanguage'}
+  | {route: 'fallbackLanguage'}
   | {route: 'subtitleMode'}
   | {route: 'subtitleAppearance'}
   | {route: 'autoplay'}
@@ -182,6 +183,16 @@ const languageOptions = (): Array<{label: string; value: string}> => [
   {label: t('settings.langPortuguese'), value: 'pt'},
   {label: t('settings.langItalian'), value: 'it'},
   {label: t('settings.langKorean'), value: 'ko'},
+];
+
+const audioLanguageOptions = (): Array<{label: string; value: string}> => [
+  {label: t('settings.audioFromAccount'), value: 'server'},
+  ...languageOptions(),
+];
+
+const fallbackLanguageOptions = (): Array<{label: string; value: string}> => [
+  {label: t('settings.fallbackNone'), value: ''},
+  ...languageOptions(),
 ];
 
 export const SettingsScreen = ({
@@ -718,7 +729,7 @@ export const SettingsScreen = ({
               icon="♫"
               title={t('settings.audioLanguage')}
               subtitle={
-                languageOptions().find(
+                audioLanguageOptions().find(
                   (o) => o.value === playbackPrefs.preferredAudioLanguage,
                 )?.label ?? t('settings.langEnglish')
               }
@@ -733,6 +744,16 @@ export const SettingsScreen = ({
                 )?.label ?? preferences.preferredSubtitleLanguage
               }
               onPress={() => push({route: 'subtitleLanguage'})}
+            />
+            <MenuRow
+              icon="♫"
+              title={t('settings.fallbackLanguage')}
+              subtitle={
+                fallbackLanguageOptions().find(
+                  (o) => o.value === playbackPrefs.fallbackLanguage,
+                )?.label ?? t('settings.fallbackNone')
+              }
+              onPress={() => push({route: 'fallbackLanguage'})}
             />
             <MenuRow
               icon="▰"
@@ -878,10 +899,28 @@ export const SettingsScreen = ({
             </Text>
             {/* Fixed v1 list; later this can expand from Jellyfin item language data. */}
             <PreferenceRadioGroup
-              options={languageOptions()}
+              options={audioLanguageOptions()}
               selectedValue={playbackPrefs.preferredAudioLanguage}
               onSelect={(preferredAudioLanguage) =>
                 savePlaybackPrefs({preferredAudioLanguage})
+              }
+            />
+            <Text style={styles.infoText}>
+              {t('settings.audioLanguageNote')}
+            </Text>
+          </Page>
+        );
+      case 'fallbackLanguage':
+        return (
+          <Page title={t('settings.fallbackLanguage')} onBack={pop}>
+            <Text style={styles.description}>
+              {t('settings.fallbackLanguageHint')}
+            </Text>
+            <PreferenceRadioGroup
+              options={fallbackLanguageOptions()}
+              selectedValue={playbackPrefs.fallbackLanguage}
+              onSelect={(fallbackLanguage) =>
+                savePlaybackPrefs({fallbackLanguage})
               }
             />
           </Page>
