@@ -1,6 +1,6 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.5.1-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.6.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.5.1`, build `20261026.16`, for Fire TV
+The current release is Astra `1.6.0`, build `20261028.18`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -32,7 +32,7 @@ Appstore.
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
 - Contributors: [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- Release validation: 732 tests in 75 suites, ESLint, TypeScript, Vega
+- Release validation: 814 tests in 83 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
@@ -41,7 +41,10 @@ Appstore.
   alongside Jellyfin Web: joining, hosting, play, pause, seek, rejoining after
   a restart, and each SyncPlay permission level. For 1.5.1, the crash fixes
   were exercised on the same stick: fast focus moves on Home and the grids,
-  pressing Home mid-playback, and leaving playback twice in a row.
+  pressing Home mid-playback, and leaving playback twice in a row. For 1.6.0,
+  quick play, music Stop, per-series track picks, the sleep timer menu, the
+  still-watching setting and music on a Jellyfin 12.0 server were checked on
+  a Fire TV Stick 4K (3rd Gen) running Vega OS 2.0.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -114,6 +117,21 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.6.0 — Six languages, sleep timer and quick play — 2026-10-28
+
+- Astra now speaks German, Spanish, French, Italian and Portuguese, with a
+  language picker on first run (#40).
+- Sleep timer in the player's Menu, a second-choice audio language, audio
+  that can follow your Jellyfin account, and track picks remembered per
+  series.
+- Play/Pause on a library card starts it straight away. Music gets a Stop
+  button.
+- "Ask if still watching" can be set to 3, 5 or 10 episodes, or never (#46).
+- Each Fire TV model gets its own H.264 bitrate limit, and About shows the
+  model and OS version.
+- A "No connection" notice with Retry, an earlier stop report when Home is
+  pressed, and a fix for Jellyfin 12.0 servers.
 
 ### 1.5.1 — Crash fixes, season counts and faster seeking — 2026-10-26
 

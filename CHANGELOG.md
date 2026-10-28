@@ -3,10 +3,14 @@
 Code from outside contributors is credited on its entry and, permanently,
 in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
-## 1.6.0 - unreleased
+## 1.6.0 - 2026-10-28
 
 ### Added
 
+- Astra speaks German, Spanish, French, Italian and Portuguese as well as
+  English (#40). A new install starts with a language picker; Settings →
+  Language changes it later. Existing installs stay in English until changed.
+  Titles and descriptions from Jellyfin are shown as the server has them.
 - Each Fire TV model gets the H.264 bitrate limit Amazon publishes for it
   (30 Mbps on the 4K Select, 20 Mbps on the 2026 sticks and anything
   unrecognised). A file above it is converted by the server instead of
