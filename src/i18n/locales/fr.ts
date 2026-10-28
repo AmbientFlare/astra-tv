@@ -573,4 +573,22 @@ export const fr: Messages = {
   'player.on': 'Activé',
   'player.diagnosticsHint':
     'Affiche le flux réellement envoyé par Jellyfin et l’état du lecteur en direct. Avec journaux ajoute les temps de lecture du traitement du manifeste et de la durée de chargement.',
+  'settings.audioFromAccount': 'Comme mon compte Jellyfin',
+  'settings.audioLanguageNote':
+    '« Comme mon compte Jellyfin » utilise la langue audio définie pour votre utilisateur sur le serveur. Les pistes de commentaire et d’audiodescription ne sont lues que si vous les choisissez. Une piste choisie dans une série sert aussi pour les épisodes suivants.',
+  'settings.fallbackLanguage': 'Langue de secours',
+  'settings.fallbackNone': 'Aucune',
+  'settings.fallbackLanguageHint':
+    'Utilisée pour l’audio et, avec Tous les sous-titres activés, pour les sous-titres, quand une vidéo n’a rien dans votre langue préférée.',
+  'player.sleepTimer': 'Minuterie de veille',
+  'player.sleepMinutes': '{minutes} min',
+  'player.sleepEndOfEpisode': 'Fin de l’épisode',
+  'player.sleepEndOfVideo': 'Fin de la vidéo',
+  'player.sleepPausesIn': 'Pause dans {minutes} min.',
+  'player.sleepPausesAtEnd': 'Pause à la fin de cette vidéo.',
+  'player.sleepHint':
+    'Met la lecture en pause et enregistre votre position sur le serveur.',
+  'player.sleepEnded': 'Minuterie de veille terminée',
+  'player.sleepResume':
+    'Votre position est enregistrée. Appuyez sur Lecture ou Sélection pour continuer, ou sur Retour pour quitter.',
 };

@@ -286,6 +286,41 @@ describe('playback diagnostics entry points', () => {
     expect(screen.getByText('Stats for Nerds: Off')).toBeTruthy();
   });
 
+  it('offers the sleep timer in the in-player options overlay', () => {
+    const onSelectSleepTimer = jest.fn();
+    const screen = render(
+      <PlaybackSettingsOverlay
+        isEpisode
+        onSelectAudio={jest.fn()}
+        onSelectSleepTimer={onSelectSleepTimer}
+        onSelectSubtitle={jest.fn()}
+        onToggleStats={jest.fn()}
+        onToggleTraces={jest.fn()}
+        selectedAudioIndex={1}
+        showStats={false}
+        showTraces={false}
+        sleepMinutesLeft={12}
+        sleepTimer={15}
+        streamInfo={{
+          audioStreamIndex: 1,
+          audioTracks: [],
+          itemId: 'item-1',
+          playMethod: 'Transcode',
+          qualityOptions: [],
+          subtitleTracks: [],
+          url: 'https://example.com/video.m3u8',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Sleep timer')).toBeTruthy();
+    expect(screen.getByText('Pauses in 12 min.')).toBeTruthy();
+    fireEvent.press(screen.getByText('End of episode'));
+    expect(onSelectSleepTimer).toHaveBeenCalledWith('endOfItem');
+    fireEvent.press(screen.getByText('90 min'));
+    expect(onSelectSleepTimer).toHaveBeenCalledWith(90);
+  });
+
   it('marks which subtitle tracks switch in place and which rebuild the stream', () => {
     // A disc rip can carry twenty tracks whose titles differ only by language.
     // The badge is the only thing that says whether picking one is free.

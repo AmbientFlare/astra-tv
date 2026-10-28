@@ -146,6 +146,7 @@ import {
   PlaybackSettingsOverlay,
   ExternalSubtitleOverlay,
 } from '../src/screens/PlayerScreen';
+import {getSleepTimer, setSleepTimer} from '../src/services/sleepTimer';
 import {getUserPreferences} from '../src/services/storage';
 import {createPositionStore} from '../src/screens/PlayerScreen/positionStore';
 import {
@@ -1115,6 +1116,107 @@ describe('PlayerScreen native session integration', () => {
       await advance();
       expect(view.queryByTestId('player-controls-overlay')).toBeNull();
       await dispose(view);
+    });
+  });
+  describe('sleep timer', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => {
+      setSleepTimer(null);
+      jest.useRealTimers();
+    });
+
+    const settle = async (ms = 0) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+        await flush();
+      });
+    };
+
+    it('pauses, reports the stop, and resumes from the same point on Select', async () => {
+      const view = mount();
+      await start(view);
+      const video = mockVideos[0];
+      await act(async () => {
+        video.currentTime = 600;
+        video.emit('timeupdate');
+      });
+      await act(async () => setSleepTimer(15));
+      await settle(15 * 60_000);
+
+      expect(video.paused).toBe(true);
+      expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
+      expect(view.getByTestId('player-sleep-notice')).toBeTruthy();
+      expect(getSleepTimer()).toBeNull();
+      // The frozen test clock reads as a stall, so a recovery load is under
+      // way when the timer runs out. It must land paused and unreported.
+      const starts = (reportPlaybackStart as jest.Mock).mock.calls.length;
+      await settle(5000);
+      expect(mockVideos[mockVideos.length - 1].paused).toBe(true);
+      expect(reportPlaybackStart).toHaveBeenCalledTimes(starts);
+      const loads = (getStreamUrl as jest.Mock).mock.calls.length;
+
+      await act(async () => {
+        mockRemote({eventType: 'select'});
+        await flush();
+      });
+      await settle();
+      expect(view.queryByTestId('player-sleep-notice')).toBeNull();
+      expect(getStreamUrl).toHaveBeenCalledTimes(loads + 1);
+      expect((getStreamUrl as jest.Mock).mock.calls[loads][4]).toBe(
+        600 * 10000000,
+      );
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    });
+
+    it('starts a new session when Alexa plays the paused video', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => setSleepTimer(15));
+      await settle(15 * 60_000);
+      const loads = (getStreamUrl as jest.Mock).mock.calls.length;
+
+      await act(async () => {
+        mockVideos[mockVideos.length - 1].play();
+        await flush();
+      });
+      await settle();
+      expect(view.queryByTestId('player-sleep-notice')).toBeNull();
+      expect(getStreamUrl).toHaveBeenCalledTimes(loads + 1);
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    });
+
+    it('holds at the end of the video for an end-of-episode timer', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => setSleepTimer('endOfItem'));
+      mockVideos[0].currentTime = 1000;
+      await act(async () => {
+        mockVideos[0].emit('ended');
+        await flush();
+      });
+      expect(view.getByTestId('player-sleep-notice')).toBeTruthy();
+      expect(getSleepTimer()).toBeNull();
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    });
+
+    it('drops the timer when the viewer leaves the player', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => setSleepTimer(30));
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+      expect(getSleepTimer()).toBeNull();
     });
   });
 });

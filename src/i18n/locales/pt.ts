@@ -569,4 +569,21 @@ export const pt: Messages = {
   'player.on': 'Ativado',
   'player.diagnosticsHint':
     'Mostra o stream realmente enviado pelo Jellyfin e o estado do player ao vivo. Com logs adiciona os tempos de reprodução do tratamento do manifesto e da duração do carregamento.',
+  'settings.audioFromAccount': 'Igual à minha conta do Jellyfin',
+  'settings.audioLanguageNote':
+    '“Igual à minha conta do Jellyfin” usa o idioma de áudio definido para o seu usuário no servidor. Faixas de comentários e de audiodescrição só tocam quando você as escolhe. Uma faixa escolhida em uma série também vale para os próximos episódios.',
+  'settings.fallbackLanguage': 'Segundo idioma',
+  'settings.fallbackNone': 'Nenhum',
+  'settings.fallbackLanguageHint':
+    'Usado no áudio e, com Todas as legendas ativadas, nas legendas, quando um vídeo não tem nada no seu idioma preferido.',
+  'player.sleepTimer': 'Timer para dormir',
+  'player.sleepMinutes': '{minutes} min',
+  'player.sleepEndOfEpisode': 'Fim do episódio',
+  'player.sleepEndOfVideo': 'Fim do vídeo',
+  'player.sleepPausesIn': 'Pausa em {minutes} min.',
+  'player.sleepPausesAtEnd': 'Pausa quando este vídeo terminar.',
+  'player.sleepHint': 'Pausa a reprodução e salva sua posição no servidor.',
+  'player.sleepEnded': 'Timer para dormir encerrado',
+  'player.sleepResume':
+    'Sua posição foi salva. Aperte Reproduzir ou Selecionar para continuar assistindo, ou Voltar para sair.',
 };

@@ -1,5 +1,6 @@
 import {AsyncStorage} from '@amazon-devices/react-native-kepler';
 
+import type {SeriesTrackPick} from '../jellyfin/types';
 import {normalizeServerUrl} from '../serverUrl';
 
 export type ServerType = 'jellyfin' | 'emby';
@@ -39,11 +40,14 @@ export interface DisplayPreferences {
 
 export interface PlaybackPreferences {
   version: 1;
+  /** Second-choice language for audio and subtitles; '' for none. */
+  fallbackLanguage: string;
   hlsSegmentLengthSeconds: 0 | 2 | 3 | 4;
   /** Experiment: send HEVC transcodes as fMP4 instead of MPEG-TS. */
   hevcFmp4Experiment: boolean;
   maxBitrateBps: number;
   maxAudioChannels: 2 | 6 | 8;
+  /** A language code, or `server` to follow the Jellyfin account. */
   preferredAudioLanguage: string;
   seekDurationSeconds: number;
   showPlaybackStats: boolean;
@@ -88,6 +92,8 @@ const APP_STATE_KEY = 'astra.appState.v1';
 const DISPLAY_PREFERENCES_KEY = 'astra.displayPreferences.v1';
 const USER_PREFERENCES_KEY = 'astra.userPreferences.v1';
 const PLAYBACK_PREFS_KEY = 'astra.playbackPrefs.v1';
+const SERIES_TRACK_PICKS_KEY = 'astra.seriesTrackPicks.v1';
+const SERIES_TRACK_PICKS_LIMIT = 200;
 
 const emptyConfig: ServerProfilesConfig = {
   version: 1,
@@ -137,11 +143,12 @@ export const defaultUserPreferences: UserPreferences = {
 
 export const defaultPlaybackPrefs: PlaybackPreferences = {
   version: 1,
+  fallbackLanguage: '',
   hlsSegmentLengthSeconds: 0,
   hevcFmp4Experiment: false,
   maxBitrateBps: 80000000,
   maxAudioChannels: 6,
-  preferredAudioLanguage: 'en',
+  preferredAudioLanguage: 'server',
   seekDurationSeconds: 10,
   showPlaybackStats: false,
   showPlaybackTraces: false,
@@ -393,6 +400,10 @@ const coercePlaybackPrefs = (parsed: Partial<PlaybackPreferences>) => {
 
   const preferences: PlaybackPreferences = {
     version: 1,
+    fallbackLanguage:
+      typeof parsed.fallbackLanguage === 'string'
+        ? parsed.fallbackLanguage
+        : defaultPlaybackPrefs.fallbackLanguage,
     hlsSegmentLengthSeconds: [0, 2, 3, 4].includes(hlsSegmentLengthSeconds)
       ? (hlsSegmentLengthSeconds as PlaybackPreferences['hlsSegmentLengthSeconds'])
       : defaultPlaybackPrefs.hlsSegmentLengthSeconds,
@@ -448,6 +459,11 @@ const parsePlaybackPreferences = (
 
 const migrateLegacyPlaybackPreferences =
   async (): Promise<PlaybackPreferences> => {
+    // A fresh install has nothing to carry over and starts on the defaults,
+    // including following the Jellyfin account's audio language.
+    if (!(await AsyncStorage.getItem(USER_PREFERENCES_KEY))) {
+      return defaultPlaybackPrefs;
+    }
     const legacy = await getUserPreferences();
     const migrated = coercePlaybackPrefs({
       maxBitrateBps:
@@ -572,5 +588,51 @@ export const setMusicViewMode = async (
   await AsyncStorage.setItem(
     MUSIC_VIEW_MODE_KEY,
     JSON.stringify({...modes, [section]: mode}),
+  );
+};
+
+type StoredSeriesTrackPicks = Record<
+  string,
+  SeriesTrackPick & {updatedAt: number}
+>;
+
+const readSeriesTrackPicks = async (): Promise<StoredSeriesTrackPicks> => {
+  try {
+    const parsed = JSON.parse(
+      (await AsyncStorage.getItem(SERIES_TRACK_PICKS_KEY)) ?? '{}',
+    );
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+/** Key a series per account, so two people on one stick keep their own picks. */
+export const seriesTrackPickKey = (userId: string, seriesId: string) =>
+  `${userId}:${seriesId}`;
+
+export const readSeriesTrackPick = async (
+  key: string,
+): Promise<SeriesTrackPick | undefined> => {
+  const pick = (await readSeriesTrackPicks())[key];
+  return pick ? {audio: pick.audio, subtitle: pick.subtitle} : undefined;
+};
+
+/**
+ * Records an audio or subtitle choice for a series, keeping the other half
+ * of an earlier pick. Only the most recent series are kept.
+ */
+export const rememberSeriesTrackPick = async (
+  key: string,
+  pick: SeriesTrackPick,
+): Promise<void> => {
+  const picks = await readSeriesTrackPicks();
+  picks[key] = {...picks[key], ...pick, updatedAt: Date.now()};
+  const kept = Object.entries(picks)
+    .sort(([, a], [, b]) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    .slice(0, SERIES_TRACK_PICKS_LIMIT);
+  await AsyncStorage.setItem(
+    SERIES_TRACK_PICKS_KEY,
+    JSON.stringify(Object.fromEntries(kept)),
   );
 };

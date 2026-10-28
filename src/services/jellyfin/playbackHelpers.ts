@@ -1,4 +1,5 @@
 import type {
+  AudioSelectionOptions,
   JellyfinQualityOption,
   SubtitleSelectionTrack,
   SubtitleSelectionOptions,
@@ -193,34 +194,65 @@ export const subtitleRequiresBurnIn = (track: {
 }): boolean =>
   track.deliveryMethod === 'Encode' || !supportsTextTrack(track.codec);
 
-const subtitleLanguageAliases: Record<string, string[]> = {
-  english: ['en', 'eng', 'english'],
-  spanish: ['es', 'spa', 'spanish'],
-  french: ['fr', 'fra', 'fre', 'french'],
-  german: ['de', 'deu', 'ger', 'german'],
-  italian: ['it', 'ita', 'italian'],
-  japanese: ['ja', 'jpn', 'japanese'],
-  korean: ['ko', 'kor', 'korean'],
-  portuguese: ['pt', 'por', 'portuguese'],
-  russian: ['ru', 'rus', 'russian'],
-  chinese: ['zh', 'zho', 'chi', 'chinese'],
-};
+const LANGUAGE_CODES: string[][] = [
+  ['en', 'eng', 'english'],
+  ['es', 'spa', 'spanish'],
+  ['fr', 'fra', 'fre', 'french'],
+  ['de', 'deu', 'ger', 'german'],
+  ['it', 'ita', 'italian'],
+  ['ja', 'jpn', 'japanese'],
+  ['ko', 'kor', 'korean'],
+  ['pt', 'por', 'portuguese'],
+  ['ru', 'rus', 'russian'],
+  ['zh', 'zho', 'chi', 'chinese'],
+  ['nl', 'nld', 'dut', 'dutch'],
+];
 
-const subtitleLanguageMatches = (
+/**
+ * Settings store two-letter codes (older installs stored English names) while
+ * Jellyfin reports three-letter codes, so all three forms count as one
+ * language.
+ */
+export const languageMatches = (
   language: string | undefined,
-  preferred: string,
+  preferred: string | undefined,
 ) => {
   const normalizedLanguage = language?.trim().toLowerCase();
-  const normalizedPreferred = preferred.trim().toLowerCase();
+  const normalizedPreferred = preferred?.trim().toLowerCase();
   if (!normalizedLanguage || !normalizedPreferred) {
     return false;
   }
-
-  const preferredAliases = subtitleLanguageAliases[normalizedPreferred] ?? [
-    normalizedPreferred,
-  ];
-  return preferredAliases.includes(normalizedLanguage);
+  const codes = LANGUAGE_CODES.find((group) =>
+    group.includes(normalizedPreferred),
+  ) ?? [normalizedPreferred];
+  return codes.includes(normalizedLanguage);
 };
+
+/** The audio language setting that defers to the Jellyfin account. */
+export const SERVER_AUDIO_LANGUAGE = 'server';
+
+const isSpecificLanguage = (language?: string) =>
+  Boolean(language && language !== SERVER_AUDIO_LANGUAGE);
+
+/**
+ * Commentary and audio-description tracks are extras: a viewer gets one only
+ * by choosing it. Containers rarely flag them, so the track title decides,
+ * in the languages Astra ships.
+ */
+const SECONDARY_TRACK_TITLE =
+  /comment|coment|kommentar|audio[ -]?des[ck]r|descriptive|described video|visually impaired/i;
+const AUDIO_DESCRIPTION_TAG = /(^|[\s([-])AD($|[\s)\]-])/;
+
+export const isSecondaryTrack = (track: {
+  displayTitle?: string;
+  title?: string;
+}) =>
+  [track.title, track.displayTitle].some(
+    (text) =>
+      Boolean(text) &&
+      (SECONDARY_TRACK_TITLE.test(text as string) ||
+        AUDIO_DESCRIPTION_TAG.test(text as string)),
+  );
 
 /**
  * Resolves the global subtitle preference against one PlaybackInfo response.
@@ -237,9 +269,36 @@ export const selectSubtitleStreamIndex = (
   }
 
   const availableTracks = tracks.filter((track) => track.index !== undefined);
+  const mainTracks = availableTracks.filter(
+    (track) => !isSecondaryTrack(track),
+  );
+
+  const remembered = options.seriesPick;
+  if (remembered) {
+    if (remembered.off) {
+      return undefined;
+    }
+    const sameKind = availableTracks.filter(
+      (track) =>
+        languageMatches(track.language, remembered.language) &&
+        Boolean(track.isForced) === Boolean(remembered.forced),
+    );
+    const match =
+      sameKind.find(
+        (track) => isSecondaryTrack(track) === Boolean(remembered.secondary),
+      ) ?? sameKind[0];
+    if (match) {
+      return match.index;
+    }
+  }
+
   const serverDefault = availableTracks.find(
     (track) => track.index === options.serverDefaultSubtitleStreamIndex,
   );
+  const inLanguage = (language?: string) =>
+    isSpecificLanguage(language)
+      ? mainTracks.find((track) => languageMatches(track.language, language))
+      : undefined;
 
   switch (options.mode) {
     case 'alwaysOff':
@@ -248,10 +307,10 @@ export const selectSubtitleStreamIndex = (
       return availableTracks.find((track) => track.isForced)?.index;
     case 'alwaysOn':
       return (
-        availableTracks.find((track) =>
-          subtitleLanguageMatches(track.language, options.preferredLanguage),
-        )?.index ??
+        inLanguage(options.preferredLanguage)?.index ??
+        inLanguage(options.fallbackLanguage)?.index ??
         serverDefault?.index ??
+        mainTracks[0]?.index ??
         availableTracks[0]?.index
       );
     case 'default':
@@ -260,12 +319,20 @@ export const selectSubtitleStreamIndex = (
   }
 };
 
+/**
+ * Picks the audio track for a new session, in this order: the viewer's last
+ * pick for the series, the preferred language, the second-choice language,
+ * the server's default (which already reflects the Jellyfin account's audio
+ * language), the track the file marks as default, then the first one.
+ * Commentary and audio description are skipped unless remembered or alone.
+ */
 export const selectAudioStreamIndex = (
   mediaStreams: JellyfinMediaStream[],
-  preferredLanguage: string,
-  preferredChannels: number,
+  options: AudioSelectionOptions,
 ): number | null => {
-  const audioStreams = mediaStreams.filter((stream) => stream.type === 'Audio');
+  const audioStreams = mediaStreams.filter(
+    (stream) => stream.type === 'Audio' && stream.index !== undefined,
+  );
 
   if (!audioStreams.length) {
     return null;
@@ -275,49 +342,52 @@ export const selectAudioStreamIndex = (
     return audioStreams[0].index ?? null;
   }
 
-  const normalizedLanguage = preferredLanguage.toLowerCase();
-  const languageAliases: Record<string, string[]> = {
-    de: ['de', 'deu', 'ger'],
-    en: ['en', 'eng'],
-    es: ['es', 'spa'],
-    fr: ['fr', 'fra', 'fre'],
-    it: ['it', 'ita'],
-    ja: ['ja', 'jpn'],
-    ko: ['ko', 'kor'],
-    pt: ['pt', 'por'],
-  };
-  const preferredLanguageCodes = languageAliases[normalizedLanguage] ?? [
-    normalizedLanguage,
-  ];
-  const matchesLanguage = (language?: string) =>
-    Boolean(
-      language && preferredLanguageCodes.includes(language.toLowerCase()),
+  const mainStreams = audioStreams.filter(
+    (stream) => !isSecondaryTrack(stream),
+  );
+  const candidates = mainStreams.length ? mainStreams : audioStreams;
+
+  const remembered = options.seriesPick;
+  if (remembered) {
+    const sameKind = audioStreams.filter(
+      (stream) =>
+        languageMatches(stream.language, remembered.language) &&
+        isSecondaryTrack(stream) === Boolean(remembered.secondary),
     );
-  const byLangAndChannels = audioStreams.find(
-    (stream) =>
-      matchesLanguage(stream.language) &&
-      (stream.channels ?? 0) <= preferredChannels,
+    const match =
+      sameKind.find((stream) => stream.channels === remembered.channels) ??
+      sameKind[0];
+    if (match) {
+      return match.index ?? null;
+    }
+  }
+
+  const inLanguage = (language?: string) => {
+    if (!isSpecificLanguage(language)) {
+      return undefined;
+    }
+    const matching = candidates.filter((stream) =>
+      languageMatches(stream.language, language),
+    );
+    return (
+      matching.find(
+        (stream) => (stream.channels ?? 0) <= options.maxChannels,
+      ) ?? matching[0]
+    );
+  };
+
+  const serverDefault = candidates.find(
+    (stream) => stream.index === options.serverDefaultIndex,
   );
 
-  if (byLangAndChannels?.index !== undefined) {
-    return byLangAndChannels.index;
-  }
-
-  const byLang = audioStreams.find((stream) =>
-    matchesLanguage(stream.language),
+  return (
+    inLanguage(options.preferredLanguage)?.index ??
+    inLanguage(options.fallbackLanguage)?.index ??
+    serverDefault?.index ??
+    candidates.find((stream) => stream.isDefault)?.index ??
+    candidates[0].index ??
+    null
   );
-
-  if (byLang?.index !== undefined) {
-    return byLang.index;
-  }
-
-  const defaultTrack = audioStreams.find((stream) => stream.isDefault);
-
-  if (defaultTrack?.index !== undefined) {
-    return defaultTrack.index;
-  }
-
-  return audioStreams[0].index ?? null;
 };
 
 /**

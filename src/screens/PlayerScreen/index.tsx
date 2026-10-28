@@ -28,6 +28,7 @@ import {
   getMediaSegments,
   canServerTranscodeVideo,
   getStreamUrl,
+  isSecondaryTrack,
   JellyfinMediaItem,
   JellyfinMediaSegment,
   JellyfinMediaTrack,
@@ -37,6 +38,7 @@ import {
   reportPlaybackStart,
   reportPlaybackStopped,
   sanitizeUrlForLog,
+  SeriesTrackPick,
 } from '../../services/jellyfin';
 import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
 import {describeDeviceModel, readDeviceModel} from '../../services/deviceModel';
@@ -109,6 +111,9 @@ import {
   defaultUserPreferences,
   getUserPreferences,
   readPlaybackPreferences,
+  readSeriesTrackPick,
+  rememberSeriesTrackPick,
+  seriesTrackPickKey,
   UserPreferences,
   writePlaybackPreferences,
 } from '../../services/storage';
@@ -146,6 +151,15 @@ import {syncPlay, type SyncPlayPlayer} from '../../services/syncPlay';
 import {t} from '../../i18n';
 import {ConnectionNotice} from '../../components/ConnectionNotice';
 import {useConnectionLoss} from '../../services/network/connection';
+import {
+  clearSleepTimer,
+  getSleepTimer,
+  setSleepTimer,
+  SLEEP_TIMER_MINUTES,
+  SleepTimerChoice,
+  sleepTimerChoice,
+  useSleepTimer,
+} from '../../services/sleepTimer';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -306,6 +320,33 @@ const assertPlayableUrl = (url: string) => {
   }
 };
 
+/** What to remember for the series from a choice in the player overlay. */
+const seriesPickFor = (selection: {
+  audioTrack?: JellyfinMediaTrack;
+  subtitleTrack?: JellyfinMediaTrack | null;
+}): SeriesTrackPick => ({
+  ...(selection.audioTrack
+    ? {
+        audio: {
+          channels: selection.audioTrack.channels,
+          language: selection.audioTrack.language,
+          secondary: isSecondaryTrack(selection.audioTrack),
+        },
+      }
+    : {}),
+  ...(selection.subtitleTrack === undefined
+    ? {}
+    : {
+        subtitle: selection.subtitleTrack
+          ? {
+              forced: Boolean(selection.subtitleTrack.isForced),
+              language: selection.subtitleTrack.language,
+              secondary: isSecondaryTrack(selection.subtitleTrack),
+            }
+          : {off: true},
+      }),
+});
+
 export const PlayerScreen = ({
   accessToken,
   consecutiveAutoAdvances = 0,
@@ -458,6 +499,9 @@ export const PlayerScreen = ({
   const [startupError, setStartupError] = useState<string | null>(null);
   const connection = useConnectionLoss();
   const [connectionStillOffline, setConnectionStillOffline] = useState(false);
+  const [sleeping, setSleeping] = useState(false);
+  const sleepingRef = useRef(false);
+  const wakeFromSleepRef = useRef<() => void>(() => undefined);
   // Shown only to viewers whose server cannot re-encode a source this decoder
   // is not trusted with. Anyone with transcoding available gets the re-encode
   // instead and must never see this.
@@ -1390,11 +1434,37 @@ export const PlayerScreen = ({
     [cancelCountdown, consecutiveAutoAdvances, onPlayNext, releaseForHandoff],
   );
 
+  // The sleep timer ran out: hold the picture, and tell the server where the
+  // viewer stopped now rather than whenever they come back. Play starts a new
+  // session from the same point.
+  const goToSleep = useCallback(() => {
+    trace('sleep.expired', `position=${currentPositionTicks()}`);
+    cancelCountdown();
+    setEndPrompt(null);
+    setCreditsPrompt(null);
+    setSettingsPanel(null);
+    seekController.current?.cancelPreview();
+    latestPositionTicks.current = currentPositionTicks();
+    videoRef.current?.pause();
+    isPausedRef.current = true;
+    setPaused(true);
+    reportStopped();
+    sleepingRef.current = true;
+    setSleeping(true);
+  }, [cancelCountdown, currentPositionTicks, reportStopped]);
+  const {minutesLeft: sleepMinutesLeft, timer: sleepTimer} =
+    useSleepTimer(goToSleep);
+
   // Runs once per player generation when the stream ends. Movies finish;
   // an episode with a known successor counts down or asks, per the decision
   // rules in services/episodePlayback.
   endedHandler.current = () => {
     setCreditsPrompt(null);
+    if (getSleepTimer()?.kind === 'endOfItem') {
+      clearSleepTimer();
+      goToSleep();
+      return;
+    }
     const action = decideEndOfPlayback({
       autoplayEnabled: episodePreferences.current.nextEpisodeAutoplay,
       consecutiveAutoAdvances,
@@ -1504,6 +1574,11 @@ export const PlayerScreen = ({
     const video = videoRef.current;
 
     if (!video) {
+      return;
+    }
+
+    if (sleepingRef.current) {
+      wakeFromSleepRef.current();
       return;
     }
 
@@ -1707,6 +1782,12 @@ export const PlayerScreen = ({
 
       listen('playing', () => {
         if (!isCurrentPlayer()) {
+          return;
+        }
+        // Alexa and the system media controls play the video directly.
+        if (sleepingRef.current) {
+          video.pause();
+          wakeFromSleepRef.current();
           return;
         }
         recordPlaybackEvent('playing');
@@ -2017,6 +2098,18 @@ export const PlayerScreen = ({
       setDecoderRiskWarned(
         shouldWarnAboutDecoderRisk(decoderRisk.risk, serverCanTranscodeVideo),
       );
+      // Only a choice this session has not made yet takes the series pick, and
+      // getStreamUrl applies it to just those.
+      const seriesTrackPick =
+        item.seriesId &&
+        userId &&
+        (selectedAudioIndex.current === undefined ||
+          !subtitleSelectionPinned.current)
+          ? await readSeriesTrackPick(
+              seriesTrackPickKey(userId, item.seriesId),
+            ).catch(() => undefined)
+          : undefined;
+      context.assertCurrent();
       const stream = await getStreamUrl(
         serverUrl,
         accessToken,
@@ -2036,6 +2129,7 @@ export const PlayerScreen = ({
           // On a reload the server has already named its source; reusing that
           // id keeps a track change pointed at the same one.
           mediaSourceId,
+          seriesTrackPick,
           signal: context.signal,
           sourceHeight: sourceVideoStream?.height,
           sourceWidth: sourceVideoStream?.width,
@@ -2138,6 +2232,7 @@ export const PlayerScreen = ({
       item.id,
       item.mediaStreams,
       item.name,
+      item.seriesId,
       preferredMaxBitrate,
       serverKey,
       serverUrl,
@@ -2262,6 +2357,16 @@ export const PlayerScreen = ({
           await loadVideoSource(video, stream, target, context);
           context.assertCurrent();
           sessionReady.current = true;
+          // The sleep timer ran out while this was loading: hold the picture
+          // and leave the session unreported until the viewer presses Play.
+          if (sleepingRef.current) {
+            reporter.current = null;
+            latestPositionTicks.current = targetTicks;
+            isPausedRef.current = true;
+            setPaused(true);
+            setStarting(false);
+            return;
+          }
           telemetrySessionStartedMs.current = Date.now();
           forcedTranscodeReadyAtMs.current = Date.now();
           heartbeatRef.current?.start();
@@ -2348,6 +2453,12 @@ export const PlayerScreen = ({
       if (trackReloadInProgress.current) {
         return;
       }
+      if (item.seriesId && userId) {
+        rememberSeriesTrackPick(
+          seriesTrackPickKey(userId, item.seriesId),
+          seriesPickFor(selection),
+        ).catch(() => undefined);
+      }
       // A subtitle the app draws itself never touches the video stream, so
       // switching between text tracks (or turning them off) is a state change,
       // not a new session. Only a burn-in track — the one being left behind or
@@ -2371,8 +2482,22 @@ export const PlayerScreen = ({
       }
       await startPlayback({...selection, reason: 'track'});
     },
-    [reportProgress, startPlayback],
+    [item.seriesId, reportProgress, startPlayback, userId],
   );
+
+  // The stop was already reported, so waking starts a new session rather
+  // than playing on in the old one.
+  wakeFromSleepRef.current = () => {
+    sleepingRef.current = false;
+    setSleeping(false);
+    // A load still under way plays and reports as usual once it lands.
+    if (trackReloadInProgress.current) {
+      return;
+    }
+    reloadAtSecondsRef
+      .current?.(latestPositionTicks.current / TICKS_PER_SECOND)
+      ?.catch(() => undefined);
+  };
 
   reloadAtSecondsRef.current = async (position) => {
     if (trackReloadInProgress.current) {
@@ -2512,6 +2637,19 @@ export const PlayerScreen = ({
       return;
     }
 
+    if (sleeping) {
+      if (key === 'back') {
+        handleBack();
+      } else if (
+        key === 'select' ||
+        key === 'playPause' ||
+        key === 'playpause'
+      ) {
+        togglePlayPause();
+      }
+      return;
+    }
+
     // While this player hands off to the next episode nothing but Back has
     // a target any more.
     if (handoffInProgress.current && key !== 'back') {
@@ -2594,6 +2732,11 @@ export const PlayerScreen = ({
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
+      // A timer belongs to this sitting: it follows the viewer into the next
+      // episode, but not out of the player.
+      if (!handoffInProgress.current) {
+        clearSleepTimer();
+      }
       void stopPlaybackRef.current().catch(() => {
         trace('session.cleanup', 'native release failed');
       });
@@ -3055,6 +3198,12 @@ export const PlayerScreen = ({
           stillOffline={connectionStillOffline}
         />
       ) : null}
+      {sleeping ? (
+        <View style={styles.sleepNotice} testID="player-sleep-notice">
+          <Text style={styles.settingsTitle}>{t('player.sleepEnded')}</Text>
+          <Text style={styles.startupText}>{t('player.sleepResume')}</Text>
+        </View>
+      ) : null}
       {(isStarting || startupError) && !connection.lost ? (
         <View style={styles.startupOverlay} testID="player-startup-state">
           <Text numberOfLines={1} style={styles.startupTitle}>
@@ -3139,6 +3288,13 @@ export const PlayerScreen = ({
           }
           selectedAudioIndex={selectedAudioTrackIndex}
           selectedSubtitleIndex={selectedSubtitleTrackIndex}
+          isEpisode={item.type === 'Episode'}
+          onSelectSleepTimer={(choice) => {
+            trace('sleep.set', String(choice ?? 'off'));
+            setSleepTimer(choice);
+          }}
+          sleepMinutesLeft={sleepMinutesLeft}
+          sleepTimer={sleepTimerChoice(sleepTimer)}
           showStats={showPlaybackStats}
           showTraces={showPlaybackTraces}
           onToggleTraces={() => setShowPlaybackTraces((value) => !value)}
@@ -3288,23 +3444,31 @@ export const PlayerScreen = ({
 // deliberately — chapters ride the FF/RW keys, and quality is meant to be
 // configured outside the playback window.
 export const PlaybackSettingsOverlay = ({
+  isEpisode = false,
   onSelectAudio,
+  onSelectSleepTimer,
   onSelectSubtitle,
   onToggleStats,
   selectedAudioIndex,
   selectedSubtitleIndex,
   showStats,
   showTraces,
+  sleepMinutesLeft,
+  sleepTimer = null,
   onToggleTraces,
   streamInfo,
 }: {
+  isEpisode?: boolean;
   onSelectAudio: (track: JellyfinMediaTrack) => void;
+  onSelectSleepTimer?: (choice: SleepTimerChoice) => void;
   onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
   onToggleStats: () => void;
   selectedAudioIndex?: number;
   selectedSubtitleIndex?: number;
   showStats: boolean;
   showTraces: boolean;
+  sleepMinutesLeft?: number;
+  sleepTimer?: SleepTimerChoice;
   onToggleTraces: () => void;
   streamInfo: JellyfinStreamInfo;
 }) => (
@@ -3363,6 +3527,39 @@ export const PlaybackSettingsOverlay = ({
         ))}
         <Text style={styles.settingsHint}>{t('player.subtitleBadgeHint')}</Text>
       </SettingsColumn>
+      {onSelectSleepTimer ? (
+        <SettingsColumn title={t('player.sleepTimer')}>
+          <SettingsButton
+            label={t('player.off')}
+            onPress={() => onSelectSleepTimer(null)}
+            selected={sleepTimer === null}
+          />
+          {SLEEP_TIMER_MINUTES.map((minutes) => (
+            <SettingsButton
+              key={minutes}
+              label={t('player.sleepMinutes', {minutes})}
+              onPress={() => onSelectSleepTimer(minutes)}
+              selected={sleepTimer === minutes}
+            />
+          ))}
+          <SettingsButton
+            label={
+              isEpisode
+                ? t('player.sleepEndOfEpisode')
+                : t('player.sleepEndOfVideo')
+            }
+            onPress={() => onSelectSleepTimer('endOfItem')}
+            selected={sleepTimer === 'endOfItem'}
+          />
+          <Text style={styles.settingsHint}>
+            {sleepMinutesLeft !== undefined
+              ? t('player.sleepPausesIn', {minutes: sleepMinutesLeft})
+              : sleepTimer === 'endOfItem'
+              ? t('player.sleepPausesAtEnd')
+              : t('player.sleepHint')}
+          </Text>
+        </SettingsColumn>
+      ) : null}
       <SettingsColumn title={t('player.diagnostics')}>
         <SettingsButton
           label={`${t('settings.statsForNerds')}: ${
@@ -3834,6 +4031,16 @@ const styles = StyleSheet.create({
     maxHeight: 670,
     borderRadius: 8,
     backgroundColor: 'rgba(12,17,22,0.94)',
+    padding: 24,
+  },
+  sleepNotice: {
+    position: 'absolute',
+    left: 52,
+    right: 52,
+    bottom: 64,
+    borderRadius: 8,
+    backgroundColor: 'rgba(12,17,22,0.94)',
+    gap: 10,
     padding: 24,
   },
   startupOverlay: {

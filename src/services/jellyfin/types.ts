@@ -111,6 +111,7 @@ export interface JellyfinMediaStream {
   index?: number;
   isDefault?: boolean;
   language?: string;
+  title?: string;
   type?: string;
   videoRangeType?: string;
   width?: number;
@@ -261,9 +262,31 @@ export interface DiscoveryOptions {
 export type SubtitleMode = UserPreferences['subtitleMode'];
 
 export interface SubtitleSelectionTrack {
+  displayTitle?: string;
   index?: number;
   isForced?: boolean;
   language?: string;
+  title?: string;
+}
+
+/** What the viewer last chose in the player for a series. */
+export interface SeriesTrackPick {
+  audio?: {channels?: number; language?: string; secondary?: boolean};
+  subtitle?: {
+    forced?: boolean;
+    language?: string;
+    off?: boolean;
+    secondary?: boolean;
+  };
+}
+
+export interface AudioSelectionOptions {
+  fallbackLanguage?: string;
+  maxChannels: number;
+  /** A language code, or `server` to follow the Jellyfin account. */
+  preferredLanguage: string;
+  seriesPick?: SeriesTrackPick['audio'];
+  serverDefaultIndex?: number;
 }
 
 export interface SubtitleSelectionOptions {
@@ -276,6 +299,9 @@ export interface SubtitleSelectionOptions {
    * switching subtitles back on during an audio or quality reload.
    */
   manualSelection?: {streamIndex?: number};
+  fallbackLanguage?: string;
+  /** Applied before the mode, so a series keeps the viewer's last pick. */
+  seriesPick?: SeriesTrackPick['subtitle'];
 }
 
 export interface QuickConnectInitiateResult {
