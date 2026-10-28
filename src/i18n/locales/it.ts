@@ -129,9 +129,14 @@ export const it: Messages = {
   'home.latestIn': 'Novità in {name}',
   'app.loading': 'Caricamento di Astra',
   'exit.title': 'Uscire da Astra?',
-  'exit.body': 'Premi Indietro per restare o scegli Esci per chiudere l’app.',
+  'exit.body': 'Premi di nuovo Indietro per chiudere l’app o scegli Resta.',
   'exit.stay': 'Resta',
   'exit.exit': 'Esci',
+  'connection.title': 'Nessuna connessione',
+  'connection.body':
+    'Astra non riesce a raggiungere la rete. Controlla il Wi-Fi o il cavo di rete, poi scegli Riprova.',
+  'connection.stillOffline': 'Ancora nessuna connessione. Riprova tra poco.',
+  'connection.checking': 'Verifica in corso…',
   'capabilities.hardwareLabel': 'Sì, ha una scheda grafica',
   'capabilities.hardwareDetail':
     'Una GPU dedicata si occupa della conversione. Risultati migliori con 4K e HDR.',

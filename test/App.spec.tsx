@@ -123,8 +123,18 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => {
   };
 });
 
+let mockNetListener: ((state: {isConnected: boolean}) => void) | null = null;
+const mockNetRefresh = jest.fn(async () => ({isConnected: true}));
 jest.mock('@amazon-devices/keplerscript-netmgr-lib', () => ({
   getIpAddress: jest.fn(async () => '192.168.1.25'),
+  configure: jest.fn(),
+  addEventListener: (listener: typeof mockNetListener) => {
+    mockNetListener = listener;
+    return () => {
+      mockNetListener = null;
+    };
+  },
+  refresh: () => mockNetRefresh(),
 }));
 
 jest.mock('../src/services/jellyfin', () => ({
@@ -592,6 +602,99 @@ describe('App', () => {
 
     fireEvent.press(screen.getByTestId('exit-cancel-button'));
     expect(screen.queryByTestId('exit-confirmation')).toBeNull();
+  });
+
+  it('leaves on Back once the exit prompt has settled', async () => {
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      serverType: 'jellyfin' as const,
+      serverUrl: 'https://example.com',
+      userId: 'test-user',
+    };
+    (readServerProfiles as jest.Mock).mockResolvedValueOnce([serverProfile]);
+    (getLastUsedServerProfile as jest.Mock).mockResolvedValueOnce(
+      serverProfile,
+    );
+    const now = jest.spyOn(Date, 'now').mockReturnValue(10_000);
+    try {
+      const screen = render(<App />);
+      await waitFor(() =>
+        expect(screen.getByTestId('home-screen')).toBeTruthy(),
+      );
+      act(() => {
+        mockHardwareBackPressHandler?.();
+        mockHardwareBackPressHandler?.();
+        mockHardwareBackPressHandler?.();
+      });
+      expect(screen.getByTestId('exit-confirmation')).toBeTruthy();
+
+      // A press still in flight from opening the prompt does nothing.
+      now.mockReturnValue(10_200);
+      act(() => {
+        mockHardwareBackPressHandler?.();
+      });
+      expect(screen.getByTestId('exit-confirmation')).toBeTruthy();
+      expect(mockKeplerExitApp).not.toHaveBeenCalled();
+
+      now.mockReturnValue(11_000);
+      act(() => {
+        mockHardwareBackPressHandler?.();
+      });
+      expect(mockKeplerExitApp).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('replaces the screen with a connection notice and reloads it on Retry', async () => {
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      serverType: 'jellyfin' as const,
+      serverUrl: 'https://example.com',
+      userId: 'test-user',
+    };
+    (readServerProfiles as jest.Mock).mockResolvedValueOnce([serverProfile]);
+    (getLastUsedServerProfile as jest.Mock).mockResolvedValueOnce(
+      serverProfile,
+    );
+    const screen = render(<App />);
+    await waitFor(() => expect(screen.getByTestId('home-screen')).toBeTruthy());
+    const librariesBefore = (getLibraries as jest.Mock).mock.calls.length;
+
+    jest.useFakeTimers();
+    try {
+      act(() => {
+        mockNetListener?.({isConnected: false});
+        jest.advanceTimersByTime(3000);
+      });
+      expect(screen.getByTestId('connection-notice')).toBeTruthy();
+      expect(screen.queryByTestId('home-screen')).toBeNull();
+
+      mockNetRefresh.mockResolvedValueOnce({isConnected: false});
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('connection-retry'));
+      });
+      expect(screen.getByTestId('connection-still-offline')).toBeTruthy();
+
+      await act(async () => {
+        fireEvent.press(screen.getByTestId('connection-retry'));
+      });
+      expect(screen.queryByTestId('connection-notice')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+    await waitFor(() => expect(screen.getByTestId('home-screen')).toBeTruthy());
+    await waitFor(() =>
+      expect((getLibraries as jest.Mock).mock.calls.length).toBeGreaterThan(
+        librariesBefore,
+      ),
+    );
   });
 
   it('pops back out of a nested library instead of offering to exit', async () => {

@@ -144,6 +144,8 @@ import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {createPositionStore, PositionStore} from './positionStore';
 import {syncPlay, type SyncPlayPlayer} from '../../services/syncPlay';
 import {t} from '../../i18n';
+import {ConnectionNotice} from '../../components/ConnectionNotice';
+import {useConnectionLoss} from '../../services/network/connection';
 
 const TICKS_PER_SECOND = 10000000;
 const CONTROL_HIDE_DELAY_MS = 5000;
@@ -454,6 +456,8 @@ export const PlayerScreen = ({
   // Resolving a stream can take two server round trips, so startup gets its
   // own always-visible state rather than borrowing the auto-hiding controls.
   const [startupError, setStartupError] = useState<string | null>(null);
+  const connection = useConnectionLoss();
+  const [connectionStillOffline, setConnectionStillOffline] = useState(false);
   // Shown only to viewers whose server cannot re-encode a source this decoder
   // is not trusted with. Anyone with transcoding available gets the re-encode
   // instead and must never see this.
@@ -2500,6 +2504,14 @@ export const PlayerScreen = ({
     }
     lastHandledKeyEvent.current = {time: now, type: key};
 
+    // The connection panel's buttons own every key but Back, which leaves.
+    if (connection.lost) {
+      if (key === 'back') {
+        handleBack();
+      }
+      return;
+    }
+
     // While this player hands off to the next episode nothing but Back has
     // a target any more.
     if (handoffInProgress.current && key !== 'back') {
@@ -2594,6 +2606,9 @@ export const PlayerScreen = ({
       (nextState) => {
         if (nextState === 'background') {
           syncPlay.playerBackgrounded(syncPlayPlayer.current);
+          // The stop report goes out now, not after the native release: that
+          // waits behind any running load, and the system may end Astra first.
+          reportStopped();
           // Release VOD resources and return to details with the saved item context.
           void stopPlaybackRef
             .current()
@@ -2614,6 +2629,7 @@ export const PlayerScreen = ({
     keplerAppStateManager,
     returnToLibrary,
     reportProgress,
+    reportStopped,
   ]);
 
   useEffect(() => {
@@ -2899,6 +2915,40 @@ export const PlayerScreen = ({
     return () => clearInterval(interval);
   }, [collectPlaybackSample, showPlaybackStats]);
 
+  // With the network gone the buffer runs dry and the server may end the
+  // transcode, so hold the picture still and start again from here on Retry.
+  const connectionLost = connection.lost;
+  useEffect(() => {
+    if (!connectionLost) {
+      return;
+    }
+    setConnectionStillOffline(false);
+    seekController.current?.cancelPreview();
+    videoRef.current?.pause();
+    isPausedRef.current = true;
+    setPaused(true);
+    latestPositionTicks.current = currentPositionTicks();
+  }, [connectionLost, currentPositionTicks]);
+
+  const {retry: retryConnectionCheck} = connection;
+  const retryConnection = useCallback(async () => {
+    const online = await retryConnectionCheck();
+    setConnectionStillOffline(!online);
+    if (!online || unmountedRef.current) {
+      return;
+    }
+    if (startupError) {
+      retryStartup();
+      return;
+    }
+    if (surfaceHandle.current) {
+      await startPlayback({
+        position: latestPositionTicks.current / TICKS_PER_SECOND,
+        reason: 'reconnect',
+      });
+    }
+  }, [retryConnectionCheck, retryStartup, startPlayback, startupError]);
+
   const onSurfaceViewCreated = useCallback(
     async (handle: string) => {
       if (unmountedRef.current || handoffInProgress.current) {
@@ -2995,7 +3045,17 @@ export const PlayerScreen = ({
           target={seekPreview}
         />
       ) : null}
-      {isStarting || startupError ? (
+      {connection.lost ? (
+        <ConnectionNotice
+          checking={connection.checking}
+          onBack={handleBack}
+          onRetry={() => {
+            retryConnection().catch(() => undefined);
+          }}
+          stillOffline={connectionStillOffline}
+        />
+      ) : null}
+      {(isStarting || startupError) && !connection.lost ? (
         <View style={styles.startupOverlay} testID="player-startup-state">
           <Text numberOfLines={1} style={styles.startupTitle}>
             {item.name}

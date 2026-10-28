@@ -129,9 +129,14 @@ export const en = {
   'home.latestIn': 'Latest in {name}',
   'app.loading': 'Loading Astra',
   'exit.title': 'Exit Astra?',
-  'exit.body': 'Press Back to stay, or choose Exit to close the app.',
+  'exit.body': 'Press Back again to close the app, or choose Stay.',
   'exit.stay': 'Stay',
   'exit.exit': 'Exit',
+  'connection.title': 'No connection',
+  'connection.body':
+    'Astra can’t reach the network. Check the Wi-Fi or network cable, then choose Retry.',
+  'connection.stillOffline': 'Still no connection. Try again in a moment.',
+  'connection.checking': 'Checking…',
   'capabilities.hardwareLabel': 'Yes, it has a graphics card',
   'capabilities.hardwareDetail':
     'A dedicated GPU handles the conversion. Best results on 4K and HDR.',

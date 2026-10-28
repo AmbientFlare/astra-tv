@@ -65,7 +65,10 @@ Compare the same title with the switch off (MPEG-TS) and on.
       overlay shows. Restore the network and press Retry: playback carries on
       from the same point.
 - [ ] Same on Home and in a library: the overlay shows, and Retry reloads.
-- [ ] Home → Back opens the exit prompt, and Back again leaves Astra.
+- [ ] Unplug for under 3 seconds: no notice.
+- [x] On Home, Back three times opens the exit prompt ("Press Back again to
+      close the app, or choose Stay."), and Back again closes Astra
+      (AFTCR001, build 2026102706, 2026-10-27).
 
 ## 6. Features (P2)
 

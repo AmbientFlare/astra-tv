@@ -132,9 +132,15 @@ export const fr: Messages = {
   'app.loading': 'Chargement d’Astra',
   'exit.title': 'Quitter Astra ?',
   'exit.body':
-    'Appuyez sur Retour pour rester, ou choisissez Quitter pour fermer l’app.',
+    'Appuyez de nouveau sur Retour pour fermer l’app, ou choisissez Rester.',
   'exit.stay': 'Rester',
   'exit.exit': 'Quitter',
+  'connection.title': 'Pas de connexion',
+  'connection.body':
+    'Astra n’arrive pas à joindre le réseau. Vérifiez le Wi-Fi ou le câble réseau, puis choisissez Réessayer.',
+  'connection.stillOffline':
+    'Toujours pas de connexion. Réessayez dans un instant.',
+  'connection.checking': 'Vérification…',
   'capabilities.hardwareLabel': 'Oui, il a une carte graphique',
   'capabilities.hardwareDetail':
     'Un GPU dédié se charge de la conversion. Meilleurs résultats en 4K et HDR.',

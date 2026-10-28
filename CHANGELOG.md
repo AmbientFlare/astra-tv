@@ -16,6 +16,19 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
   sends 4K and HDR streams as fMP4 in 2-second segments instead of MPEG-TS.
 - Settings → About and Stats for Nerds show the Fire TV model and OS version.
   Developer telemetry events carry them too.
+- A "No connection" notice with Retry when the network drops for more than a
+  few seconds. In a video it pauses first, and Retry starts again from the
+  same point. On other screens, Retry reloads the screen.
+
+### Changed
+
+- On the exit prompt, Back now closes Astra. Stay is still the focused button.
+
+### Fixed
+
+- Leaving a video with the Home button reports the stop and position to
+  Jellyfin straight away. Before, the report waited for the player to finish
+  releasing, and could be lost if the system closed Astra first.
 
 ## 1.5.1 - 2026-10-26
 

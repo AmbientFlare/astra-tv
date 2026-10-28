@@ -59,9 +59,13 @@ import {
 import {defaultServerCapabilities} from '../services/serverCapabilities/defaults';
 import type {ServerCapabilities} from '../services/serverCapabilities/types';
 import {readStoredLocale, setActiveLocale, t, useChangeLanguage} from '../i18n';
+import {ConnectionNotice} from '../components/ConnectionNotice';
+import {useConnectionLoss} from '../services/network/connection';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
+// Back presses already in flight when the prompt opens must not close it.
+const EXIT_PROMPT_SETTLE_MS = 500;
 
 type LaunchRoute = 'loading' | 'setup';
 
@@ -172,6 +176,20 @@ export const RootNavigator = () => {
   }, []);
   const exitBackPressState = useRef({count: 0, lastPressedAt: 0});
   const current = stack[stack.length - 1] ?? {route: 'home'};
+  // The player shows its own connection panel, so it can pause first.
+  const inPlayer = current.route === 'player';
+  const connection = useConnectionLoss(!inPlayer);
+  const [stillOffline, setStillOffline] = useState(false);
+  const [screenKey, setScreenKey] = useState(0);
+  const {retry: retryConnectionCheck} = connection;
+  const retryConnection = useCallback(async () => {
+    const online = await retryConnectionCheck();
+    setStillOffline(!online);
+    if (online) {
+      // Remounting reloads whatever the screen failed to fetch.
+      setScreenKey((key) => key + 1);
+    }
+  }, [retryConnectionCheck]);
 
   const push = useCallback(
     (entry: RouteEntry) => setStack((entries) => [...entries, entry]),
@@ -237,6 +255,7 @@ export const RootNavigator = () => {
     [],
   );
 
+  const exitPromptShownAt = useRef(0);
   const resetExitPresses = useCallback(() => {
     exitBackPressState.current = {count: 0, lastPressedAt: 0};
   }, []);
@@ -270,6 +289,7 @@ export const RootNavigator = () => {
     exitBackPressState.current = {count, lastPressedAt: now};
 
     if (count >= EXIT_BACK_PRESS_COUNT) {
+      exitPromptShownAt.current = now;
       setExitPromptVisible(true);
       resetExitPresses();
     }
@@ -277,8 +297,10 @@ export const RootNavigator = () => {
 
   const handleBackPress = useCallback(() => {
     if (exitPromptVisible) {
-      setExitPromptVisible(false);
-      resetExitPresses();
+      // Back on the prompt is the second "yes": it leaves. Stay is focused.
+      if (Date.now() - exitPromptShownAt.current >= EXIT_PROMPT_SETTLE_MS) {
+        keplerBackHandler.exitApp();
+      }
       return true;
     }
 
@@ -322,6 +344,7 @@ export const RootNavigator = () => {
     return true;
   }, [
     exitPromptVisible,
+    keplerBackHandler,
     profileSwitcherVisible,
     requestExitConfirmation,
     resetExitPresses,
@@ -516,6 +539,17 @@ export const RootNavigator = () => {
       />
     ) : null;
 
+  const connectionNotice =
+    connection.lost && !inPlayer ? (
+      <ConnectionNotice
+        checking={connection.checking}
+        onRetry={() => {
+          retryConnection().catch(() => undefined);
+        }}
+        stillOffline={stillOffline}
+      />
+    ) : null;
+
   const exitPrompt = exitPromptVisible ? (
     <ExitPrompt
       onCancel={() => setExitPromptVisible(false)}
@@ -533,8 +567,8 @@ export const RootNavigator = () => {
   // occur while the notice is up.
   const withExitPrompt = (screen: React.ReactElement) => (
     <View style={styles.appShell}>
-      <View style={styles.appScreen}>
-        {developerNotice ?? capabilityNotice ?? screen}
+      <View key={screenKey} style={styles.appScreen}>
+        {connectionNotice ?? developerNotice ?? capabilityNotice ?? screen}
       </View>
       <NowPlayingBar
         onOpen={() => {
