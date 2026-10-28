@@ -7,11 +7,11 @@
 import type {JellyfinChapter, JellyfinMediaItem} from '../jellyfin';
 
 /**
- * Unattended advances allowed in a row before Astra asks the viewer: the
- * episode the viewer started plus two that followed on their own, so three
- * episodes play before "Continue watching?".
+ * Episodes that play in a row before "Continue watching?" unless the viewer
+ * picks another number: the one they started plus two that followed on
+ * their own.
  */
-export const MAX_CONSECUTIVE_AUTO_ADVANCES = 2;
+export const DEFAULT_STILL_WATCHING_AFTER = 3;
 
 export interface TimedSegment {
   endTicks: number;
@@ -154,27 +154,32 @@ export type EndOfPlaybackAction = 'finished' | 'countdown' | 'confirm';
 
 /**
  * What to show when a video reaches its end. Movies always finish. An
- * episode with a next episode counts down only while autoplay is on and the
- * viewer has not already been carried across two episodes unattended;
- * after that it asks.
+ * episode with a next episode counts down while autoplay is on, until
+ * `stillWatchingAfterEpisodes` episodes have played in a row; then it asks.
+ * 0 never asks.
  */
 export const decideEndOfPlayback = ({
   autoplayEnabled,
   consecutiveAutoAdvances,
   hasNextEpisode,
   itemType,
+  stillWatchingAfterEpisodes = DEFAULT_STILL_WATCHING_AFTER,
 }: {
   autoplayEnabled: boolean;
   consecutiveAutoAdvances: number;
   hasNextEpisode: boolean;
   itemType: string | undefined;
+  stillWatchingAfterEpisodes?: number;
 }): EndOfPlaybackAction => {
   if (itemType !== 'Episode' || !hasNextEpisode) {
     return 'finished';
   }
+  if (!autoplayEnabled) {
+    return 'confirm';
+  }
 
-  return autoplayEnabled &&
-    consecutiveAutoAdvances < MAX_CONSECUTIVE_AUTO_ADVANCES
+  return stillWatchingAfterEpisodes <= 0 ||
+    consecutiveAutoAdvances < stillWatchingAfterEpisodes - 1
     ? 'countdown'
     : 'confirm';
 };

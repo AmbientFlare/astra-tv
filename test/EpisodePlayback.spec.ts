@@ -9,7 +9,7 @@ import {
   decideEndOfPlayback,
   findCreditsWindow,
   isInsideWindow,
-  MAX_CONSECUTIVE_AUTO_ADVANCES,
+  DEFAULT_STILL_WATCHING_AFTER,
   nextAutoAdvanceCount,
   resolveNextEpisode,
 } from '../src/services/episodePlayback';
@@ -311,7 +311,7 @@ describe('what happens when a video ends', () => {
   });
 
   it('counts down for an episode while autoplay is on and under the cap', () => {
-    for (let count = 0; count < MAX_CONSECUTIVE_AUTO_ADVANCES; count += 1) {
+    for (let count = 0; count < DEFAULT_STILL_WATCHING_AFTER - 1; count += 1) {
       expect(
         decideEndOfPlayback({
           autoplayEnabled: true,
@@ -325,7 +325,7 @@ describe('what happens when a video ends', () => {
 
   it('asks after two unattended advances, and whenever autoplay is off', () => {
     // The viewer's own episode plus two automatic ones: three in total.
-    expect(MAX_CONSECUTIVE_AUTO_ADVANCES).toBe(2);
+    expect(DEFAULT_STILL_WATCHING_AFTER).toBe(3);
     expect(
       decideEndOfPlayback({
         autoplayEnabled: true,
@@ -418,5 +418,48 @@ describe('the countdown', () => {
 
     expect(onExpire).toHaveBeenCalledTimes(1);
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  const runOf = (stillWatchingAfterEpisodes: number, ends: number) => {
+    let count = 0;
+    const actions: string[] = [];
+    for (let episodeEnd = 0; episodeEnd < ends; episodeEnd += 1) {
+      const action = decideEndOfPlayback({
+        autoplayEnabled: true,
+        consecutiveAutoAdvances: count,
+        hasNextEpisode: true,
+        itemType: 'Episode',
+        stillWatchingAfterEpisodes,
+      });
+      actions.push(action);
+      count = nextAutoAdvanceCount(count, action === 'countdown');
+    }
+    return actions;
+  };
+
+  it('asks after the number of episodes the viewer picked', () => {
+    // N episodes in a row means N - 1 automatic advances, then a question.
+    expect(runOf(5, 5)).toEqual([
+      'countdown',
+      'countdown',
+      'countdown',
+      'countdown',
+      'confirm',
+    ]);
+    expect(runOf(10, 10).filter((a) => a === 'countdown')).toHaveLength(9);
+    expect(runOf(10, 10)[9]).toBe('confirm');
+  });
+
+  it('never asks when set to Never, but still asks with autoplay off', () => {
+    expect(runOf(0, 25).every((a) => a === 'countdown')).toBe(true);
+    expect(
+      decideEndOfPlayback({
+        autoplayEnabled: false,
+        consecutiveAutoAdvances: 0,
+        hasNextEpisode: true,
+        itemType: 'Episode',
+        stillWatchingAfterEpisodes: 0,
+      }),
+    ).toBe('confirm');
   });
 });

@@ -137,7 +137,16 @@ Compare the same title with the switch off (MPEG-TS) and on.
 - [x] Music plays on a Jellyfin 12.0 server with legacy authorization off
       (The Beatles, Revolver; AFTCR001, build 2026102714, 2026-10-27).
 
-## 9. Memory and long play
+## 9. Ask if still watching (P5)
+
+- [x] Settings → Playback shows "Ask if still watching" (After 3 episodes)
+      only while Next episode autoplay is on, and Never saves (AFTCR001,
+      build 2026102717, 2026-10-28).
+- [ ] With "After 5 episodes", five episodes play in a row before
+      "Continue watching?".
+- [ ] With Never, a long run of episodes never stops to ask.
+
+## 10. Memory and long play
 
 - [ ] Two hours of 4K HDR playback with no crash (1 GB RAM on every stick).
 - [ ] Leave Astra for another app for 10 minutes mid-video, then come back:

@@ -83,6 +83,11 @@ export interface UserPreferences {
     | '2000000';
   nextEpisodeAutoplay: boolean;
   nextEpisodeCountdownSeconds: 10 | 15 | 30;
+  /**
+   * Episodes that play in a row before "Continue watching?", counting the
+   * one the viewer started. 0 never asks.
+   */
+  stillWatchingAfterEpisodes: StillWatchingAfter;
   preferredAudioLanguage: string;
   preferredSubtitleLanguage: string;
   seekDurationSeconds: 10 | 15 | 30 | 60;
@@ -139,6 +144,7 @@ export const defaultUserPreferences: UserPreferences = {
   musicEnabled: true,
   nextEpisodeAutoplay: false,
   nextEpisodeCountdownSeconds: 15,
+  stillWatchingAfterEpisodes: 3,
   preferredAudioLanguage: 'English',
   preferredSubtitleLanguage: 'English',
   seekDurationSeconds: 10,
@@ -362,6 +368,9 @@ export const setDisplayPreferences = async (
   );
 };
 
+export type StillWatchingAfter = 0 | 3 | 5 | 10;
+export const STILL_WATCHING_OPTIONS: StillWatchingAfter[] = [3, 5, 10, 0];
+
 const parseUserPreferences = (
   rawPreferences: string | null,
 ): UserPreferences => {
@@ -387,6 +396,11 @@ const parseUserPreferences = (
       subtitleMode: SUBTITLE_MODES.includes(parsed.subtitleMode)
         ? parsed.subtitleMode
         : defaultUserPreferences.subtitleMode,
+      stillWatchingAfterEpisodes: STILL_WATCHING_OPTIONS.includes(
+        parsed.stillWatchingAfterEpisodes,
+      )
+        ? parsed.stillWatchingAfterEpisodes
+        : defaultUserPreferences.stillWatchingAfterEpisodes,
     };
   } catch {
     return defaultUserPreferences;

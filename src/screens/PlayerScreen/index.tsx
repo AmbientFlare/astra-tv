@@ -440,7 +440,10 @@ export const PlayerScreen = ({
   const episodePreferences = useRef<
     Pick<
       UserPreferences,
-      'nextEpisodeAutoplay' | 'nextEpisodeCountdownSeconds' | 'skipIntroCredits'
+      | 'nextEpisodeAutoplay'
+      | 'nextEpisodeCountdownSeconds'
+      | 'skipIntroCredits'
+      | 'stillWatchingAfterEpisodes'
     >
   >(defaultUserPreferences);
   // The only timer behind an unattended advance. Every exit path cancels it
@@ -1473,6 +1476,8 @@ export const PlayerScreen = ({
       consecutiveAutoAdvances,
       hasNextEpisode: Boolean(nextEpisode && onPlayNext),
       itemType: item.type,
+      stillWatchingAfterEpisodes:
+        episodePreferences.current.stillWatchingAfterEpisodes,
     });
     trace(
       'ended',
