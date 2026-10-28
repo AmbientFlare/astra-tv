@@ -37,6 +37,18 @@ export const buildUrl = (
   return url.toString();
 };
 
+/**
+ * The token for a URL that cannot carry headers: streams, subtitles and
+ * images handed straight to the player or an Image. Jellyfin with legacy
+ * authorization off (the default from 12.0) refuses `api_key` with a 401 and
+ * reads only `ApiKey`; servers older than `ApiKey` read only `api_key`. Every
+ * version accepts the pair.
+ */
+export const tokenQuery = (accessToken: string) => ({
+  ApiKey: accessToken,
+  api_key: accessToken,
+});
+
 export const sanitizeUrlForLog = (rawUrl?: string) => {
   if (!rawUrl) {
     return rawUrl;
@@ -122,6 +134,7 @@ export const getJson = async <ResponseBody>(
     if (!response.ok) {
       const failedUrl = new URL(url);
       failedUrl.searchParams.delete('api_key');
+      failedUrl.searchParams.delete('ApiKey');
       throw new ServerResponseError(
         `Server request failed ${response.status}: ${failedUrl.pathname}`,
         response.status,

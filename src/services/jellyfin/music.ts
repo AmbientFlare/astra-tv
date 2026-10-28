@@ -15,6 +15,7 @@
  *    is paginated and returns a total count for infinite scroll.
  */
 import {buildUrl, getAuthHeaders, getJson, itemFields} from './index';
+import {tokenQuery} from './http';
 import {getDeviceId} from '../deviceIdentity';
 
 export interface MusicSession {
@@ -156,7 +157,7 @@ const imageUrlFor = (
         fillWidth,
         quality: 90,
         tag,
-        api_key: session.accessToken,
+        ...tokenQuery(session.accessToken),
       })
     : undefined;
 
@@ -164,7 +165,7 @@ const request = <Body>(session: MusicSession, path: string, params = {}) =>
   getJson<Body>(
     buildUrl(session.serverUrl, path, {
       ...params,
-      api_key: session.accessToken,
+      ...tokenQuery(session.accessToken),
     }),
     {headers: getAuthHeaders(session.accessToken)},
   );
@@ -216,7 +217,7 @@ const mapArtist =
         ? buildUrl(session.serverUrl, `/Items/${item.Id}/Images/Backdrop/0`, {
             fillWidth: 1280,
             quality: 85,
-            api_key: session.accessToken,
+            ...tokenQuery(session.accessToken),
           })
         : undefined,
     albumCount: item.ChildCount,
@@ -565,7 +566,7 @@ export const getAudioStreamUrl = (
       Container: NATIVE_AUDIO_CONTAINERS,
       DeviceId: deviceId,
       UserId: session.userId,
-      api_key: session.accessToken,
+      ...tokenQuery(session.accessToken),
     },
   );
 
@@ -593,7 +594,7 @@ export const getAudioHlsStreamUrl = (
       TranscodingContainer: 'ts',
       TranscodingProtocol: 'hls',
       UserId: session.userId,
-      api_key: session.accessToken,
+      ...tokenQuery(session.accessToken),
     },
   );
 
@@ -608,7 +609,7 @@ export const setTrackFavorite = (
     buildUrl(
       session.serverUrl,
       `/Users/${session.userId}/FavoriteItems/${requireId(trackId, 'track')}`,
-      {api_key: session.accessToken},
+      tokenQuery(session.accessToken),
     ),
     {
       method: isFavorite ? 'POST' : 'DELETE',

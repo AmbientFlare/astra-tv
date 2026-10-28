@@ -1,5 +1,11 @@
 import type {DiscoveredServer, DiscoveryOptions} from './types';
-import {getJson, normalizeServerUrl, buildUrl, getAuthHeaders} from './http';
+import {
+  getJson,
+  normalizeServerUrl,
+  buildUrl,
+  getAuthHeaders,
+  tokenQuery,
+} from './http';
 
 const scanCandidate = async (
   address: string,
@@ -29,7 +35,7 @@ export const measureServerBandwidth = async (
   const download = async (sizeBytes: number) => {
     const url = buildUrl(baseUrl, '/Playback/BitrateTest', {
       Size: sizeBytes,
-      api_key: accessToken,
+      ...tokenQuery(accessToken),
     });
     const started = Date.now();
     const response = await fetch(url, {headers: getAuthHeaders(accessToken)});

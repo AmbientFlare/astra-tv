@@ -1,5 +1,11 @@
 import type {JellyfinMediaItem} from './types';
-import {buildUrl, normalizeServerUrl, getJson, getAuthHeaders} from './http';
+import {
+  buildUrl,
+  normalizeServerUrl,
+  getJson,
+  getAuthHeaders,
+  tokenQuery,
+} from './http';
 
 /**
  * Extra data to ask for alongside an item.
@@ -104,7 +110,7 @@ export const mapItem = (
         fillWidth: 360,
         quality: 90,
         tag: item.ImageTags?.[imageType],
-        api_key: accessToken,
+        ...tokenQuery(accessToken),
       })
     : undefined,
   backdropUrl:
@@ -113,7 +119,7 @@ export const mapItem = (
           fillWidth: 1280,
           quality: 85,
           tag: item.BackdropImageTags[0],
-          api_key: accessToken,
+          ...tokenQuery(accessToken),
         })
       : undefined,
   runTimeTicks: item.RunTimeTicks,
@@ -133,7 +139,7 @@ export const mapItem = (
       ? buildUrl(baseUrl, `/Items/${person.Id}/Images/Primary`, {
           fillWidth: 260,
           quality: 85,
-          api_key: accessToken,
+          ...tokenQuery(accessToken),
         })
       : undefined,
     name: person.Name ?? 'Unknown',
@@ -164,7 +170,7 @@ export const getItemCollection = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
     Items?: Array<Parameters<typeof mapItem>[2]>;
-  }>(buildUrl(baseUrl, path, {...params, api_key: accessToken}), {
+  }>(buildUrl(baseUrl, path, {...params, ...tokenQuery(accessToken)}), {
     headers: getAuthHeaders(accessToken),
   });
 
