@@ -34,11 +34,12 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 - Play/Pause on a card in a library grid starts it without opening the
   details page: a movie or episode from where you left off, a series at the
   episode you were part-way through, else its Next Up episode, else episode
-  1. While music is
-  playing, Play/Pause still controls the music.
+  1. While music is playing, Play/Pause pauses and resumes the music
+  instead.
 - A Stop button on Now Playing ends the music and clears the queue, which
   also hides the Now Playing bar. "Stop" from the system media controls now
-  does the same instead of pausing.
+  does the same instead of pausing. The Now Playing buttons are now a
+  column, so Up and Down reach them without Left or Right changing the song.
 
 ### Changed
 
@@ -53,10 +54,10 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 ### Fixed
 
-- Leaving a video with the Home button reports the stop and position to
 - Music, direct-play video and external subtitles failed on Jellyfin 12.0,
   which turns off the old way of passing the sign-in token in a link. Astra
   now sends it both ways, so old and new servers work.
+- Leaving a video with the Home button reports the stop and position to
   Jellyfin straight away. Before, the report waited for the player to finish
   releasing, and could be lost if the system closed Astra first.
 - A two-letter subtitle language from Settings (such as "en") now matches

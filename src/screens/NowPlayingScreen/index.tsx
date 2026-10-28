@@ -105,10 +105,12 @@ const styles = StyleSheet.create({
   subtitle: {color: '#a8b4c0', fontSize: 24, marginTop: 10},
   time: {color: '#6f7d8c', fontSize: 18, marginTop: 18},
   hint: {color: '#8b97a5', fontSize: 17, marginTop: 20},
-  controls: {flexDirection: 'row', marginTop: 22},
+  // A column, not a row: Left and Right skip tracks on this screen, so a
+  // row of buttons could only be reached by changing the song.
+  controls: {alignItems: 'flex-start', marginTop: 22},
   control: {
     borderRadius: 8,
-    marginRight: 12,
+    marginBottom: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },

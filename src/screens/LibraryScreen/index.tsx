@@ -36,8 +36,11 @@ interface LibraryScreenProps {
   onSelectItem?: (item: JellyfinMediaItem) => void;
   /** Play on a focused card: starts it without opening the details page. */
   onPlayItem?: (item: JellyfinMediaItem) => void;
-  /** True while something else (music) owns the transport keys. */
-  isQuickPlayBlocked?: () => boolean;
+  /**
+   * Offered Play/Pause first. Returns true when something else (music) took
+   * the key, and then nothing starts.
+   */
+  onTransportKey?: () => boolean;
   serverProfile: ServerProfile;
 }
 
@@ -219,7 +222,7 @@ export const LibraryScreen = ({
   onMenuVisibleChange,
   onSelectItem,
   onPlayItem,
-  isQuickPlayBlocked,
+  onTransportKey,
   serverProfile,
 }: LibraryScreenProps) => {
   // Populated when this library has been browsed already in this run of the
@@ -728,7 +731,7 @@ export const LibraryScreen = ({
       (action === 'play' || action === 'playPause') &&
       !menuVisible &&
       onPlayItem &&
-      !isQuickPlayBlocked?.()
+      !onTransportKey?.()
     ) {
       const item = items[focusedIndex];
       if (item) {

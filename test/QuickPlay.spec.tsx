@@ -182,7 +182,7 @@ describe('LibraryScreen quick play', () => {
     items: JellyfinMediaItem[],
     onPlayItem = jest.fn(),
     onSelectItem = jest.fn(),
-    isQuickPlayBlocked?: () => boolean,
+    onTransportKey?: () => boolean,
   ) => {
     (getItems as jest.Mock).mockResolvedValue(items);
     const screen = render(
@@ -192,7 +192,7 @@ describe('LibraryScreen quick play', () => {
         libraryType="tvshows"
         menuVisible={false}
         onMenuVisibleChange={() => undefined}
-        isQuickPlayBlocked={isQuickPlayBlocked}
+        onTransportKey={onTransportKey}
         onPlayItem={onPlayItem}
         onSelectItem={onSelectItem}
         serverProfile={profile}
@@ -232,16 +232,18 @@ describe('LibraryScreen quick play', () => {
   });
 
   it('leaves the transport keys to music while a track is loaded', async () => {
+    const onTransportKey = jest.fn(() => true);
     const {onPlayItem, onSelectItem} = renderLibrary(
       [item('M', 'Movie')],
       jest.fn(),
       jest.fn(),
-      () => true,
+      onTransportKey,
     );
     await settle();
 
     await pressKey('playpause');
 
+    expect(onTransportKey).toHaveBeenCalledTimes(1);
     expect(onPlayItem).not.toHaveBeenCalled();
     expect(onSelectItem).not.toHaveBeenCalled();
   });
