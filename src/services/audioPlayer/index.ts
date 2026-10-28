@@ -142,7 +142,7 @@ const createControlHandler = (service: AudioPlaybackService) => {
       if (audioIdleGate.consumeInput()) {
         return;
       }
-      await service.pause();
+      await service.stop();
     }
 
     async handleFastForward() {

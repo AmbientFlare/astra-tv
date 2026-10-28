@@ -31,6 +31,14 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 - After 25 videos, Astra shows a one-time card asking for support on Ko-fi,
   with a QR code. It never comes back once dismissed. There is no in-app
   purchase.
+- Play/Pause on a card in a library grid starts it without opening the
+  details page: a movie or episode from where you left off, a series at the
+  episode you were part-way through, else its Next Up episode, else episode
+  1. While music is
+  playing, Play/Pause still controls the music.
+- A Stop button on Now Playing ends the music and clears the queue, which
+  also hides the Now Playing bar. "Stop" from the system media controls now
+  does the same instead of pausing.
 
 ### Changed
 

@@ -64,6 +64,15 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
             label={status.isPlaying ? t('player.pause') : t('player.play')}
             onPress={() => audioPlayback.togglePlayPause()}
           />
+          <Action
+            label={t('nowPlaying.stop')}
+            onPress={() => {
+              // Stopping empties the queue, which also hides the bar; there
+              // is nothing left for this screen to show.
+              audioPlayback.stop();
+              onBack();
+            }}
+          />
           <Action label={t('common.back')} onPress={onBack} />
         </TVFocusGuideView>
       </View>

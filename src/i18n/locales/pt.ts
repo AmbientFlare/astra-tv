@@ -110,6 +110,7 @@ export const pt: Messages = {
   'nowPlaying.buffering': 'Carregando',
   'nowPlaying.playing': 'Tocando',
   'nowPlaying.paused': 'Pausado',
+  'nowPlaying.stop': 'Parar',
   'nav.movies': 'Filmes',
   'nav.music': 'Música',
   'nav.library': 'Biblioteca',

@@ -114,7 +114,20 @@ Compare the same title with the switch off (MPEG-TS) and on.
 - [ ] The card never covers a video, What's New or the server notice.
 - [ ] Scan each code with a real phone camera, not only from a screenshot.
 
-## 8. Memory and long play
+## 8. Quick play and music Stop (P4)
+
+- [ ] In a movie library, Play/Pause on a focused movie starts it without
+      the details page, at its resume point if it has one.
+- [ ] In a shows library, Play/Pause on a series with a part-watched episode
+      resumes that episode; on one with only finished episodes, its Next Up
+      episode; on a series nobody has started, episode 1.
+- [ ] Play/Pause on a collection or folder card opens it, as Select does.
+- [ ] With music playing, Play/Pause in a library pauses the music and
+      starts nothing.
+- [ ] Now Playing → Stop: the music stops, the screen closes and the Now
+      Playing bar is gone.
+
+## 9. Memory and long play
 
 - [ ] Two hours of 4K HDR playback with no crash (1 GB RAM on every stick).
 - [ ] Leave Astra for another app for 10 minutes mid-video, then come back:

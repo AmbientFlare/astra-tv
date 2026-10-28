@@ -698,6 +698,12 @@ export const RootNavigator = () => {
         libraryType={current.library.type}
         menuVisible={libraryMenuVisible}
         onMenuVisibleChange={setLibraryMenuVisible}
+        // While music is loaded the transport keys belong to it.
+        isQuickPlayBlocked={() => Boolean(audioPlayback.getStatus().track)}
+        onPlayItem={(item) => {
+          setLibraryMenuVisible(false);
+          playItem(item);
+        }}
         onSelectItem={(item) => {
           setLibraryMenuVisible(false);
           openItem(item);
