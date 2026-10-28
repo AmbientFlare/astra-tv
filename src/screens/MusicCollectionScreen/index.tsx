@@ -28,6 +28,7 @@ import {
 import {audioPlayback} from '../../services/audioPlayer';
 import {ServerProfile} from '../../services/storage';
 import {formatTotalRuntime, metaLine} from '../../utils/duration';
+import {t, tn} from '../../i18n';
 
 export type MusicCollectionKind = 'genre' | 'playlist';
 
@@ -89,7 +90,9 @@ export const MusicCollectionScreen = ({
       } catch (error) {
         if (active) {
           setErrorText(
-            error instanceof Error ? error.message : 'Unable to load.',
+            error instanceof Error
+              ? error.message
+              : t('music.loadFailedGeneric'),
           );
         }
       } finally {
@@ -145,10 +148,16 @@ export const MusicCollectionScreen = ({
           <Text style={styles.meta}>
             {kind === 'playlist'
               ? metaLine(
-                  tracks.length ? `${tracks.length} tracks` : undefined,
+                  tracks.length
+                    ? tn('music.trackCount', tracks.length)
+                    : undefined,
                   formatTotalRuntime(totalTicks),
                 )
-              : metaLine(albums.length ? `${albums.length} albums` : undefined)}
+              : metaLine(
+                  albums.length
+                    ? tn('music.albumsCount', albums.length)
+                    : undefined,
+                )}
           </Text>
 
           <TVFocusGuideView style={styles.actions}>
@@ -160,14 +169,14 @@ export const MusicCollectionScreen = ({
                   onPress={() => playFrom(0)}
                   style={styles.action}
                   testID="collection-play">
-                  <Text style={styles.actionText}>Play</Text>
+                  <Text style={styles.actionText}>{t('player.play')}</Text>
                 </FocusableItem>
                 <FocusableItem
                   focusedStyle={styles.actionFocused}
                   onPress={() => playFrom(0, true)}
                   style={styles.action}
                   testID="collection-shuffle">
-                  <Text style={styles.actionText}>Shuffle</Text>
+                  <Text style={styles.actionText}>{t('music.shuffle')}</Text>
                 </FocusableItem>
               </>
             ) : null}
@@ -177,7 +186,7 @@ export const MusicCollectionScreen = ({
               onPress={onBack}
               style={styles.action}
               testID="collection-back">
-              <Text style={styles.actionText}>Back</Text>
+              <Text style={styles.actionText}>{t('common.back')}</Text>
             </FocusableItem>
           </TVFocusGuideView>
         </View>
@@ -197,7 +206,7 @@ export const MusicCollectionScreen = ({
               />
             ))}
             {!tracks.length && !errorText ? (
-              <Text style={styles.status}>This playlist is empty.</Text>
+              <Text style={styles.status}>{t('music.playlistEmpty')}</Text>
             ) : null}
           </View>
         ) : (
@@ -227,7 +236,7 @@ export const MusicCollectionScreen = ({
               </FocusableItem>
             ))}
             {!albums.length && !errorText ? (
-              <Text style={styles.status}>No albums in this genre.</Text>
+              <Text style={styles.status}>{t('music.genreEmpty')}</Text>
             ) : null}
           </View>
         )}

@@ -5,6 +5,7 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {audioPlayback, PlaybackStatus} from '../../services/audioPlayer';
 import {formatSeconds} from '../../utils/duration';
+import {t} from '../../i18n';
 
 interface NowPlayingScreenProps {
   onBack: () => void;
@@ -44,9 +45,9 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
         <View style={[styles.art, styles.placeholder]} />
       )}
       <View style={styles.summary}>
-        <Text style={styles.eyebrow}>NOW PLAYING</Text>
+        <Text style={styles.eyebrow}>{t('nowPlaying.eyebrow')}</Text>
         <Text numberOfLines={2} style={styles.title}>
-          {current?.name ?? 'Nothing playing'}
+          {current?.name ?? t('nowPlaying.nothingPlaying')}
         </Text>
         <Text numberOfLines={1} style={styles.subtitle}>
           {[current?.artistName, current?.albumName]
@@ -57,13 +58,13 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
           {formatSeconds(status.positionSeconds)} /{' '}
           {formatSeconds(status.durationSeconds)}
         </Text>
-        <Text style={styles.hint}>← Previous track · Next track →</Text>
+        <Text style={styles.hint}>{t('nowPlaying.hint')}</Text>
         <TVFocusGuideView style={styles.controls}>
           <Action
-            label={status.isPlaying ? 'Pause' : 'Play'}
+            label={status.isPlaying ? t('player.pause') : t('player.play')}
             onPress={() => audioPlayback.togglePlayPause()}
           />
-          <Action label="Back" onPress={onBack} />
+          <Action label={t('common.back')} onPress={onBack} />
         </TVFocusGuideView>
       </View>
     </View>

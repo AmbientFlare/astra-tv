@@ -30,7 +30,7 @@ import {
   type SyncPlayGroupState,
 } from '../../services/syncPlay';
 import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
-import {RELEASE_HIGHLIGHTS} from '../../config/releaseNotes';
+import {releaseHighlights} from '../../config/releaseNotes';
 import {
   defaultUserPreferences,
   defaultPlaybackPrefs,
@@ -58,6 +58,15 @@ import type {
   ServerCapabilities,
   VideoTranscodeCapability,
 } from '../../services/serverCapabilities';
+import {
+  getLocale,
+  getLocaleTag,
+  LANGUAGES,
+  MessageKey,
+  t,
+  tn,
+  useChangeLanguage,
+} from '../../i18n';
 
 const EASTER_EGG_TEXT =
   'For Kimberly — whose love of Star Trek started all of this.';
@@ -69,6 +78,7 @@ type SettingsRoute =
   | {route: 'playback'}
   | {route: 'telemetry'}
   | {route: 'about'}
+  | {route: 'language'}
   | {route: 'autoSignIn'}
   | {route: 'accountSort'}
   | {route: 'manageServers'}
@@ -98,10 +108,10 @@ interface SettingsScreenProps {
   serverProfile: ServerProfile;
 }
 
-const bitrateOptions: Array<{
+const bitrateOptions = (): Array<{
   label: string;
   value: PlaybackPreferences['maxBitrateBps'];
-}> = [
+}> => [
   // The low caps are for servers that struggle to re-encode 4K -- a Dolby
   // Vision Profile 5 title has to be re-encoded for this device (issue #26).
   // A lower cap makes the server downscale, which is far lighter work.
@@ -112,70 +122,65 @@ const bitrateOptions: Array<{
   {label: '40 Mbps', value: 40000000},
   {label: '80 Mbps', value: 80000000},
   {label: '120 Mbps', value: 120000000},
-  {label: 'Unlimited', value: 200000000},
+  {label: t('settings.unlimited'), value: 200000000},
 ];
 
-const videoTranscodeOptions: Array<{
+const videoTranscodeOptions = (): Array<{
   label: string;
   value: VideoTranscodeCapability;
-}> = [
-  {label: 'Yes, it has a graphics card', value: 'hardware'},
-  {label: 'No, processor only', value: 'cpu'},
-  {label: "I don't know", value: 'unknown'},
+}> => [
+  {label: t('capabilities.hardwareLabel'), value: 'hardware'},
+  {label: t('capabilities.cpuLabel'), value: 'cpu'},
+  {label: t('capabilities.unknownLabel'), value: 'unknown'},
 ];
 
 /** Where the current answer came from, said plainly under the question. */
 const capabilitySourceNote = (capabilities: ServerCapabilities) => {
   if (capabilities.videoTranscode === 'unable') {
-    return (
-      'Astra asked this server to re-encode a demanding title and it ' +
-      'produced nothing, so it has stopped asking. Choose an answer here to ' +
-      'let it try again.'
-    );
+    return t('settings.capabilityUnable');
   }
   if (capabilities.videoTranscodeSource === 'detected') {
-    return 'Measured by Astra during playback.';
+    return t('settings.capabilityDetected');
   }
   if (capabilities.videoTranscode === 'cpu') {
-    return (
-      'From your answer when you set this server up. Astra retries about ' +
-      'once a week in case the server can do more than you expected.'
-    );
+    return t('settings.capabilityCpu');
   }
   if (capabilities.videoTranscodeSource === 'stated') {
-    return 'From your answer when you set this server up.';
+    return t('settings.capabilityStated');
   }
-  return 'Not answered yet. Astra works it out from your first few playbacks.';
+  return t('settings.capabilityDefault');
 };
 
-const audioChannelOptions: Array<{
+const audioChannelOptions = (): Array<{
   label: string;
   value: PlaybackPreferences['maxAudioChannels'];
-}> = [
-  {label: 'Stereo (2.0)', value: 2},
-  {label: '5.1 Surround', value: 6},
-  {label: '7.1 Surround', value: 8},
+}> => [
+  {label: t('settings.stereo20'), value: 2},
+  {label: t('settings.surround51'), value: 6},
+  {label: t('settings.surround71'), value: 8},
 ];
 
-const hlsSegmentLengthOptions: Array<{
+const hlsSegmentLengthOptions = (): Array<{
   label: string;
   value: PlaybackPreferences['hlsSegmentLengthSeconds'];
-}> = [
-  {label: 'Auto (recommended)', value: 0},
-  {label: '4 seconds', value: 4},
-  {label: '3 seconds', value: 3},
-  {label: '2 seconds', value: 2},
+}> => [
+  {label: t('settings.autoRecommended'), value: 0},
+  ...([4, 3, 2] as const).map((value) => ({
+    label: tn('settings.secondsCount', value),
+    value,
+  })),
 ];
 
-const languageOptions: Array<{label: string; value: string}> = [
-  {label: 'English', value: 'en'},
-  {label: 'Spanish', value: 'es'},
-  {label: 'French', value: 'fr'},
-  {label: 'German', value: 'de'},
-  {label: 'Japanese', value: 'ja'},
-  {label: 'Portuguese', value: 'pt'},
-  {label: 'Italian', value: 'it'},
-  {label: 'Korean', value: 'ko'},
+// Content languages for audio and subtitle tracks, named in the app's language.
+const languageOptions = (): Array<{label: string; value: string}> => [
+  {label: t('settings.langEnglish'), value: 'en'},
+  {label: t('settings.langSpanish'), value: 'es'},
+  {label: t('settings.langFrench'), value: 'fr'},
+  {label: t('settings.langGerman'), value: 'de'},
+  {label: t('settings.langJapanese'), value: 'ja'},
+  {label: t('settings.langPortuguese'), value: 'pt'},
+  {label: t('settings.langItalian'), value: 'it'},
+  {label: t('settings.langKorean'), value: 'ko'},
 ];
 
 export const SettingsScreen = ({
@@ -184,6 +189,7 @@ export const SettingsScreen = ({
   serverProfile,
 }: SettingsScreenProps) => {
   const keplerBackHandler = useKeplerBackHandler();
+  const changeLanguage = useChangeLanguage();
   const [stack, setStack] = useState<SettingsRoute[]>([{route: 'preferences'}]);
   const [telemetryPhrase, setTelemetryPhrase] = useState('');
   const [telemetryMessage, setTelemetryMessage] = useState('');
@@ -302,33 +308,31 @@ export const SettingsScreen = ({
     switch (current.route) {
       case 'login':
         return (
-          <Page title="Login" onBack={pop}>
+          <Page title={t('settings.login')} onBack={pop}>
             <MenuRow
               icon="⇥"
-              title="Automatic sign in"
+              title={t('settings.autoSignIn')}
               subtitle={
                 preferences.autoSignIn === 'mostRecent'
-                  ? 'Most Recently Used'
-                  : 'Disabled'
+                  ? t('settings.mostRecentlyUsed')
+                  : t('settings.disabled')
               }
               onPress={() => push({route: 'autoSignIn'})}
             />
             <MenuRow
               icon="↕"
-              title="Sort accounts by"
+              title={t('settings.sortAccountsBy')}
               subtitle={
                 preferences.accountSortBy === 'lastUsed'
-                  ? 'Most Recently Used'
-                  : 'Name'
+                  ? t('settings.mostRecentlyUsed')
+                  : t('settings.name')
               }
               onPress={() => push({route: 'accountSort'})}
             />
             <MenuRow
               icon="▣"
-              title="Manage servers"
-              subtitle={`${serverGroups.length} saved server${
-                serverGroups.length === 1 ? '' : 's'
-              }`}
+              title={t('settings.manageServers')}
+              subtitle={tn('settings.savedServers', serverGroups.length)}
               onPress={() => push({route: 'manageServers'})}
             />
           </Page>
@@ -336,11 +340,11 @@ export const SettingsScreen = ({
       case 'autoSignIn':
         return (
           <RadioPage
-            title="Automatic sign in"
+            title={t('settings.autoSignIn')}
             onBack={pop}
             options={[
-              {label: 'Disable', value: 'disabled'},
-              {label: 'Most Recently Used', value: 'mostRecent'},
+              {label: t('settings.disable'), value: 'disabled'},
+              {label: t('settings.mostRecentlyUsed'), value: 'mostRecent'},
             ]}
             selectedValue={preferences.autoSignIn}
             onSelect={(autoSignIn) => savePreferences({autoSignIn})}
@@ -349,11 +353,11 @@ export const SettingsScreen = ({
       case 'accountSort':
         return (
           <RadioPage
-            title="Sort accounts by"
+            title={t('settings.sortAccountsBy')}
             onBack={pop}
             options={[
-              {label: 'Most Recently Used', value: 'lastUsed'},
-              {label: 'Name', value: 'name'},
+              {label: t('settings.mostRecentlyUsed'), value: 'lastUsed'},
+              {label: t('settings.name'), value: 'name'},
             ]}
             selectedValue={preferences.accountSortBy}
             onSelect={(accountSortBy) => savePreferences({accountSortBy})}
@@ -361,25 +365,28 @@ export const SettingsScreen = ({
         );
       case 'manageServers':
         return (
-          <Page title="Manage servers" onBack={pop}>
+          <Page title={t('settings.manageServers')} onBack={pop}>
             <MenuRow
               icon="+"
               preferred
-              title="Add server"
-              subtitle="Connect another media server"
+              title={t('settings.addServer')}
+              subtitle={t('settings.addServerHint')}
               onPress={onAddServer}
             />
             {serverGroups.length === 0 ? (
-              <Text style={styles.infoText}>No saved servers yet.</Text>
+              <Text style={styles.infoText}>
+                {t('settings.noSavedServers')}
+              </Text>
             ) : null}
             {serverGroups.map((group) => (
               <MenuRow
                 icon="▣"
                 key={group.serverUrl}
                 title={group.name}
-                subtitle={`${group.serverUrl}  ·  ${
-                  group.accounts.length
-                } user${group.accounts.length === 1 ? '' : 's'}`}
+                subtitle={`${group.serverUrl}  ·  ${tn(
+                  'settings.userCount',
+                  group.accounts.length,
+                )}`}
                 onPress={() =>
                   push({
                     route: 'serverDetail',
@@ -398,30 +405,34 @@ export const SettingsScreen = ({
 
         return (
           <Page title={current.serverName} onBack={pop}>
-            <Text style={styles.groupTitle}>Accounts</Text>
+            <Text style={styles.groupTitle}>{t('settings.accounts')}</Text>
             {accounts.map((profile) => (
               <MenuRow
                 icon="◉"
                 key={profile.id}
                 title={profile.username ?? profile.userId}
-                subtitle={`Last used on ${new Date(
-                  profile.lastUsed,
-                ).toLocaleDateString()}${
-                  profile.accessToken ? '' : '  ·  Signed out'
+                subtitle={`${t('settings.lastUsedOn', {
+                  date: new Date(profile.lastUsed).toLocaleDateString(
+                    getLocaleTag(),
+                  ),
+                })}${
+                  profile.accessToken ? '' : `  ·  ${t('profiles.signedOut')}`
                 }`}
                 onPress={() => push({route: 'accountDetail', profile})}
               />
             ))}
-            <Text style={styles.groupTitle}>Server</Text>
+            <Text style={styles.groupTitle}>{t('settings.server')}</Text>
             <DangerRow
-              title="Remove server"
-              subtitle={`${current.serverUrl}  ·  removes ${
-                accounts.length === 1 ? 'its saved user' : 'all saved users'
+              title={t('settings.removeServer')}
+              subtitle={`${current.serverUrl}  ·  ${
+                accounts.length === 1
+                  ? t('settings.removesItsUser')
+                  : t('settings.removesAllUsers')
               }`}
               onPress={() =>
                 setConfirmAction({
-                  title: 'Remove server?',
-                  body: 'This removes the server and every saved user on it from Astra.',
+                  title: t('settings.removeServerConfirm'),
+                  body: t('settings.removeServerBody'),
                   onConfirm: async () => {
                     await removeServerProfilesByUrl(current.serverUrl);
                     await refreshProfiles();
@@ -439,14 +450,16 @@ export const SettingsScreen = ({
       }
       case 'accountDetail':
         return (
-          <Page title={current.profile.username ?? 'Account'} onBack={pop}>
+          <Page
+            title={current.profile.username ?? t('settings.account')}
+            onBack={pop}>
             <DangerRow
-              title="Sign out"
-              subtitle="Requires login on next use"
+              title={t('settings.signOut')}
+              subtitle={t('settings.signOutHint')}
               onPress={() =>
                 setConfirmAction({
-                  title: 'Sign out?',
-                  body: 'This clears the stored access token but keeps the server entry.',
+                  title: t('settings.signOutConfirm'),
+                  body: t('settings.signOutBody'),
                   onConfirm: async () => {
                     await signOutServerProfile(current.profile.id);
                     await refreshProfiles();
@@ -456,12 +469,12 @@ export const SettingsScreen = ({
               }
             />
             <DangerRow
-              title="Remove"
-              subtitle="Remove account"
+              title={t('settings.remove')}
+              subtitle={t('settings.removeAccount')}
               onPress={() =>
                 setConfirmAction({
-                  title: 'Remove account?',
-                  body: 'This deletes the saved account profile.',
+                  title: t('settings.removeAccountConfirm'),
+                  body: t('settings.removeAccountBody'),
                   onConfirm: async () => {
                     await removeServerProfile(current.profile.id);
                     await refreshProfiles();
@@ -478,22 +491,22 @@ export const SettingsScreen = ({
         );
       case 'customization':
         return (
-          <Page title="Customization" onBack={pop}>
+          <Page title={t('settings.customization')} onBack={pop}>
             <MenuRow
               icon="☰"
-              title="Home sections"
-              subtitle="Choose visible Home rows"
+              title={t('settings.homeSections')}
+              subtitle={t('settings.homeSectionsHint')}
               onPress={() => push({route: 'homeSections'})}
             />
             <MenuRow
               icon="▧"
-              title="Display preferences"
-              subtitle="Image size, image type, grid direction"
+              title={t('settings.displayPreferences')}
+              subtitle={t('settings.displayPreferencesHint')}
               onPress={() => push({route: 'displayPreferences'})}
             />
             <ToggleRow
-              title="Focused backdrop blur"
-              subtitle="Show blurred art behind browsing screens"
+              title={t('settings.backdropBlur')}
+              subtitle={t('settings.backdropBlurHint')}
               value={preferences.focusedBackdropEnabled}
               onToggle={() =>
                 savePreferences({
@@ -502,8 +515,8 @@ export const SettingsScreen = ({
               }
             />
             <ToggleRow
-              title="Music"
-              subtitle="Show Music and Playlists when your server has them"
+              title={t('nav.music')}
+              subtitle={t('settings.musicHint')}
               value={preferences.musicEnabled}
               onToggle={() =>
                 savePreferences({musicEnabled: !preferences.musicEnabled})
@@ -513,12 +526,12 @@ export const SettingsScreen = ({
         );
       case 'homeSections':
         return (
-          <Page title="Home sections" onBack={pop}>
+          <Page title={t('settings.homeSections')} onBack={pop}>
             {[
-              ['continueWatching', 'Continue Watching'],
-              ['nextUp', 'Next Up'],
-              ['latestMovies', 'Latest Movies'],
-              ['latestShows', 'Latest Shows'],
+              ['continueWatching', t('home.continueWatching')],
+              ['nextUp', t('home.nextUp')],
+              ['latestMovies', t('home.latestMovies')],
+              ['latestShows', t('home.latestShows')],
             ].map(([key, label]) => (
               <ToggleRow
                 key={key}
@@ -545,13 +558,13 @@ export const SettingsScreen = ({
         );
       case 'displayPreferences':
         return (
-          <Page title="Display preferences" onBack={pop}>
+          <Page title={t('settings.displayPreferences')} onBack={pop}>
             <PreferenceRadioGroup
-              title="Image size"
+              title={t('settings.imageSize')}
               options={[
-                {label: 'Small', value: 'small'},
-                {label: 'Medium', value: 'medium'},
-                {label: 'Large', value: 'large'},
+                {label: t('settings.small'), value: 'small'},
+                {label: t('settings.medium'), value: 'medium'},
+                {label: t('settings.large'), value: 'large'},
               ]}
               selectedValue={displayPreferencesState.imageSize}
               onSelect={(imageSize) =>
@@ -559,11 +572,11 @@ export const SettingsScreen = ({
               }
             />
             <PreferenceRadioGroup
-              title="Image type"
+              title={t('settings.imageType')}
               options={[
-                {label: 'Poster', value: 'Primary'},
-                {label: 'Thumb', value: 'Thumb'},
-                {label: 'Banner', value: 'Banner'},
+                {label: t('settings.poster'), value: 'Primary'},
+                {label: t('settings.thumb'), value: 'Thumb'},
+                {label: t('settings.banner'), value: 'Banner'},
               ]}
               selectedValue={displayPreferencesState.imageType}
               onSelect={(imageType) =>
@@ -628,12 +641,12 @@ export const SettingsScreen = ({
         );
       case 'playback':
         return (
-          <Page title="Playback" onBack={pop}>
+          <Page title={t('settings.playback')} onBack={pop}>
             {/* Wired now: max bitrate and seek duration. Other playback
                 choices persist as UI state until player support exists. */}
             <ToggleRow
-              title="Stats for Nerds"
-              subtitle="Show live codecs, audio track, bitrate, buffer, and frames"
+              title={t('settings.statsForNerds')}
+              subtitle={t('settings.statsForNerdsHint')}
               value={playbackPrefs.showPlaybackStats}
               onToggle={() =>
                 savePlaybackPrefs({
@@ -642,8 +655,8 @@ export const SettingsScreen = ({
               }
             />
             <ToggleRow
-              title="Stats for Nerds with logs"
-              subtitle="Also show playback timings: manifest handling and load duration"
+              title={t('settings.statsWithLogs')}
+              subtitle={t('settings.statsWithLogsHint')}
               value={playbackPrefs.showPlaybackTraces}
               onToggle={() =>
                 savePlaybackPrefs({
@@ -662,9 +675,9 @@ export const SettingsScreen = ({
               )}
             <MenuRow
               icon="↯"
-              title="Max streaming bitrate"
+              title={t('settings.maxBitrate')}
               subtitle={
-                bitrateOptions.find(
+                bitrateOptions().find(
                   (o) => o.value === playbackPrefs.maxBitrateBps,
                 )?.label
               }
@@ -672,69 +685,75 @@ export const SettingsScreen = ({
             />
             <MenuRow
               icon="⇄"
-              title="Test server connection"
-              subtitle="Measure download speed and get a bitrate recommendation"
+              title={t('settings.testConnection')}
+              subtitle={t('settings.testConnectionHint')}
               onPress={() => push({route: 'connectionTest'})}
             />
             <MenuRow
               icon="◉"
-              title="Live server connection"
-              subtitle="The link SyncPlay and remote control will use"
+              title={t('settings.liveConnection')}
+              subtitle={t('settings.liveConnectionHint')}
               onPress={() => push({route: 'liveConnection'})}
             />
             <MenuRow
               icon="◈"
               title="SyncPlay"
-              subtitle="Watch in step with a group on this server"
+              subtitle={t('settings.syncPlayHint')}
               onPress={() => push({route: 'syncPlay'})}
             />
             <MenuRow
               icon="◎"
-              title="Audio output"
-              subtitle="Match your TV or receiver's channel capability"
+              title={t('settings.audioOutput')}
+              subtitle={t('settings.audioOutputHint')}
               onPress={() => push({route: 'audioChannels'})}
             />
             <MenuRow
               icon="⚙"
-              title="Server transcoding"
-              subtitle="Whether this server can re-encode demanding titles"
+              title={t('settings.serverTranscoding')}
+              subtitle={t('settings.serverTranscodingHint')}
               onPress={() => push({route: 'serverTranscoding'})}
             />
             <MenuRow
               icon="♫"
-              title="Preferred audio language"
+              title={t('settings.audioLanguage')}
               subtitle={
-                languageOptions.find(
+                languageOptions().find(
                   (o) => o.value === playbackPrefs.preferredAudioLanguage,
-                )?.label ?? 'English'
+                )?.label ?? t('settings.langEnglish')
               }
               onPress={() => push({route: 'audioLanguage'})}
             />
             <MenuRow
               icon="▱"
-              title="Preferred subtitle language"
-              subtitle={preferences.preferredSubtitleLanguage}
+              title={t('settings.subtitleLanguage')}
+              subtitle={
+                languageOptions().find(
+                  (o) => o.value === preferences.preferredSubtitleLanguage,
+                )?.label ?? preferences.preferredSubtitleLanguage
+              }
               onPress={() => push({route: 'subtitleLanguage'})}
             />
             <MenuRow
               icon="▰"
-              title="Subtitle mode"
+              title={t('settings.subtitleMode')}
               subtitle={labelForSubtitleMode(preferences.subtitleMode)}
               onPress={() => push({route: 'subtitleMode'})}
             />
             <MenuRow
               icon="▱"
-              title="Subtitle appearance"
+              title={t('settings.subtitleAppearance')}
               subtitle={
-                subtitleAppearanceOptions.find(
+                subtitleAppearanceOptions().find(
                   (option) => option.value === preferences.subtitleAppearance,
-                )?.label ?? 'Text with shadow'
+                )?.label ?? t('settings.textWithShadow')
               }
               onPress={() => push({route: 'subtitleAppearance'})}
             />
             <ToggleRow
-              title="Next episode autoplay"
-              subtitle={`Countdown: ${preferences.nextEpisodeCountdownSeconds}s`}
+              title={t('settings.nextEpisodeAutoplay')}
+              subtitle={t('settings.countdownValue', {
+                seconds: preferences.nextEpisodeCountdownSeconds,
+              })}
               value={preferences.nextEpisodeAutoplay}
               onToggle={() =>
                 savePreferences({
@@ -745,30 +764,32 @@ export const SettingsScreen = ({
             {preferences.nextEpisodeAutoplay ? (
               <MenuRow
                 icon="◷"
-                title="Countdown duration"
+                title={t('settings.countdownDuration')}
                 subtitle={`${preferences.nextEpisodeCountdownSeconds}s`}
                 onPress={() => push({route: 'autoplayCountdown'})}
               />
             ) : null}
             <MenuRow
               icon="»"
-              title="Seek duration"
+              title={t('settings.seekDuration')}
               subtitle={`${playbackPrefs.seekDurationSeconds}s`}
               onPress={() => push({route: 'seekDuration'})}
             />
             <MenuRow
               icon="⋮"
-              title="HLS segment length"
+              title={t('settings.hlsSegmentLength')}
               subtitle={
                 playbackPrefs.hlsSegmentLengthSeconds
-                  ? `${playbackPrefs.hlsSegmentLengthSeconds}s compatibility mode`
-                  : 'Auto (recommended)'
+                  ? t('settings.compatibilityMode', {
+                      seconds: playbackPrefs.hlsSegmentLengthSeconds,
+                    })
+                  : t('settings.autoRecommended')
               }
               onPress={() => push({route: 'hlsSegmentLength'})}
             />
             <MenuRow
               icon="⊘"
-              title="Skip intro/credits"
+              title={t('settings.skipIntro')}
               subtitle={labelForSkip(preferences.skipIntroCredits)}
               onPress={() => push({route: 'skipIntro'})}
             />
@@ -777,9 +798,9 @@ export const SettingsScreen = ({
       case 'maxBitrate':
         return (
           <RadioPage
-            title="Max streaming bitrate"
+            title={t('settings.maxBitrate')}
             onBack={pop}
-            options={bitrateOptions}
+            options={bitrateOptions()}
             selectedValue={playbackPrefs.maxBitrateBps}
             onSelect={(maxBitrateBps) => savePlaybackPrefs({maxBitrateBps})}
           />
@@ -803,30 +824,30 @@ export const SettingsScreen = ({
         );
       case 'audioChannels':
         return (
-          <Page title="Audio output" onBack={pop}>
+          <Page title={t('settings.audioOutput')} onBack={pop}>
             <Text style={styles.description}>
-              Match your TV or receiver's channel capability
+              {t('settings.audioOutputHint')}
             </Text>
             <PreferenceRadioGroup
-              options={audioChannelOptions}
+              options={audioChannelOptions()}
               selectedValue={playbackPrefs.maxAudioChannels}
               onSelect={(maxAudioChannels) =>
                 savePlaybackPrefs({maxAudioChannels})
               }
             />
-            <Text style={styles.infoText}>
-              7.1 requires direct play. Transcoded audio is 5.1 maximum.
-            </Text>
+            <Text style={styles.infoText}>{t('settings.audioOutputNote')}</Text>
           </Page>
         );
       case 'serverTranscoding':
         return (
-          <Page title="Server transcoding" onBack={pop}>
+          <Page title={t('settings.serverTranscoding')} onBack={pop}>
             <Text style={styles.description}>
-              Does {serverProfile.name} have hardware transcoding?
+              {t('settings.hardwareTranscodingQuestion', {
+                name: serverProfile.name,
+              })}
             </Text>
             <PreferenceRadioGroup
-              options={videoTranscodeOptions}
+              options={videoTranscodeOptions()}
               selectedValue={
                 capabilities?.videoTranscode === 'unable'
                   ? 'unknown'
@@ -844,19 +865,19 @@ export const SettingsScreen = ({
             <Text style={styles.infoText}>
               {capabilities
                 ? capabilitySourceNote(capabilities)
-                : 'Loading this server\u2019s settings…'}
+                : t('settings.loadingServerSettings')}
             </Text>
           </Page>
         );
       case 'audioLanguage':
         return (
-          <Page title="Preferred audio language" onBack={pop}>
+          <Page title={t('settings.audioLanguage')} onBack={pop}>
             <Text style={styles.description}>
-              Astra will select this language track when available
+              {t('settings.audioLanguageHint')}
             </Text>
             {/* Fixed v1 list; later this can expand from Jellyfin item language data. */}
             <PreferenceRadioGroup
-              options={languageOptions}
+              options={languageOptions()}
               selectedValue={playbackPrefs.preferredAudioLanguage}
               onSelect={(preferredAudioLanguage) =>
                 savePlaybackPrefs({preferredAudioLanguage})
@@ -867,9 +888,9 @@ export const SettingsScreen = ({
       case 'subtitleLanguage':
         return (
           <RadioPage
-            title="Preferred subtitle language"
+            title={t('settings.subtitleLanguage')}
             onBack={pop}
-            options={languageOptions}
+            options={languageOptions()}
             selectedValue={preferences.preferredSubtitleLanguage}
             onSelect={(preferredSubtitleLanguage) =>
               savePreferences({preferredSubtitleLanguage})
@@ -878,45 +899,42 @@ export const SettingsScreen = ({
         );
       case 'subtitleMode':
         return (
-          <Page title="Subtitle mode" onBack={pop}>
+          <Page title={t('settings.subtitleMode')} onBack={pop}>
             <Text style={styles.description}>
-              Applies to every video you start. Choosing a track while watching
-              only affects that video.
+              {t('settings.subtitleModeHint')}
             </Text>
             <PreferenceRadioGroup
-              options={subtitleModeOptions}
+              options={subtitleModeOptions()}
               selectedValue={preferences.subtitleMode}
               onSelect={(subtitleMode) => savePreferences({subtitleMode})}
             />
             <Text style={styles.infoText}>
-              Default (per video) follows the server's own subtitle choice for
-              each title, including a track you picked for it before.
+              {t('settings.subtitleModeNote')}
             </Text>
           </Page>
         );
       case 'subtitleAppearance':
         return (
-          <Page title="Subtitle appearance" onBack={pop}>
+          <Page title={t('settings.subtitleAppearance')} onBack={pop}>
             <Text style={styles.description}>
-              Choose how subtitles appear over the video.
+              {t('settings.subtitleAppearanceHint')}
             </Text>
             <PreferenceRadioGroup
-              options={subtitleAppearanceOptions}
+              options={subtitleAppearanceOptions()}
               selectedValue={preferences.subtitleAppearance}
               onSelect={(subtitleAppearance) =>
                 savePreferences({subtitleAppearance})
               }
             />
             <Text style={styles.infoText}>
-              Applies to text subtitles displayed by Astra. Subtitles embedded
-              in the video keep their original appearance.
+              {t('settings.subtitleAppearanceNote')}
             </Text>
           </Page>
         );
       case 'autoplayCountdown':
         return (
           <RadioPage
-            title="Countdown duration"
+            title={t('settings.countdownDuration')}
             onBack={pop}
             options={[10, 15, 30].map((value) => ({
               label: `${value}s`,
@@ -931,7 +949,7 @@ export const SettingsScreen = ({
       case 'seekDuration':
         return (
           <RadioPage
-            title="Seek duration"
+            title={t('settings.seekDuration')}
             onBack={pop}
             options={[10, 15, 30, 60].map((value) => ({
               label: `${value}s`,
@@ -945,13 +963,12 @@ export const SettingsScreen = ({
         );
       case 'hlsSegmentLength':
         return (
-          <Page title="HLS segment length" onBack={pop}>
+          <Page title={t('settings.hlsSegmentLength')} onBack={pop}>
             <Text style={styles.description}>
-              Leave this on Auto unless MP4 or MOV playback stutters. Shorter
-              segments increase network requests and player append operations.
+              {t('settings.hlsSegmentLengthHint')}
             </Text>
             <PreferenceRadioGroup
-              options={hlsSegmentLengthOptions}
+              options={hlsSegmentLengthOptions()}
               selectedValue={playbackPrefs.hlsSegmentLengthSeconds}
               onSelect={(hlsSegmentLengthSeconds) =>
                 savePlaybackPrefs({hlsSegmentLengthSeconds})
@@ -962,40 +979,51 @@ export const SettingsScreen = ({
       case 'skipIntro':
         return (
           <RadioPage
-            title="Skip intro/credits"
+            title={t('settings.skipIntro')}
             onBack={pop}
             options={[
-              {label: 'Ask', value: 'ask'},
-              {label: 'Auto-skip', value: 'auto'},
-              {label: 'Ignore', value: 'ignore'},
+              {label: t('settings.skipAsk'), value: 'ask'},
+              {label: t('settings.skipAuto'), value: 'auto'},
+              {label: t('settings.skipIgnore'), value: 'ignore'},
             ]}
             selectedValue={preferences.skipIntroCredits}
             onSelect={(skipIntroCredits) => savePreferences({skipIntroCredits})}
           />
         );
+      case 'language':
+        return (
+          <RadioPage
+            title={t('settings.language')}
+            onBack={pop}
+            options={LANGUAGES.map((language) => ({
+              label: language.name,
+              value: language.locale,
+            }))}
+            selectedValue={getLocale()}
+            onSelect={(locale) => {
+              if (locale !== getLocale()) {
+                changeLanguage(locale);
+              }
+            }}
+          />
+        );
       case 'about':
         return (
-          <Page title="About" onBack={pop}>
+          <Page title={t('settings.about')} onBack={pop}>
             <View style={styles.about}>
               <Text style={styles.aboutText}>Astra {APP_VERSION}</Text>
-              <Text style={styles.aboutText}>Build: {BUILD_NUMBER}</Text>
-              <Text style={styles.aboutText}>Build date: {BUILD_DATE}</Text>
               <Text style={styles.aboutText}>
-                License: Astra Source-Available License v1.0
+                {t('about.build', {build: BUILD_NUMBER})}
               </Text>
               <Text style={styles.aboutText}>
-                Open source: React, React Native
+                {t('about.buildDate', {date: BUILD_DATE})}
               </Text>
-              <Text style={styles.aboutText}>
-                Compatible with: Jellyfin (trademark of its respective owners)
-              </Text>
-              <Text style={styles.aboutText}>
-                Support: ko-fi.com/astrafiretv
-              </Text>
-              <Text style={styles.aboutText}>Website: watchastra.com</Text>
-              <Text style={styles.aboutText}>
-                Source: github.com/AmbientFlare/astra-tv
-              </Text>
+              <Text style={styles.aboutText}>{t('about.license')}</Text>
+              <Text style={styles.aboutText}>{t('about.openSource')}</Text>
+              <Text style={styles.aboutText}>{t('about.compatible')}</Text>
+              <Text style={styles.aboutText}>{t('about.support')}</Text>
+              <Text style={styles.aboutText}>{t('about.website')}</Text>
+              <Text style={styles.aboutText}>{t('about.source')}</Text>
               <View style={styles.qrRow}>
                 <Image
                   source={require('../../assets/kofi-qr.png')}
@@ -1008,9 +1036,9 @@ export const SettingsScreen = ({
               </View>
               <View style={styles.releaseNotes}>
                 <Text style={styles.releaseNotesTitle}>
-                  What's new in {APP_VERSION}
+                  {t('about.whatsNewIn', {version: APP_VERSION})}
                 </Text>
-                {RELEASE_HIGHLIGHTS.map((highlight) => (
+                {releaseHighlights().map((highlight) => (
                   <Text
                     key={highlight.slice(0, 24)}
                     style={styles.releaseNotesText}>
@@ -1026,32 +1054,41 @@ export const SettingsScreen = ({
       default:
         return (
           <Page
-            title="Preferences"
+            title={t('settings.preferences')}
             subtitle={serverProfile.name}
             onBack={onBack}>
             <MenuRow
               icon="⇥"
-              title="Login"
-              subtitle="Servers, accounts, automatic sign in"
+              title={t('settings.login')}
+              subtitle={t('settings.loginHint')}
               onPress={() => push({route: 'login'})}
               preferred
             />
             <MenuRow
               icon="▧"
-              title="Customization"
-              subtitle="Home layout, display preferences"
+              title={t('settings.customization')}
+              subtitle={t('settings.customizationHint')}
               onPress={() => push({route: 'customization'})}
             />
             <MenuRow
               icon="▶"
-              title="Playback"
-              subtitle="Video, subtitles, next up"
+              title={t('settings.playback')}
+              subtitle={t('settings.playbackHint')}
               onPress={() => push({route: 'playback'})}
             />
             <MenuRow
+              icon="文"
+              title={t('settings.language')}
+              subtitle={
+                LANGUAGES.find((language) => language.locale === getLocale())
+                  ?.name
+              }
+              onPress={() => push({route: 'language'})}
+            />
+            <MenuRow
               icon="ⓘ"
-              title="About"
-              subtitle="Version, device info, licenses"
+              title={t('settings.about')}
+              subtitle={t('settings.aboutHint')}
               onPress={() => push({route: 'about'})}
             />
           </Page>
@@ -1076,30 +1113,34 @@ export const SettingsScreen = ({
   );
 };
 
-const subtitleAppearanceOptions: Array<{
+const subtitleAppearanceOptions = (): Array<{
   label: string;
   value: UserPreferences['subtitleAppearance'];
-}> = [
-  {label: 'Text with shadow', value: 'shadow'},
-  {label: 'Dark background', value: 'background'},
+}> => [
+  {label: t('settings.textWithShadow'), value: 'shadow'},
+  {label: t('settings.darkBackground'), value: 'background'},
 ];
 
-const subtitleModeOptions: Array<{
+const subtitleModeOptions = (): Array<{
   label: string;
   value: UserPreferences['subtitleMode'];
-}> = [
-  {label: 'Default (per video)', value: 'default'},
-  {label: 'All subtitles on', value: 'alwaysOn'},
-  {label: 'All subtitles off', value: 'alwaysOff'},
-  {label: 'Only forced', value: 'forcedOnly'},
+}> => [
+  {label: t('settings.subtitleDefault'), value: 'default'},
+  {label: t('settings.subtitlesAllOn'), value: 'alwaysOn'},
+  {label: t('settings.subtitlesAllOff'), value: 'alwaysOff'},
+  {label: t('settings.subtitlesForced'), value: 'forcedOnly'},
 ];
 
 const labelForSubtitleMode = (mode: UserPreferences['subtitleMode']) =>
-  subtitleModeOptions.find((option) => option.value === mode)?.label ??
-  'Default (per video)';
+  subtitleModeOptions().find((option) => option.value === mode)?.label ??
+  t('settings.subtitleDefault');
 
 const labelForSkip = (mode: UserPreferences['skipIntroCredits']) =>
-  ({ask: 'Ask', auto: 'Auto-skip', ignore: 'Ignore'}[mode]);
+  ({
+    ask: t('settings.skipAsk'),
+    auto: t('settings.skipAuto'),
+    ignore: t('settings.skipIgnore'),
+  }[mode]);
 
 const ConnectionTestPage = ({
   currentMaxBitrateBps,
@@ -1131,7 +1172,9 @@ const ConnectionTestPage = ({
       setPhase('done');
     } catch (error) {
       setErrorText(
-        error instanceof Error ? error.message : 'Connection test failed.',
+        error instanceof Error
+          ? error.message
+          : t('settings.connectionTestFailed'),
       );
       setPhase('error');
     }
@@ -1143,59 +1186,61 @@ const ConnectionTestPage = ({
   const suggestion =
     usableBps === null
       ? null
-      : [...bitrateOptions]
+      : [...bitrateOptions()]
           .sort((a, b) => b.value - a.value)
-          .find((option) => option.value <= usableBps) ?? bitrateOptions[0];
+          .find((option) => option.value <= usableBps) ?? bitrateOptions()[0];
   const belowLowestOption =
     usableBps !== null && suggestion !== null
       ? usableBps < suggestion.value
       : false;
 
   return (
-    <Page title="Test server connection" onBack={onBack}>
+    <Page title={t('settings.testConnection')} onBack={onBack}>
       <Text style={styles.description}>
-        Downloads test data from {serverProfile.name || 'your server'} to
-        measure real throughput between this device and the server.
+        {t('settings.connectionTestBody', {
+          name: serverProfile.name || t('setup.yourServer'),
+        })}
       </Text>
       <MenuRow
         icon="⇄"
         preferred={true}
-        title={phase === 'testing' ? 'Testing… (about 20 MB)' : 'Run test'}
-        subtitle={phase === 'testing' ? 'This takes a few seconds' : undefined}
+        title={
+          phase === 'testing' ? t('settings.testing') : t('settings.runTest')
+        }
+        subtitle={phase === 'testing' ? t('settings.testingHint') : undefined}
         onPress={phase === 'testing' ? undefined : runTest}
       />
       {phase === 'done' && measuredBps !== null && suggestion ? (
         <>
           <Text style={styles.infoText}>
-            Measured speed: {(measuredBps / 1000000).toFixed(0)} Mbps
+            {t('settings.measuredSpeed', {
+              mbps: (measuredBps / 1000000).toFixed(0),
+            })}
           </Text>
           {belowLowestOption ? (
             <Text style={styles.infoText}>
-              Your connection is slower than the lowest bitrate cap. Playback of
-              high-bitrate files may buffer; the server will transcode them down
-              to fit.
+              {t('settings.slowerThanLowest')}
             </Text>
           ) : null}
           <MenuRow
             icon="↯"
-            title={`Set max bitrate to ${suggestion.label}`}
+            title={t('settings.setMaxBitrate', {value: suggestion.label})}
             subtitle={
               suggestion.value === currentMaxBitrateBps
-                ? 'Already your current setting'
-                : `Currently ${
-                    bitrateOptions.find((o) => o.value === currentMaxBitrateBps)
-                      ?.label ?? 'unknown'
-                  }`
+                ? t('settings.alreadyCurrent')
+                : t('settings.currently', {
+                    value:
+                      bitrateOptions().find(
+                        (o) => o.value === currentMaxBitrateBps,
+                      )?.label ?? t('settings.unknown'),
+                  })
             }
             onPress={() => {
               onApplyBitrate(suggestion.value);
               onBack();
             }}
           />
-          <Text style={styles.infoText}>
-            If playback stutters or buffers, lower the max bitrate. If your
-            network is fast and files look soft, raise it.
-          </Text>
+          <Text style={styles.infoText}>{t('settings.bitrateAdvice')}</Text>
         </>
       ) : null}
       {phase === 'error' && errorText ? (
@@ -1240,7 +1285,7 @@ const LiveConnectionPage = ({
   }, []);
 
   const runCheck = async () => {
-    setCheck('Asking the server…');
+    setCheck(t('live.asking'));
     try {
       const link = await checkSessionLink(
         serverProfile.serverUrl,
@@ -1248,21 +1293,20 @@ const LiveConnectionPage = ({
       );
       setCheck(
         !link.found
-          ? 'The server has no session for this device.'
+          ? t('live.noSession')
           : link.supportsRemoteControl
-          ? 'The server sees this device and has the live connection attached.'
-          : 'The server sees this device. It will list it as remote-controllable once Astra announces that it can take commands.',
+          ? t('live.attached')
+          : t('live.seenNotControllable'),
       );
     } catch (error) {
-      setCheck(error instanceof Error ? error.message : 'Check failed.');
+      setCheck(error instanceof Error ? error.message : t('live.checkFailed'));
     }
   };
 
   return (
-    <Page title="Live server connection" onBack={onBack}>
+    <Page title={t('settings.liveConnection')} onBack={onBack}>
       <Text style={styles.description}>
-        A connection that stays open so {serverProfile.name || 'your server'}{' '}
-        can send Astra messages. SyncPlay and remote control need it.
+        {t('live.body', {name: serverProfile.name || t('setup.yourServer')})}
       </Text>
       <Text style={styles.infoText}>
         Status: {socketStatusLabel[snapshot.status]}
@@ -1306,8 +1350,8 @@ const LiveConnectionPage = ({
       <MenuRow
         icon="⇄"
         preferred={true}
-        title="Check with server"
-        subtitle="Ask the server whether it can reach this device"
+        title={t('live.checkWithServer')}
+        subtitle={t('live.checkWithServerHint')}
         onPress={runCheck}
       />
       {check ? <Text style={styles.infoText}>{check}</Text> : null}
@@ -1315,11 +1359,11 @@ const LiveConnectionPage = ({
   );
 };
 
-const syncPlayStateLabel: Record<SyncPlayGroupState, string> = {
-  Idle: 'nothing playing',
-  Waiting: 'waiting for everyone to load',
-  Paused: 'paused',
-  Playing: 'playing',
+const syncPlayStateLabel: Record<SyncPlayGroupState, MessageKey> = {
+  Idle: 'syncPlay.stateIdle',
+  Waiting: 'syncPlay.stateWaiting',
+  Paused: 'syncPlay.statePaused',
+  Playing: 'syncPlay.statePlaying',
 };
 
 const SyncPlayPage = ({
@@ -1337,7 +1381,7 @@ const SyncPlayPage = ({
   useEffect(() => syncPlay.onChange(setSnapshot), []);
 
   const refresh = useCallback(async () => {
-    setMessage('Looking for groups…');
+    setMessage(t('syncPlay.looking'));
     // Unknown counts as allowed: the server still refuses what it must.
     const allowed = await syncPlay
       .getAccess()
@@ -1345,9 +1389,7 @@ const SyncPlayPage = ({
     setAccess(allowed);
     if (allowed === 'None') {
       setGroups([]);
-      setMessage(
-        'This account is not allowed to use SyncPlay. A server admin can allow it in the user’s settings on the server.',
-      );
+      setMessage(t('syncPlay.notAllowedAdmin'));
       return;
     }
     try {
@@ -1357,44 +1399,48 @@ const SyncPlayPage = ({
         found.length
           ? null
           : allowed === 'JoinGroups'
-          ? 'No groups on this server right now. This account can join groups but not start them.'
-          : 'No groups on this server right now.',
+          ? t('syncPlay.noGroupsJoinOnly')
+          : t('syncPlay.noGroups'),
       );
     } catch (error) {
       setGroups([]);
       setMessage(
         error instanceof Error && error.message.includes(' 403')
-          ? 'This account is not allowed to use SyncPlay.'
-          : 'Could not list groups.',
+          ? t('syncPlay.notAllowed')
+          : t('syncPlay.listFailed'),
       );
     }
   }, []);
 
   useEffect(() => {
-    if (!snapshot.group) void refresh();
+    if (!snapshot.group) {
+      void refresh();
+    }
   }, [refresh, snapshot.group]);
 
   const join = async (group: SyncPlayGroupInfo) => {
-    setMessage(`Joining ${group.GroupName}…`);
+    setMessage(t('syncPlay.joining', {name: group.GroupName}));
     try {
       await syncPlay.join(group.GroupId);
       setMessage(null);
     } catch {
-      setMessage('Could not join that group.');
+      setMessage(t('syncPlay.joinFailed'));
     }
   };
 
-  const groupName = userName ? `${userName}'s group` : 'Astra group';
+  const groupName = userName
+    ? t('syncPlay.userGroup', {name: userName})
+    : t('syncPlay.astraGroup');
   const create = async () => {
-    setMessage(`Starting ${groupName}…`);
+    setMessage(t('syncPlay.starting', {name: groupName}));
     try {
       await syncPlay.create(groupName);
       setMessage(null);
     } catch (error) {
       setMessage(
         error instanceof Error && error.message.includes(' 403')
-          ? 'This account may not start SyncPlay groups.'
-          : 'Could not start a group.',
+          ? t('syncPlay.mayNotStart')
+          : t('syncPlay.startGroupFailed'),
       );
     }
   };
@@ -1403,45 +1449,46 @@ const SyncPlayPage = ({
     try {
       await syncPlay.leave();
     } catch {
-      setMessage('Could not reach the server; left the group here anyway.');
+      setMessage(t('syncPlay.leftAnyway'));
     }
   };
 
   const group = snapshot.group;
   return (
     <Page title="SyncPlay" onBack={onBack}>
-      <Text style={styles.description}>
-        Watch together with other Jellyfin apps. Join a group, or start one and
-        pick something to play: everyone in the group opens it, and play, pause
-        and seek on any of them go to all.
-      </Text>
+      <Text style={styles.description}>{t('syncPlay.body')}</Text>
       {group ? (
         <>
           <View style={styles.statusLines}>
             <Text style={[styles.infoText, styles.statusLine]}>
-              In {group.GroupName}:{' '}
-              {snapshot.state ? syncPlayStateLabel[snapshot.state] : 'joining'}
+              {t('syncPlay.inGroup', {
+                name: group.GroupName,
+                state: snapshot.state
+                  ? t(syncPlayStateLabel[snapshot.state])
+                  : t('syncPlay.stateJoining'),
+              })}
             </Text>
             <Text style={[styles.infoText, styles.statusLine]}>
-              With: {group.Participants.join(', ') || 'just you'}
+              {t('syncPlay.with', {
+                names: group.Participants.join(', ') || t('syncPlay.justYou'),
+              })}
             </Text>
             {!snapshot.playingItemId ? (
               <Text style={[styles.infoText, styles.statusLine]}>
-                Nothing playing yet. Pick something and press Play to start it
-                for the group.
+                {t('syncPlay.nothingYet')}
               </Text>
             ) : null}
             {snapshot.lastEvent ? (
               <Text style={[styles.infoText, styles.statusLine]}>
-                Last: {snapshot.lastEvent}
+                {t('syncPlay.last', {event: snapshot.lastEvent})}
               </Text>
             ) : null}
           </View>
           <MenuRow
             icon="×"
             preferred={true}
-            title="Leave group"
-            subtitle="Stop following the group"
+            title={t('syncPlay.leave')}
+            subtitle={t('syncPlay.leaveHint')}
             onPress={leave}
           />
         </>
@@ -1454,7 +1501,9 @@ const SyncPlayPage = ({
               preferred={index === 0}
               title={candidate.GroupName}
               subtitle={`${candidate.Participants.join(', ')} · ${
-                syncPlayStateLabel[candidate.State] ?? candidate.State
+                syncPlayStateLabel[candidate.State]
+                  ? t(syncPlayStateLabel[candidate.State])
+                  : candidate.State
               }`}
               onPress={() => void join(candidate)}
             />
@@ -1463,16 +1512,16 @@ const SyncPlayPage = ({
             <MenuRow
               icon="+"
               preferred={!groups?.length}
-              title="Start a group"
-              subtitle={`Others can join ${groupName}`}
+              title={t('syncPlay.startGroup')}
+              subtitle={t('syncPlay.othersCanJoin', {name: groupName})}
               onPress={() => void create()}
             />
           ) : null}
           <MenuRow
             icon="↻"
             preferred={!groups?.length && access !== 'CreateAndJoinGroups'}
-            title="Look again"
-            subtitle="Refresh the list of groups"
+            title={t('syncPlay.lookAgain')}
+            subtitle={t('syncPlay.lookAgainHint')}
             onPress={() => void refresh()}
           />
         </>
@@ -1510,7 +1559,7 @@ const Page = ({
       onPress={onBack}
       style={styles.backButton}
       testID="settings-back-button">
-      <Text style={styles.backText}>Back</Text>
+      <Text style={styles.backText}>{t('common.back')}</Text>
     </FocusableItem>
     <View style={styles.group}>{children}</View>
   </ScrollView>
@@ -1614,13 +1663,13 @@ const ConfirmDialog = ({
           focusedStyle={styles.rowFocused}
           onPress={onCancel}
           style={styles.confirmButton}>
-          <Text style={styles.backText}>Cancel</Text>
+          <Text style={styles.backText}>{t('common.cancel')}</Text>
         </FocusableItem>
         <FocusableItem
           focusedStyle={styles.dangerFocused}
           onPress={onConfirm}
           style={[styles.confirmButton, styles.dangerButton]}>
-          <Text style={styles.backText}>Confirm</Text>
+          <Text style={styles.backText}>{t('common.confirm')}</Text>
         </FocusableItem>
       </TVFocusGuideView>
     </View>

@@ -7,6 +7,7 @@ import {MediaCard} from '../../components/MediaCard';
 import {TVTextInput} from '../../components/TVTextInput';
 import {JellyfinMediaItem, searchItems} from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {t} from '../../i18n';
 
 interface SearchScreenProps {
   onBack?: () => void;
@@ -64,7 +65,7 @@ export const SearchScreen = ({
       } catch (error) {
         if (mounted) {
           setErrorText(
-            error instanceof Error ? error.message : 'Search failed.',
+            error instanceof Error ? error.message : t('search.failed'),
           );
         }
       } finally {
@@ -98,30 +99,32 @@ export const SearchScreen = ({
 
   return (
     <View style={styles.screen} testID="search-screen">
-      <Text style={styles.title}>Search</Text>
+      <Text style={styles.title}>{t('search.title')}</Text>
       <FocusableItem
         focusedStyle={styles.backFocused}
         onPress={handleBack}
         style={styles.backButton}
         testID="search-back-button">
-        <Text style={styles.backText}>Back</Text>
+        <Text style={styles.backText}>{t('common.back')}</Text>
       </FocusableItem>
       <TVTextInput
         autoCorrect={false}
-        auxOptions="title:Search for Videos"
+        auxOptions={`title:${t('search.keyboardTitle')}`}
         hasTVPreferredFocus={true}
         inputStyle={styles.inputText}
         inputMode="search"
         keyboardType="default"
         onChangeText={setQuery}
-        placeholder="Movie, show, or episode"
+        placeholder={t('search.placeholder')}
         placeholderTextColor="#7E9098"
         ref={searchInputRef}
         style={styles.input}
         testID="search-input"
         value={query}
       />
-      {isLoading ? <Text style={styles.status}>Searching...</Text> : null}
+      {isLoading ? (
+        <Text style={styles.status}>{t('search.searching')}</Text>
+      ) : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
       {errorText ? (
         <FocusableItem
@@ -129,11 +132,11 @@ export const SearchScreen = ({
           onPress={() => runSearch(query.trim())}
           style={styles.retryButton}
           testID="search-retry-button">
-          <Text style={styles.backText}>Retry</Text>
+          <Text style={styles.backText}>{t('common.retry')}</Text>
         </FocusableItem>
       ) : null}
       {!isLoading && query.trim().length >= 2 && results.length === 0 ? (
-        <Text style={styles.status}>No results.</Text>
+        <Text style={styles.status}>{t('search.noResults')}</Text>
       ) : null}
       <TVFocusGuideView style={styles.gridGuide}>
         <FlatList

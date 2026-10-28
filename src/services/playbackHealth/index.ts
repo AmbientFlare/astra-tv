@@ -134,11 +134,11 @@ export {
 } from './bufferBudget';
 export type {BufferBudget} from './bufferBudget';
 export {
-  DECODER_RISK_WARNING,
+  decoderRiskWarning,
   DECODER_TRANSCODE_DEAD_START_MS,
   HEAVY_ANY_BITRATE_BPS,
   HEAVY_DYNAMIC_RANGE_BITRATE_BPS,
-  SERVER_CONVERSION_FAILED,
+  serverConversionFailed,
   assessDecoderRisk,
   requiresServerConversion,
   shouldAbandonForcedDecoderTranscode,

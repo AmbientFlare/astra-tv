@@ -38,15 +38,16 @@ import {
 } from '../../services/storage';
 import {ServerProfile} from '../../services/storage';
 import {markerLetterFor} from './jumpMarker';
+import {MessageKey, t, tn} from '../../i18n';
 
 export type MusicTab = 'artists' | 'albums' | 'genres' | 'playlists';
 
 /** User-specified order: artists first, playlists last. */
-export const MUSIC_TABS: Array<{key: MusicTab; label: string}> = [
-  {key: 'artists', label: 'Artists'},
-  {key: 'albums', label: 'Albums'},
-  {key: 'genres', label: 'Genres'},
-  {key: 'playlists', label: 'Playlists'},
+export const MUSIC_TABS: Array<{key: MusicTab; label: MessageKey}> = [
+  {key: 'artists', label: 'music.artists'},
+  {key: 'albums', label: 'music.albums'},
+  {key: 'genres', label: 'music.genres'},
+  {key: 'playlists', label: 'nav.playlists'},
 ];
 
 /** '#' collects everything that does not sort under a letter. */
@@ -153,7 +154,7 @@ export const MusicScreen = ({
             id: playlist.id,
             imageUrl: playlist.imageUrl,
             subtitle: playlist.trackCount
-              ? `${playlist.trackCount} tracks`
+              ? tn('music.trackCount', playlist.trackCount)
               : undefined,
             title: playlist.name,
           }));
@@ -164,7 +165,7 @@ export const MusicScreen = ({
             id: artist.id,
             imageUrl: artist.imageUrl,
             subtitle: artist.albumCount
-              ? `${artist.albumCount} albums`
+              ? tn('music.albumsCount', artist.albumCount)
               : undefined,
             title: artist.name,
           }));
@@ -200,7 +201,7 @@ export const MusicScreen = ({
       } catch (error) {
         if (active && token === requestToken.current) {
           setErrorText(
-            error instanceof Error ? error.message : 'Unable to load music.',
+            error instanceof Error ? error.message : t('music.loadFailed'),
           );
         }
       } finally {
@@ -267,7 +268,7 @@ export const MusicScreen = ({
           onPress={onBack}
           style={styles.pill}
           testID="music-back">
-          <Text style={styles.pillText}>Back</Text>
+          <Text style={styles.pillText}>{t('common.back')}</Text>
         </FocusableItem>
         <TVFocusGuideView style={styles.tabs}>
           {MUSIC_TABS.map((entry) => (
@@ -281,7 +282,7 @@ export const MusicScreen = ({
               }}
               style={[styles.tab, tab === entry.key && styles.tabActive]}
               testID={`music-tab-${entry.key}`}>
-              <Text style={styles.tabText}>{entry.label}</Text>
+              <Text style={styles.tabText}>{t(entry.label)}</Text>
             </FocusableItem>
           ))}
         </TVFocusGuideView>
@@ -291,13 +292,13 @@ export const MusicScreen = ({
           style={styles.pill}
           testID="music-view-mode">
           <Text style={styles.pillText}>
-            {viewMode === 'poster' ? 'Poster' : 'List'}
+            {viewMode === 'poster' ? t('settings.poster') : t('music.list')}
           </Text>
         </FocusableItem>
       </View>
 
       <Text style={styles.count}>
-        {totalCount ? `${totalCount} ${tab}` : ''}
+        {totalCount ? tn(`music.${tab}Count`, totalCount) : ''}
         {letter ? `  ·  ${letter}` : ''}
       </Text>
 
@@ -351,7 +352,7 @@ export const MusicScreen = ({
       {isLoading ? <ActivityIndicator style={styles.spinner} /> : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
       {!isLoading && !errorText && !items.length ? (
-        <Text style={styles.status}>Nothing here.</Text>
+        <Text style={styles.status}>{t('music.nothingHere')}</Text>
       ) : null}
     </View>
   );

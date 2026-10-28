@@ -1,8 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {t} from '../../i18n';
 
-export const CAPABILITY_NOTICE_TITLE = 'Your server stopped transcoding';
+export const capabilityNoticeTitle = () => t('capabilityNotice.title');
 
 /**
  * Shown once, and only to someone who said the server has hardware
@@ -12,13 +13,9 @@ export const CAPABILITY_NOTICE_TITLE = 'Your server stopped transcoding';
  * wording points at the server rather than at the answer given here.
  */
 export const capabilityNoticeBody = (serverName: string) => [
-  `Astra asked ${serverName} to re-encode a demanding title and it produced ` +
-    'nothing, so the title was played as-is instead.',
-  'That usually means the server has lost access to its graphics card — a ' +
-    'container that came back without its GPU is the usual cause — or that ' +
-    'transcoding has been switched off.',
-  'Astra will stop asking that server to re-encode until it works again. ' +
-    'You can change what Astra believes about this server under Settings.',
+  t('capabilityNotice.body1', {name: serverName}),
+  t('capabilityNotice.body2'),
+  t('capabilityNotice.body3'),
 ];
 
 interface CapabilityNoticeProps {
@@ -51,14 +48,14 @@ export const CapabilityNotice = ({
         trapFocusRight
         trapFocusUp
         style={styles.card}>
-        <Text style={styles.title}>{CAPABILITY_NOTICE_TITLE}</Text>
+        <Text style={styles.title}>{capabilityNoticeTitle()}</Text>
         {capabilityNoticeBody(serverName).map((paragraph) => (
           <Text key={paragraph.slice(0, 24)} style={styles.body}>
             {paragraph}
           </Text>
         ))}
         <TouchableOpacity
-          accessibilityLabel="Dismiss server capability notice"
+          accessibilityLabel={t('capabilityNotice.dismissLabel')}
           accessibilityRole="button"
           activeOpacity={1}
           hasTVPreferredFocus
@@ -68,7 +65,7 @@ export const CapabilityNotice = ({
           ref={buttonRef}
           style={[styles.button, isFocused && styles.buttonFocused]}
           testID="capability-notice-ok">
-          <Text style={styles.buttonLabel}>OK</Text>
+          <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
         </TouchableOpacity>
       </TVFocusGuideView>
     </View>

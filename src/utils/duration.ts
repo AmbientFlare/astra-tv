@@ -1,3 +1,5 @@
+import {t} from '../i18n';
+
 /**
  * Duration formatting for music UI.
  *
@@ -45,14 +47,16 @@ export const formatTotalRuntime = (ticks?: number): string => {
   const minutes = Math.floor((total % 3600) / 60);
 
   if (!hours && !minutes) {
-    return `${total} sec`;
+    return t('duration.seconds', {count: total});
   }
 
   if (!hours) {
-    return `${minutes} min`;
+    return t('duration.minutes', {count: minutes});
   }
 
-  return minutes ? `${hours} hr ${minutes} min` : `${hours} hr`;
+  return minutes
+    ? t('duration.hoursMinutes', {hours, minutes})
+    : t('duration.hours', {count: hours});
 };
 
 /** Seconds -> `3:24`, for live playback position where ticks are not involved. */

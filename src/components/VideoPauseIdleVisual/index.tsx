@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {Animated, Image, StyleSheet, Text, View} from 'react-native';
 import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import {AUDIO_IDLE_DELAY_MS} from '../AudioIdleVisual';
+import {t} from '../../i18n';
 
 interface VideoPauseIdleVisualProps {
   artworkUrl?: string;
@@ -103,9 +104,9 @@ export const VideoPauseIdleVisual = ({
         )}
       </Animated.View>
       <Text numberOfLines={1} style={styles.title}>
-        Paused · {title}
+        {t('idle.pausedTitle', {title})}
       </Text>
-      <Text style={styles.hint}>Press any button to return</Text>
+      <Text style={styles.hint}>{t('idle.pressAnyButton')}</Text>
     </View>
   );
 };

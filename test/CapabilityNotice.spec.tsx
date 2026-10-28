@@ -2,7 +2,7 @@ import React from 'react';
 import {fireEvent, render} from '@testing-library/react-native';
 
 import {
-  CAPABILITY_NOTICE_TITLE,
+  capabilityNoticeTitle,
   CapabilityNotice,
   capabilityNoticeBody,
 } from '../src/components/CapabilityNotice';
@@ -13,7 +13,7 @@ describe('capability notice', () => {
       <CapabilityNotice onDismiss={jest.fn()} serverName="Levi 2" />,
     );
 
-    expect(screen.getByText(CAPABILITY_NOTICE_TITLE)).toBeTruthy();
+    expect(screen.getByText(capabilityNoticeTitle())).toBeTruthy();
     capabilityNoticeBody('Levi 2').forEach((paragraph) => {
       expect(screen.getByText(paragraph)).toBeTruthy();
     });

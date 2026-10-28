@@ -219,8 +219,8 @@ describe('playback diagnostics entry points', () => {
     // The notes themselves are not: About and the What's New notice both read
     // RELEASE_HIGHLIGHTS, and pinning the prose here only made a version bump
     // mean editing the same sentences twice.
-    expect(RELEASE_HIGHLIGHTS.length).toBeGreaterThan(0);
-    RELEASE_HIGHLIGHTS.forEach((highlight) => {
+    expect(RELEASE_HIGHLIGHTS.en.length).toBeGreaterThan(0);
+    RELEASE_HIGHLIGHTS.en.forEach((highlight) => {
       expect(screen.getByText(`\u2022 ${highlight}`)).toBeTruthy();
     });
   });

@@ -32,6 +32,7 @@ import {
 import {audioPlayback} from '../../services/audioPlayer';
 import {ServerProfile} from '../../services/storage';
 import {formatTotalRuntime, metaLine} from '../../utils/duration';
+import {t, tn} from '../../i18n';
 
 interface AlbumDetailScreenProps {
   albumId: string;
@@ -83,7 +84,7 @@ export const AlbumDetailScreen = ({
       } catch (error) {
         if (active) {
           setErrorText(
-            error instanceof Error ? error.message : 'Unable to load album.',
+            error instanceof Error ? error.message : t('music.loadAlbumFailed'),
           );
         }
       } finally {
@@ -128,14 +129,16 @@ export const AlbumDetailScreen = ({
   if (errorText || !album) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.error}>{errorText ?? 'Album not found.'}</Text>
+        <Text style={styles.error}>
+          {errorText ?? t('music.albumNotFound')}
+        </Text>
         <FocusableItem
           focusedStyle={styles.actionFocused}
           hasTVPreferredFocus={true}
           onPress={onBack}
           style={styles.action}
           testID="album-back">
-          <Text style={styles.actionText}>Back</Text>
+          <Text style={styles.actionText}>{t('common.back')}</Text>
         </FocusableItem>
       </View>
     );
@@ -168,7 +171,7 @@ export const AlbumDetailScreen = ({
             ) : null}
             <Text style={styles.meta}>
               {metaLine(
-                trackCount ? `${trackCount} tracks` : undefined,
+                trackCount ? tn('music.trackCount', trackCount) : undefined,
                 formatTotalRuntime(totalTicks),
                 album.productionYear,
               )}
@@ -181,14 +184,14 @@ export const AlbumDetailScreen = ({
                 onPress={() => playFrom(0)}
                 style={styles.action}
                 testID="album-play">
-                <Text style={styles.actionText}>Play</Text>
+                <Text style={styles.actionText}>{t('player.play')}</Text>
               </FocusableItem>
               <FocusableItem
                 focusedStyle={styles.actionFocused}
                 onPress={() => playFrom(0, true)}
                 style={styles.action}
                 testID="album-shuffle">
-                <Text style={styles.actionText}>Shuffle</Text>
+                <Text style={styles.actionText}>{t('music.shuffle')}</Text>
               </FocusableItem>
               {album.albumArtistId ? (
                 <FocusableItem
@@ -198,7 +201,7 @@ export const AlbumDetailScreen = ({
                   }
                   style={styles.action}
                   testID="album-view-artist">
-                  <Text style={styles.actionText}>View artist</Text>
+                  <Text style={styles.actionText}>{t('music.viewArtist')}</Text>
                 </FocusableItem>
               ) : null}
               <FocusableItem
@@ -206,7 +209,7 @@ export const AlbumDetailScreen = ({
                 onPress={onBack}
                 style={styles.action}
                 testID="album-back">
-                <Text style={styles.actionText}>Back</Text>
+                <Text style={styles.actionText}>{t('common.back')}</Text>
               </FocusableItem>
             </TVFocusGuideView>
           </View>
@@ -222,7 +225,7 @@ export const AlbumDetailScreen = ({
             />
           ))}
           {!tracks.length ? (
-            <Text style={styles.status}>This album has no tracks.</Text>
+            <Text style={styles.status}>{t('music.albumEmpty')}</Text>
           ) : null}
         </View>
       </ScrollView>

@@ -11,6 +11,7 @@ import {
   setFavorite,
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
+import {getLocaleTag, t} from '../../i18n';
 
 interface PersonDetailScreenProps {
   onBack?: () => void;
@@ -42,7 +43,10 @@ const formatBorn = (birthDate?: string) => {
     age -= 1;
   }
 
-  return `Born ${date.toLocaleDateString()} (${age})`;
+  return t('person.born', {
+    date: date.toLocaleDateString(getLocaleTag()),
+    age,
+  });
 };
 
 export const PersonDetailScreen = ({
@@ -85,9 +89,7 @@ export const PersonDetailScreen = ({
       } catch (error) {
         if (mounted) {
           setErrorText(
-            error instanceof Error
-              ? error.message
-              : 'Unable to load person details.',
+            error instanceof Error ? error.message : t('person.loadFailed'),
           );
         }
       }
@@ -140,12 +142,12 @@ export const PersonDetailScreen = ({
           <Image source={{uri: person.imageUrl}} style={styles.portrait} />
         ) : null}
         <View style={styles.copy}>
-          <Text style={styles.title}>{person?.name ?? 'Person'}</Text>
+          <Text style={styles.title}>{person?.name ?? t('person.person')}</Text>
           {formatBorn(person?.birthDate) ? (
             <Text style={styles.meta}>{formatBorn(person?.birthDate)}</Text>
           ) : null}
           <Text numberOfLines={6} style={styles.overview}>
-            {person?.overview ?? 'No biography available.'}
+            {person?.overview ?? t('person.noBiography')}
           </Text>
           {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
           <TVFocusGuideView style={styles.actions}>
@@ -157,7 +159,9 @@ export const PersonDetailScreen = ({
               style={styles.actionButton}
               testID="person-favorite-button">
               <Text style={styles.actionText}>
-                {person?.isFavorite ? 'Unfavorite' : 'Favorite'}
+                {person?.isFavorite
+                  ? t('media.unfavorite')
+                  : t('media.favorite')}
               </Text>
             </FocusableItem>
             <FocusableItem
@@ -165,7 +169,7 @@ export const PersonDetailScreen = ({
               onPress={onBack}
               style={styles.actionButton}
               testID="person-back-button">
-              <Text style={styles.actionText}>Back</Text>
+              <Text style={styles.actionText}>{t('common.back')}</Text>
             </FocusableItem>
           </TVFocusGuideView>
         </View>
@@ -173,7 +177,7 @@ export const PersonDetailScreen = ({
 
       {appearances.length ? (
         <>
-          <Text style={styles.sectionTitle}>Episodes & Appearances</Text>
+          <Text style={styles.sectionTitle}>{t('person.appearances')}</Text>
           <ScrollView horizontal={true} style={styles.rowScroller}>
             <TVFocusGuideView style={styles.row}>
               {appearances.map((item) => (

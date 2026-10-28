@@ -18,6 +18,12 @@ import {
   readAppState,
   readServerProfiles,
 } from '../src/services/storage';
+import {
+  getLocale,
+  readStoredLocale,
+  setActiveLocale,
+  storeLocale,
+} from '../src/i18n';
 
 const mockKeplerExitApp = jest.fn();
 let mockHardwareBackPressHandler: (() => boolean | void) | undefined;
@@ -58,6 +64,14 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
     useTVEventHandler: jest.fn(),
   };
 });
+
+// English already chosen, so these tests start at setup; the first-run
+// language picker has its own test below.
+jest.mock('../src/i18n', () => ({
+  ...jest.requireActual('../src/i18n'),
+  readStoredLocale: jest.fn(async () => 'en'),
+  storeLocale: jest.fn(async () => undefined),
+}));
 
 jest.mock('../src/components/FocusableItem', () => {
   const MockReact = require('react');
@@ -357,6 +371,45 @@ describe('App', () => {
       expect(screen.getByTestId('setup-screen')).toBeTruthy(),
     );
     expect(readServerProfiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for a language on first run and then shows setup in it', async () => {
+    let stored: string | null = null;
+    (readStoredLocale as jest.Mock).mockImplementation(async () => stored);
+    (storeLocale as jest.Mock).mockImplementation(async (locale: string) => {
+      stored = locale;
+    });
+    const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('language-picker')).toBeTruthy(),
+    );
+    expect(screen.getByText('Deutsch')).toBeTruthy();
+
+    // The choice is stored before the navigator remounts in the new language.
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('language-de'));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-screen')).toBeTruthy(),
+    );
+    expect(storeLocale).toHaveBeenCalledWith('de');
+    expect(getLocale()).toBe('de');
+    expect(screen.getByText('Verbinde deinen Medienserver')).toBeTruthy();
+    (readStoredLocale as jest.Mock).mockImplementation(async () => 'en');
+    setActiveLocale('en');
+  });
+
+  it('keeps English for existing users who never chose a language', async () => {
+    (readStoredLocale as jest.Mock).mockResolvedValueOnce(null);
+    (readServerProfiles as jest.Mock).mockResolvedValueOnce([
+      {id: 'p', name: 'Home', serverUrl: 'http://x', userId: 'u'},
+    ]);
+    const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-screen')).toBeTruthy(),
+    );
+    expect(screen.queryByTestId('language-picker')).toBeNull();
   });
 
   it('never interrupts startup with a support prompt', async () => {

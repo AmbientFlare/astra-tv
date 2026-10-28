@@ -1,3 +1,5 @@
+import {t} from '../../i18n';
+
 /**
  * Which source streams this device's hardware decoder can be trusted with.
  *
@@ -84,9 +86,7 @@ export const shouldWarnAboutDecoderRisk = (
   serverCanTranscodeVideo: boolean,
 ) => risk === 'heavy' && !serverCanTranscodeVideo;
 
-export const DECODER_RISK_WARNING =
-  'This video may not play smoothly on this device. You may want to try a ' +
-  'different version of the file.';
+export const decoderRiskWarning = (): string => t('player.decoderRisk');
 
 /**
  * Dolby Vision with no fallback layer (Profile 5). Jellyfin names it `DOVI`;
@@ -98,10 +98,8 @@ export const DECODER_RISK_WARNING =
 export const requiresServerConversion = (videoRangeType?: string) =>
   videoRangeType?.trim().toUpperCase() === 'DOVI';
 
-export const SERVER_CONVERSION_FAILED =
-  'This video is Dolby Vision with no HDR10 version inside, so your Jellyfin ' +
-  'server has to convert it, and that did not work. Check that tone mapping ' +
-  'works on the server, or lower Max streaming bitrate in Settings.';
+export const serverConversionFailed = (): string =>
+  t('player.serverConversionFailed');
 
 /**
  * `EnableVideoPlaybackTranscoding` is the only transcoding signal a non-admin

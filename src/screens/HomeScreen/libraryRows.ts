@@ -4,6 +4,7 @@
  * Pure so the classification can be tested without rendering or a server.
  */
 import {JellyfinLibrary} from '../../services/jellyfin';
+import {t} from '../../i18n';
 
 /**
  * Collection types the fixed home rows already cover. A library of one of
@@ -43,5 +44,5 @@ export const selectExtraLibraryRows = (
     .slice(0, MAX_EXTRA_LIBRARY_ROWS)
     .map((library) => ({
       libraryId: library.id,
-      title: `Latest in ${library.name}`,
+      title: t('home.latestIn', {name: library.name}),
     }));

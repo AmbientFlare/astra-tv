@@ -26,10 +26,8 @@ import {
   ServerType,
   upsertServerProfile,
 } from '../../services/storage';
-import {
-  CLEARTEXT_MEDIA_MESSAGE,
-  isCleartextUrl,
-} from '../../services/serverUrl';
+import {cleartextMediaMessage, isCleartextUrl} from '../../services/serverUrl';
+import {t} from '../../i18n';
 
 const serverTypes: ServerType[] = ['jellyfin', 'emby'];
 type WizardStep = 'serverType' | 'server' | 'authMethod' | 'code' | 'password';
@@ -92,7 +90,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       setDiscoveredServers(servers);
     } catch (error) {
       setErrorText(
-        error instanceof Error ? error.message : 'Server discovery failed.',
+        error instanceof Error ? error.message : t('setup.discoveryFailed'),
       );
     } finally {
       setScanning(false);
@@ -169,7 +167,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       const info = await connect(serverUrl);
       setServerInfo(info);
       setWarningText(
-        isCleartextUrl(info.baseUrl) ? CLEARTEXT_MEDIA_MESSAGE : null,
+        isCleartextUrl(info.baseUrl) ? cleartextMediaMessage() : null,
       );
       const enabled =
         serverType === 'jellyfin' &&
@@ -178,7 +176,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       changeStep(enabled ? 'authMethod' : 'password');
     } catch (error) {
       setErrorText(
-        error instanceof Error ? error.message : 'Unable to reach the server.',
+        error instanceof Error ? error.message : t('setup.unreachable'),
       );
     } finally {
       setBusy(false);
@@ -200,7 +198,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       await saveProfile(authResult, info);
     } catch (error) {
       setErrorText(
-        error instanceof Error ? error.message : 'Unable to sign in.',
+        error instanceof Error ? error.message : t('setup.signInFailed'),
       );
     } finally {
       setBusy(false);
@@ -226,7 +224,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       setErrorText(
         error instanceof Error
           ? error.message
-          : 'Could not start Quick Connect.',
+          : t('setup.quickConnectStartFailed'),
       );
     } finally {
       setBusy(false);
@@ -277,9 +275,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 
         if (active) {
           quickConnectSecret.current = null;
-          setErrorText(
-            'Quick Connect expired or lost contact with the server.',
-          );
+          setErrorText(t('setup.quickConnectExpired'));
           changeStep('authMethod');
         }
         return;
@@ -306,7 +302,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           setErrorText(
             error instanceof Error
               ? error.message
-              : 'Quick Connect sign-in failed.',
+              : t('setup.quickConnectFailed'),
           );
           changeStep('authMethod');
         }
@@ -338,9 +334,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     if (step === 'serverType') {
       return (
         <>
-          <Text style={styles.stepTitle}>What are you connecting to?</Text>
+          <Text style={styles.stepTitle}>{t('setup.serverTypeTitle')}</Text>
           <Text style={styles.stepSubtitle}>
-            Choose the media server Astra should connect to.
+            {t('setup.serverTypeSubtitle')}
           </Text>
           <View style={styles.segmentedControl}>
             {serverTypes.map((type, index) => {
@@ -349,7 +345,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               return (
                 <FocusableItem
                   accessibilityLabel={
-                    isComingSoon ? 'Emby, coming soon' : 'Jellyfin'
+                    isComingSoon ? t('setup.embyComingSoonLabel') : 'Jellyfin'
                   }
                   disabled={isComingSoon}
                   focusedStyle={styles.segmentFocused}
@@ -383,7 +379,9 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
                       styles.segmentHint,
                       isComingSoon && styles.segmentHintDisabled,
                     ]}>
-                    {isComingSoon ? 'Coming soon' : 'Press Select'}
+                    {isComingSoon
+                      ? t('setup.comingSoon')
+                      : t('setup.pressSelect')}
                   </Text>
                 </FocusableItem>
               );
@@ -396,13 +394,15 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     if (step === 'server') {
       return (
         <>
-          <Text style={styles.stepTitle}>Find your server</Text>
+          <Text style={styles.stepTitle}>{t('setup.findServerTitle')}</Text>
           <View style={styles.discoveryArea}>
             <Text style={styles.discoveryTitle}>
-              {isScanning ? 'Scanning for servers...' : 'Found on your network'}
+              {isScanning
+                ? t('setup.scanningForServers')
+                : t('setup.foundOnNetwork')}
             </Text>
             {!isScanning && discoveredServers.length === 0 ? (
-              <Text style={styles.helperText}>No local servers found.</Text>
+              <Text style={styles.helperText}>{t('setup.noServersFound')}</Text>
             ) : null}
             {discoveredServers.map((server) => (
               <FocusableItem
@@ -423,18 +423,18 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               style={styles.scanButton}
               testID="setup-scan-button">
               <Text style={styles.scanText}>
-                {isScanning ? 'Scanning' : 'Scan again'}
+                {isScanning ? t('setup.scanning') : t('setup.scanAgain')}
               </Text>
             </FocusableItem>
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Server address</Text>
+            <Text style={styles.label}>{t('setup.serverAddress')}</Text>
             <TVTextInput
               autoCapitalize="none"
               autoComplete="url"
               autoCorrect={false}
-              auxOptions="title:Server URL"
+              auxOptions={`title:${t('setup.serverUrl')}`}
               focusStrategy="native"
               inputStyle={styles.inputText}
               inputMode="url"
@@ -451,24 +451,24 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               ref={serverUrlInputRef}
             />
             <Text style={styles.helperText}>
-              Enter an IP address, domain, or Tailscale address.
+              {t('setup.serverAddressHint')}
             </Text>
           </View>
 
           <View style={styles.buttonRow}>
-            {backButton('Back', () => {
+            {backButton(t('common.back'), () => {
               setErrorText(null);
               changeStep('serverType');
             })}
             <FocusableItem
-              accessibilityLabel="Connect"
+              accessibilityLabel={t('setup.connect')}
               disabled={isBusy}
               focusedStyle={styles.connectFocused}
               onPress={handleServerConnect}
               style={styles.connectButton}
               testID="setup-connect-button">
               <Text style={styles.connectText}>
-                {isBusy ? 'Connecting' : 'Connect'}
+                {isBusy ? t('setup.connecting') : t('setup.connect')}
               </Text>
             </FocusableItem>
           </View>
@@ -480,28 +480,28 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       return (
         <>
           <Text style={styles.stepTitle}>
-            Connected to {serverInfo?.name ?? 'your server'}
+            {t('setup.connectedTo', {
+              name: serverInfo?.name ?? t('setup.yourServer'),
+            })}
           </Text>
-          <Text style={styles.stepSubtitle}>
-            Choose how you want to sign in.
-          </Text>
+          <Text style={styles.stepSubtitle}>{t('setup.chooseSignIn')}</Text>
           <View style={styles.methodRow}>
             <FocusableItem
-              accessibilityLabel="Sign in with a Quick Connect code"
+              accessibilityLabel={t('setup.quickConnectLabel')}
               disabled={isBusy}
               focusedStyle={styles.methodFocused}
               hasTVPreferredFocus={true}
               onPress={startQuickConnect}
               style={[styles.methodButton, styles.methodRecommended]}
               testID="setup-method-code">
-              <Text style={styles.methodBadge}>RECOMMENDED</Text>
+              <Text style={styles.methodBadge}>{t('setup.recommended')}</Text>
               <Text style={styles.methodTitle}>Quick Connect</Text>
               <Text style={styles.methodHint}>
-                Approve a short code from another signed-in device.
+                {t('setup.quickConnectHint')}
               </Text>
             </FocusableItem>
             <FocusableItem
-              accessibilityLabel="Sign in with username and password"
+              accessibilityLabel={t('setup.passwordMethodLabel')}
               disabled={isBusy}
               focusedStyle={styles.methodFocused}
               onPress={() => {
@@ -510,13 +510,15 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               }}
               style={styles.methodButton}
               testID="setup-method-password">
-              <Text style={styles.methodTitle}>Username &amp; password</Text>
+              <Text style={styles.methodTitle}>
+                {t('setup.passwordMethodTitle')}
+              </Text>
               <Text style={styles.methodHint}>
-                Enter your account credentials with the remote.
+                {t('setup.passwordMethodHint')}
               </Text>
             </FocusableItem>
           </View>
-          {backButton('Back', () => {
+          {backButton(t('common.back'), () => {
             setErrorText(null);
             changeStep('server');
           })}
@@ -527,45 +529,43 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     if (step === 'code') {
       return (
         <>
-          <Text style={styles.stepTitle}>Enter this Quick Connect code</Text>
+          <Text style={styles.stepTitle}>{t('setup.codeTitle')}</Text>
           <View style={styles.codeInstructions}>
-            <Text style={styles.codeStep}>
-              1. Open Jellyfin on a signed-in phone, tablet, or computer.
-            </Text>
-            <Text style={styles.codeStep}>
-              2. Open the user menu and choose Quick Connect.
-            </Text>
-            <Text style={styles.codeStep}>
-              3. Enter this code and approve the connection.
-            </Text>
+            <Text style={styles.codeStep}>{t('setup.codeStep1')}</Text>
+            <Text style={styles.codeStep}>{t('setup.codeStep2')}</Text>
+            <Text style={styles.codeStep}>{t('setup.codeStep3')}</Text>
           </View>
           <View style={styles.codeBox}>
-            <Text style={styles.codeBoxLabel}>Your code</Text>
+            <Text style={styles.codeBoxLabel}>{t('setup.yourCode')}</Text>
             <Text style={styles.code} testID="setup-quickconnect-code">
               {quickConnectCode ?? '------'}
             </Text>
             <Text style={styles.waitingText}>
-              {isBusy ? 'Signing in...' : 'Waiting for approval...'}
+              {isBusy
+                ? t('setup.signingInEllipsis')
+                : t('setup.waitingApproval')}
             </Text>
           </View>
-          {backButton('Cancel', cancelQuickConnect)}
+          {backButton(t('common.cancel'), cancelQuickConnect)}
         </>
       );
     }
 
     return (
       <>
-        <Text style={styles.stepTitle}>Sign in</Text>
+        <Text style={styles.stepTitle}>{t('setup.signIn')}</Text>
         <Text style={styles.stepSubtitle}>
-          Enter your account on {serverInfo?.name ?? 'the server'}.
+          {t('setup.enterAccountOn', {
+            name: serverInfo?.name ?? t('setup.theServer'),
+          })}
         </Text>
         <View style={styles.field}>
-          <Text style={styles.label}>Username</Text>
+          <Text style={styles.label}>{t('setup.username')}</Text>
           <TVTextInput
             autoCapitalize="none"
             autoComplete="username"
             autoCorrect={false}
-            auxOptions="title:Username"
+            auxOptions={`title:${t('setup.username')}`}
             focusStrategy="press"
             inputStyle={styles.inputText}
             inputMode="email"
@@ -573,7 +573,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             onBlur={() => setFocusedInput(null)}
             onChangeText={setUsername}
             onFocus={() => handleInputFocus('username')}
-            placeholder="Media server username"
+            placeholder={t('setup.usernamePlaceholder')}
             placeholderTextColor="#7D8A92"
             textContentType="username"
             style={inputStyle('username')}
@@ -583,10 +583,10 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           />
         </View>
         <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t('setup.password')}</Text>
           <TVTextInput
             autoComplete="password"
-            auxOptions="title:Password;password:true"
+            auxOptions={`title:${t('setup.password')};password:true`}
             focusStrategy="press"
             inputStyle={styles.inputText}
             inputMode="text"
@@ -594,7 +594,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             onBlur={() => setFocusedInput(null)}
             onChangeText={setPassword}
             onFocus={() => handleInputFocus('password')}
-            placeholder="Password"
+            placeholder={t('setup.password')}
             placeholderTextColor="#7D8A92"
             secureTextEntry={true}
             textContentType="password"
@@ -605,19 +605,19 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           />
         </View>
         <View style={styles.buttonRow}>
-          {backButton('Back', () => {
+          {backButton(t('common.back'), () => {
             setErrorText(null);
             changeStep(quickConnectEnabled ? 'authMethod' : 'server');
           })}
           <FocusableItem
-            accessibilityLabel="Sign in"
+            accessibilityLabel={t('setup.signIn')}
             disabled={isBusy}
             focusedStyle={styles.connectFocused}
             onPress={handlePasswordSignIn}
             style={styles.connectButton}
             testID="setup-signin-button">
             <Text style={styles.connectText}>
-              {isBusy ? 'Signing in' : 'Sign in'}
+              {isBusy ? t('setup.signingIn') : t('setup.signIn')}
             </Text>
           </FocusableItem>
         </View>
@@ -629,7 +629,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
     <View style={styles.screen} testID="setup-screen">
       <View style={styles.header}>
         <Text style={styles.logo}>Astra</Text>
-        <Text style={styles.subtitle}>Connect your media server</Text>
+        <Text style={styles.subtitle}>{t('setup.headerSubtitle')}</Text>
       </View>
 
       <TVFocusGuideView style={styles.form}>
