@@ -110,6 +110,7 @@ export const it: Messages = {
   'nowPlaying.buffering': 'Caricamento',
   'nowPlaying.playing': 'In riproduzione',
   'nowPlaying.paused': 'In pausa',
+  'nowPlaying.stop': 'Interrompi',
   'nav.movies': 'Film',
   'nav.music': 'Musica',
   'nav.library': 'Libreria',

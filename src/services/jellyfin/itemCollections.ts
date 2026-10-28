@@ -1,6 +1,12 @@
 import {getItemCollection, itemFields, mapItem} from './shared';
 import type {JellyfinMediaItem} from './types';
-import {normalizeServerUrl, getJson, buildUrl, getAuthHeaders} from './http';
+import {
+  normalizeServerUrl,
+  getJson,
+  buildUrl,
+  getAuthHeaders,
+  tokenQuery,
+} from './http';
 
 export const getResumeItems = (
   serverUrl: string,
@@ -73,6 +79,60 @@ export const getNextUp = async (
 };
 
 /**
+ * The series episode most recently left part-way through, as Continue
+ * Watching would show it, or null when none is in progress.
+ */
+export const getSeriesResume = async (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  seriesId: string,
+): Promise<JellyfinMediaItem | null> => {
+  const [episode] = await getItemCollection(
+    serverUrl,
+    accessToken,
+    `/Users/${userId}/Items/Resume`,
+    {
+      ParentId: seriesId,
+      MediaTypes: 'Video',
+      IncludeItemTypes: 'Episode',
+      Fields: itemFields,
+      ImageTypeLimit: 1,
+      EnableImageTypes: 'Primary,Backdrop',
+      Limit: 1,
+    },
+  );
+  return episode ?? null;
+};
+
+/**
+ * The episode a viewer of one series would watch next: the one in progress,
+ * or the one after the last watched. The server returns nothing for a series
+ * nobody has started or one that is fully watched.
+ */
+export const getSeriesNextUp = async (
+  serverUrl: string,
+  accessToken: string,
+  userId: string,
+  seriesId: string,
+): Promise<JellyfinMediaItem | null> => {
+  const [episode] = await getItemCollection(
+    serverUrl,
+    accessToken,
+    '/Shows/NextUp',
+    {
+      UserId: userId,
+      SeriesId: seriesId,
+      Fields: itemFields,
+      ImageTypeLimit: 1,
+      EnableImageTypes: 'Primary,Backdrop',
+      Limit: 1,
+    },
+  );
+  return episode ?? null;
+};
+
+/**
  * The item's neighbours in series order: the server returns the previous
  * episode, the episode itself and the next one, across season boundaries.
  * A caller picks the one after `episodeId`.
@@ -106,7 +166,7 @@ export const getLatestItems = async (
       ImageTypeLimit: 1,
       EnableImageTypes: 'Primary,Backdrop',
       Limit: 24,
-      api_key: accessToken,
+      ...tokenQuery(accessToken),
     }),
     {
       headers: getAuthHeaders(accessToken),

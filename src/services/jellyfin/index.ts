@@ -51,6 +51,8 @@ export {getItems, getItemsPage} from './items';
 export {getStreamUrl} from './playback';
 export {getResumeItems} from './itemCollections';
 export {getNextUp} from './itemCollections';
+export {getSeriesNextUp} from './itemCollections';
+export {getSeriesResume} from './itemCollections';
 export {getAdjacentEpisodes} from './itemCollections';
 export {getMediaSegments} from './items';
 export {getLatestItems} from './itemCollections';

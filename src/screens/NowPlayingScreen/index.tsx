@@ -64,6 +64,15 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
             label={status.isPlaying ? t('player.pause') : t('player.play')}
             onPress={() => audioPlayback.togglePlayPause()}
           />
+          <Action
+            label={t('nowPlaying.stop')}
+            onPress={() => {
+              // Stopping empties the queue, which also hides the bar; there
+              // is nothing left for this screen to show.
+              audioPlayback.stop();
+              onBack();
+            }}
+          />
           <Action label={t('common.back')} onPress={onBack} />
         </TVFocusGuideView>
       </View>
@@ -96,10 +105,12 @@ const styles = StyleSheet.create({
   subtitle: {color: '#a8b4c0', fontSize: 24, marginTop: 10},
   time: {color: '#6f7d8c', fontSize: 18, marginTop: 18},
   hint: {color: '#8b97a5', fontSize: 17, marginTop: 20},
-  controls: {flexDirection: 'row', marginTop: 22},
+  // A column, not a row: Left and Right skip tracks on this screen, so a
+  // row of buttons could only be reached by changing the song.
+  controls: {alignItems: 'flex-start', marginTop: 22},
   control: {
     borderRadius: 8,
-    marginRight: 12,
+    marginBottom: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },

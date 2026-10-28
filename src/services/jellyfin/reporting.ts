@@ -1,5 +1,11 @@
 import type {PlaybackReportInput} from './types';
-import {normalizeServerUrl, getJson, buildUrl, getAuthHeaders} from './http';
+import {
+  normalizeServerUrl,
+  getJson,
+  buildUrl,
+  getAuthHeaders,
+  tokenQuery,
+} from './http';
 
 const reportPlayback = async (
   serverUrl: string,
@@ -35,7 +41,7 @@ const reportPlayback = async (
         };
 
   await getJson(
-    buildUrl(baseUrl, `/Sessions/${endpoint}`, {api_key: accessToken}),
+    buildUrl(baseUrl, `/Sessions/${endpoint}`, tokenQuery(accessToken)),
     {
       method: 'POST',
       headers: {
@@ -75,7 +81,7 @@ export const setFavorite = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   await getJson(
     buildUrl(baseUrl, `/Users/${userId}/FavoriteItems/${itemId}`, {
-      api_key: accessToken,
+      ...tokenQuery(accessToken),
     }),
     {
       method: isFavorite ? 'POST' : 'DELETE',
@@ -94,7 +100,7 @@ export const setPlayed = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   await getJson(
     buildUrl(baseUrl, `/Users/${userId}/PlayedItems/${itemId}`, {
-      api_key: accessToken,
+      ...tokenQuery(accessToken),
     }),
     {
       method: isPlayed ? 'POST' : 'DELETE',

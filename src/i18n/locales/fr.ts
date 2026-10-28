@@ -112,6 +112,7 @@ export const fr: Messages = {
   'nowPlaying.buffering': 'Chargement',
   'nowPlaying.playing': 'Lecture',
   'nowPlaying.paused': 'En pause',
+  'nowPlaying.stop': 'Arrêter',
   'nav.movies': 'Films',
   'nav.music': 'Musique',
   'nav.library': 'Médiathèque',

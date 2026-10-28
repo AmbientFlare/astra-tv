@@ -110,6 +110,7 @@ export const en = {
   'nowPlaying.buffering': 'Buffering',
   'nowPlaying.playing': 'Playing',
   'nowPlaying.paused': 'Paused',
+  'nowPlaying.stop': 'Stop',
   'nav.movies': 'Movies',
   'nav.music': 'Music',
   'nav.library': 'Library',

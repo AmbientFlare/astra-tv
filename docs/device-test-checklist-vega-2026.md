@@ -114,7 +114,30 @@ Compare the same title with the switch off (MPEG-TS) and on.
 - [ ] The card never covers a video, What's New or the server notice.
 - [ ] Scan each code with a real phone camera, not only from a screenshot.
 
-## 8. Memory and long play
+## 8. Quick play and music Stop (P4)
+
+- [x] In a movie library, Play/Pause on a focused movie starts it without
+      the details page (24 Hour Party People; AFTCR001, build 2026102712,
+      2026-10-27).
+- [ ] The same on a movie with a resume point starts at that point.
+- [x] In a shows library, Play/Pause on a series with a part-watched episode
+      resumes that episode (Cardcaptor Sakura, at about 17%; AFTCR001, build
+      2026102712, 2026-10-27).
+- [ ] A series with only finished episodes starts its Next Up episode, and a
+      series nobody has started starts episode 1.
+- [ ] Play/Pause on a collection or folder card opens it, as Select does.
+- [x] With music playing, Play/Pause in a library pauses the music and
+      starts nothing; a second press resumes it (AFTCR001, build 2026102716,
+      2026-10-28).
+- [x] Now Playing → Stop: the music stops, the screen closes and the Now
+      Playing bar is gone (AFTCR001, build 2026102715, 2026-10-28).
+- [x] Now Playing's buttons are a column, so Up and Down reach Stop and Back
+      without Left or Right skipping the track (AFTCR001, build 2026102715,
+      2026-10-28).
+- [x] Music plays on a Jellyfin 12.0 server with legacy authorization off
+      (The Beatles, Revolver; AFTCR001, build 2026102714, 2026-10-27).
+
+## 9. Memory and long play
 
 - [ ] Two hours of 4K HDR playback with no crash (1 GB RAM on every stick).
 - [ ] Leave Astra for another app for 10 minutes mid-video, then come back:

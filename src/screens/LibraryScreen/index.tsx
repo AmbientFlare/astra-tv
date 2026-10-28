@@ -16,7 +16,9 @@ import {
   JellyfinMediaItem,
   JellyfinSortBy,
 } from '../../services/jellyfin';
+import {normalizeKeyEvent} from '../../hooks/useRemoteInput';
 import {onMemoryTrim} from '../../services/memoryTrim';
+import {resolveQuickPlay} from '../../services/quickPlay';
 import {
   DisplayPreferences,
   getDisplayPreferences,
@@ -32,6 +34,13 @@ interface LibraryScreenProps {
   menuVisible: boolean;
   onMenuVisibleChange: (visible: boolean) => void;
   onSelectItem?: (item: JellyfinMediaItem) => void;
+  /** Play on a focused card: starts it without opening the details page. */
+  onPlayItem?: (item: JellyfinMediaItem) => void;
+  /**
+   * Offered Play/Pause first. Returns true when something else (music) took
+   * the key, and then nothing starts.
+   */
+  onTransportKey?: () => boolean;
   serverProfile: ServerProfile;
 }
 
@@ -212,6 +221,8 @@ export const LibraryScreen = ({
   menuVisible,
   onMenuVisibleChange,
   onSelectItem,
+  onPlayItem,
+  onTransportKey,
   serverProfile,
 }: LibraryScreenProps) => {
   // Populated when this library has been browsed already in this run of the
@@ -679,8 +690,53 @@ export const LibraryScreen = ({
     }, 150);
   };
 
+  // A series has to ask the server for its episode first; a second press
+  // while that is in flight would start the player twice.
+  const quickPlayPendingRef = useRef(false);
+
+  const quickPlay = (item: JellyfinMediaItem) => {
+    if (quickPlayPendingRef.current) {
+      return;
+    }
+    quickPlayPendingRef.current = true;
+    resolveQuickPlay(item, serverProfile)
+      .then((target) => {
+        if (!mountedRef.current) {
+          return;
+        }
+        if (target) {
+          onPlayItem?.(target);
+        } else {
+          onSelectItem?.(item);
+        }
+      })
+      .catch((error) => {
+        console.warn('[Astra] Quick play failed, opening the item:', error);
+        if (mountedRef.current) {
+          onSelectItem?.(item);
+        }
+      })
+      .finally(() => {
+        quickPlayPendingRef.current = false;
+      });
+  };
+
   useTVEventHandler((event) => {
     if (event.eventKeyAction === 1) {
+      return;
+    }
+
+    const action = normalizeKeyEvent(event.eventType);
+    if (
+      (action === 'play' || action === 'playPause') &&
+      !menuVisible &&
+      onPlayItem &&
+      !onTransportKey?.()
+    ) {
+      const item = items[focusedIndex];
+      if (item) {
+        quickPlay(item);
+      }
       return;
     }
 

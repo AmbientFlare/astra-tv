@@ -117,10 +117,14 @@ export const buildTranscodingUrl = (
 
   url = url.replace('?&', '?').replace(/&&+/g, '&');
 
-  if (!hasQueryParam(url, 'api_key')) {
-    url = `${url}${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(
-      accessToken,
-    )}`;
+  // Newer servers put `ApiKey` in the URL themselves; see tokenQuery for
+  // why both names are sent.
+  for (const paramName of ['ApiKey', 'api_key']) {
+    if (!hasQueryParam(url, paramName)) {
+      url = `${url}${
+        url.includes('?') ? '&' : '?'
+      }${paramName}=${encodeURIComponent(accessToken)}`;
+    }
   }
 
   return url;

@@ -112,6 +112,7 @@ export const de: Messages = {
   'nowPlaying.buffering': 'Puffert',
   'nowPlaying.playing': 'Läuft',
   'nowPlaying.paused': 'Pausiert',
+  'nowPlaying.stop': 'Stopp',
   'nav.movies': 'Filme',
   'nav.music': 'Musik',
   'nav.library': 'Mediathek',
