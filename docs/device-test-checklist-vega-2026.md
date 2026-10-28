@@ -101,10 +101,11 @@ Compare the same title with the switch off (MPEG-TS) and on.
 - [x] Settings → About: the Ko-fi QR code scans and opens
       ko-fi.com/astrafiretv. It is the same size as the source code next to it
       (decoded from a screenshot; AFTCR001, build 2026102708, 2026-10-27).
-- [x] What's New (after installing a new build): the five 1.6.0 bullets, the
-      language lines and the Ko-fi code all fit on the card, and the code
-      scans. Checked in English and French, the longest language (AFTCR001,
-      throwaway builds 2026102709 and 2026102710, 2026-10-27).
+- [x] What's New (after installing a new build): the five 1.6.0 bullets and
+      the language lines fit on the card. Checked in English and French, the
+      longest language, with a Ko-fi code that has since been removed, so
+      there is more room now (AFTCR001, throwaway builds 2026102709 and
+      2026102710, 2026-10-27).
 - [x] The support card shows on Home after the counted video, with a
       scannable code. OK closes it, and it stays gone after a restart
       (AFTCR001, throwaway build 2026102708 with the threshold set to 1,

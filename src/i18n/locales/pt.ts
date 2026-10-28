@@ -89,7 +89,6 @@ export const pt: Messages = {
   'capabilityNotice.dismissLabel': 'Fechar aviso sobre o servidor',
   'whatsNew.title': 'Novidades do Astra {version}',
   'whatsNew.dismissLabel': 'Fechar aviso de novidades',
-  'whatsNew.support': 'Apoie o Astra no Ko-fi',
   'support.title': 'Gostando do Astra?',
   'support.body':
     'Se o Astra é útil para você, você pode apoiar o desenvolvimento dele no Ko-fi. Aponte a câmera do celular para o código.',

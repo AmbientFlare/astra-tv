@@ -2,14 +2,13 @@ import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 
-import {APP_VERSION, KOFI_URL} from '../../config/app';
+import {APP_VERSION} from '../../config/app';
 import {
   CURRENT_NOTICE_ID,
   languageLines,
   releaseHighlights,
 } from '../../config/releaseNotes';
 import {t} from '../../i18n';
-import {QrCode} from '../QrCode';
 
 /**
  * Shown once after an update, then never again for that version.
@@ -68,28 +67,20 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
             ))}
           </View>
         ) : null}
-        <View style={styles.footer}>
-          <View>
-            <Text style={styles.signature}>— Levi</Text>
-            <TouchableOpacity
-              accessibilityLabel={t('whatsNew.dismissLabel')}
-              accessibilityRole="button"
-              activeOpacity={1}
-              hasTVPreferredFocus
-              onBlur={() => setFocused(false)}
-              onFocus={() => setFocused(true)}
-              onPress={onDismiss}
-              ref={buttonRef}
-              style={[styles.button, isFocused && styles.buttonFocused]}
-              testID="whats-new-notice-ok">
-              <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.support}>
-            <QrCode size={148} testID="whats-new-kofi-qr" value={KOFI_URL} />
-            <Text style={styles.supportLabel}>{t('whatsNew.support')}</Text>
-          </View>
-        </View>
+        <Text style={styles.signature}>— Levi</Text>
+        <TouchableOpacity
+          accessibilityLabel={t('whatsNew.dismissLabel')}
+          accessibilityRole="button"
+          activeOpacity={1}
+          hasTVPreferredFocus
+          onBlur={() => setFocused(false)}
+          onFocus={() => setFocused(true)}
+          onPress={onDismiss}
+          ref={buttonRef}
+          style={[styles.button, isFocused && styles.buttonFocused]}
+          testID="whats-new-notice-ok">
+          <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
+        </TouchableOpacity>
       </TVFocusGuideView>
     </View>
   );
@@ -139,20 +130,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 26,
     marginBottom: 4,
-  },
-  footer: {
-    alignItems: 'flex-end',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  support: {
-    alignItems: 'center',
-    marginLeft: 32,
-  },
-  supportLabel: {
-    color: '#a9b0c0',
-    fontSize: 16,
-    marginTop: 8,
   },
   signature: {
     color: '#8f97a8',
