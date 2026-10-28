@@ -36,6 +36,9 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
   episode you were part-way through, else its Next Up episode, else episode
   1. While music is playing, Play/Pause pauses and resumes the music
   instead.
+- Settings → Playback → "Ask if still watching": after 3, 5 or 10 episodes
+  in a row, or never. Before, "Continue watching?" always came after three.
+  It shows while Next episode autoplay is on, and 3 stays the default.
 - A Stop button on Now Playing ends the music and clears the queue, which
   also hides the Now Playing bar. "Stop" from the system media controls now
   does the same instead of pausing. The Now Playing buttons are now a

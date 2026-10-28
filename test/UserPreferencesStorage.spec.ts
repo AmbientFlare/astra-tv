@@ -118,3 +118,37 @@ describe('subtitle appearance', () => {
     expect((await getUserPreferences()).subtitleAppearance).toBe('shadow');
   });
 });
+
+describe('the "Continue watching?" episode count', () => {
+  it('defaults to three episodes, including for installs that never set it', async () => {
+    expect((await getUserPreferences()).stillWatchingAfterEpisodes).toBe(3);
+
+    const older: Partial<typeof defaultUserPreferences> = {
+      ...defaultUserPreferences,
+    };
+    delete older.stillWatchingAfterEpisodes;
+    await AsyncStorage.setItem(KEY, JSON.stringify(older));
+    expect((await getUserPreferences()).stillWatchingAfterEpisodes).toBe(3);
+  });
+
+  it('round-trips each choice, Never included', async () => {
+    for (const stillWatchingAfterEpisodes of [5, 10, 0, 3] as const) {
+      await updateUserPreferences({stillWatchingAfterEpisodes});
+      expect((await getUserPreferences()).stillWatchingAfterEpisodes).toBe(
+        stillWatchingAfterEpisodes,
+      );
+    }
+  });
+
+  it('falls back to three for a value this build does not offer', async () => {
+    await AsyncStorage.setItem(
+      KEY,
+      JSON.stringify({
+        ...defaultUserPreferences,
+        stillWatchingAfterEpisodes: 7,
+      }),
+    );
+
+    expect((await getUserPreferences()).stillWatchingAfterEpisodes).toBe(3);
+  });
+});

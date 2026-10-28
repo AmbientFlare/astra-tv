@@ -52,6 +52,8 @@ import {
   ServerProfile,
   setDisplayPreferences,
   signOutServerProfile,
+  STILL_WATCHING_OPTIONS,
+  StillWatchingAfter,
   updateUserPreferences,
   UserPreferences,
   writePlaybackPreferences,
@@ -107,6 +109,7 @@ type SettingsRoute =
   | {route: 'subtitleAppearance'}
   | {route: 'autoplay'}
   | {route: 'autoplayCountdown'}
+  | {route: 'stillWatching'}
   | {route: 'seekDuration'}
   | {route: 'skipIntro'};
 
@@ -797,6 +800,16 @@ export const SettingsScreen = ({
                 onPress={() => push({route: 'autoplayCountdown'})}
               />
             ) : null}
+            {preferences.nextEpisodeAutoplay ? (
+              <MenuRow
+                icon="?"
+                title={t('settings.stillWatching')}
+                subtitle={labelForStillWatching(
+                  preferences.stillWatchingAfterEpisodes,
+                )}
+                onPress={() => push({route: 'stillWatching'})}
+              />
+            ) : null}
             <MenuRow
               icon="»"
               title={t('settings.seekDuration')}
@@ -976,6 +989,21 @@ export const SettingsScreen = ({
               {t('settings.subtitleAppearanceNote')}
             </Text>
           </Page>
+        );
+      case 'stillWatching':
+        return (
+          <RadioPage
+            title={t('settings.stillWatching')}
+            onBack={pop}
+            options={STILL_WATCHING_OPTIONS.map((value) => ({
+              label: labelForStillWatching(value),
+              value,
+            }))}
+            selectedValue={preferences.stillWatchingAfterEpisodes}
+            onSelect={(stillWatchingAfterEpisodes) =>
+              savePreferences({stillWatchingAfterEpisodes})
+            }
+          />
         );
       case 'autoplayCountdown':
         return (
@@ -1207,6 +1235,11 @@ const labelForSkip = (mode: UserPreferences['skipIntroCredits']) =>
     auto: t('settings.skipAuto'),
     ignore: t('settings.skipIgnore'),
   }[mode]);
+
+const labelForStillWatching = (episodes: StillWatchingAfter) =>
+  episodes === 0
+    ? t('settings.stillWatchingNever')
+    : t('settings.stillWatchingAfter', {count: episodes});
 
 const ConnectionTestPage = ({
   currentMaxBitrateBps,
