@@ -95,6 +95,7 @@ export const buildDeviceProfile = (
   audioCapabilities: AudioOutputCapabilities = defaultAudioOutputCapabilities,
   enableUnverifiedDtsRemuxTrial = ENABLE_UNVERIFIED_DTS_REMUX_TRIAL,
   videoDecodeLimits: VideoDecodeLimits = defaultVideoDecodeLimits,
+  h264MaxBitrate?: number,
 ) => {
   const audioCodecs = buildTranscodingAudioCodecs(
     audioCapabilities,
@@ -123,6 +124,39 @@ export const buildDeviceProfile = (
           },
         ];
 
+  // HEVC physical-device trial: use MPEG-TS HLS segments. Jellyfin's
+  // fMP4 muxer rewrites open-GOP keyframe PTS onto a following B-frame,
+  // producing duplicate timestamps that Vega renders as micro-stutter.
+  // An equivalent MPEG-TS remux preserves every source timestamp. Keep
+  // HEVC first so incompatible/HDR sources still transcode to HEVC.
+  const hevcTsProfile = {
+    Type: 'Video',
+    Container: 'ts',
+    VideoCodec: 'hevc',
+    AudioCodec: mpegTsAudioCodecs,
+    Protocol: 'hls',
+    Context: 'Streaming',
+    MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
+    MinSegments: 1,
+    ...segmentLengthPreference(prefs),
+    BreakOnNonKeyFrames: true,
+  };
+  // Settings experiment: HEVC as fMP4 with H.264 as the server's second
+  // choice, and 2-second segments unless the viewer picked a length. Off by
+  // default until it has a long run on the sticks next to the TS path.
+  const hevcFmp4Profile = {
+    Type: 'Video',
+    Container: 'mp4',
+    VideoCodec: 'hevc,h264',
+    AudioCodec: audioCodecs,
+    Protocol: 'hls',
+    Context: 'Streaming',
+    MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
+    MinSegments: 1,
+    SegmentLength: prefs.hlsSegmentLengthSeconds || 2,
+    BreakOnNonKeyFrames: true,
+  };
+
   return {
     DirectPlayProfiles: [
       {
@@ -148,23 +182,7 @@ export const buildDeviceProfile = (
       },
     ],
     TranscodingProfiles: [
-      // HEVC physical-device trial: use MPEG-TS HLS segments. Jellyfin's
-      // fMP4 muxer rewrites open-GOP keyframe PTS onto a following B-frame,
-      // producing duplicate timestamps that Vega renders as micro-stutter.
-      // An equivalent MPEG-TS remux preserves every source timestamp. Keep
-      // HEVC first so incompatible/HDR sources still transcode to HEVC.
-      {
-        Type: 'Video',
-        Container: 'ts',
-        VideoCodec: 'hevc',
-        AudioCodec: mpegTsAudioCodecs,
-        Protocol: 'hls',
-        Context: 'Streaming',
-        MaxAudioChannels: String(Math.min(prefs.maxAudioChannels, 6)),
-        MinSegments: 1,
-        ...segmentLengthPreference(prefs),
-        BreakOnNonKeyFrames: true,
-      },
+      ...(prefs.hevcFmp4Experiment ? [hevcFmp4Profile] : [hevcTsProfile]),
       // Keep compatible h264 on the established fMP4 path so this experiment
       // changes only HEVC delivery.
       {
@@ -191,6 +209,28 @@ export const buildDeviceProfile = (
     ],
     ContainerProfiles: [],
     CodecProfiles: [
+      // The H.264 decoder's published bitrate limit for this model (20 Mbps on
+      // the 2026 sticks, 30 on the 4K Select). A remux above it is re-encoded
+      // instead of copied. HEVC gets no such limit: Amazon lists 35 Mbps, but
+      // HEVC remuxes well above that play, and capping them would only force
+      // re-encodes. VP9 and AV1 are never copied into our HLS profiles, so a
+      // limit on them would change nothing.
+      ...(h264MaxBitrate
+        ? [
+            {
+              Type: 'Video',
+              Codec: 'h264',
+              Conditions: [
+                {
+                  Condition: 'LessThanEqual',
+                  Property: 'VideoBitrate',
+                  Value: String(h264MaxBitrate),
+                  IsRequired: false,
+                },
+              ],
+            },
+          ]
+        : []),
       // EXPERIMENT (2026-09-05, build 20260905.11) -- revert this Value to
       // 'SDR' to restore the previous behaviour. Nothing else changed.
       //

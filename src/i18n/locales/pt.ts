@@ -286,12 +286,16 @@ export const pt: Messages = {
     'Vale para legendas em texto exibidas pelo Astra. Legendas embutidas no vídeo mantêm a aparência original.',
   'settings.hlsSegmentLengthHint':
     'Deixe em Automático, a menos que a reprodução de MP4 ou MOV trave. Segmentos mais curtos aumentam as requisições de rede e o trabalho do player.',
+  'settings.hevcFmp4': 'HEVC como fMP4 (experimento)',
+  'settings.hevcFmp4Hint':
+    'Envia as transmissões 4K e HDR como fMP4 com segmentos de 2 segundos em vez de MPEG-TS. Desative se a reprodução travar.',
   'settings.skipAsk': 'Perguntar',
   'settings.skipAuto': 'Pular automaticamente',
   'settings.skipIgnore': 'Ignorar',
   'settings.about': 'Sobre',
   'about.build': 'Build: {build}',
   'about.buildDate': 'Data do build: {date}',
+  'about.device': 'Dispositivo: {device}',
   'about.license': 'Licença: Astra Source-Available License v1.0',
   'about.openSource': 'Código aberto: React, React Native',
   'about.compatible':

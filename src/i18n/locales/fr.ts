@@ -290,12 +290,16 @@ export const fr: Messages = {
     'S’applique aux sous-titres texte affichés par Astra. Les sous-titres incrustés dans la vidéo gardent leur apparence d’origine.',
   'settings.hlsSegmentLengthHint':
     'Laissez sur Auto sauf si la lecture MP4 ou MOV saccade. Des segments plus courts augmentent les requêtes réseau et le travail du lecteur.',
+  'settings.hevcFmp4': 'HEVC en fMP4 (expérimental)',
+  'settings.hevcFmp4Hint':
+    'Envoie les flux 4K et HDR en fMP4 avec des segments de 2 secondes au lieu de MPEG-TS. Désactivez-le si la lecture saccade.',
   'settings.skipAsk': 'Demander',
   'settings.skipAuto': 'Passer automatiquement',
   'settings.skipIgnore': 'Ignorer',
   'settings.about': 'À propos',
   'about.build': 'Build : {build}',
   'about.buildDate': 'Date du build : {date}',
+  'about.device': 'Appareil : {device}',
   'about.license': 'Licence : Astra Source-Available License v1.0',
   'about.openSource': 'Open source : React, React Native',
   'about.compatible':

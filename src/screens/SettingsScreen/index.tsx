@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {describeDeviceModel, readDeviceModel} from '../../services/deviceModel';
 import {
   configureManualTelemetry,
   telemetryStatus,
@@ -974,6 +975,16 @@ export const SettingsScreen = ({
                 savePlaybackPrefs({hlsSegmentLengthSeconds})
               }
             />
+            <ToggleRow
+              title={t('settings.hevcFmp4')}
+              subtitle={t('settings.hevcFmp4Hint')}
+              value={playbackPrefs.hevcFmp4Experiment}
+              onToggle={() =>
+                savePlaybackPrefs({
+                  hevcFmp4Experiment: !playbackPrefs.hevcFmp4Experiment,
+                })
+              }
+            />
           </Page>
         );
       case 'skipIntro':
@@ -1018,6 +1029,13 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>
                 {t('about.buildDate', {date: BUILD_DATE})}
               </Text>
+              {readDeviceModel().model ? (
+                <Text style={styles.aboutText} testID="about-device">
+                  {t('about.device', {
+                    device: describeDeviceModel(readDeviceModel()),
+                  })}
+                </Text>
+              ) : null}
               <Text style={styles.aboutText}>{t('about.license')}</Text>
               <Text style={styles.aboutText}>{t('about.openSource')}</Text>
               <Text style={styles.aboutText}>{t('about.compatible')}</Text>

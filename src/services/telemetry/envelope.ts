@@ -1,5 +1,6 @@
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {getDeviceId} from '../deviceIdentity';
+import {readDeviceModel} from '../deviceModel';
 import {TELEMETRY_SCHEMA_VERSION} from './config';
 
 export interface TelemetryEvent {
@@ -9,6 +10,9 @@ export interface TelemetryEvent {
   inst: string;
   app: string;
   build: string;
+  /** Fire TV model code (e.g. AFTCR001) and OS release, '' when unknown. */
+  model: string;
+  os: string;
   ev: string;
   d?: Record<string, unknown>;
 }
@@ -70,6 +74,7 @@ export const makeEvent = (
   inst: getDeviceId(),
   app: APP_VERSION,
   build: BUILD_NUMBER,
+  ...readDeviceModel(),
   ev: ev.slice(0, 128),
   d: sanitizeDetail(detail) as Record<string, unknown> | undefined,
 });

@@ -39,6 +39,7 @@ import {
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
 import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
+import {describeDeviceModel, readDeviceModel} from '../../services/deviceModel';
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {getTraces, resetTraces, trace} from '../../services/logging/trace';
@@ -3525,6 +3526,9 @@ export const PlaybackStatsOverlay = ({
           }`}
         </Text>
       ) : null}
+      <Text style={styles.statsLine}>
+        {`Device  ${describeDeviceModel(readDeviceModel())}`}
+      </Text>
       {streamInfo.videoDecodeLimits ? (
         <Text style={styles.statsLine}>
           {`Decoder  ${describeDecodeLimits(streamInfo.videoDecodeLimits)}`}
