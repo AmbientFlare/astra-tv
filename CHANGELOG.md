@@ -28,6 +28,9 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
   language.
 - An audio or subtitle track you pick during a series is used for the next
   episodes of that series too. Picks are kept per account.
+- What's New shows a Ko-fi QR code, and after 25 videos Astra shows a
+  one-time card asking for support on Ko-fi, with a QR code. It never comes
+  back once dismissed. There is no in-app purchase.
 
 ### Changed
 
@@ -37,6 +40,8 @@ in [CONTRIBUTORS.md](CONTRIBUTORS.md).
   New installs start on it; existing installs keep the language they had.
 - Commentary and audio-description tracks are no longer picked
   automatically, even when the file marks one as the default.
+- The Ko-fi QR code on About is drawn by Astra instead of shipped as an
+  image.
 
 ### Fixed
 

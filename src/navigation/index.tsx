@@ -9,6 +9,7 @@ import {FocusableItem} from '../components/FocusableItem';
 import {ProfileSwitcher} from '../components/ProfileSwitcher';
 import {CURRENT_NOTICE_ID, WhatsNewNotice} from '../components/WhatsNewNotice';
 import {CapabilityNotice} from '../components/CapabilityNotice';
+import {SupportCard} from '../components/SupportCard';
 import {trimMemory} from '../services/memoryTrim';
 import {readAppState, writeAppState} from '../services/storage';
 import {nextAutoAdvanceCount} from '../services/episodePlayback';
@@ -47,6 +48,7 @@ import {
   getUserPreferences,
   readServerProfiles,
   ServerProfile,
+  shouldShowSupportCard,
   upsertServerProfile,
   writePlaybackPreferences,
 } from '../services/storage';
@@ -442,6 +444,32 @@ export const RootNavigator = () => {
 
   const atHome = current.route === 'home';
 
+  // Checked on every return to Home, because playback is what moves the count.
+  const [supportCardVisible, setSupportCardVisible] = useState(false);
+  useEffect(() => {
+    if (!atHome) {
+      return;
+    }
+    let mounted = true;
+    readAppState()
+      .then((state) => {
+        if (mounted && shouldShowSupportCard(state)) {
+          setSupportCardVisible(true);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [atHome]);
+
+  const dismissSupportCard = useCallback(() => {
+    setSupportCardVisible(false);
+    writeAppState({supportCardShown: true}).catch(() => {
+      // Dismissed for this session even if the write fails.
+    });
+  }, []);
+
   useEffect(() => {
     if (!serverId || !atHome) {
       return;
@@ -539,6 +567,11 @@ export const RootNavigator = () => {
       />
     ) : null;
 
+  const supportCard =
+    serverProfile && atHome && supportCardVisible ? (
+      <SupportCard onDismiss={dismissSupportCard} />
+    ) : null;
+
   const connectionNotice =
     connection.lost && !inPlayer ? (
       <ConnectionNotice
@@ -568,7 +601,11 @@ export const RootNavigator = () => {
   const withExitPrompt = (screen: React.ReactElement) => (
     <View style={styles.appShell}>
       <View key={screenKey} style={styles.appScreen}>
-        {connectionNotice ?? developerNotice ?? capabilityNotice ?? screen}
+        {connectionNotice ??
+          developerNotice ??
+          capabilityNotice ??
+          supportCard ??
+          screen}
       </View>
       <NowPlayingBar
         onOpen={() => {

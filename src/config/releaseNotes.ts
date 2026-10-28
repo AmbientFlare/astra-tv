@@ -17,85 +17,94 @@ import {getLocale, Locale} from '../i18n';
  */
 export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
   en: [
-    'Fewer crashes, especially when leaving a video, opening a very large ' +
-      'library, or coming back to Astra after using another app.',
-    'Next Up shows how many episodes of the season are left, and an ' +
-      "episode's page lists the rest of its season.",
-    'Faster seeking: taps add up before Astra jumps, holding speeds it up, ' +
-      'and scene previews show when your server has made them.',
-    'Subtitles now sit on the picture with a shadow; choose a dark box ' +
-      'instead under Settings → Playback.',
-    'On 1080p sticks Astra asks the server to shrink 4K films so they can ' +
-      'play, and lower bitrate limits are available for slow connections.',
+    'Sleep timer: press Menu during a video and pick 15 to 90 minutes ' +
+      'or the end of the episode. Astra pauses and saves your place on ' +
+      'the server.',
+    'Audio can follow the language set on your Jellyfin account, and a ' +
+      'second-choice language covers videos that lack your first. ' +
+      'Commentary tracks are never picked on their own.',
+    'An audio or subtitle track you choose in a series is kept for its ' +
+      'next episodes.',
+    'If the network drops, Astra pauses and shows Retry, which picks ' +
+      'up where you were.',
+    'Astra knows which Fire TV it is on, and asks the server to ' +
+      'convert files that are too heavy for it instead of failing to ' +
+      'play them.',
   ],
   de: [
-    'Weniger Abstürze, vor allem beim Verlassen eines Videos, beim Öffnen ' +
-      'sehr großer Mediatheken und bei der Rückkehr aus einer anderen App.',
-    'Als Nächstes zeigt, wie viele Folgen der Staffel noch übrig sind, und ' +
-      'die Seite einer Folge listet den Rest ihrer Staffel.',
-    'Schnelleres Spulen: Tastendrücke summieren sich, bevor Astra springt, ' +
-      'Gedrückthalten beschleunigt, und Szenenvorschauen erscheinen, wenn ' +
-      'dein Server sie erstellt hat.',
-    'Untertitel liegen jetzt mit Schatten auf dem Bild; einen dunklen ' +
-      'Kasten wählst du unter Einstellungen → Wiedergabe.',
-    'Auf 1080p-Sticks bittet Astra den Server, 4K-Filme zu verkleinern, ' +
-      'damit sie laufen, und für langsame Verbindungen gibt es niedrigere ' +
-      'Bitrate-Grenzen.',
+    'Schlaf-Timer: Drück während eines Videos Menü und wähle 15 bis 90 ' +
+      'Minuten oder das Ende der Folge. Astra pausiert und speichert ' +
+      'deine Position auf dem Server.',
+    'Die Audiosprache kann deinem Jellyfin-Konto folgen, und eine ' +
+      'Zweitsprache springt ein, wenn ein Video deine erste nicht hat. ' +
+      'Kommentarspuren werden nie von selbst gewählt.',
+    'Eine Audio- oder Untertitelspur, die du in einer Serie wählst, ' +
+      'bleibt für die nächsten Folgen erhalten.',
+    'Bricht das Netzwerk ab, pausiert Astra und zeigt Erneut ' +
+      'versuchen, womit es an derselben Stelle weitergeht.',
+    'Astra erkennt, auf welchem Fire TV es läuft, und lässt zu schwere ' +
+      'Dateien vom Server umwandeln, statt an ihnen zu scheitern.',
   ],
   es: [
-    'Menos cierres inesperados, sobre todo al salir de un video, abrir una ' +
-      'biblioteca muy grande o volver a Astra desde otra app.',
-    'A continuación muestra cuántos episodios quedan de la temporada, y la ' +
-      'página de un episodio muestra el resto de su temporada.',
-    'Saltos más rápidos: las pulsaciones se suman antes de que Astra salte, ' +
-      'mantener pulsado acelera, y aparecen vistas previas de escenas si tu ' +
-      'servidor las ha creado.',
-    'Los subtítulos ahora van sobre la imagen con sombra; si prefieres un ' +
-      'recuadro oscuro, elígelo en Ajustes → Reproducción.',
-    'En los dispositivos 1080p, Astra pide al servidor que reduzca las ' +
-      'películas 4K para poder reproducirlas, y hay límites de tasa de bits ' +
-      'más bajos para conexiones lentas.',
+    'Temporizador para dormir: pulsa Menú durante un video y elige de ' +
+      '15 a 90 minutos o el final del episodio. Astra pausa y guarda tu ' +
+      'posición en el servidor.',
+    'El audio puede seguir el idioma de tu cuenta de Jellyfin, y un ' +
+      'segundo idioma cubre los videos que no tienen el primero. Las ' +
+      'pistas de comentarios nunca se eligen solas.',
+    'La pista de audio o de subtítulos que elijas en una serie se ' +
+      'mantiene en los siguientes episodios.',
+    'Si se cae la red, Astra pausa y muestra Reintentar, que sigue ' +
+      'desde donde estabas.',
+    'Astra sabe en qué Fire TV está y pide al servidor que convierta ' +
+      'los archivos demasiado pesados para él, en lugar de no poder ' +
+      'reproducirlos.',
   ],
   fr: [
-    'Moins de plantages, surtout en quittant une vidéo, en ouvrant une très ' +
-      'grande médiathèque ou en revenant dans Astra depuis une autre app.',
-    'À suivre indique combien d’épisodes il reste dans la saison, et la ' +
-      'page d’un épisode liste le reste de sa saison.',
-    'Déplacement plus rapide : les appuis s’additionnent avant le saut, ' +
-      'maintenir accélère, et des aperçus de scènes s’affichent quand votre ' +
-      'serveur les a générés.',
-    'Les sous-titres s’affichent désormais sur l’image avec une ombre ; ' +
-      'pour un fond sombre, allez dans Paramètres → Lecture.',
-    'Sur les clés 1080p, Astra demande au serveur de réduire les films 4K ' +
-      'pour qu’ils puissent être lus, et des plafonds de débit plus bas sont ' +
-      'proposés pour les connexions lentes.',
+    'Minuterie de veille : appuyez sur Menu pendant une vidéo et ' +
+      'choisissez de 15 à 90 minutes ou la fin de l’épisode. Astra se ' +
+      'met en pause et enregistre votre position sur le serveur.',
+    'L’audio peut suivre la langue réglée sur votre compte Jellyfin, ' +
+      'et une langue de secours prend le relais quand une vidéo n’a pas ' +
+      'la première. Les pistes de commentaires ne sont jamais choisies ' +
+      'd’office.',
+    'La piste audio ou de sous-titres choisie dans une série est ' +
+      'conservée pour les épisodes suivants.',
+    'Si le réseau coupe, Astra se met en pause et affiche Réessayer, ' +
+      'qui reprend là où vous en étiez.',
+    'Astra sait sur quel Fire TV il tourne et demande au serveur de ' +
+      'convertir les fichiers trop lourds pour lui, au lieu d’échouer à ' +
+      'les lire.',
   ],
   it: [
-    'Meno arresti anomali, soprattutto uscendo da un video, aprendo una ' +
-      'libreria molto grande o tornando in Astra da un’altra app.',
-    'Prossimi mostra quanti episodi mancano alla fine della stagione, e la ' +
-      'pagina di un episodio elenca il resto della stagione.',
-    'Spostamenti più rapidi: le pressioni si sommano prima del salto, ' +
-      'tenere premuto accelera, e compaiono le anteprime delle scene se il ' +
-      'tuo server le ha create.',
-    'I sottotitoli ora stanno sull’immagine con un’ombra; se preferisci un ' +
-      'riquadro scuro, sceglilo in Impostazioni → Riproduzione.',
-    'Sugli stick 1080p Astra chiede al server di ridurre i film 4K per ' +
-      'poterli riprodurre, e ci sono limiti di bitrate più bassi per le ' +
-      'connessioni lente.',
+    'Timer di sospensione: premi Menu durante un video e scegli da 15 ' +
+      'a 90 minuti o la fine dell’episodio. Astra mette in pausa e salva ' +
+      'la posizione sul server.',
+    'L’audio può seguire la lingua impostata nel tuo account Jellyfin, ' +
+      'e una seconda lingua copre i video che non hanno la prima. Le ' +
+      'tracce di commento non vengono mai scelte da sole.',
+    'La traccia audio o di sottotitoli scelta in una serie resta per ' +
+      'gli episodi successivi.',
+    'Se la rete cade, Astra mette in pausa e mostra Riprova, che ' +
+      'riparte da dove eri.',
+    'Astra sa su quale Fire TV si trova e chiede al server di ' +
+      'convertire i file troppo pesanti per lui, invece di non riuscire ' +
+      'a riprodurli.',
   ],
   pt: [
-    'Menos travamentos, principalmente ao sair de um vídeo, abrir uma ' +
-      'biblioteca muito grande ou voltar ao Astra depois de usar outro app.',
-    'A seguir mostra quantos episódios faltam na temporada, e a página de ' +
-      'um episódio lista o resto da temporada.',
-    'Avanço mais rápido: os toques se somam antes do Astra pular, segurar ' +
-      'acelera, e prévias das cenas aparecem quando o seu servidor as gerou.',
-    'As legendas agora ficam sobre a imagem com sombra; para uma caixa ' +
-      'escura, escolha em Configurações → Reprodução.',
-    'Em sticks 1080p, o Astra pede ao servidor para reduzir filmes 4K para ' +
-      'que possam ser reproduzidos, e há limites de taxa de bits menores ' +
-      'para conexões lentas.',
+    'Timer para dormir: aperte Menu durante um vídeo e escolha de 15 a ' +
+      '90 minutos ou o fim do episódio. O Astra pausa e salva sua ' +
+      'posição no servidor.',
+    'O áudio pode seguir o idioma definido na sua conta do Jellyfin, e ' +
+      'um segundo idioma cobre os vídeos que não têm o primeiro. Faixas ' +
+      'de comentário nunca são escolhidas sozinhas.',
+    'A faixa de áudio ou de legenda escolhida em uma série continua ' +
+      'nos próximos episódios.',
+    'Se a rede cair, o Astra pausa e mostra Tentar de novo, que ' +
+      'continua de onde você estava.',
+    'O Astra sabe em qual Fire TV está e pede ao servidor para ' +
+      'converter arquivos pesados demais para ele, em vez de falhar ao ' +
+      'reproduzi-los.',
   ],
 };
 

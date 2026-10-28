@@ -112,6 +112,7 @@ import {
   getUserPreferences,
   readPlaybackPreferences,
   readSeriesTrackPick,
+  recordPlayback,
   rememberSeriesTrackPick,
   seriesTrackPickKey,
   UserPreferences,
@@ -373,6 +374,8 @@ export const PlayerScreen = ({
   const stopPlaybackRef = useRef<() => Promise<void>>(async () => undefined);
   const healthMonitor = useRef(new PlaybackHealthMonitor());
   const sessionReady = useRef(false);
+  // A playback counts once per player screen, however often it reloads.
+  const playbackCounted = useRef(false);
   const sessionFailed = useRef(false);
   const navigationSent = useRef(false);
   const firstAvailableSeconds = useRef(0);
@@ -2370,6 +2373,10 @@ export const PlayerScreen = ({
           telemetrySessionStartedMs.current = Date.now();
           forcedTranscodeReadyAtMs.current = Date.now();
           heartbeatRef.current?.start();
+          if (!playbackCounted.current) {
+            playbackCounted.current = true;
+            recordPlayback().catch(() => undefined);
+          }
           void reporter.current?.start({
             ...stream,
             audioStreamIndex: selectedAudioIndex.current,

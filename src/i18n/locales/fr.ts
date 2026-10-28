@@ -91,6 +91,13 @@ export const fr: Messages = {
   'capabilityNotice.dismissLabel': 'Fermer l’avis sur le serveur',
   'whatsNew.title': 'Nouveautés d’Astra {version}',
   'whatsNew.dismissLabel': 'Fermer l’avis des nouveautés',
+  'whatsNew.support': 'Soutenir Astra sur Ko-fi',
+  'support.title': 'Vous aimez Astra ?',
+  'support.body':
+    'Si Astra vous est utile, vous pouvez soutenir son développement sur Ko-fi. Scannez le code avec l’appareil photo de votre téléphone.',
+  'support.note':
+    'Ce message ne s’affichera plus. Le code se trouve aussi dans Paramètres → À propos.',
+  'support.dismissLabel': 'Fermer le message de soutien',
   'profiles.user': 'Utilisateur',
   'profiles.title': 'Qui regarde ?',
   'profiles.signedOut': 'Déconnecté',

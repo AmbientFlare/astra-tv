@@ -45,6 +45,7 @@ WebView app. Effort: S = under a day, M = a few days, L = a week or more.
 | 14 | Self-signed certificates allowed per host. | No. | WebView specific (`onSslError`) | Out of scope for now. | none |
 | 15 | Sleep timer. | **Built in P2.** Menu → Sleep timer: 15/30/60/90 minutes or end of episode. | Yes | When it runs out, Astra pauses, sends the stop and position, and shows a notice; Play starts a new session from the same point. The timer survives the hand-off to the next episode and ends when the player closes. "End of episode" stops at the end of the video, not at the credits. Play from the remote, Alexa or the system media controls all start that new session, and a load that was under way when the timer ran out lands paused. | M |
 | 16 | Audio and subtitles picked from the Jellyfin user's own settings. | **Built in P2.** | Yes | Audio has a "Same as my Jellyfin account" option, the default on new installs. It uses PlaybackInfo's `DefaultAudioStreamIndex`, which already reflects the user's audio language and remember settings, so no new request is made. Subtitles already follow `DefaultSubtitleStreamIndex` in Default mode. Also added: a second-choice language, skipping commentary and audio description, and per-series picks stored on the stick per account. | M |
+| 17 | Supporter prompts. | **Built in P3.** Ko-fi QR codes on About, in What's New and on a one-time card after 25 playbacks. | Yes | The QR codes are drawn by Astra's own encoder (`services/qr`, byte mode, versions 1 to 10), so no image or third-party code ships per link. A playback counts once per player screen, when its first session is ready. The card shows on Home only, after What's New and the server notice, and never for an Astra Pro owner. No in-app purchase. | S |
 
 ### Already done (confirmed on main)
 
@@ -66,7 +67,7 @@ Appstore policy risk). Also out: the themes store, games, books and achievements
 | P0 | feat/i18n | Rows 2, 3 and 4: model and OS in telemetry and Stats for Nerds, per-codec bitrate caps, and the fMP4 HEVC experiment setting. Plus the device test checklist. |
 | P1 | P0 | Rows 5, 6 and 7: early stop report, connection overlay, Back on the exit prompt. |
 | P2 | P1 | Rows 15 and 16: sleep timer and server-driven track selection, translated. |
-| P3 | P2 | Supporter features. Needs the Ko-fi link, the playback count and Amazon IAP SKUs first. |
+| P3 | P2 | Row 17: Ko-fi QR codes and the one-time support card. No IAP. Also the 1.6.0 What's New in all six languages. |
 
 All four stack on `feat/i18n` (PR #41), because each one adds translated
 screen text and the settings screen was rewritten for translation there.

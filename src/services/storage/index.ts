@@ -30,6 +30,10 @@ interface AppStateConfig {
   acknowledgedNoticeId: string;
   isPro: boolean;
   launchCount: number;
+  /** Videos started, counted once per player screen. */
+  playbackCount: number;
+  /** The one-time Ko-fi card has been shown and dismissed. */
+  supportCardShown: boolean;
   version: 1;
 }
 
@@ -104,6 +108,8 @@ const emptyAppState: AppStateConfig = {
   acknowledgedNoticeId: '',
   isPro: false,
   launchCount: 0,
+  playbackCount: 0,
+  supportCardShown: false,
   version: 1,
 };
 
@@ -253,6 +259,8 @@ const parseAppState = (rawState: string | null): AppStateConfig => {
           : '',
       isPro: Boolean(parsed.isPro),
       launchCount: Number(parsed.launchCount) || 0,
+      playbackCount: Number(parsed.playbackCount) || 0,
+      supportCardShown: Boolean(parsed.supportCardShown),
       version: 1,
     };
   } catch {
@@ -276,6 +284,11 @@ export const writeAppState = async (
       state.acknowledgedNoticeId ?? currentState.acknowledgedNoticeId,
     isPro: Boolean(state.isPro ?? currentState.isPro),
     launchCount: Number(state.launchCount ?? currentState.launchCount) || 0,
+    playbackCount:
+      Number(state.playbackCount ?? currentState.playbackCount) || 0,
+    supportCardShown: Boolean(
+      state.supportCardShown ?? currentState.supportCardShown,
+    ),
     version: 1,
   };
 
@@ -292,6 +305,23 @@ export const incrementLaunchCount = async (): Promise<number> => {
 
   return launchCount;
 };
+
+/** Playbacks after which Astra shows the Ko-fi card, once. */
+export const SUPPORT_CARD_AFTER_PLAYBACKS = 25;
+
+export const recordPlayback = async (): Promise<number> => {
+  const currentState = await readAppState();
+  const playbackCount = currentState.playbackCount + 1;
+
+  await writeAppState({playbackCount});
+
+  return playbackCount;
+};
+
+export const shouldShowSupportCard = (state: AppStateConfig): boolean =>
+  !state.isPro &&
+  !state.supportCardShown &&
+  state.playbackCount >= SUPPORT_CARD_AFTER_PLAYBACKS;
 
 export const setProStatus = async (isPro: boolean): Promise<void> => {
   await writeAppState({isPro});

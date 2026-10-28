@@ -96,7 +96,24 @@ Compare the same title with the switch off (MPEG-TS) and on.
 - [x] Menu shows the Sleep timer column between Subtitles and Diagnostics, and
       all four columns fit (AFTCR001, build 2026102707, 2026-10-27).
 
-## 7. Memory and long play
+## 7. Support (P3)
+
+- [x] Settings → About: the Ko-fi QR code scans and opens
+      ko-fi.com/astrafiretv. It is the same size as the source code next to it
+      (decoded from a screenshot; AFTCR001, build 2026102708, 2026-10-27).
+- [x] What's New (after installing a new build): the five 1.6.0 bullets, the
+      language lines and the Ko-fi code all fit on the card, and the code
+      scans. Checked in English and French, the longest language (AFTCR001,
+      throwaway builds 2026102709 and 2026102710, 2026-10-27).
+- [x] The support card shows on Home after the counted video, with a
+      scannable code. OK closes it, and it stays gone after a restart
+      (AFTCR001, throwaway build 2026102708 with the threshold set to 1,
+      2026-10-27).
+- [ ] With the real threshold: the 25th video brings the card up on Home.
+- [ ] The card never covers a video, What's New or the server notice.
+- [ ] Scan each code with a real phone camera, not only from a screenshot.
+
+## 8. Memory and long play
 
 - [ ] Two hours of 4K HDR playback with no crash (1 GB RAM on every stick).
 - [ ] Leave Astra for another app for 10 minutes mid-video, then come back:
