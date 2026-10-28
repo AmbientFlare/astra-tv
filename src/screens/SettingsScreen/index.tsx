@@ -18,6 +18,7 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
+import {QrCode} from '../../components/QrCode';
 import {measureServerBandwidth} from '../../services/jellyfin';
 import {
   checkSessionLink,
@@ -30,7 +31,12 @@ import {
   type SyncPlayGroupInfo,
   type SyncPlayGroupState,
 } from '../../services/syncPlay';
-import {APP_VERSION, BUILD_DATE, BUILD_NUMBER} from '../../config/app';
+import {
+  APP_VERSION,
+  BUILD_DATE,
+  BUILD_NUMBER,
+  KOFI_URL,
+} from '../../config/app';
 import {releaseHighlights} from '../../config/releaseNotes';
 import {
   defaultUserPreferences,
@@ -1082,10 +1088,13 @@ export const SettingsScreen = ({
               <Text style={styles.aboutText}>{t('about.website')}</Text>
               <Text style={styles.aboutText}>{t('about.source')}</Text>
               <View style={styles.qrRow}>
-                <Image
-                  source={require('../../assets/kofi-qr.png')}
-                  style={styles.qrImage}
-                />
+                <View style={styles.qrImage}>
+                  <QrCode
+                    size={QR_SIZE}
+                    testID="about-kofi-qr"
+                    value={KOFI_URL}
+                  />
+                </View>
                 <Image
                   source={require('../../assets/source-qr.png')}
                   style={styles.qrImage}
@@ -1733,6 +1742,10 @@ const ConfirmDialog = ({
   </View>
 );
 
+// Both About codes are version 3 (29 modules plus the quiet zone, 37 in all),
+// so 148 gives whole 4-pixel modules.
+const QR_SIZE = 148;
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -1867,9 +1880,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   qrImage: {
-    width: 132,
-    height: 132,
+    width: QR_SIZE,
+    height: QR_SIZE,
     borderRadius: 8,
+    overflow: 'hidden',
   },
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,

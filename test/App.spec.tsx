@@ -17,6 +17,7 @@ import {
   incrementLaunchCount,
   readAppState,
   readServerProfiles,
+  writeAppState,
 } from '../src/services/storage';
 import {
   getLocale,
@@ -283,6 +284,8 @@ jest.mock('../src/services/storage', () => ({
     launchCount: 0,
   })),
   setProStatus: jest.fn(async () => undefined),
+  shouldShowSupportCard: jest.requireActual('../src/services/storage')
+    .shouldShowSupportCard,
   upsertServerProfile: jest.fn(async () => undefined),
   writeAppState: jest.fn(async () => ({isPro: false, launchCount: 1})),
   writePlaybackPreferences: jest.fn(async () => undefined),
@@ -567,6 +570,60 @@ describe('App', () => {
     );
     expect(screen.queryByTestId('home-screen')).toBeNull();
     expect(screen.getByTestId('whats-new-notice-ok')).toBeTruthy();
+  });
+
+  describe('support card', () => {
+    const serverProfile = {
+      accessToken: 'test-token',
+      id: 'test-server',
+      lastUsed: 1,
+      name: 'Test Server',
+      url: 'http://server.local',
+      userId: 'user-1',
+    };
+    const signIn = (playbackCount: number, supportCardShown = false) => {
+      (getLastUsedServerProfile as jest.Mock).mockResolvedValue(serverProfile);
+      (readServerProfiles as jest.Mock).mockResolvedValue([serverProfile]);
+      (readAppState as jest.Mock).mockResolvedValue({
+        acknowledgedNoticeId: acknowledgedNoticeId(),
+        isPro: false,
+        launchCount: 3,
+        playbackCount,
+        supportCardShown,
+      });
+    };
+
+    it('shows once on Home after 25 playbacks and remembers the dismissal', async () => {
+      signIn(25);
+      const screen = render(<App />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId('support-card')).toBeTruthy(),
+      );
+      expect(screen.getByTestId('support-card-qr')).toBeTruthy();
+      expect(screen.queryByTestId('home-screen')).toBeNull();
+
+      fireEvent.press(screen.getByTestId('support-card-ok'));
+
+      await waitFor(() =>
+        expect(screen.getByTestId('home-screen')).toBeTruthy(),
+      );
+      expect(screen.queryByTestId('support-card')).toBeNull();
+      expect(writeAppState).toHaveBeenCalledWith({supportCardShown: true});
+    });
+
+    it.each([
+      ['before the 25th playback', 24, false],
+      ['after it was dismissed', 80, true],
+    ])('stays away %s', async (_label, count, shown) => {
+      signIn(count, shown);
+      const screen = render(<App />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId('home-screen')).toBeTruthy(),
+      );
+      expect(screen.queryByTestId('support-card')).toBeNull();
+    });
   });
 
   it('requires repeated root back presses before showing exit confirmation', async () => {

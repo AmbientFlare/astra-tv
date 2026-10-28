@@ -89,6 +89,12 @@ export const en = {
   'capabilityNotice.dismissLabel': 'Dismiss server capability notice',
   'whatsNew.title': "What's new in Astra {version}",
   'whatsNew.dismissLabel': "Dismiss what's new notice",
+  'support.title': 'Enjoying Astra?',
+  'support.body':
+    "If Astra is useful to you, you can support its development on Ko-fi. Scan the code with your phone's camera.",
+  'support.note':
+    "You won't see this message again. The code is also under Settings → About.",
+  'support.dismissLabel': 'Dismiss support message',
   'profiles.user': 'User',
   'profiles.title': "Who's watching?",
   'profiles.signedOut': 'Signed out',

@@ -91,6 +91,12 @@ export const de: Messages = {
   'capabilityNotice.dismissLabel': 'Hinweis zu Serverfähigkeiten schließen',
   'whatsNew.title': 'Neu in Astra {version}',
   'whatsNew.dismissLabel': 'Hinweis zu Neuerungen schließen',
+  'support.title': 'Gefällt dir Astra?',
+  'support.body':
+    'Wenn Astra dir nützt, kannst du die Entwicklung auf Ko-fi unterstützen. Scanne den Code mit der Kamera deines Handys.',
+  'support.note':
+    'Diese Nachricht erscheint nicht noch einmal. Den Code findest du auch unter Einstellungen → Info.',
+  'support.dismissLabel': 'Unterstützungshinweis schließen',
   'profiles.user': 'Benutzer',
   'profiles.title': 'Wer schaut?',
   'profiles.signedOut': 'Abgemeldet',

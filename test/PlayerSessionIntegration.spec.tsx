@@ -116,6 +116,7 @@ jest.mock('../src/services/storage', () => ({
     skipIntroCredits: 'ask',
     subtitleAppearance: 'shadow',
   })),
+  recordPlayback: jest.fn(async () => 1),
 }));
 jest.mock('../src/services/jellyfin', () => ({
   getMediaSegments: jest.fn(async () => []),
@@ -147,7 +148,7 @@ import {
   ExternalSubtitleOverlay,
 } from '../src/screens/PlayerScreen';
 import {getSleepTimer, setSleepTimer} from '../src/services/sleepTimer';
-import {getUserPreferences} from '../src/services/storage';
+import {getUserPreferences, recordPlayback} from '../src/services/storage';
 import {createPositionStore} from '../src/screens/PlayerScreen/positionStore';
 import {
   getStreamUrl,
@@ -1133,6 +1134,7 @@ describe('PlayerScreen native session integration', () => {
     };
 
     it('pauses, reports the stop, and resumes from the same point on Select', async () => {
+      const counted = (recordPlayback as jest.Mock).mock.calls.length;
       const view = mount();
       await start(view);
       const video = mockVideos[0];
@@ -1165,6 +1167,8 @@ describe('PlayerScreen native session integration', () => {
       expect((getStreamUrl as jest.Mock).mock.calls[loads][4]).toBe(
         600 * 10000000,
       );
+      // Reloads and the new session after waking are still one playback.
+      expect(recordPlayback).toHaveBeenCalledTimes(counted + 1);
       await act(async () => {
         view.unmount();
         await flush();
