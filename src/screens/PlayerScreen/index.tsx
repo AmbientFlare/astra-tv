@@ -41,7 +41,11 @@ import {
   SeriesTrackPick,
 } from '../../services/jellyfin';
 import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
-import {describeDeviceModel, readDeviceModel} from '../../services/deviceModel';
+import {
+  describeDeviceModel,
+  knownDevice,
+  readDeviceModel,
+} from '../../services/deviceModel';
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {getTraces, resetTraces, trace} from '../../services/logging/trace';
@@ -1444,6 +1448,7 @@ export const PlayerScreen = ({
           error,
         );
         handoffInProgress.current = false;
+        trackReloadInProgress.current = false;
         setStatusText(t('player.releaseFailed'));
         return;
       }
@@ -1599,14 +1604,16 @@ export const PlayerScreen = ({
   ]);
 
   const togglePlayPause = useCallback(() => {
-    const video = videoRef.current;
-
-    if (!video) {
+    // Waking needs no video: the timer may have run out on the startup error
+    // screen, after the media was released, and the wake reloads anyway.
+    if (sleepingRef.current) {
+      wakeFromSleepRef.current();
       return;
     }
 
-    if (sleepingRef.current) {
-      wakeFromSleepRef.current();
+    const video = videoRef.current;
+
+    if (!video) {
       return;
     }
 
@@ -1872,7 +1879,12 @@ export const PlayerScreen = ({
         recordPlaybackEvent('pause');
         isPausedRef.current = true;
         setPaused(true);
-        setStatusText(t('nowPlaying.paused'));
+        // A finished item is paused by its own end; the status line already
+        // says so and must not flip back to "Paused" when the native event
+        // arrives a moment later.
+        if (sessionReady.current) {
+          setStatusText(t('nowPlaying.paused'));
+        }
         revealControls(false);
       });
       listen('loadedmetadata', () => {
@@ -2720,7 +2732,11 @@ export const PlayerScreen = ({
     // it is about to dismiss.
     if (key !== 'back') {
       revealControls(
-        !settingsPanel && !showExitConfirm && !creditsPrompt && !endPrompt,
+        !settingsPanel &&
+          !showExitConfirm &&
+          !creditsPrompt &&
+          !endPrompt &&
+          !startupError,
       );
     }
 
@@ -2728,7 +2744,11 @@ export const PlayerScreen = ({
     // modal is open. The global playback handler must not also pause, seek,
     // or commit a second action for the key-up phase of the same click.
     if (
-      (settingsPanel || showExitConfirm || creditsPrompt || endPrompt) &&
+      (settingsPanel ||
+        showExitConfirm ||
+        creditsPrompt ||
+        endPrompt ||
+        startupError) &&
       key !== 'back' &&
       key !== 'menu' &&
       key !== 'context_menu'
@@ -2738,7 +2758,11 @@ export const PlayerScreen = ({
 
     switch (key) {
       case 'back':
-        if (settingsPanel) {
+        if (startupError) {
+          // The error panel's own Back button leaves at once; the remote's
+          // Back must not first hide hidden controls and then ask to confirm.
+          handleBack();
+        } else if (settingsPanel) {
           setSettingsPanel(null);
         } else if (showExitConfirm) {
           setShowExitConfirm(false);
@@ -3850,7 +3874,10 @@ export const PlaybackStatsOverlay = ({
       </Text>
       {streamInfo.videoDecodeLimits ? (
         <Text style={styles.statsLine}>
-          {`Decoder  ${describeDecodeLimits(streamInfo.videoDecodeLimits)}`}
+          {`Decoder  ${describeDecodeLimits(
+            streamInfo.videoDecodeLimits,
+            knownDevice(readDeviceModel().model).maxVideoWidth,
+          )}`}
         </Text>
       ) : null}
       <Text style={styles.statsLine}>
