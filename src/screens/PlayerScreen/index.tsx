@@ -1135,9 +1135,23 @@ export const PlayerScreen = ({
       if (
         requiresStreamReload(fromSeconds, target, firstAvailableSeconds.current)
       ) {
-        if (allowReload) {
-          await reloadAtSecondsRef.current?.(target);
+        if (!allowReload) {
+          return;
         }
+        // Jellyfin cannot start a transcode this close to the end, so a
+        // jump there finishes the item rather than failing to load.
+        if (
+          isStalledAtEnd(
+            target,
+            streamInfo.current?.runTimeTicks ?? item.runTimeTicks,
+          )
+        ) {
+          trace('jump.toEnd', 'toSeconds=' + target.toFixed(1));
+          video.pause();
+          finishAtEndRef.current(playbackGeneration.current);
+          return;
+        }
+        await reloadAtSecondsRef.current?.(target);
         return;
       }
       healthMonitor.current.reset();

@@ -513,6 +513,20 @@ describe('PlayerScreen native session integration', () => {
       await dispose(view);
     });
 
+    it('finishes the item on a long jump into its last seconds', async () => {
+      const {view, video} = await atPosition();
+      const handler = video.setMediaControlFocus.mock.calls[0][1];
+      await act(async () => {
+        await handler.handleSeek({seconds: 999, nanoseconds: 0});
+      });
+      await advance();
+      // A transcode can't start a second from the end; no reload is asked for.
+      expect(getStreamUrl).toHaveBeenCalledTimes(1);
+      expect(reportPlaybackStopped).toHaveBeenCalled();
+      expect(video.paused).toBe(true);
+      await dispose(view);
+    });
+
     it('recovers a missing seek completion by reloading at the requested target', async () => {
       const {view} = await atPosition();
       await press('right');
