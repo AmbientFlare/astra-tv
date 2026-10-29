@@ -84,6 +84,13 @@ describe('device model', () => {
     expect(describeDeviceModel({model: '', os: ''})).toBe('model not reported');
   });
 
+  it('knows which stick is HD-only, as the fallback for a silent decoder probe', () => {
+    expect(knownDevice('AFTCL001').maxVideoWidth).toBe(1920);
+    expect(knownDevice('AFTCR001').maxVideoWidth).toBeUndefined();
+    expect(knownDevice('AFTCA002').maxVideoWidth).toBeUndefined();
+    expect(knownDevice('').maxVideoWidth).toBeUndefined();
+  });
+
   it('uses Amazon’s published H.264 limit per model', () => {
     expect(knownDevice('AFTCA002').h264MaxBitrate).toBe(30_000_000);
     expect(knownDevice('AFTCR001').h264MaxBitrate).toBe(20_000_000);
