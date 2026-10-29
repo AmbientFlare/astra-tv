@@ -36,6 +36,37 @@ export const isPrematureEnd = (
   return duration > 0 && positionSeconds < duration - 10;
 };
 
+/**
+ * A stall this close to the item's end is the stream running out, not a
+ * fault. Transcoded HLS can end a second short of the runtime without the
+ * player ever firing `ended`.
+ */
+export const isStalledAtEnd = (
+  positionSeconds: number,
+  runTimeTicks?: number,
+): boolean => {
+  const duration = logicalDurationSeconds(runTimeTicks);
+  return duration > 0 && positionSeconds >= duration - 10;
+};
+
+/**
+ * The last two seconds with no progress since the previous check: the
+ * stream has run out. Caught here instead of waiting out the stall budget.
+ */
+export const isFrozenAtEnd = (
+  positionSeconds: number,
+  previousSeconds: number | null,
+  runTimeTicks?: number,
+): boolean => {
+  const duration = logicalDurationSeconds(runTimeTicks);
+  return (
+    duration > 0 &&
+    previousSeconds !== null &&
+    positionSeconds >= duration - 2 &&
+    Math.abs(positionSeconds - previousSeconds) < 0.25
+  );
+};
+
 export const requiresStreamReload = (
   fromSeconds: number,
   targetSeconds: number,

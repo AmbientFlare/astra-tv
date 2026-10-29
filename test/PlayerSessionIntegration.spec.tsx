@@ -1167,6 +1167,9 @@ describe('PlayerScreen native session integration', () => {
       expect((getStreamUrl as jest.Mock).mock.calls[loads][4]).toBe(
         600 * 10000000,
       );
+      // One press is enough: the new session plays, it does not keep the
+      // sleep pause.
+      expect(mockVideos[mockVideos.length - 1].paused).toBe(false);
       // Reloads and the new session after waking are still one playback.
       expect(recordPlayback).toHaveBeenCalledTimes(counted + 1);
       await act(async () => {
@@ -1206,6 +1209,44 @@ describe('PlayerScreen native session integration', () => {
       });
       expect(view.getByTestId('player-sleep-notice')).toBeTruthy();
       expect(getSleepTimer()).toBeNull();
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    });
+
+    it('holds at the end when the stream freezes in its last seconds', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => setSleepTimer('endOfItem'));
+      const video = mockVideos[0];
+      await act(async () => {
+        video.currentTime = 999.4;
+        video.emit('timeupdate');
+      });
+      // No `ended` arrives; two checks with no progress are enough.
+      await settle(6000);
+      expect(view.getByTestId('player-sleep-notice')).toBeTruthy();
+      expect(getSleepTimer()).toBeNull();
+      expect(mockVideos).toHaveLength(1);
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    });
+
+    it('finishes instead of reloading on a stall shortly before the end', async () => {
+      const view = mount();
+      await start(view);
+      await act(async () => setSleepTimer('endOfItem'));
+      const video = mockVideos[0];
+      await act(async () => {
+        video.currentTime = 995;
+        video.emit('timeupdate');
+      });
+      await settle(40_000);
+      expect(view.getByTestId('player-sleep-notice')).toBeTruthy();
+      expect(mockVideos).toHaveLength(1);
       await act(async () => {
         view.unmount();
         await flush();
