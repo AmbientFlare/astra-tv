@@ -44,6 +44,7 @@ import {
   JellyfinMediaItem,
 } from '../services/jellyfin';
 import {
+  defaultUserPreferences,
   getLastUsedServerProfile,
   getUserPreferences,
   readServerProfiles,
@@ -499,13 +500,23 @@ export const RootNavigator = () => {
     };
   }, [handleBackPress, keplerBackHandler]);
 
+  // A launch read that fails must not leave the spinner up for good, and it
+  // must never guess "fresh install": that would show Setup to someone whose
+  // servers and sign-ins are still safely stored, which reads as a sign-out.
+  // The profile reads have to succeed or the viewer gets Retry; preferences
+  // fall back to their defaults for this run.
+  const [bootstrapFailed, setBootstrapFailed] = useState(false);
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
+
   useEffect(() => {
     let mounted = true;
 
     const bootstrap = async () => {
       const profiles = await readServerProfiles();
       const storedLocale = await readStoredLocale();
-      const preferences = await getUserPreferences();
+      const preferences = await getUserPreferences().catch(
+        () => defaultUserPreferences,
+      );
       const lastUsedProfile =
         preferences.autoSignIn === 'mostRecent'
           ? await getLastUsedServerProfile()
@@ -525,12 +536,18 @@ export const RootNavigator = () => {
       }
     };
 
-    bootstrap();
+    setBootstrapFailed(false);
+    bootstrap().catch((error) => {
+      console.warn('[Astra] Unable to read saved settings at launch:', error);
+      if (mounted) {
+        setBootstrapFailed(true);
+      }
+    });
 
     return () => {
       mounted = false;
     };
-  }, [resetStack]);
+  }, [bootstrapAttempt, resetStack]);
 
   const profileSwitcher = profileSwitcherVisible ? (
     <ProfileSwitcher
@@ -625,8 +642,26 @@ export const RootNavigator = () => {
   if (route === 'loading') {
     return withExitPrompt(
       <View style={styles.loading} testID="navigation-loading">
-        <ActivityIndicator color="#4CC9F0" size="large" />
-        <Text style={styles.loadingText}>{t('app.loading')}</Text>
+        {bootstrapFailed ? (
+          <>
+            <Text style={styles.loadingText} testID="navigation-load-failed">
+              {t('app.loadFailed')}
+            </Text>
+            <FocusableItem
+              focusedStyle={styles.retryFocused}
+              hasTVPreferredFocus={true}
+              onPress={() => setBootstrapAttempt((attempt) => attempt + 1)}
+              style={styles.retryButton}
+              testID="navigation-retry">
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
+            </FocusableItem>
+          </>
+        ) : (
+          <>
+            <ActivityIndicator color="#4CC9F0" size="large" />
+            <Text style={styles.loadingText}>{t('app.loading')}</Text>
+          </>
+        )}
       </View>,
     );
   }
@@ -970,6 +1005,26 @@ const styles = StyleSheet.create({
     color: '#B8C5CC',
     fontSize: 30,
     marginTop: 24,
+    maxWidth: 1100,
+    textAlign: 'center',
+  },
+  retryButton: {
+    alignItems: 'center',
+    backgroundColor: '#25313A',
+    borderRadius: 8,
+    justifyContent: 'center',
+    marginTop: 28,
+    minWidth: 180,
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+  },
+  retryFocused: {
+    backgroundColor: '#315066',
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
   },
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,
