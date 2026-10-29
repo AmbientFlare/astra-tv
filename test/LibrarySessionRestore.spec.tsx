@@ -13,6 +13,7 @@ import {act, fireEvent, render} from '@testing-library/react-native';
 import React from 'react';
 
 import {
+  LIBRARY_RESTORE_LIMIT,
   LibraryScreen,
   resetLibrarySessions,
 } from '../src/screens/LibraryScreen';
@@ -444,4 +445,81 @@ describe('which items a library grid asks for', () => {
       recursive: false,
     });
   });
+});
+
+/**
+ * A remembered card deep in a big library must not cost a request for every
+ * page above it: that single response is the multi-megabyte parse the paging
+ * was introduced to avoid, and on a 1 GB stick a dozen such grids kept in
+ * the background are what gets the app killed.
+ */
+describe('LibraryScreen deep restore', () => {
+  const huge = Array.from(
+    {length: 700},
+    (_, index) =>
+      ({
+        id: `movie-${index}`,
+        name: `Movie ${index}`,
+        type: 'Movie',
+      } as JellyfinMediaItem),
+  );
+  const pages = () => getItemsPage as jest.Mock;
+  const focusAt = async (screen: ReturnType<typeof render>, index: number) => {
+    const grid = screen.UNSAFE_getByType(FlatList);
+    const card = grid.props.renderItem({item: grid.props.data[index], index});
+    await act(async () => {
+      card.props.onFocus();
+      await new Promise((resolve) => setTimeout(resolve, 220));
+    });
+    await settle();
+  };
+  /** Pages the grid down to a card past the restore bound. */
+  const scrollDeep = async (screen: ReturnType<typeof render>) => {
+    for (let edge = 95; edge < 500; edge += 100) {
+      await focusAt(screen, edge);
+    }
+    await focusAt(screen, 550);
+    expect(screen.UNSAFE_getByType(FlatList).props.data).toHaveLength(600);
+    expect(screen.getByText('551 | 700')).toBeTruthy();
+  };
+
+  beforeEach(() => {
+    mockedItems.mockResolvedValue(huge);
+  });
+
+  it('refreshes only the first page behind a card past the bound, and keeps the place', async () => {
+    const first = renderLibrary();
+    await settle();
+    await scrollDeep(first);
+    first.unmount();
+    pages().mockClear();
+
+    const second = renderLibrary();
+    await settle();
+
+    expect(pages()).toHaveBeenCalledTimes(1);
+    expect(pages().mock.calls[0][4]).toMatchObject({startIndex: 0, limit: 100});
+    expect(second.UNSAFE_getByType(FlatList).props.data).toHaveLength(600);
+    expect(second.getByText('551 | 700')).toBeTruthy();
+  }, 20_000);
+
+  it('cuts a remembered grid to the bound in the background', async () => {
+    const first = renderLibrary();
+    await settle();
+    await scrollDeep(first);
+    first.unmount();
+    pages().mockClear();
+
+    trimMemory('background');
+    const second = renderLibrary();
+    await settle();
+
+    const kept = second.UNSAFE_getByType(FlatList).props.data;
+    expect(kept).toHaveLength(LIBRARY_RESTORE_LIMIT);
+    expect(second.getByText(`${LIBRARY_RESTORE_LIMIT} | 700`)).toBeTruthy();
+    expect(pages().mock.calls[0][4]).toMatchObject({
+      startIndex: 0,
+      limit: LIBRARY_RESTORE_LIMIT,
+    });
+  }, 20_000);
 });
