@@ -1,5 +1,7 @@
 import {
   calibrateTimelineOffset,
+  isFrozenAtEnd,
+  isStalledAtEnd,
   logicalToMediaTime,
   mediaToLogicalTime,
 } from '../src/w3cmedia/mediaTimeline';
@@ -20,5 +22,23 @@ describe('server-positioned HLS timeline', () => {
 
   it('clamps requests before the shortened playlist to its beginning', () => {
     expect(logicalToMediaTime(100, 200)).toBe(0);
+  });
+});
+
+describe('end of stream without an ended event', () => {
+  const runTime = 3000 * 10000000;
+
+  it('counts a stall in the last ten seconds as the end', () => {
+    expect(isStalledAtEnd(2995, runTime)).toBe(true);
+    expect(isStalledAtEnd(2989, runTime)).toBe(false);
+    expect(isStalledAtEnd(2995, undefined)).toBe(false);
+  });
+
+  it('spots a picture frozen in the last two seconds', () => {
+    expect(isFrozenAtEnd(2999, 2999.1, runTime)).toBe(true);
+    expect(isFrozenAtEnd(2999, 2996, runTime)).toBe(false);
+    expect(isFrozenAtEnd(2997, 2997, runTime)).toBe(false);
+    expect(isFrozenAtEnd(2999, null, runTime)).toBe(false);
+    expect(isFrozenAtEnd(2999, 2999, undefined)).toBe(false);
   });
 });

@@ -66,7 +66,9 @@ import {
   logicalToMediaTime,
   mediaToLogicalTime,
   logicalDurationSeconds,
+  isFrozenAtEnd,
   isPrematureEnd,
+  isStalledAtEnd,
   requiresStreamReload,
 } from '../../w3cmedia/mediaTimeline';
 import {
@@ -454,6 +456,10 @@ export const PlayerScreen = ({
   const handledCreditsWindow = useRef<string | null>(null);
   const handoffInProgress = useRef(false);
   const endedHandler = useRef<() => void>(() => undefined);
+  const finishAtEndRef = useRef<(generation: number) => void>(() => undefined);
+  // Position at the previous 3 s check while actively playing, for spotting
+  // a stream that froze in its last seconds without firing `ended`.
+  const lastActivePosition = useRef<number | null>(null);
   const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsPinned = useRef(false);
   const controlsAwaitingProgress = useRef(false);
@@ -1129,9 +1135,23 @@ export const PlayerScreen = ({
       if (
         requiresStreamReload(fromSeconds, target, firstAvailableSeconds.current)
       ) {
-        if (allowReload) {
-          await reloadAtSecondsRef.current?.(target);
+        if (!allowReload) {
+          return;
         }
+        // Jellyfin cannot start a transcode this close to the end, so a
+        // jump there finishes the item rather than failing to load.
+        if (
+          isStalledAtEnd(
+            target,
+            streamInfo.current?.runTimeTicks ?? item.runTimeTicks,
+          )
+        ) {
+          trace('jump.toEnd', 'toSeconds=' + target.toFixed(1));
+          video.pause();
+          finishAtEndRef.current(playbackGeneration.current);
+          return;
+        }
+        await reloadAtSecondsRef.current?.(target);
         return;
       }
       healthMonitor.current.reset();
@@ -1955,17 +1975,8 @@ export const PlayerScreen = ({
           playbackErrorHandler.current({source: 'early-end'});
           return;
         }
-        reportStopped();
-        sessionReady.current = false;
         recordPlaybackEvent('ended');
-        revealControls(false);
-        setStatusText(t('player.finished'));
-        setPlaybackFinished(true);
-        if (endedHandledForGeneration.current === generation) {
-          return;
-        }
-        endedHandledForGeneration.current = generation;
-        endedHandler.current();
+        finishAtEndRef.current(generation);
       });
     },
     [
@@ -1974,7 +1985,6 @@ export const PlayerScreen = ({
       currentPositionTicks,
       item.runTimeTicks,
       positionStore,
-      reportStopped,
       revealControls,
       scheduleControlsHide,
     ],
@@ -2497,11 +2507,30 @@ export const PlayerScreen = ({
     [item.seriesId, reportProgress, startPlayback, userId],
   );
 
+  // The stream reached its end, by `ended` or by stalling in the last
+  // seconds: report the stop, then autoplay, the end-of-episode sleep timer
+  // and the still-watching count all run from here.
+  finishAtEndRef.current = (generation) => {
+    reportStopped();
+    sessionReady.current = false;
+    revealControls(false);
+    setStatusText(t('player.finished'));
+    setPlaybackFinished(true);
+    if (endedHandledForGeneration.current === generation) {
+      return;
+    }
+    endedHandledForGeneration.current = generation;
+    endedHandler.current();
+  };
+
   // The stop was already reported, so waking starts a new session rather
-  // than playing on in the old one.
+  // than playing on in the old one. Clear the sleep pause first: the reload
+  // otherwise restores it, and the viewer has to press Play twice.
   wakeFromSleepRef.current = () => {
     sleepingRef.current = false;
     setSleeping(false);
+    isPausedRef.current = false;
+    setPaused(false);
     // A load still under way plays and reports as usual once it lands.
     if (trackReloadInProgress.current) {
       return;
@@ -2788,9 +2817,18 @@ export const PlayerScreen = ({
   ]);
 
   useEffect(() => {
+    const endByStall = (video: VideoPlayer, ticks: number) => {
+      trace('playback.endedByStall', 'position=' + ticks);
+      playbackEventDiagnostics.current.lastPlaybackEvent = 'ended-by-stall';
+      lastActivePosition.current = null;
+      healthMonitor.current.reset();
+      video.pause();
+      finishAtEndRef.current(playbackGeneration.current);
+    };
     const interval = setInterval(() => {
       const video = videoRef.current;
       if (!video || !sessionReady.current || unmountedRef.current) {
+        lastActivePosition.current = null;
         return;
       }
       const ticks = currentPositionTicks();
@@ -2817,15 +2855,23 @@ export const PlayerScreen = ({
         playbackErrorHandler.current({source: 'decoder-dead-start'});
         return;
       }
+      const positionSeconds = ticks / TICKS_PER_SECOND;
+      const runTimeTicks =
+        streamInfo.current?.runTimeTicks ?? item.runTimeTicks;
+      const active =
+        !isPausedRef.current &&
+        !trackReloadInProgress.current &&
+        !seekController.current?.seeking;
+      const previousSeconds = lastActivePosition.current;
+      lastActivePosition.current = active ? positionSeconds : null;
       if (
-        healthMonitor.current.observe(
-          Date.now(),
-          ticks / TICKS_PER_SECOND,
-          !isPausedRef.current &&
-            !trackReloadInProgress.current &&
-            !seekController.current?.seeking,
-        )
+        active &&
+        isFrozenAtEnd(positionSeconds, previousSeconds, runTimeTicks)
       ) {
+        endByStall(video, ticks);
+        return;
+      }
+      if (healthMonitor.current.observe(Date.now(), positionSeconds, active)) {
         const ranges = shakaPlayerRef.current?.getDebugStats()?.buffered;
         // Ranges contain only numeric media times; never record segment URLs.
         trace(
@@ -2839,11 +2885,15 @@ export const PlayerScreen = ({
             ' ranges=' +
             JSON.stringify(ranges ?? {}).slice(0, 500),
         );
+        if (isStalledAtEnd(positionSeconds, runTimeTicks)) {
+          endByStall(video, ticks);
+          return;
+        }
         playbackErrorHandler.current({source: 'watchdog'});
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [applyPosition, currentPositionTicks, reportProgress]);
+  }, [applyPosition, currentPositionTicks, item.runTimeTicks, reportProgress]);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
