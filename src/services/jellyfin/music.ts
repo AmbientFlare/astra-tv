@@ -162,13 +162,9 @@ const imageUrlFor = (
     : undefined;
 
 const request = <Body>(session: MusicSession, path: string, params = {}) =>
-  getJson<Body>(
-    buildUrl(session.serverUrl, path, {
-      ...params,
-      ...tokenQuery(session.accessToken),
-    }),
-    {headers: getAuthHeaders(session.accessToken)},
-  );
+  getJson<Body>(buildUrl(session.serverUrl, path, params), {
+    headers: getAuthHeaders(session.accessToken),
+  });
 
 /**
  * Jellyfin silently ignores a filter with an empty value: `AlbumArtistIds=`
