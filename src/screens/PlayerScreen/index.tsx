@@ -6,13 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import {ActivityIndicator, Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -28,7 +22,6 @@ import {
   getMediaSegments,
   canServerTranscodeVideo,
   getStreamUrl,
-  isSecondaryTrack,
   JellyfinMediaItem,
   JellyfinMediaSegment,
   JellyfinMediaTrack,
@@ -38,23 +31,16 @@ import {
   reportPlaybackStart,
   reportPlaybackStopped,
   sanitizeUrlForLog,
-  SeriesTrackPick,
 } from '../../services/jellyfin';
-import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
-import {
-  describeDeviceModel,
-  knownDevice,
-  readDeviceModel,
-} from '../../services/deviceModel';
+
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
-import {getTraces, resetTraces, trace} from '../../services/logging/trace';
+import {resetTraces, trace} from '../../services/logging/trace';
 import {
   emitError,
   flushTelemetry,
   isTelemetryArmed,
   setTelemetrySession,
-  telemetryStatus,
 } from '../../services/telemetry';
 import {
   emitPlaybackDecision,
@@ -90,7 +76,6 @@ import {
   PlaybackFailure,
   shakaFailure,
   formatPlaybackFailure,
-  formatBufferingTime,
   PlaybackHealthMonitor,
   shouldAbandonForcedDecoderTranscode,
   shouldTripForcedDecoderTranscode,
@@ -100,8 +85,6 @@ import {
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
-  serverConversionFailed,
-  requiresServerConversion,
 } from '../../services/playbackHealth';
 import {
   getServerCapabilities,
@@ -147,13 +130,9 @@ import {
   startVideoEngagement,
   stopVideoEngagement,
 } from '@astra/user-engagement';
-import {
-  activeWebVttText,
-  parseWebVtt,
-  WebVttCue,
-} from '../../services/subtitles';
-import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
-import {createPositionStore, PositionStore} from './positionStore';
+import {parseWebVtt, WebVttCue} from '../../services/subtitles';
+
+import {createPositionStore} from './positionStore';
 import {syncPlay, type SyncPlayPlayer} from '../../services/syncPlay';
 import {t} from '../../i18n';
 import {ConnectionNotice} from '../../components/ConnectionNotice';
@@ -162,83 +141,46 @@ import {
   clearSleepTimer,
   getSleepTimer,
   setSleepTimer,
-  SLEEP_TIMER_MINUTES,
-  SleepTimerChoice,
   sleepTimerChoice,
   useSleepTimer,
 } from '../../services/sleepTimer';
 
-const TICKS_PER_SECOND = 10000000;
-const CONTROL_HIDE_DELAY_MS = 5000;
-type PlaybackPanel = 'audio' | 'subtitles';
+import {
+  CONTROL_HIDE_DELAY_MS,
+  emptyPlaybackEventDiagnostics,
+  EndPrompt,
+  PlaybackDebugInfo,
+  PlaybackEventDiagnostics,
+  PlaybackPanel,
+  TICKS_PER_SECOND,
+} from './types';
+import {
+  assertPlayableUrl,
+  episodeLabel,
+  isAdaptiveStream,
+  RELOAD_JUMP_THRESHOLD_SECONDS,
+  seriesPickFor,
+  shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
+  startupFailureMessage,
+  toTicks,
+} from './playbackPolicy';
+import {formatDiagnosticTime} from './formatDiagnostics';
+import {ExternalSubtitleOverlay} from './ExternalSubtitleOverlay';
+import {PlaybackSettingsOverlay} from './PlaybackSettingsOverlay';
+import {PlaybackStatsOverlay} from './PlaybackStatsOverlay';
+import {styles} from './styles';
 
-interface PlaybackDebugInfo {
-  activeVideoHeight?: number;
-  activeVideoWidth?: number;
-  bufferedAheadSeconds?: number;
-  bufferedRangeCount?: number;
-  bufferingTimeSeconds?: number;
-  corruptedFrames?: number;
-  decodedFrames?: number;
-  droppedFrames?: number;
-  estimatedBandwidth?: number;
-  gapsJumped?: number;
-  stallsDetected?: number;
-  errorEventCount: number;
-  shakaErrorEventCount?: number;
-  lastError?: string;
-  furthestBufferedAheadSeconds?: number;
-  lastPlaybackEvent?: string;
-  lastPlaybackEventSeconds?: number;
-  nextBufferedGapSeconds?: number;
-  stalledEventCount: number;
-  streamBandwidth?: number;
-  waitingEventCount: number;
-}
-
-interface PlaybackEventDiagnostics {
-  errorEventCount: number;
-  shakaErrorEventCount?: number;
-  lastError?: string;
-  lastPlaybackEvent?: string;
-  lastPlaybackEventSeconds?: number;
-  stalledEventCount: number;
-  waitingEventCount: number;
-}
-
-const emptyPlaybackEventDiagnostics = (): PlaybackEventDiagnostics => ({
-  errorEventCount: 0,
-  stalledEventCount: 0,
-  waitingEventCount: 0,
-});
-
-// The physical one-hour MPEG-TS test rejected sequence mode: audio accumulated
-// a clearly visible lead over video, while pause/resume partially restored
-// sync. Keep every video route in the previously accepted segments mode while
-// the native W3C Media 2.2 interface is evaluated independently.
-export const shouldUseHlsSequenceMode = (_outputContainer?: string) => false;
-
-/**
- * An fMP4 session that starts mid-file needs sequence mode. Jellyfin's
- * transcode keeps source timestamps (`-copyts`), and the fMP4 init segment
- * is served by a separate from-zero FFmpeg session, so in segments mode the
- * first fragment lands at its source time (for example 3345 s) while Shaka's
- * playhead stays at 0 and nothing ever decodes. Observed on the physical
- * stick for a subtitle burn-in resume on two titles. Sequence mode places
- * the first fragment at the playhead regardless of its timestamps. MPEG-TS
- * has no init segment and keeps the accepted segments mode, and so does
- * fMP4 playback from the start.
- */
-export const shouldUseSequenceModeForMidFileStart = (
-  outputContainer: string | undefined,
-  startTimeSeconds: number | undefined,
-) => {
-  if (!(startTimeSeconds && startTimeSeconds > 0)) {
-    return false;
-  }
-  const container = (outputContainer ?? '').trim().toLowerCase();
-  return container.includes('mp4') || container.includes('m4s');
-};
+// The overlays and pure helpers live beside this file; the names below are
+// the module's public surface and stay importable from here.
+export {
+  shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
+  startupFailureMessage,
+} from './playbackPolicy';
+export {ExternalSubtitleOverlay} from './ExternalSubtitleOverlay';
+export {PlaybackSettingsOverlay} from './PlaybackSettingsOverlay';
+export {PlaybackStatsOverlay} from './PlaybackStatsOverlay';
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -257,102 +199,6 @@ interface PlayerScreenProps {
   serverUrl: string;
   userId?: string;
 }
-
-type EndPrompt =
-  | {kind: 'countdown'; remainingSeconds: number}
-  | {kind: 'confirm'};
-
-const episodeLabel = (episode: JellyfinMediaItem) => {
-  const code =
-    episode.parentIndexNumber !== undefined && episode.indexNumber !== undefined
-      ? `S${episode.parentIndexNumber}:E${episode.indexNumber}`
-      : episode.indexNumber !== undefined
-      ? t('detail.episodeNumber', {number: episode.indexNumber})
-      : undefined;
-  return code ? `${code}  ${episode.name}` : episode.name;
-};
-
-/** Names the likely cause when a title can only play through a server re-encode. */
-export const startupFailureMessage = (
-  sourceVideoRangeType: string | undefined,
-  fallback: string,
-) =>
-  requiresServerConversion(sourceVideoRangeType)
-    ? serverConversionFailed()
-    : fallback;
-
-const toTicks = (seconds?: number, fallback = 0) =>
-  Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
-
-/**
- * Jumps at least this far reload the stream at the target instead of seeking
- * within it.
- *
- * An in-place seek makes Vega drain and refill the decoder, which was measured
- * at 36 s for a ten-minute jump and close to two minutes on a high-bitrate
- * title. Reloading asks Jellyfin to start at the target segment, the same route
- * resume takes, which lands in about three seconds. Short D-pad seeks stay
- * in-place because they are already near-instant and a reload would be a
- * visible interruption for no gain.
- */
-const RELOAD_JUMP_THRESHOLD_SECONDS = 60;
-
-const isAdaptiveStream = (url: string) =>
-  url.includes('.m3u8') || url.includes('.mpd');
-
-const assertPlayableUrl = (url: string) => {
-  const parsed = new URL(url);
-  const seenKeys = new Set<string>();
-  const duplicateKeys = new Set<string>();
-
-  parsed.searchParams.forEach((_, key) => {
-    const normalizedKey = key.toLowerCase();
-    if (seenKeys.has(normalizedKey)) {
-      duplicateKeys.add(key);
-    }
-    seenKeys.add(normalizedKey);
-  });
-
-  const hasEmptyQueryAssignment = /[?&]=(?:&|$)/.test(url);
-
-  if (duplicateKeys.size || hasEmptyQueryAssignment) {
-    console.warn('[Astra] Malformed playback URL:', {
-      duplicateQueryKeys: Array.from(duplicateKeys),
-      hasEmptyQueryAssignment,
-      url: sanitizeUrlForLog(url),
-    });
-    throw new Error(
-      'Malformed playback URL before video load. Check stream URL logs.',
-    );
-  }
-};
-
-/** What to remember for the series from a choice in the player overlay. */
-const seriesPickFor = (selection: {
-  audioTrack?: JellyfinMediaTrack;
-  subtitleTrack?: JellyfinMediaTrack | null;
-}): SeriesTrackPick => ({
-  ...(selection.audioTrack
-    ? {
-        audio: {
-          channels: selection.audioTrack.channels,
-          language: selection.audioTrack.language,
-          secondary: isSecondaryTrack(selection.audioTrack),
-        },
-      }
-    : {}),
-  ...(selection.subtitleTrack === undefined
-    ? {}
-    : {
-        subtitle: selection.subtitleTrack
-          ? {
-              forced: Boolean(selection.subtitleTrack.isForced),
-              language: selection.subtitleTrack.language,
-              secondary: isSecondaryTrack(selection.subtitleTrack),
-            }
-          : {off: true},
-      }),
-});
 
 export const PlayerScreen = ({
   accessToken,
@@ -3525,812 +3371,3 @@ export const PlayerScreen = ({
     </View>
   );
 };
-
-// Only track selection lives in-player; quality/speed/chapters were removed
-// deliberately — chapters ride the FF/RW keys, and quality is meant to be
-// configured outside the playback window.
-export const PlaybackSettingsOverlay = ({
-  isEpisode = false,
-  onSelectAudio,
-  onSelectSleepTimer,
-  onSelectSubtitle,
-  onToggleStats,
-  selectedAudioIndex,
-  selectedSubtitleIndex,
-  showStats,
-  showTraces,
-  sleepMinutesLeft,
-  sleepTimer = null,
-  onToggleTraces,
-  streamInfo,
-}: {
-  isEpisode?: boolean;
-  onSelectAudio: (track: JellyfinMediaTrack) => void;
-  onSelectSleepTimer?: (choice: SleepTimerChoice) => void;
-  onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
-  onToggleStats: () => void;
-  selectedAudioIndex?: number;
-  selectedSubtitleIndex?: number;
-  showStats: boolean;
-  showTraces: boolean;
-  sleepMinutesLeft?: number;
-  sleepTimer?: SleepTimerChoice;
-  onToggleTraces: () => void;
-  streamInfo: JellyfinStreamInfo;
-}) => (
-  <View style={styles.settingsOverlay} testID="player-settings-overlay">
-    <Text style={styles.settingsTitle}>{t('player.options')}</Text>
-    <Text style={styles.settingsStreamInfo}>
-      {[
-        streamInfo.width && streamInfo.height
-          ? `${streamInfo.width}x${streamInfo.height}`
-          : undefined,
-        streamInfo.bitrate
-          ? `${(streamInfo.bitrate / 1000000).toFixed(1)} Mbps`
-          : undefined,
-        streamInfo.playMethod,
-      ]
-        .filter(Boolean)
-        .join('  •  ')}
-    </Text>
-    <View style={styles.settingsGrid}>
-      <SettingsColumn title={t('media.audio')}>
-        {streamInfo.audioTracks.length ? (
-          streamInfo.audioTracks.map((track) => (
-            <SettingsButton
-              key={track.id}
-              label={track.title}
-              onPress={() => onSelectAudio(track)}
-              selected={track.index === selectedAudioIndex}
-            />
-          ))
-        ) : (
-          <Text style={styles.settingsEmpty}>{t('player.defaultAudio')}</Text>
-        )}
-      </SettingsColumn>
-      <SettingsColumn title={t('player.subtitles')}>
-        <SettingsButton
-          label={t('player.off')}
-          onPress={() => onSelectSubtitle(null)}
-          selected={selectedSubtitleIndex === undefined}
-        />
-        {streamInfo.subtitleTracks.map((track) => (
-          <SettingsButton
-            key={track.id}
-            // A release with twenty tracks mixes formats Astra draws itself
-            // with picture-based ones the server has to paint into the video.
-            // Those cost very different things to pick, and nothing in the
-            // track title says which is which, so the badge does.
-            badge={
-              track.burnInRequired
-                ? {label: t('player.reloads'), tone: 'reload'}
-                : {label: t('player.instant'), tone: 'instant'}
-            }
-            label={track.title}
-            onPress={() => onSelectSubtitle(track)}
-            selected={track.index === selectedSubtitleIndex}
-          />
-        ))}
-        <Text style={styles.settingsHint}>{t('player.subtitleBadgeHint')}</Text>
-      </SettingsColumn>
-      {onSelectSleepTimer ? (
-        <SettingsColumn title={t('player.sleepTimer')}>
-          <SettingsButton
-            label={t('player.off')}
-            onPress={() => onSelectSleepTimer(null)}
-            selected={sleepTimer === null}
-          />
-          {SLEEP_TIMER_MINUTES.map((minutes) => (
-            <SettingsButton
-              key={minutes}
-              label={t('player.sleepMinutes', {minutes})}
-              onPress={() => onSelectSleepTimer(minutes)}
-              selected={sleepTimer === minutes}
-            />
-          ))}
-          <SettingsButton
-            label={
-              isEpisode
-                ? t('player.sleepEndOfEpisode')
-                : t('player.sleepEndOfVideo')
-            }
-            onPress={() => onSelectSleepTimer('endOfItem')}
-            selected={sleepTimer === 'endOfItem'}
-          />
-          <Text style={styles.settingsHint}>
-            {sleepMinutesLeft !== undefined
-              ? t('player.sleepPausesIn', {minutes: sleepMinutesLeft})
-              : sleepTimer === 'endOfItem'
-              ? t('player.sleepPausesAtEnd')
-              : t('player.sleepHint')}
-          </Text>
-        </SettingsColumn>
-      ) : null}
-      <SettingsColumn title={t('player.diagnostics')}>
-        <SettingsButton
-          label={`${t('settings.statsForNerds')}: ${
-            showStats ? t('player.on') : t('player.off')
-          }`}
-          onPress={onToggleStats}
-          selected={showStats}
-        />
-        <SettingsButton
-          label={`${t('settings.statsWithLogs')}: ${
-            showTraces ? t('player.on') : t('player.off')
-          }`}
-          onPress={onToggleTraces}
-          selected={showTraces}
-        />
-        <Text style={styles.settingsHint}>{t('player.diagnosticsHint')}</Text>
-      </SettingsColumn>
-    </View>
-  </View>
-);
-
-const formatDiagnosticMbps = (bitsPerSecond?: number) =>
-  bitsPerSecond && Number.isFinite(bitsPerSecond)
-    ? `${(bitsPerSecond / 1000000).toFixed(1)} Mbps`
-    : '—';
-
-const formatDiagnosticKbps = (bitsPerSecond?: number) =>
-  bitsPerSecond && Number.isFinite(bitsPerSecond)
-    ? `${Math.round(bitsPerSecond / 1000)} kbps`
-    : '—';
-
-// Vega's getVideoPlaybackQuality() reports absolute frame counts that cannot
-// be true -- roughly 4,600 fps on a 23.976 fps stream -- so printing them
-// invites people to read a wrong number as fact. The ratio between the two
-// still moves in the right direction when the decoder is struggling, so that
-// is the only form worth showing.
-const formatDropRatio = (decoded?: number, dropped?: number) => {
-  if (
-    !decoded ||
-    !Number.isFinite(decoded) ||
-    dropped === undefined ||
-    !Number.isFinite(dropped)
-  ) {
-    return '\u2014';
-  }
-  return `${((dropped / decoded) * 100).toFixed(2)}%`;
-};
-
-const formatDiagnosticCodec = (codec?: string, profile?: string) =>
-  [codec?.toUpperCase() ?? 'UNKNOWN', profile].filter(Boolean).join(' ');
-
-const formatDiagnosticTime = (seconds: number) =>
-  `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(
-    2,
-    '0',
-  )}`;
-
-/**
- * Renders external WebVTT cues off the position store rather than off React
- * state, so a playhead tick that does not change the visible cue costs no
- * render anywhere — and one that does re-renders only this overlay.
- */
-export const ExternalSubtitleOverlay = ({
-  cues,
-  positionStore,
-  controlsVisible = false,
-  appearance = 'shadow',
-}: {
-  cues: WebVttCue[];
-  positionStore: PositionStore;
-  controlsVisible?: boolean;
-  appearance?: UserPreferences['subtitleAppearance'];
-}) => {
-  const [text, setText] = useState(() =>
-    activeWebVttText(cues, positionStore.get()),
-  );
-
-  useEffect(() => {
-    setText(activeWebVttText(cues, positionStore.get()));
-    if (cues.length === 0) {
-      return undefined;
-    }
-    return positionStore.subscribe((seconds) => {
-      const next = activeWebVttText(cues, seconds);
-      setText((current) => (current === next ? current : next));
-    });
-  }, [cues, positionStore]);
-
-  if (!text) {
-    return null;
-  }
-
-  return (
-    <View
-      pointerEvents="none"
-      style={[
-        styles.subtitleOverlay,
-        controlsVisible && styles.subtitleAboveControls,
-      ]}
-      testID="player-external-subtitle">
-      <Text
-        style={[
-          styles.subtitleText,
-          appearance === 'background' && styles.subtitleBackground,
-        ]}>
-        {text}
-      </Text>
-    </View>
-  );
-};
-
-export const PlaybackStatsOverlay = ({
-  diagnostics,
-  positionSeconds,
-  showTraces = false,
-  streamInfo,
-}: {
-  diagnostics: PlaybackDebugInfo | null;
-  positionSeconds: number;
-  showTraces?: boolean;
-  streamInfo: JellyfinStreamInfo;
-}) => {
-  const deliveredAudioIndex =
-    streamInfo.deliveredAudioStreamIndex ?? streamInfo.audioStreamIndex;
-  const audioTrack = streamInfo.audioTracks.find(
-    (track) => track.index === deliveredAudioIndex,
-  );
-  const requestedAudioIndex = streamInfo.audioStreamIndex;
-  const trackMatch = requestedAudioIndex === deliveredAudioIndex;
-  const activeVideoWidth =
-    diagnostics?.activeVideoWidth ??
-    (streamInfo.videoDeliveryMethod === 'Copy' ? streamInfo.width : undefined);
-  const activeVideoHeight =
-    diagnostics?.activeVideoHeight ??
-    (streamInfo.videoDeliveryMethod === 'Copy' ? streamInfo.height : undefined);
-  const sourceResolution = `${streamInfo.width ?? '?'}x${
-    streamInfo.height ?? '?'
-  }`;
-  const activeResolution = `${activeVideoWidth ?? '?'}x${
-    activeVideoHeight ?? '?'
-  }`;
-
-  return (
-    <View style={styles.statsOverlay} testID="player-stats-overlay">
-      <Text style={styles.statsTitle}>Stats for Nerds</Text>
-      <Text style={styles.statsLine}>{`Telemetry ${
-        telemetryStatus().armed ? 'armed' : 'off'
-      }  ${telemetryStatus().reason}  sent=${
-        telemetryStatus().counters?.sent ?? 0
-      } drop=${telemetryStatus().counters?.dropped ?? 0} fail=${
-        telemetryStatus().counters?.failed ?? 0
-      }`}</Text>
-      <Text style={styles.statsLine}>
-        Codec delivery is inferred from the server request.
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Position  ${formatDiagnosticTime(positionSeconds)}   Buffer  ${
-          diagnostics?.bufferedAheadSeconds !== undefined
-            ? `${diagnostics.bufferedAheadSeconds.toFixed(1)}s`
-            : '—'
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Buffer map  ranges ${
-          diagnostics?.bufferedRangeCount ?? '—'
-        }   total ahead ${
-          diagnostics?.furthestBufferedAheadSeconds !== undefined
-            ? `${diagnostics.furthestBufferedAheadSeconds.toFixed(1)}s`
-            : '—'
-        }   next gap ${
-          diagnostics?.nextBufferedGapSeconds !== undefined
-            ? `${diagnostics.nextBufferedGapSeconds.toFixed(3)}s`
-            : '—'
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Video  ${formatDiagnosticCodec(
-          streamInfo.sourceVideoCodec,
-        )} → ${formatDiagnosticCodec(
-          streamInfo.outputVideoCodec ?? streamInfo.deliveredVideoCodec,
-        )}   ${streamInfo.videoDeliveryMethod ?? 'Unknown'}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Resolution  source ${sourceResolution} → active ${activeResolution}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Audio  ${formatDiagnosticCodec(
-          streamInfo.sourceAudioCodec ?? audioTrack?.codec,
-          streamInfo.sourceAudioProfile ?? audioTrack?.profile,
-        )} → ${formatDiagnosticCodec(
-          streamInfo.outputAudioCodec ?? streamInfo.deliveredAudioCodec,
-        )}   ${streamInfo.audioDeliveryMethod ?? 'Unknown'}   ${
-          audioTrack?.channels ?? '?'
-        } ch`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Audio rate  ${formatDiagnosticKbps(
-          streamInfo.sourceAudioBitrate ?? audioTrack?.bitrate,
-        )} → ${formatDiagnosticKbps(streamInfo.outputAudioBitrate)}   ${
-          streamInfo.sourceAudioSampleRate ?? audioTrack?.sampleRate ?? '?'
-        } Hz`}
-      </Text>
-      {streamInfo.audioOutputCapabilities ? (
-        <Text style={styles.statsLine}>
-          {`Audio sink  AC3 ${
-            streamInfo.audioOutputCapabilities.ac3 ? 'yes' : 'no'
-          }   EAC3 ${
-            streamInfo.audioOutputCapabilities.eac3 ? 'yes' : 'no'
-          }   Opus ${
-            streamInfo.audioOutputCapabilities.opus ? 'yes' : 'no'
-          }   MP3 ${
-            streamInfo.audioOutputCapabilities.mp3 ? 'yes' : 'no'
-          }   DTS ${
-            streamInfo.audioOutputCapabilities.dtsDirectPlayVerified
-              ? 'verified'
-              : streamInfo.audioTranscodePolicy?.split(',').includes('dts')
-              ? 'trial'
-              : streamInfo.audioOutputCapabilities.dtsProbeSupported
-              ? 'probe only'
-              : 'no'
-          }`}
-        </Text>
-      ) : null}
-      <Text style={styles.statsLine}>
-        {`Device  ${describeDeviceModel(readDeviceModel())}`}
-      </Text>
-      {streamInfo.videoDecodeLimits ? (
-        <Text style={styles.statsLine}>
-          {`Decoder  ${describeDecodeLimits(
-            streamInfo.videoDecodeLimits,
-            knownDevice(readDeviceModel().model).maxVideoWidth,
-          )}`}
-        </Text>
-      ) : null}
-      <Text style={styles.statsLine}>
-        {`Audio policy  ${
-          streamInfo.audioTranscodePolicy?.toUpperCase() ?? 'AAC'
-        }`}
-      </Text>
-      <Text style={[styles.statsLine, !trackMatch && styles.statsWarning]}>
-        {`Track  ${requestedAudioIndex ?? 'auto'} → ${
-          deliveredAudioIndex ?? 'unknown'
-        }${trackMatch ? '' : '  MISMATCH'}   ${
-          audioTrack?.title ?? `Track ${deliveredAudioIndex ?? '?'}`
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Container  ${
-          streamInfo.sourceContainer?.toUpperCase() ??
-          streamInfo.container?.toUpperCase() ??
-          'UNKNOWN'
-        } → HLS/${
-          streamInfo.outputContainer?.toUpperCase() ?? 'UNKNOWN'
-        }   Overall ${streamInfo.playMethod}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Delivery  HLS target ${
-          streamInfo.hlsSegmentTargetSeconds !== undefined
-            ? `${streamInfo.hlsSegmentTargetSeconds}s`
-            : '—'
-        }   min segments ${
-          streamInfo.hlsMinimumSegmentCount ?? '—'
-        }   Astra ${APP_VERSION} (${BUILD_NUMBER})`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Bandwidth  stream ${formatDiagnosticMbps(
-          diagnostics?.streamBandwidth ?? streamInfo.bitrate,
-        )}   network ${formatDiagnosticMbps(diagnostics?.estimatedBandwidth)}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Frames  dropped ${formatDropRatio(
-          diagnostics?.decodedFrames,
-          diagnostics?.droppedFrames,
-        )}   Buffering time ${formatBufferingTime(
-          diagnostics?.bufferingTimeSeconds,
-        )}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Events  waiting ${diagnostics?.waitingEventCount ?? 0} / stalled ${
-          diagnostics?.stalledEventCount ?? 0
-        } / errors ${diagnostics?.errorEventCount ?? 0}   last ${
-          diagnostics?.lastPlaybackEvent ?? '—'
-        }${
-          diagnostics?.lastPlaybackEventSeconds !== undefined
-            ? ` @ ${formatDiagnosticTime(diagnostics.lastPlaybackEventSeconds)}`
-            : ''
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Shaka errors  ${diagnostics?.shakaErrorEventCount ?? 0}   ${
-          diagnostics?.lastError ?? 'No recorded failure'
-        }`}
-      </Text>
-      {streamInfo.transcodeReasons?.length ? (
-        <Text style={styles.statsLine}>
-          {`Server reason  ${streamInfo.transcodeReasons.join(', ')}`}
-        </Text>
-      ) : null}
-      {/* Playback traces. JS console output reaches no artifact that
-          `vega device copy-logs` can retrieve, so timings for the reload path
-          have to be read here on the device. */}
-      {(showTraces ? getTraces() : []).slice(-8).map((entry, index) => (
-        <Text key={`${entry.label}-${index}`} style={styles.statsLine}>
-          {`T+${(entry.sinceStartMs / 1000).toFixed(1)}s  ${entry.label}  ${
-            entry.detail
-          }`}
-        </Text>
-      ))}
-    </View>
-  );
-};
-
-const SettingsColumn = ({
-  children,
-  title,
-}: React.PropsWithChildren<{title: string}>) => (
-  <View style={styles.settingsColumn}>
-    <Text style={styles.settingsHeading}>{title}</Text>
-    <ScrollView
-      showsVerticalScrollIndicator={true}
-      style={styles.settingsColumnScroller}>
-      {children}
-    </ScrollView>
-  </View>
-);
-
-const SettingsButton = ({
-  badge,
-  label,
-  onPress,
-  selected = false,
-}: {
-  badge?: {label: string; tone: 'instant' | 'reload'};
-  label: string;
-  onPress: () => void;
-  selected?: boolean;
-}) => (
-  <FocusableItem
-    focusedStyle={styles.settingsButtonFocused}
-    onPress={onPress}
-    style={[styles.settingsButton, selected && styles.settingsButtonSelected]}>
-    <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
-      {selected ? <View style={styles.radioDot} /> : null}
-    </View>
-    <Text numberOfLines={1} style={styles.settingsButtonText}>
-      {label}
-    </Text>
-    {badge ? (
-      <Text
-        style={[
-          styles.settingsButtonBadge,
-          badge.tone === 'instant'
-            ? styles.settingsButtonBadgeInstant
-            : styles.settingsButtonBadgeReload,
-        ]}>
-        {badge.label}
-      </Text>
-    ) : null}
-  </FocusableItem>
-);
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  videoSurface: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  subtitleOverlay: {
-    position: 'absolute',
-    alignItems: 'center',
-    bottom: 84,
-    left: 72,
-    right: 72,
-    zIndex: 2,
-  },
-  subtitleText: {
-    backgroundColor: 'transparent',
-    color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '600',
-    lineHeight: 38,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    textAlign: 'center',
-    textShadowColor: '#000000',
-    textShadowOffset: {width: 0, height: 1},
-    textShadowRadius: 3,
-  },
-  subtitleBackground: {
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 5,
-    textShadowRadius: 0,
-  },
-  subtitleAboveControls: {
-    bottom: 240,
-  },
-  decoderWarning: {
-    position: 'absolute',
-    top: 48,
-    left: 72,
-    right: 72,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 10,
-    paddingHorizontal: 28,
-    paddingVertical: 18,
-  },
-  decoderWarningText: {
-    color: '#F2D98C',
-    fontSize: 24,
-    textAlign: 'center',
-  },
-  overlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 52,
-    paddingHorizontal: 72,
-    paddingTop: 36,
-    backgroundColor: 'rgba(0,0,0,0.58)',
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '800',
-  },
-  status: {
-    color: '#B8C5CC',
-    fontSize: 22,
-    marginTop: 6,
-  },
-  controls: {
-    flexDirection: 'row',
-    gap: 18,
-    marginTop: 22,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    marginTop: 18,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: '#4CC9F0',
-  },
-  button: {
-    minWidth: 118,
-    height: 58,
-    borderRadius: 8,
-    backgroundColor: '#25313A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  focusedButton: {
-    backgroundColor: '#2E5A72',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  settingsOverlay: {
-    position: 'absolute',
-    top: 44,
-    left: 52,
-    right: 52,
-    maxHeight: 670,
-    borderRadius: 8,
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    padding: 24,
-  },
-  sleepNotice: {
-    position: 'absolute',
-    left: 52,
-    right: 52,
-    bottom: 64,
-    borderRadius: 8,
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    gap: 10,
-    padding: 24,
-  },
-  startupOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    backgroundColor: 'rgba(5, 9, 13, 0.86)',
-    gap: 18,
-    justifyContent: 'center',
-    paddingHorizontal: 80,
-  },
-  startupTitle: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '800',
-  },
-  startupRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 18,
-  },
-  startupText: {
-    color: '#E4EBF0',
-    fontSize: 28,
-    textAlign: 'center',
-  },
-  startupDetail: {
-    color: '#B8C5CC',
-    fontSize: 22,
-    textAlign: 'center',
-  },
-  startupButtons: {
-    flexDirection: 'row',
-    gap: 20,
-    marginTop: 10,
-  },
-  exitOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    justifyContent: 'center',
-    padding: 64,
-  },
-  exitTitle: {
-    color: '#FFFFFF',
-    fontSize: 36,
-    fontWeight: '800',
-    marginBottom: 28,
-  },
-  exitButtons: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  promptCard: {
-    position: 'absolute',
-    alignItems: 'center',
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    borderRadius: 10,
-    bottom: 120,
-    paddingHorizontal: 28,
-    paddingVertical: 18,
-    right: 72,
-    zIndex: 3,
-  },
-  promptTitle: {
-    color: '#4CC9F0',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-  },
-  promptSubtitle: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 8,
-    maxWidth: 900,
-  },
-  promptHint: {
-    color: '#B8C5CC',
-    fontSize: 20,
-    marginBottom: 24,
-  },
-  settingsTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  settingsStreamInfo: {
-    color: '#8FE3C0',
-    fontSize: 22,
-    marginBottom: 16,
-  },
-  settingsGrid: {
-    flexDirection: 'row',
-    gap: 18,
-  },
-  settingsColumn: {
-    flex: 1,
-    marginBottom: 18,
-  },
-  settingsColumnScroller: {
-    maxHeight: 550,
-  },
-  settingsHeading: {
-    color: '#89CFF0',
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  settingsButton: {
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: '#25313A',
-    flexDirection: 'row',
-    minHeight: 44,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-  },
-  settingsButtonSelected: {
-    backgroundColor: '#1F3746',
-  },
-  settingsButtonFocused: {
-    backgroundColor: '#2E5A72',
-  },
-  settingsButtonText: {
-    color: '#FFFFFF',
-    flexShrink: 1,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  settingsButtonBadge: {
-    borderRadius: 4,
-    fontSize: 13,
-    fontWeight: '700',
-    marginLeft: 'auto',
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  settingsButtonBadgeInstant: {
-    backgroundColor: '#1F5133',
-    color: '#7BE49B',
-  },
-  settingsButtonBadgeReload: {
-    backgroundColor: '#5A2A20',
-    color: '#FF9E80',
-  },
-  radioCircle: {
-    alignItems: 'center',
-    borderColor: '#8CA1AA',
-    borderRadius: 9,
-    borderWidth: 2,
-    height: 18,
-    justifyContent: 'center',
-    marginRight: 9,
-    width: 18,
-  },
-  radioCircleSelected: {
-    borderColor: '#4CC9F0',
-  },
-  radioDot: {
-    backgroundColor: '#4CC9F0',
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  settingsEmpty: {
-    color: '#B8C5CC',
-    fontSize: 18,
-  },
-  settingsHint: {
-    color: '#B8C5CC',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  statsOverlay: {
-    position: 'absolute',
-    right: 42,
-    top: 34,
-    width: 650,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.86)',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  statsTitle: {
-    color: '#4CC9F0',
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  statsLine: {
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    fontSize: 16,
-    lineHeight: 23,
-  },
-  statsWarning: {
-    color: '#FFB86C',
-    fontWeight: '800',
-  },
-});
