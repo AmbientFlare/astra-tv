@@ -98,16 +98,16 @@ export const getStreamUrl = async (
     ]);
   // `undefined` so the DTS trial flag keeps its own default: the decoder
   // ceiling is the only thing this adds to the profile.
+  const device = knownDevice(readDeviceModel().model);
   const deviceProfile = buildDeviceProfile(
     prefs,
     audioOutputCapabilities,
     undefined,
     videoDecodeLimits,
-    knownDevice(readDeviceModel().model).h264MaxBitrate,
+    device.h264MaxBitrate,
+    device.maxVideoWidth,
   );
-  const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`, {
-    ...tokenQuery(accessToken),
-  });
+  const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`);
   console.log(
     '[Astra] buildUrl PlaybackInfo output:',
     sanitizeUrlForLog(playbackInfoUrl),

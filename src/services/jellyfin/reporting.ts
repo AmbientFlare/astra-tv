@@ -1,11 +1,5 @@
 import type {PlaybackReportInput} from './types';
-import {
-  normalizeServerUrl,
-  getJson,
-  buildUrl,
-  getAuthHeaders,
-  tokenQuery,
-} from './http';
+import {normalizeServerUrl, getJson, buildUrl, getAuthHeaders} from './http';
 
 const reportPlayback = async (
   serverUrl: string,
@@ -40,17 +34,14 @@ const reportPlayback = async (
           PlaybackOrder: 'Default',
         };
 
-  await getJson(
-    buildUrl(baseUrl, `/Sessions/${endpoint}`, tokenQuery(accessToken)),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(accessToken),
-      },
-      body: JSON.stringify(body),
+  await getJson(buildUrl(baseUrl, `/Sessions/${endpoint}`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(accessToken),
     },
-  );
+    body: JSON.stringify(body),
+  });
 };
 
 export const reportPlaybackStart = (
@@ -79,15 +70,10 @@ export const setFavorite = async (
   isFavorite: boolean,
 ) => {
   const baseUrl = normalizeServerUrl(serverUrl);
-  await getJson(
-    buildUrl(baseUrl, `/Users/${userId}/FavoriteItems/${itemId}`, {
-      ...tokenQuery(accessToken),
-    }),
-    {
-      method: isFavorite ? 'POST' : 'DELETE',
-      headers: getAuthHeaders(accessToken),
-    },
-  );
+  await getJson(buildUrl(baseUrl, `/Users/${userId}/FavoriteItems/${itemId}`), {
+    method: isFavorite ? 'POST' : 'DELETE',
+    headers: getAuthHeaders(accessToken),
+  });
 };
 
 export const setPlayed = async (
@@ -98,13 +84,8 @@ export const setPlayed = async (
   isPlayed: boolean,
 ) => {
   const baseUrl = normalizeServerUrl(serverUrl);
-  await getJson(
-    buildUrl(baseUrl, `/Users/${userId}/PlayedItems/${itemId}`, {
-      ...tokenQuery(accessToken),
-    }),
-    {
-      method: isPlayed ? 'POST' : 'DELETE',
-      headers: getAuthHeaders(accessToken),
-    },
-  );
+  await getJson(buildUrl(baseUrl, `/Users/${userId}/PlayedItems/${itemId}`), {
+    method: isPlayed ? 'POST' : 'DELETE',
+    headers: getAuthHeaders(accessToken),
+  });
 };

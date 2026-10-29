@@ -168,9 +168,27 @@ const librarySessions = new Map<string, LibrarySession>();
 const LIBRARY_SESSION_LIMIT = 12;
 
 /**
+ * How deep a remembered grid is refreshed when it comes back on screen, in
+ * items, and how much of one survives the app going to the background.
+ *
+ * The refresh used to re-fetch every page the viewer had scrolled past in
+ * one request of `focusedIndex + 1` items. For a card a few thousand deep
+ * into a big library that is exactly the multi-megabyte response, parsed on
+ * the JS thread, that the paging exists to avoid. Past this depth only the
+ * first page is refreshed and the remembered pages behind it are kept as
+ * they were: a moment old, but on screen at once and at the same card.
+ *
+ * In the background the same bound caps what each remembered grid holds, so
+ * a dozen deep grids cannot be the allocation that gets Astra killed on a
+ * 1 GB stick. A viewer who was deeper than this comes back to the last kept
+ * card rather than to a spinner.
+ */
+export const LIBRARY_RESTORE_LIMIT = 500;
+
+/**
  * Remembered grids are a convenience. In the background each keeps its list
- * and place but loses its detail cache, the bulk of it (see
- * DETAIL_CACHE_LIMIT); on a memory warning they all go.
+ * and place, cut to LIBRARY_RESTORE_LIMIT items, but loses its detail cache,
+ * the bulk of it (see DETAIL_CACHE_LIMIT); on a memory warning they all go.
  */
 onMemoryTrim((level) => {
   if (level === 'critical') {
@@ -178,7 +196,16 @@ onMemoryTrim((level) => {
     return;
   }
   librarySessions.forEach((session, id) => {
-    librarySessions.set(id, {...session, itemDetails: {}});
+    const items = session.items.slice(0, LIBRARY_RESTORE_LIMIT);
+    librarySessions.set(id, {
+      ...session,
+      focusedIndex: Math.min(
+        session.focusedIndex,
+        Math.max(items.length - 1, 0),
+      ),
+      itemDetails: {},
+      items,
+    });
   });
 });
 
@@ -500,6 +527,17 @@ export const LibraryScreen = ({
       setErrorText(null);
 
       try {
+        // A refresh re-fetches as far as the user had already scrolled, so
+        // the remembered card is still in the list it comes back with --
+        // up to LIBRARY_RESTORE_LIMIT. Deeper than that, only the first page
+        // is refreshed and the remembered pages behind it are kept.
+        const keepsRememberedTail =
+          refreshingRestored && initialFocusIndex + 1 > LIBRARY_RESTORE_LIMIT;
+        const limit =
+          refreshingRestored && !keepsRememberedTail
+            ? Math.max(LIBRARY_PAGE_SIZE, initialFocusIndex + 1)
+            : LIBRARY_PAGE_SIZE;
+        const remembered = itemsRef.current;
         const page = await getItemsPage(
           serverProfile.serverUrl,
           serverProfile.accessToken,
@@ -507,11 +545,7 @@ export const LibraryScreen = ({
           serverProfile.userId,
           {
             filters,
-            // A refresh re-fetches as far as the user had already scrolled, so
-            // the remembered card is still in the list it comes back with.
-            limit: refreshingRestored
-              ? Math.max(LIBRARY_PAGE_SIZE, initialFocusIndex + 1)
-              : LIBRARY_PAGE_SIZE,
+            limit,
             imageType: displayPreferences.imageType,
             ...libraryBrowseScope(libraryType),
             sortBy,
@@ -519,7 +553,18 @@ export const LibraryScreen = ({
             startIndex: 0,
           },
         );
-        const results = page.items;
+        // Only a full page proves there is more beyond it; a short one means
+        // the library shrank and the remembered tail is gone with it.
+        const results =
+          keepsRememberedTail && page.items.length === limit
+            ? page.items.concat(
+                remembered
+                  .slice(page.items.length)
+                  .filter(
+                    (item) => !page.items.some((fresh) => fresh.id === item.id),
+                  ),
+              )
+            : page.items;
 
         if (mounted && generation === loadGenerationRef.current) {
           // A refresh keeps the user where they were, clamped in case the
@@ -530,7 +575,7 @@ export const LibraryScreen = ({
             : 0;
 
           setItems(results);
-          setTotalCount(page.totalRecordCount);
+          setTotalCount(Math.max(page.totalRecordCount, results.length));
           setFocusedIndex(index);
           setFocusedItem(results[index] ?? null);
           ensureDetails(detailPrefetchIds(results, index));

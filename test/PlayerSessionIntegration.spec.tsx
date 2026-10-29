@@ -117,6 +117,11 @@ jest.mock('../src/services/storage', () => ({
     subtitleAppearance: 'shadow',
   })),
   recordPlayback: jest.fn(async () => 1),
+  // An episode in a series reads and writes the per-series track pick.
+  readSeriesTrackPick: jest.fn(async () => undefined),
+  rememberSeriesTrackPick: jest.fn(async () => undefined),
+  seriesTrackPickKey: (userId: string, seriesId: string) =>
+    `${userId}:${seriesId}`,
 }));
 jest.mock('../src/services/jellyfin', () => ({
   getMediaSegments: jest.fn(async () => []),
@@ -151,6 +156,7 @@ import {getSleepTimer, setSleepTimer} from '../src/services/sleepTimer';
 import {getUserPreferences, recordPlayback} from '../src/services/storage';
 import {createPositionStore} from '../src/screens/PlayerScreen/positionStore';
 import {
+  getAdjacentEpisodes,
   getStreamUrl,
   reportPlaybackStart,
   reportPlaybackStopped,
@@ -175,7 +181,9 @@ const stream: any = {
   qualityOptions: [],
 };
 const flush = async () => {
-  for (let n = 0; n < 30; n++) await Promise.resolve();
+  for (let n = 0; n < 30; n++) {
+    await Promise.resolve();
+  }
 };
 const mount = () =>
   render(
@@ -1267,6 +1275,30 @@ describe('PlayerScreen native session integration', () => {
       });
     });
 
+    it('wakes with Play even when the timer ran out on the startup error screen', async () => {
+      (getStreamUrl as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+      const view = mount();
+      await start(view);
+      expect(view.getByTestId('player-startup-state')).toBeTruthy();
+      // The failed session released its media, so there is no video to pause.
+      await act(async () => setSleepTimer(15));
+      await settle(15 * 60_000);
+      expect(view.getByTestId('player-sleep-notice')).toBeTruthy();
+      const loads = (getStreamUrl as jest.Mock).mock.calls.length;
+
+      await act(async () => {
+        mockRemote({eventType: 'select'});
+        await flush();
+      });
+      await settle();
+      expect(view.queryByTestId('player-sleep-notice')).toBeNull();
+      expect(getStreamUrl).toHaveBeenCalledTimes(loads + 1);
+      await act(async () => {
+        view.unmount();
+        await flush();
+      });
+    });
+
     it('drops the timer when the viewer leaves the player', async () => {
       const view = mount();
       await start(view);
@@ -1276,6 +1308,183 @@ describe('PlayerScreen native session integration', () => {
         await flush();
       });
       expect(getSleepTimer()).toBeNull();
+    });
+  });
+});
+
+describe('PlayerScreen startup error keys', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockVideos.length = 0;
+    mockShakas.length = 0;
+    mockPlayEmitsPlaying = true;
+    mockLoadGate = undefined;
+    (getStreamUrl as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+  });
+
+  it('leaves on the first Back, like the panel’s own Back button', async () => {
+    const onBack = jest.fn();
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        onBack={onBack}
+        serverUrl="https://server"
+      />,
+    );
+    await start(view);
+    expect(view.getByTestId('player-startup-state')).toBeTruthy();
+
+    await act(async () => {
+      mockRemote({eventType: 'back'});
+      await flush();
+    });
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(view.queryByTestId('player-exit-confirm')).toBeNull();
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+  });
+});
+
+/**
+ * The one flow 1.6.0 shipped broken: a video reaches its end, the countdown
+ * runs, and exactly one next episode starts. Both end signals (the native
+ * `ended` and the stall detector) feed the same finish, and neither may start
+ * a second countdown or a second handoff.
+ */
+describe('PlayerScreen next episode', () => {
+  const episode: any = {
+    id: 'ep-1',
+    name: 'Episode 1',
+    type: 'Episode',
+    seriesId: 'series-1',
+    parentId: 'season-1',
+    indexNumber: 1,
+    parentIndexNumber: 1,
+    runTimeTicks: 1000 * 10000000,
+  };
+  const next: any = {...episode, id: 'ep-2', name: 'Episode 2', indexNumber: 2};
+
+  const settle = async (ms = 0) => {
+    await act(async () => {
+      jest.advanceTimersByTime(ms);
+      await flush();
+    });
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+    mockVideos.length = 0;
+    mockShakas.length = 0;
+    mockPlayEmitsPlaying = true;
+    mockLoadGate = undefined;
+    (getStreamUrl as jest.Mock).mockResolvedValue({...stream, itemId: 'ep-1'});
+    (reportPlaybackStart as jest.Mock).mockResolvedValue(undefined);
+    (reportPlaybackStopped as jest.Mock).mockResolvedValue(undefined);
+    (getAdjacentEpisodes as jest.Mock).mockResolvedValue([episode, next]);
+    (getUserPreferences as jest.Mock).mockResolvedValueOnce({
+      nextEpisodeAutoplay: true,
+      nextEpisodeCountdownSeconds: 10,
+      skipIntroCredits: 'ignore',
+      stillWatchingAfterEpisodes: 3,
+      subtitleAppearance: 'shadow',
+    });
+  });
+
+  afterEach(() => {
+    (getAdjacentEpisodes as jest.Mock).mockResolvedValue([]);
+    jest.useRealTimers();
+  });
+
+  const mountEpisode = (onPlayNext: jest.Mock) =>
+    render(
+      <PlayerScreen
+        accessToken="token"
+        item={episode}
+        onPlayNext={onPlayNext}
+        serverUrl="https://server"
+        userId="user-1"
+      />,
+    );
+
+  it('counts down once and hands off exactly one episode, whichever end fires', async () => {
+    const onPlayNext = jest.fn();
+    const view = mountEpisode(onPlayNext);
+    await start(view);
+    await settle();
+    const video = mockVideos[0];
+
+    video.currentTime = 1000;
+    await act(async () => {
+      video.emit('ended');
+      await flush();
+    });
+    expect(view.getByTestId('player-up-next-play')).toBeTruthy();
+    expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
+
+    // Vega fires `ended` twice, and the stall check keeps running: neither
+    // may restart the countdown or report a second stop.
+    await act(async () => {
+      video.emit('ended');
+      await flush();
+    });
+    await settle(3000);
+    expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
+    expect(onPlayNext).not.toHaveBeenCalled();
+
+    await settle(7000);
+    await settle();
+    expect(onPlayNext).toHaveBeenCalledTimes(1);
+    expect(onPlayNext).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'ep-2'}),
+      {automatic: true},
+    );
+
+    await settle(30_000);
+    expect(onPlayNext).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+  });
+
+  it('asks instead of counting down once the still-watching run is reached', async () => {
+    const onPlayNext = jest.fn();
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        consecutiveAutoAdvances={2}
+        item={episode}
+        onPlayNext={onPlayNext}
+        serverUrl="https://server"
+        userId="user-1"
+      />,
+    );
+    await start(view);
+    await settle();
+
+    mockVideos[0].currentTime = 1000;
+    await act(async () => {
+      mockVideos[0].emit('ended');
+      await flush();
+    });
+    expect(view.getByTestId('player-continue-watching')).toBeTruthy();
+    await settle(60_000);
+    expect(onPlayNext).not.toHaveBeenCalled();
+
+    fireEvent.press(view.getByTestId('player-continue-watching'));
+    await settle();
+    expect(onPlayNext).toHaveBeenCalledTimes(1);
+    expect(onPlayNext).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'ep-2'}),
+      {automatic: false},
+    );
+    await act(async () => {
+      view.unmount();
+      await flush();
     });
   });
 });

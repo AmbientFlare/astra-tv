@@ -171,7 +171,6 @@ export const getItemsPage = async (
       SortOrder: options.sortDescending ? 'Descending' : 'Ascending',
       StartIndex: options.startIndex,
       Limit: options.limit,
-      ...tokenQuery(accessToken),
     }),
     {
       headers: getAuthHeaders(accessToken),
@@ -213,7 +212,6 @@ export const getMediaSegments = async (
     response = await getJson(
       buildUrl(baseUrl, `/MediaSegments/${itemId}`, {
         IncludeSegmentTypes: 'Outro',
-        ...tokenQuery(accessToken),
       }),
       {headers: getAuthHeaders(accessToken)},
     );
@@ -255,7 +253,7 @@ export const getPerson = async (
     Overview?: string;
     PremiereDate?: string;
     UserData?: {IsFavorite?: boolean};
-  }>(buildUrl(baseUrl, `/Persons/${personKey}`, tokenQuery(accessToken)), {
+  }>(buildUrl(baseUrl, `/Persons/${personKey}`), {
     headers: getAuthHeaders(accessToken),
   });
   const resolvedId = person.Id ?? personId;
@@ -316,7 +314,6 @@ export const getItemDetails = async (
   const item = await getJson<Parameters<typeof mapItem>[2]>(
     buildUrl(baseUrl, `/Users/${userId}/Items/${itemId}`, {
       Fields: itemFields,
-      ...tokenQuery(accessToken),
     }),
     {
       headers: getAuthHeaders(accessToken),

@@ -378,6 +378,25 @@ describe('App', () => {
     }
   });
 
+  it('offers Retry when the saved servers cannot be read, then recovers', async () => {
+    (readServerProfiles as jest.Mock).mockRejectedValueOnce(
+      new Error('storage unavailable'),
+    );
+    const screen = render(<App />);
+    await waitFor(() =>
+      expect(screen.getByTestId('navigation-load-failed')).toBeTruthy(),
+    );
+    // Never guessed "fresh install": Setup must not appear over stored
+    // sign-ins just because one read failed.
+    expect(screen.queryByTestId('setup-screen')).toBeNull();
+
+    fireEvent.press(screen.getByTestId('navigation-retry'));
+    await waitFor(() =>
+      expect(screen.getByTestId('setup-screen')).toBeTruthy(),
+    );
+    expect(readServerProfiles).toHaveBeenCalledTimes(2);
+  });
+
   it('launches setup when no server profile exists', async () => {
     const screen = render(<App />);
     await waitFor(() =>
