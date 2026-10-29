@@ -1,6 +1,6 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.6.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.6.1-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.6.0`, build `20261028.18`, for Fire TV
+The current release is Astra `1.6.1`, build `20261029.01`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -32,7 +32,7 @@ Appstore.
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
 - Contributors: [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- Release validation: 814 tests in 83 suites, ESLint, TypeScript, Vega
+- Release validation: 819 tests in 83 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
@@ -44,7 +44,9 @@ Appstore.
   pressing Home mid-playback, and leaving playback twice in a row. For 1.6.0,
   quick play, music Stop, per-series track picks, the sleep timer menu, the
   still-watching setting and music on a Jellyfin 12.0 server were checked on
-  a Fire TV Stick 4K (3rd Gen) running Vega OS 2.0.
+  a Fire TV Stick 4K (3rd Gen) running Vega OS 2.0. For 1.6.1, the same stick
+  played converted episodes to their end into the next episode, held Right to
+  the end, and resumed from the sleep timer with one press.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -117,6 +119,15 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.6.1 — Episodes finish properly — 2026-10-29
+
+- Converted episodes that stopped a second short of the end now finish, so
+  the next episode, the End-of-episode sleep timer and "Continue watching?"
+  work again.
+- Holding Right to the end of a video finishes it instead of showing
+  "Couldn't start this episode".
+- Play after the sleep timer runs out resumes with one press.
 
 ### 1.6.0 — Six languages, sleep timer and quick play — 2026-10-28
 

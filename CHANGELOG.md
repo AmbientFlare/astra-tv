@@ -3,6 +3,20 @@
 Code from outside contributors is credited on its entry and, permanently,
 in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
+## 1.6.1 - 2026-10-29
+
+### Fixed
+
+- An episode whose stream stopped a second short of the end never finished,
+  so the next episode didn't start, the End-of-episode sleep timer didn't
+  fire and "Continue watching?" never counted it. It happened on converted
+  (transcoded) streams started part-way through. Astra now treats a stall in
+  the last seconds as the end.
+- Holding Right to the end of a converted video showed "Couldn't start this
+  episode". A jump into the last ten seconds now finishes the video instead.
+- After the sleep timer ran out, Play reloaded the video but left it paused,
+  so it took a second press.
+
 ## 1.6.0 - 2026-10-28
 
 ### Added
