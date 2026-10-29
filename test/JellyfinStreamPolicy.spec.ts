@@ -354,6 +354,54 @@ describe('Jellyfin video resolution policy', () => {
     });
   });
 
+  it('falls back to the model table only when the HD stick’s probe is silent', () => {
+    const widthCondition = {
+      Condition: 'LessThanEqual',
+      Property: 'Width',
+      Value: '1920',
+      IsRequired: true,
+    };
+    const conditions = (limits: VideoDecodeLimits, knownWidth?: number) =>
+      buildDeviceProfile(
+        defaultPlaybackPrefs,
+        capabilities(),
+        false,
+        limits,
+        undefined,
+        knownWidth,
+      ).CodecProfiles.find((profile) => profile.Codec === 'hevc')!.Conditions;
+
+    // Issue #21: the probe gave nothing usable, so the table has to speak.
+    expect(conditions(defaultVideoDecodeLimits, 1920)).toContainEqual(
+      widthCondition,
+    );
+    expect(
+      conditions(decodeLimits({controlsFailed: true}), 1920),
+    ).toContainEqual(widthCondition);
+    expect(conditions(decodeLimits({maxWidth: 0}), 1920)).toContainEqual(
+      widthCondition,
+    );
+    // A measured answer wins over the table in both directions.
+    expect(
+      conditions(decodeLimits({maxWidth: 3840, maxHeight: 2160}), 1920),
+    ).not.toContainEqual(expect.objectContaining({Property: 'Width'}));
+    expect(conditions(hdOnly, undefined)).toContainEqual(widthCondition);
+    // The 4K sticks have no table width and declare nothing when unprobed.
+    expect(conditions(defaultVideoDecodeLimits, undefined)).not.toContainEqual(
+      expect.objectContaining({Property: 'Width'}),
+    );
+
+    expect(describeDecodeLimits(defaultVideoDecodeLimits, 1920)).toBe(
+      'not reported, capped at 1920 wide from the model table',
+    );
+    expect(describeDecodeLimits(defaultVideoDecodeLimits)).toBe(
+      'not reported, no cap sent',
+    );
+    expect(describeDecodeLimits(hdOnly, 1920)).toBe(
+      '1920x1080, capped at 1920 wide',
+    );
+  });
+
   it('leaves the audio, container and subtitle policy untouched', () => {
     const description = capabilities({
       ac3: true,

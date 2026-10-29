@@ -1,12 +1,6 @@
 import {getItemCollection, itemFields, mapItem} from './shared';
 import type {JellyfinMediaItem} from './types';
-import {
-  normalizeServerUrl,
-  getJson,
-  buildUrl,
-  getAuthHeaders,
-  tokenQuery,
-} from './http';
+import {normalizeServerUrl, getJson, buildUrl, getAuthHeaders} from './http';
 
 export const getResumeItems = (
   serverUrl: string,
@@ -166,7 +160,6 @@ export const getLatestItems = async (
       ImageTypeLimit: 1,
       EnableImageTypes: 'Primary,Backdrop',
       Limit: 24,
-      ...tokenQuery(accessToken),
     }),
     {
       headers: getAuthHeaders(accessToken),

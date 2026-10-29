@@ -170,7 +170,7 @@ export const getItemCollection = async (
   const baseUrl = normalizeServerUrl(serverUrl);
   const response = await getJson<{
     Items?: Array<Parameters<typeof mapItem>[2]>;
-  }>(buildUrl(baseUrl, path, {...params, ...tokenQuery(accessToken)}), {
+  }>(buildUrl(baseUrl, path, params), {
     headers: getAuthHeaders(accessToken),
   });
 

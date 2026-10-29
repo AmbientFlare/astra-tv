@@ -43,18 +43,53 @@ export const declaredMaxVideoWidth = (
   return maxWidth;
 };
 
+/** True when the probe ran, its controls held and it named a width. */
+const probeAnswered = (limits: VideoDecodeLimits) =>
+  limits.probeSucceeded &&
+  !limits.controlsFailed &&
+  typeof limits.maxWidth === 'number' &&
+  limits.maxWidth > 0;
+
+/**
+ * The width to declare: the measured ceiling when there is one, else what the
+ * model table says about this stick. An HD stick whose descriptor query comes
+ * back empty or untrustworthy was previously offered 4K and stalled at 0 ms
+ * (issue #21); the table is the insurance for that case. A probe that did
+ * answer is believed even when the table disagrees.
+ */
+export const effectiveMaxVideoWidth = (
+  limits: VideoDecodeLimits,
+  knownMaxVideoWidth?: number,
+): number | undefined =>
+  probeAnswered(limits)
+    ? declaredMaxVideoWidth(limits)
+    : knownMaxVideoWidth && knownMaxVideoWidth < UHD_WIDTH
+    ? knownMaxVideoWidth
+    : undefined;
+
 /**
  * One line for Stats for Nerds: what the decoder reported and whether that
  * became a cap. Reporters on HD-only sticks can read it back, which is the
  * only way to learn what those devices really answer.
  */
-export const describeDecodeLimits = (limits: VideoDecodeLimits): string => {
+export const describeDecodeLimits = (
+  limits: VideoDecodeLimits,
+  knownMaxVideoWidth?: number,
+): string => {
+  const fromModel = !probeAnswered(limits)
+    ? effectiveMaxVideoWidth(limits, knownMaxVideoWidth)
+    : undefined;
+  const silent =
+    fromModel === undefined
+      ? 'no cap sent'
+      : `capped at ${fromModel} wide from the model table`;
+
   if (!limits.probeSucceeded) {
-    return 'not reported, no cap sent';
+    return `not reported, ${silent}`;
   }
 
   if (limits.controlsFailed) {
-    return 'answer not trusted (controls failed), no cap sent';
+    return `answer not trusted (controls failed), ${silent}`;
   }
 
   const reported = limits.maxWidth
@@ -63,7 +98,7 @@ export const describeDecodeLimits = (limits: VideoDecodeLimits): string => {
   const cap = declaredMaxVideoWidth(limits);
 
   return cap === undefined
-    ? `${reported}, no cap sent`
+    ? `${reported}, ${probeAnswered(limits) ? 'no cap sent' : silent}`
     : `${reported}, capped at ${cap} wide`;
 };
 
@@ -96,6 +131,7 @@ export const buildDeviceProfile = (
   enableUnverifiedDtsRemuxTrial = ENABLE_UNVERIFIED_DTS_REMUX_TRIAL,
   videoDecodeLimits: VideoDecodeLimits = defaultVideoDecodeLimits,
   h264MaxBitrate?: number,
+  knownMaxVideoWidth?: number,
 ) => {
   const audioCodecs = buildTranscodingAudioCodecs(
     audioCapabilities,
@@ -108,7 +144,10 @@ export const buildDeviceProfile = (
   // that AC3 delivery fixed. Isolate that codec variable only on the HEVC/TS
   // route; safely retain the normal capability policy when AC3 is unavailable.
   const mpegTsAudioCodecs = audioCapabilities.ac3 ? 'ac3' : audioCodecs;
-  const maxVideoWidth = declaredMaxVideoWidth(videoDecodeLimits);
+  const maxVideoWidth = effectiveMaxVideoWidth(
+    videoDecodeLimits,
+    knownMaxVideoWidth,
+  );
   // Empty when the device declared no ceiling; see `declaredMaxVideoWidth`.
   // Jellyfin reads this as a decoder limit: a source wider than it is
   // re-encoded, and therefore downscaled, instead of being offered as-is.

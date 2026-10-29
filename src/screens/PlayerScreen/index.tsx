@@ -6,13 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import {ActivityIndicator, Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -23,14 +17,9 @@ import {
 } from '@amazon-devices/react-native-w3cmedia';
 import {FocusableItem} from '../../components/FocusableItem';
 import {
-  getAdjacentEpisodes,
-  getEpisodes,
-  getMediaSegments,
   canServerTranscodeVideo,
   getStreamUrl,
-  isSecondaryTrack,
   JellyfinMediaItem,
-  JellyfinMediaSegment,
   JellyfinMediaTrack,
   JellyfinStreamInfo,
   PlaybackReportInput,
@@ -38,28 +27,21 @@ import {
   reportPlaybackStart,
   reportPlaybackStopped,
   sanitizeUrlForLog,
-  SeriesTrackPick,
 } from '../../services/jellyfin';
-import {describeDecodeLimits} from '../../services/jellyfin/deviceProfile';
-import {describeDeviceModel, readDeviceModel} from '../../services/deviceModel';
+
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
-import {getTraces, resetTraces, trace} from '../../services/logging/trace';
+import {resetTraces, trace} from '../../services/logging/trace';
 import {
   emitError,
   flushTelemetry,
   isTelemetryArmed,
   setTelemetrySession,
-  telemetryStatus,
 } from '../../services/telemetry';
 import {
   emitPlaybackDecision,
   emitSessionEnd,
 } from '../../services/telemetry/playbackFacts';
-import {
-  HeartbeatSample,
-  PlaybackHeartbeat,
-} from '../../services/telemetry/heartbeat';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
   calibrateTimelineOffset,
@@ -86,7 +68,6 @@ import {
   PlaybackFailure,
   shakaFailure,
   formatPlaybackFailure,
-  formatBufferingTime,
   PlaybackHealthMonitor,
   shouldAbandonForcedDecoderTranscode,
   shouldTripForcedDecoderTranscode,
@@ -96,23 +77,14 @@ import {
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
-  serverConversionFailed,
-  requiresServerConversion,
 } from '../../services/playbackHealth';
 import {
-  getServerCapabilities,
   recordTranscodeFailure,
   recordTranscodeProbe,
-  recordTranscodeSuccess,
   serverCapabilityKey,
-  shouldAttemptServerTranscode,
-  shouldProbeTranscode,
 } from '../../services/serverCapabilities';
 import {
-  defaultPlaybackPrefs,
   defaultUserPreferences,
-  getUserPreferences,
-  readPlaybackPreferences,
   readSeriesTrackPick,
   recordPlayback,
   rememberSeriesTrackPick,
@@ -127,7 +99,6 @@ import {
   decideEndOfPlayback,
   findCreditsWindow,
   isInsideWindow,
-  resolveNextEpisode,
 } from '../../services/episodePlayback';
 import {audioPlayback} from '../../services/audioPlayer';
 import {
@@ -143,13 +114,8 @@ import {
   startVideoEngagement,
   stopVideoEngagement,
 } from '@astra/user-engagement';
-import {
-  activeWebVttText,
-  parseWebVtt,
-  WebVttCue,
-} from '../../services/subtitles';
-import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
-import {createPositionStore, PositionStore} from './positionStore';
+
+import {createPositionStore} from './positionStore';
 import {syncPlay, type SyncPlayPlayer} from '../../services/syncPlay';
 import {t} from '../../i18n';
 import {ConnectionNotice} from '../../components/ConnectionNotice';
@@ -158,83 +124,51 @@ import {
   clearSleepTimer,
   getSleepTimer,
   setSleepTimer,
-  SLEEP_TIMER_MINUTES,
-  SleepTimerChoice,
   sleepTimerChoice,
   useSleepTimer,
 } from '../../services/sleepTimer';
 
-const TICKS_PER_SECOND = 10000000;
-const CONTROL_HIDE_DELAY_MS = 5000;
-type PlaybackPanel = 'audio' | 'subtitles';
+import {
+  emptyPlaybackEventDiagnostics,
+  EndPrompt,
+  PlaybackEventDiagnostics,
+  PlaybackPanel,
+  TICKS_PER_SECOND,
+} from './types';
+import {
+  assertPlayableUrl,
+  episodeLabel,
+  isAdaptiveStream,
+  RELOAD_JUMP_THRESHOLD_SECONDS,
+  seriesPickFor,
+  shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
+  startupFailureMessage,
+  toTicks,
+} from './playbackPolicy';
+import {formatDiagnosticTime} from './formatDiagnostics';
+import {ExternalSubtitleOverlay} from './ExternalSubtitleOverlay';
+import {PlaybackSettingsOverlay} from './PlaybackSettingsOverlay';
+import {PlaybackStatsOverlay} from './PlaybackStatsOverlay';
+import {styles} from './styles';
+import {classifyRemoteKey, isMenuKey, isPlayPauseKey} from './remoteKeys';
+import {useControlsVisibility} from './useControlsVisibility';
+import {useEpisodeContext} from './useEpisodeContext';
+import {useExternalSubtitleCues} from './useExternalSubtitleCues';
+import {usePlaybackDiagnostics} from './usePlaybackDiagnostics';
+import {usePlaybackPreferences} from './usePlaybackPreferences';
+import {useServerTranscodeCapability} from './useServerTranscodeCapability';
 
-interface PlaybackDebugInfo {
-  activeVideoHeight?: number;
-  activeVideoWidth?: number;
-  bufferedAheadSeconds?: number;
-  bufferedRangeCount?: number;
-  bufferingTimeSeconds?: number;
-  corruptedFrames?: number;
-  decodedFrames?: number;
-  droppedFrames?: number;
-  estimatedBandwidth?: number;
-  gapsJumped?: number;
-  stallsDetected?: number;
-  errorEventCount: number;
-  shakaErrorEventCount?: number;
-  lastError?: string;
-  furthestBufferedAheadSeconds?: number;
-  lastPlaybackEvent?: string;
-  lastPlaybackEventSeconds?: number;
-  nextBufferedGapSeconds?: number;
-  stalledEventCount: number;
-  streamBandwidth?: number;
-  waitingEventCount: number;
-}
-
-interface PlaybackEventDiagnostics {
-  errorEventCount: number;
-  shakaErrorEventCount?: number;
-  lastError?: string;
-  lastPlaybackEvent?: string;
-  lastPlaybackEventSeconds?: number;
-  stalledEventCount: number;
-  waitingEventCount: number;
-}
-
-const emptyPlaybackEventDiagnostics = (): PlaybackEventDiagnostics => ({
-  errorEventCount: 0,
-  stalledEventCount: 0,
-  waitingEventCount: 0,
-});
-
-// The physical one-hour MPEG-TS test rejected sequence mode: audio accumulated
-// a clearly visible lead over video, while pause/resume partially restored
-// sync. Keep every video route in the previously accepted segments mode while
-// the native W3C Media 2.2 interface is evaluated independently.
-export const shouldUseHlsSequenceMode = (_outputContainer?: string) => false;
-
-/**
- * An fMP4 session that starts mid-file needs sequence mode. Jellyfin's
- * transcode keeps source timestamps (`-copyts`), and the fMP4 init segment
- * is served by a separate from-zero FFmpeg session, so in segments mode the
- * first fragment lands at its source time (for example 3345 s) while Shaka's
- * playhead stays at 0 and nothing ever decodes. Observed on the physical
- * stick for a subtitle burn-in resume on two titles. Sequence mode places
- * the first fragment at the playhead regardless of its timestamps. MPEG-TS
- * has no init segment and keeps the accepted segments mode, and so does
- * fMP4 playback from the start.
- */
-export const shouldUseSequenceModeForMidFileStart = (
-  outputContainer: string | undefined,
-  startTimeSeconds: number | undefined,
-) => {
-  if (!(startTimeSeconds && startTimeSeconds > 0)) {
-    return false;
-  }
-  const container = (outputContainer ?? '').trim().toLowerCase();
-  return container.includes('mp4') || container.includes('m4s');
-};
+// The overlays and pure helpers live beside this file; the names below are
+// the module's public surface and stay importable from here.
+export {
+  shouldUseHlsSequenceMode,
+  shouldUseSequenceModeForMidFileStart,
+  startupFailureMessage,
+} from './playbackPolicy';
+export {ExternalSubtitleOverlay} from './ExternalSubtitleOverlay';
+export {PlaybackSettingsOverlay} from './PlaybackSettingsOverlay';
+export {PlaybackStatsOverlay} from './PlaybackStatsOverlay';
 
 interface PlayerScreenProps {
   accessToken: string;
@@ -253,102 +187,6 @@ interface PlayerScreenProps {
   serverUrl: string;
   userId?: string;
 }
-
-type EndPrompt =
-  | {kind: 'countdown'; remainingSeconds: number}
-  | {kind: 'confirm'};
-
-const episodeLabel = (episode: JellyfinMediaItem) => {
-  const code =
-    episode.parentIndexNumber !== undefined && episode.indexNumber !== undefined
-      ? `S${episode.parentIndexNumber}:E${episode.indexNumber}`
-      : episode.indexNumber !== undefined
-      ? t('detail.episodeNumber', {number: episode.indexNumber})
-      : undefined;
-  return code ? `${code}  ${episode.name}` : episode.name;
-};
-
-/** Names the likely cause when a title can only play through a server re-encode. */
-export const startupFailureMessage = (
-  sourceVideoRangeType: string | undefined,
-  fallback: string,
-) =>
-  requiresServerConversion(sourceVideoRangeType)
-    ? serverConversionFailed()
-    : fallback;
-
-const toTicks = (seconds?: number, fallback = 0) =>
-  Math.round((seconds ?? fallback) * TICKS_PER_SECOND);
-
-/**
- * Jumps at least this far reload the stream at the target instead of seeking
- * within it.
- *
- * An in-place seek makes Vega drain and refill the decoder, which was measured
- * at 36 s for a ten-minute jump and close to two minutes on a high-bitrate
- * title. Reloading asks Jellyfin to start at the target segment, the same route
- * resume takes, which lands in about three seconds. Short D-pad seeks stay
- * in-place because they are already near-instant and a reload would be a
- * visible interruption for no gain.
- */
-const RELOAD_JUMP_THRESHOLD_SECONDS = 60;
-
-const isAdaptiveStream = (url: string) =>
-  url.includes('.m3u8') || url.includes('.mpd');
-
-const assertPlayableUrl = (url: string) => {
-  const parsed = new URL(url);
-  const seenKeys = new Set<string>();
-  const duplicateKeys = new Set<string>();
-
-  parsed.searchParams.forEach((_, key) => {
-    const normalizedKey = key.toLowerCase();
-    if (seenKeys.has(normalizedKey)) {
-      duplicateKeys.add(key);
-    }
-    seenKeys.add(normalizedKey);
-  });
-
-  const hasEmptyQueryAssignment = /[?&]=(?:&|$)/.test(url);
-
-  if (duplicateKeys.size || hasEmptyQueryAssignment) {
-    console.warn('[Astra] Malformed playback URL:', {
-      duplicateQueryKeys: Array.from(duplicateKeys),
-      hasEmptyQueryAssignment,
-      url: sanitizeUrlForLog(url),
-    });
-    throw new Error(
-      'Malformed playback URL before video load. Check stream URL logs.',
-    );
-  }
-};
-
-/** What to remember for the series from a choice in the player overlay. */
-const seriesPickFor = (selection: {
-  audioTrack?: JellyfinMediaTrack;
-  subtitleTrack?: JellyfinMediaTrack | null;
-}): SeriesTrackPick => ({
-  ...(selection.audioTrack
-    ? {
-        audio: {
-          channels: selection.audioTrack.channels,
-          language: selection.audioTrack.language,
-          secondary: isSecondaryTrack(selection.audioTrack),
-        },
-      }
-    : {}),
-  ...(selection.subtitleTrack === undefined
-    ? {}
-    : {
-        subtitle: selection.subtitleTrack
-          ? {
-              forced: Boolean(selection.subtitleTrack.isForced),
-              language: selection.subtitleTrack.language,
-              secondary: isSecondaryTrack(selection.subtitleTrack),
-            }
-          : {off: true},
-      }),
-});
 
 export const PlayerScreen = ({
   accessToken,
@@ -434,10 +272,6 @@ export const PlayerScreen = ({
     release: async () => syncPlayHandlers.current?.release(),
     exit: () => syncPlayHandlers.current?.exit(),
   });
-  const heartbeatRef = useRef<PlaybackHeartbeat | null>(null);
-  // Last diagnostics sample, kept so session.end can report lifetime totals
-  // without sampling a player that is already being torn down.
-  const lastTelemetrySample = useRef<PlaybackDebugInfo | null>(null);
   const telemetrySessionStartedMs = useRef<number | null>(null);
   const episodePreferences = useRef<
     Pick<
@@ -460,8 +294,6 @@ export const PlayerScreen = ({
   // Position at the previous 3 s check while actively playing, for spotting
   // a stream that froze in its last seconds without firing `ended`.
   const lastActivePosition = useRef<number | null>(null);
-  const controlsHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const controlsPinned = useRef(false);
   const controlsAwaitingProgress = useRef(false);
   const controlsProgressPosition = useRef(0);
   const lastHandledKeyEvent = useRef<{
@@ -473,7 +305,6 @@ export const PlayerScreen = ({
     null,
   );
   const [statusText, setStatusText] = useState(() => t('player.preparing'));
-  const [showControls, setShowControls] = useState(true);
   const [seekPreview, setSeekPreview] = useState<number | null>(null);
   const [seekInProgress, setSeekInProgress] = useState(false);
   const [scanStep, setScanStep] = useState<number | null>(null);
@@ -496,12 +327,6 @@ export const PlayerScreen = ({
     number | undefined
   >(undefined);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [mediaSegments, setMediaSegments] = useState<JellyfinMediaSegment[]>(
-    [],
-  );
-  const [nextEpisode, setNextEpisode] = useState<JellyfinMediaItem | null>(
-    null,
-  );
   const [creditsPrompt, setCreditsPrompt] = useState<CreditsWindow | null>(
     null,
   );
@@ -525,70 +350,18 @@ export const PlayerScreen = ({
     const timer = setTimeout(() => setDecoderRiskWarned(false), 12000);
     return () => clearTimeout(timer);
   }, [decoderRiskWarned]);
-  // EnableVideoPlaybackTranscoding is a permission, not a capability: a
-  // CPU-only NAS reports it happily and then cannot start a 4K Dolby Vision
-  // re-encode at all. Measured on 2026-09-07: the forced session never
-  // received a manifest, held zero buffered ranges for its whole life and
-  // died to the watchdog with no decoded frames -- three times -- where the
-  // unforced passthrough of the same file played with 0.025% drops. So treat
-  // a forced session that produces no frames as proof the server cannot do
-  // the work, stop forcing for the rest of this screen, and fall back to the
-  // passthrough route plus the warning the server should have earned up front.
-  const decoderTranscodeUnusable = useRef(false);
   const forcedDecoderTranscode = useRef(false);
   const decodedFramesThisSession = useRef(0);
   const forcedTranscodeReadyAtMs = useRef<number | null>(null);
-  // The same verdict, remembered per server across restarts. Without this the
-  // 12 s dead start is paid again every time the player mounts; with it, the
-  // NAS is asked once and never again until it starts working.
   const serverKey = serverCapabilityKey(serverUrl);
+  const {decoderTranscodeUnusable, transcodeProbeArmed} =
+    useServerTranscodeCapability(serverKey);
   const transcodeSuccessRecorded = useRef(false);
-  // Set when this server's suppressed answer has gone stale enough to re-test.
-  // Held rather than acted on immediately: the probe is only spent when a
-  // heavy title actually triggers a forced attempt, so someone who only
-  // watches 1080p never pays for it and never uses up their weekly try.
-  const transcodeProbeArmed = useRef(false);
 
-  useEffect(() => {
-    let mounted = true;
-    getServerCapabilities(serverKey)
-      .then((capabilities) => {
-        if (!mounted) {
-          return;
-        }
-        const now = Date.now();
-        transcodeProbeArmed.current = shouldProbeTranscode(
-          capabilities.videoTranscode,
-          capabilities.lastTranscodeProbeAtMs,
-          now,
-        );
-        if (
-          !shouldAttemptServerTranscode(
-            capabilities.videoTranscode,
-            capabilities.lastTranscodeProbeAtMs,
-            now,
-          )
-        ) {
-          decoderTranscodeUnusable.current = true;
-        }
-      })
-      .catch(() => undefined);
-
-    return () => {
-      mounted = false;
-    };
-  }, [serverKey]);
   const [isStarting, setStarting] = useState(true);
   const onSurfaceViewCreatedRef = useRef<
     ((handle: string) => Promise<void>) | null
   >(null);
-  const [showPlaybackStats, setShowPlaybackStats] = useState(false);
-  const [showPlaybackTraces, setShowPlaybackTraces] = useState(false);
-  const [playbackDebugInfo, setPlaybackDebugInfo] =
-    useState<PlaybackDebugInfo | null>(null);
-  const [externalSubtitleCues, setExternalSubtitleCues] = useState<WebVttCue[]>(
-    [],
-  );
   const playbackRate = 1;
   const [positionSeconds, setPositionSeconds] = useState(
     (item.resumePositionTicks ?? 0) / TICKS_PER_SECOND,
@@ -606,12 +379,29 @@ export const PlayerScreen = ({
     },
     [positionStore],
   );
-  const [preferredSeekSeconds, setPreferredSeekSeconds] = useState(
-    defaultPlaybackPrefs.seekDurationSeconds,
-  );
-  const [preferredMaxBitrate, setPreferredMaxBitrate] = useState<
-    number | undefined
-  >(undefined);
+  const {
+    preferredSeekSeconds,
+    preferredMaxBitrate,
+    showPlaybackStats,
+    setShowPlaybackStats,
+    showPlaybackTraces,
+    setShowPlaybackTraces,
+  } = usePlaybackPreferences();
+  const {heartbeatRef, lastTelemetrySample, playbackDebugInfo} =
+    usePlaybackDiagnostics({
+      shakaPlayerRef,
+      videoRef,
+      unmountedRef,
+      playbackEventDiagnostics,
+      streamInfo,
+      mediaTimelineOffsetSeconds,
+      isPausedRef,
+      forcedDecoderTranscode,
+      transcodeSuccessRecorded,
+      decodedFramesThisSession,
+      serverKey,
+      showPlaybackStats,
+    });
 
   // Audio browsing intentionally survives navigation, but starting a movie is
   // an explicit media handoff. Stop and clear the music queue before the video
@@ -619,169 +409,20 @@ export const PlayerScreen = ({
   // beneath an active movie.
   // The session transition below awaits audio release before claiming video.
 
-  useEffect(() => {
-    let mounted = true;
-
-    readPlaybackPreferences().then((preferences) => {
-      if (!mounted) {
-        return;
-      }
-
-      setPreferredSeekSeconds(preferences.seekDurationSeconds);
-      setPreferredMaxBitrate(preferences.maxBitrateBps);
-      setShowPlaybackStats(preferences.showPlaybackStats);
-      setShowPlaybackTraces(preferences.showPlaybackTraces);
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Credits and next-episode data are fetched once per item, off the playback
-  // path. Any failure leaves that feature off for this video and touches
-  // nothing else.
-  const itemId = item.id;
-  const itemType = item.type;
-  const seriesId = item.seriesId;
-  const seasonId = item.parentId;
-  useEffect(() => {
-    let mounted = true;
-
-    getUserPreferences()
-      .then((preferences) => {
-        if (mounted) {
-          episodePreferences.current = preferences;
-          setSubtitleAppearance(preferences.subtitleAppearance);
-        }
-      })
-      .catch((error) => {
-        console.warn('[Astra] Unable to read episode preferences:', error);
-      });
-
-    getMediaSegments(serverUrl, accessToken, itemId)
-      .then((segments) => {
-        trace(
-          'credits.segments',
-          `count=${segments.length} chapters=${item.chapters?.length ?? 0}`,
-        );
-        if (mounted) {
-          setMediaSegments(segments);
-        }
-      })
-      .catch((error) => {
-        trace(
-          'credits.segments',
-          `error ${error instanceof Error ? error.message : String(error)}`,
-        );
-        console.warn('[Astra] Unable to load media segments:', error);
-      });
-
-    if (itemType === 'Episode' && seriesId && userId) {
-      const current = {
-        id: itemId,
-        indexNumber: item.indexNumber,
-        parentIndexNumber: item.parentIndexNumber,
-        seriesId,
-      };
-      const describe = (episode: JellyfinMediaItem | null) =>
-        episode
-          ? `s${episode.parentIndexNumber ?? '?'}e${
-              episode.indexNumber ?? '?'
-            } ${episode.locationType ?? ''}`.trim()
-          : 'none';
-      getAdjacentEpisodes(serverUrl, accessToken, userId, seriesId, itemId)
-        .then(async (episodes) => {
-          let next = resolveNextEpisode(episodes, current);
-          const hasCurrent = episodes.some((episode) => episode.id === itemId);
-          trace(
-            'nextEpisode.adjacent',
-            `candidates=${episodes.length} hasCurrent=${hasCurrent} ` +
-              `next=${describe(next)}`,
-          );
-          // A server that does not understand AdjacentTo answers without the
-          // current episode; the season list still names the next one.
-          if (!next && seasonId && !hasCurrent) {
-            const seasonEpisodes = await getEpisodes(
-              serverUrl,
-              accessToken,
-              userId,
-              seriesId,
-              seasonId,
-            );
-            next = resolveNextEpisode(seasonEpisodes, current);
-            trace(
-              'nextEpisode.season',
-              `candidates=${seasonEpisodes.length} next=${describe(next)}`,
-            );
-          }
-          if (mounted) {
-            setNextEpisode(next);
-          }
-        })
-        .catch((error) => {
-          trace(
-            'nextEpisode',
-            `error ${error instanceof Error ? error.message : String(error)}`,
-          );
-          console.warn('[Astra] Unable to resolve the next episode:', error);
-        });
-    } else {
-      trace(
-        'nextEpisode',
-        `skipped type=${itemType} series=${Boolean(seriesId)} user=${Boolean(
-          userId,
-        )}`,
-      );
-    }
-
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, itemId, itemType, seasonId, seriesId, serverUrl, userId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const subtitleTrack = currentStream?.subtitleTracks.find(
-      (track) =>
-        track.index === selectedSubtitleTrackIndex &&
-        track.deliveryUrl &&
-        !track.burnInRequired,
-    );
-
-    setExternalSubtitleCues([]);
-    if (!subtitleTrack?.deliveryUrl) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    fetch(subtitleTrack.deliveryUrl)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Subtitle request failed (${response.status})`);
-        }
-        return response.text();
-      })
-      .then((body) => {
-        if (!cancelled) {
-          const cues = parseWebVtt(body);
-          console.info('[Astra] Loaded external subtitle cues:', cues.length);
-          setExternalSubtitleCues(cues);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          console.warn('[Astra] Unable to load external subtitles:', error);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [currentStream, selectedSubtitleTrackIndex]);
-
+  const {mediaSegments, nextEpisode} = useEpisodeContext({
+    accessToken,
+    item,
+    serverUrl,
+    userId,
+    onPreferences: (preferences) => {
+      episodePreferences.current = preferences;
+      setSubtitleAppearance(preferences.subtitleAppearance);
+    },
+  });
+  const externalSubtitleCues = useExternalSubtitleCues(
+    currentStream,
+    selectedSubtitleTrackIndex,
+  );
   const keepControlsVisible = Boolean(
     isPaused ||
       isBuffering ||
@@ -793,7 +434,18 @@ export const PlayerScreen = ({
       endPrompt ||
       playbackFinished,
   );
-  controlsPinned.current = keepControlsVisible;
+  const {
+    showControls,
+    clearControlsHideTimer,
+    scheduleControlsHide,
+    revealControls,
+    hideControls,
+  } = useControlsVisibility({
+    videoRef,
+    unmountedRef,
+    sessionReady,
+    keepControlsVisible,
+  });
 
   const currentPositionTicks = useCallback(() => {
     if (
@@ -826,57 +478,6 @@ export const PlayerScreen = ({
 
     return latestPositionTicks.current;
   }, []);
-
-  const clearControlsHideTimer = useCallback(() => {
-    if (controlsHideTimer.current) {
-      clearTimeout(controlsHideTimer.current);
-      controlsHideTimer.current = null;
-    }
-  }, []);
-
-  const scheduleControlsHide = useCallback(() => {
-    clearControlsHideTimer();
-    controlsHideTimer.current = setTimeout(() => {
-      const video = videoRef.current;
-      if (
-        !video ||
-        unmountedRef.current ||
-        !sessionReady.current ||
-        controlsPinned.current
-      ) {
-        return;
-      }
-      setShowControls(false);
-    }, CONTROL_HIDE_DELAY_MS);
-  }, [clearControlsHideTimer]);
-
-  const revealControls = useCallback(
-    (autoHide = true) => {
-      setShowControls(true);
-      if (autoHide) {
-        scheduleControlsHide();
-      } else {
-        clearControlsHideTimer();
-      }
-    },
-    [clearControlsHideTimer, scheduleControlsHide],
-  );
-
-  // React state owns whether controls must stay open. Native pause getters can
-  // lag behind playback, and a timer that fires during startup must be rearmed.
-  useEffect(() => {
-    if (showControls && !keepControlsVisible) {
-      scheduleControlsHide();
-    } else {
-      clearControlsHideTimer();
-    }
-    return clearControlsHideTimer;
-  }, [
-    showControls,
-    keepControlsVisible,
-    scheduleControlsHide,
-    clearControlsHideTimer,
-  ]);
 
   const applyPendingInitialSeek = useCallback(
     (video: VideoPlayer) => {
@@ -1052,7 +653,14 @@ export const PlayerScreen = ({
       () => undefined,
     );
     return cleanup;
-  }, [clearControlsHideTimer, currentPositionTicks, item, reportStopped]);
+  }, [
+    clearControlsHideTimer,
+    currentPositionTicks,
+    heartbeatRef,
+    item,
+    lastTelemetrySample,
+    reportStopped,
+  ]);
 
   const stopPlayback = useCallback(() => {
     latestPositionTicks.current = currentPositionTicks();
@@ -1444,6 +1052,7 @@ export const PlayerScreen = ({
           error,
         );
         handoffInProgress.current = false;
+        trackReloadInProgress.current = false;
         setStatusText(t('player.releaseFailed'));
         return;
       }
@@ -1599,14 +1208,16 @@ export const PlayerScreen = ({
   ]);
 
   const togglePlayPause = useCallback(() => {
-    const video = videoRef.current;
-
-    if (!video) {
+    // Waking needs no video: the timer may have run out on the startup error
+    // screen, after the media was released, and the wake reloads anyway.
+    if (sleepingRef.current) {
+      wakeFromSleepRef.current();
       return;
     }
 
-    if (sleepingRef.current) {
-      wakeFromSleepRef.current();
+    const video = videoRef.current;
+
+    if (!video) {
       return;
     }
 
@@ -1872,7 +1483,12 @@ export const PlayerScreen = ({
         recordPlaybackEvent('pause');
         isPausedRef.current = true;
         setPaused(true);
-        setStatusText(t('nowPlaying.paused'));
+        // A finished item is paused by its own end; the status line already
+        // says so and must not flip back to "Paused" when the native event
+        // arrives a moment later.
+        if (sessionReady.current) {
+          setStatusText(t('nowPlaying.paused'));
+        }
         revealControls(false);
       });
       listen('loadedmetadata', () => {
@@ -2247,6 +1863,7 @@ export const PlayerScreen = ({
     [
       accessToken,
       applyPosition,
+      decoderTranscodeUnusable,
       item.id,
       item.mediaStreams,
       item.name,
@@ -2254,6 +1871,7 @@ export const PlayerScreen = ({
       preferredMaxBitrate,
       serverKey,
       serverUrl,
+      transcodeProbeArmed,
       userId,
     ],
   );
@@ -2457,6 +2075,7 @@ export const PlayerScreen = ({
       cancelCountdown,
       createFreshVideoPlayer,
       currentPositionTicks,
+      heartbeatRef,
       item.runTimeTicks,
       loadStream,
       loadVideoSource,
@@ -2623,27 +2242,18 @@ export const PlayerScreen = ({
   };
 
   useTVEventHandler((event) => {
-    const rawKey = event.eventType ?? '';
-    const key = rawKey.replace(/_(up|down)$/, '');
-    const seekDirection = [
-      'right',
-      'forward',
-      'fast_forward',
-      'skip_forward',
-    ].includes(key)
-      ? 1
-      : ['left', 'rewind', 'skip_backward'].includes(key)
-      ? -1
-      : 0;
-    if (rawKey.endsWith('_up') || event.eventKeyAction === 1) {
+    const {key, seekDirection, released, transport} = classifyRemoteKey(
+      event.eventType,
+      event.eventKeyAction,
+    );
+    if (released) {
       if (seekDirection && seekAcceleration.current.release(seekDirection)) {
         setScanStep(null);
       }
       return;
     }
     if (seekDirection) {
-      const isTransportKey = !['left', 'right'].includes(key);
-      if (!isTransportKey || !mediaControlsOwnSeeking.current) {
+      if (!transport || !mediaControlsOwnSeeking.current) {
         requestSkip.current(undefined, seekDirection);
       }
       return;
@@ -2681,11 +2291,7 @@ export const PlayerScreen = ({
     if (sleeping) {
       if (key === 'back') {
         handleBack();
-      } else if (
-        key === 'select' ||
-        key === 'playPause' ||
-        key === 'playpause'
-      ) {
+      } else if (key === 'select' || isPlayPauseKey(key)) {
         togglePlayPause();
       }
       return;
@@ -2709,10 +2315,10 @@ export const PlayerScreen = ({
       dismissCreditsPrompt(creditsPrompt);
       return;
     }
-    if (endPrompt && (key === 'menu' || key === 'context_menu')) {
+    if (endPrompt && isMenuKey(key)) {
       return;
     }
-    if (creditsPrompt && (key === 'menu' || key === 'context_menu')) {
+    if (creditsPrompt && isMenuKey(key)) {
       dismissCreditsPrompt(creditsPrompt);
     }
 
@@ -2720,7 +2326,11 @@ export const PlayerScreen = ({
     // it is about to dismiss.
     if (key !== 'back') {
       revealControls(
-        !settingsPanel && !showExitConfirm && !creditsPrompt && !endPrompt,
+        !settingsPanel &&
+          !showExitConfirm &&
+          !creditsPrompt &&
+          !endPrompt &&
+          !startupError,
       );
     }
 
@@ -2728,23 +2338,29 @@ export const PlayerScreen = ({
     // modal is open. The global playback handler must not also pause, seek,
     // or commit a second action for the key-up phase of the same click.
     if (
-      (settingsPanel || showExitConfirm || creditsPrompt || endPrompt) &&
+      (settingsPanel ||
+        showExitConfirm ||
+        creditsPrompt ||
+        endPrompt ||
+        startupError) &&
       key !== 'back' &&
-      key !== 'menu' &&
-      key !== 'context_menu'
+      !isMenuKey(key)
     ) {
       return;
     }
 
     switch (key) {
       case 'back':
-        if (settingsPanel) {
+        if (startupError) {
+          // The error panel's own Back button leaves at once; the remote's
+          // Back must not first hide hidden controls and then ask to confirm.
+          handleBack();
+        } else if (settingsPanel) {
           setSettingsPanel(null);
         } else if (showExitConfirm) {
           setShowExitConfirm(false);
         } else if (showControls) {
-          clearControlsHideTimer();
-          setShowControls(false);
+          hideControls();
         } else {
           setShowExitConfirm(true);
         }
@@ -2893,7 +2509,13 @@ export const PlayerScreen = ({
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [applyPosition, currentPositionTicks, item.runTimeTicks, reportProgress]);
+  }, [
+    applyPosition,
+    currentPositionTicks,
+    decoderTranscodeUnusable,
+    item.runTimeTicks,
+    reportProgress,
+  ]);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -2940,186 +2562,6 @@ export const PlayerScreen = ({
    * in build 20260829.2). Nothing here changes how often the overlay samples;
    * the heartbeat adds one call per 10s, versus the overlay's one per second.
    */
-  const collectPlaybackSample = useCallback((): PlaybackDebugInfo | null => {
-    const shakaPlayer = shakaPlayerRef.current;
-    const video = videoRef.current;
-    if (!shakaPlayer || !video || unmountedRef.current) {
-      return null;
-    }
-
-    const diagnostics = shakaPlayer.getDebugStats() as
-      | {
-          activeVariant?: {
-            height?: number | null;
-            width?: number | null;
-          };
-          buffered?: {
-            total?: Array<{end: number; start: number}>;
-          };
-          stats?: Record<string, number>;
-        }
-      | undefined;
-    const currentTime = video.currentTime ?? 0;
-    const bufferedRanges = diagnostics?.buffered?.total
-      ? [...diagnostics.buffered.total]
-      : [];
-    const currentRange = bufferedRanges.find(
-      (range) => range.end >= currentTime && range.start <= currentTime + 0.25,
-    );
-    const currentRangeIndex = currentRange
-      ? bufferedRanges.indexOf(currentRange)
-      : -1;
-    const nextRange =
-      currentRangeIndex >= 0
-        ? bufferedRanges[currentRangeIndex + 1]
-        : bufferedRanges.find((range) => range.start > currentTime);
-    const furthestBufferedEnd = bufferedRanges.reduce(
-      (furthest, range) =>
-        range.end >= currentTime ? Math.max(furthest, range.end) : furthest,
-      currentTime,
-    );
-    const stats = diagnostics?.stats;
-    const nativeVideo = video as
-      | (VideoPlayer & {videoHeight?: number; videoWidth?: number})
-      | null;
-    let nativeVideoFrames:
-      | {droppedVideoFrames?: number; totalVideoFrames?: number}
-      | undefined;
-
-    try {
-      nativeVideoFrames = video.getVideoPlaybackQuality();
-    } catch (error) {
-      console.warn('[Astra] Unable to read native frame diagnostics:', error);
-    }
-
-    return {
-      activeVideoHeight:
-        stats?.height ||
-        diagnostics?.activeVariant?.height ||
-        nativeVideo?.videoHeight ||
-        undefined,
-      activeVideoWidth:
-        stats?.width ||
-        diagnostics?.activeVariant?.width ||
-        nativeVideo?.videoWidth ||
-        undefined,
-      bufferedAheadSeconds: currentRange
-        ? Math.max(0, currentRange.end - currentTime)
-        : undefined,
-      bufferedRangeCount: bufferedRanges.length,
-      bufferingTimeSeconds: stats?.bufferingTime,
-      corruptedFrames: stats?.corruptedFrames,
-      decodedFrames: nativeVideoFrames?.totalVideoFrames,
-      droppedFrames: nativeVideoFrames?.droppedVideoFrames,
-      estimatedBandwidth: stats?.estimatedBandwidth,
-      gapsJumped: stats?.gapsJumped,
-      stallsDetected: stats?.stallsDetected,
-      furthestBufferedAheadSeconds:
-        furthestBufferedEnd > currentTime
-          ? furthestBufferedEnd - currentTime
-          : undefined,
-      nextBufferedGapSeconds:
-        currentRange && nextRange
-          ? Math.max(0, nextRange.start - currentRange.end)
-          : undefined,
-      streamBandwidth: stats?.streamBandwidth,
-      ...playbackEventDiagnostics.current,
-    };
-  }, []);
-
-  useEffect(() => {
-    // The heartbeat is the only thing that speaks during steady playback: the
-    // trace() call sites all fire on transitions, so without this a two-hour
-    // movie produces silence. 10s steady, 2s while starting or buffering.
-    const heartbeat = new PlaybackHeartbeat((): HeartbeatSample => {
-      const sample = collectPlaybackSample();
-      lastTelemetrySample.current = sample ?? lastTelemetrySample.current;
-      decodedFramesThisSession.current = Math.max(
-        decodedFramesThisSession.current,
-        sample?.decodedFrames ?? 0,
-      );
-      // A forced session that is producing frames clears a stale `unable`, so
-      // a GPU that has come back is picked up without anyone visiting Settings.
-      if (
-        forcedDecoderTranscode.current &&
-        !transcodeSuccessRecorded.current &&
-        decodedFramesThisSession.current > 0
-      ) {
-        transcodeSuccessRecorded.current = true;
-        void getServerCapabilities(serverKey)
-          .then((capabilities) =>
-            recordTranscodeSuccess(serverKey, capabilities.videoTranscode),
-          )
-          .catch(() => undefined);
-      }
-      const stream = streamInfo.current;
-      const event = sample?.lastPlaybackEvent;
-      return {
-        // The element's clock restarts at zero on every server-positioned
-        // session, so a raw currentTime here reads as a rewind after each
-        // seek. Report the file position and keep the raw one beside it.
-        pos:
-          typeof videoRef.current?.currentTime === 'number'
-            ? mediaToLogicalTime(
-                videoRef.current.currentTime,
-                mediaTimelineOffsetSeconds.current,
-              )
-            : undefined,
-        mediaPos:
-          mediaTimelineOffsetSeconds.current !== 0
-            ? videoRef.current?.currentTime
-            : undefined,
-        ahead: sample?.bufferedAheadSeconds,
-        buffering: event === 'waiting' || event === 'stalled',
-        paused: isPausedRef.current,
-        bwEst: sample?.estimatedBandwidth,
-        bitrate: sample?.streamBandwidth ?? stream?.bitrate,
-        width: sample?.activeVideoWidth,
-        height: sample?.activeVideoHeight,
-        decodedFrames: sample?.decodedFrames,
-        droppedFrames: sample?.droppedFrames,
-        // Buffer shape. rangeCount is the field that tells a flush or an MSE
-        // eviction apart from a normal drain, which is the open question
-        // behind the full-buffer collapses on high-bitrate DV titles.
-        rangeCount: sample?.bufferedRangeCount,
-        furthestAhead: sample?.furthestBufferedAheadSeconds,
-        gapAhead: sample?.nextBufferedGapSeconds,
-        bufferingTimeSec: sample?.bufferingTimeSeconds,
-        corruptedFrames: sample?.corruptedFrames,
-        gapsJumped: sample?.gapsJumped,
-        stallsDetected: sample?.stallsDetected,
-        // Per-segment timing has no source yet, so the `server` starvation
-        // verdict cannot fire. That is an accepted Phase 1 gap — do not add
-        // per-segment events to close it.
-        segmentDurationSec: stream?.hlsSegmentTargetSeconds,
-      };
-    });
-    heartbeatRef.current = heartbeat;
-    return () => {
-      heartbeat.stop();
-      heartbeatRef.current = null;
-    };
-  }, [collectPlaybackSample, serverKey]);
-
-  useEffect(() => {
-    if (!showPlaybackStats) {
-      setPlaybackDebugInfo(null);
-      return;
-    }
-
-    const updateStats = () => {
-      const sample = collectPlaybackSample();
-      if (sample) {
-        lastTelemetrySample.current = sample;
-        setPlaybackDebugInfo(sample);
-      }
-    };
-
-    updateStats();
-    const interval = setInterval(updateStats, 1000);
-    return () => clearInterval(interval);
-  }, [collectPlaybackSample, showPlaybackStats]);
-
   // With the network gone the buffer runs dry and the server may end the
   // transcode, so hold the picture still and start again from here on Retry.
   const connectionLost = connection.lost;
@@ -3501,809 +2943,3 @@ export const PlayerScreen = ({
     </View>
   );
 };
-
-// Only track selection lives in-player; quality/speed/chapters were removed
-// deliberately — chapters ride the FF/RW keys, and quality is meant to be
-// configured outside the playback window.
-export const PlaybackSettingsOverlay = ({
-  isEpisode = false,
-  onSelectAudio,
-  onSelectSleepTimer,
-  onSelectSubtitle,
-  onToggleStats,
-  selectedAudioIndex,
-  selectedSubtitleIndex,
-  showStats,
-  showTraces,
-  sleepMinutesLeft,
-  sleepTimer = null,
-  onToggleTraces,
-  streamInfo,
-}: {
-  isEpisode?: boolean;
-  onSelectAudio: (track: JellyfinMediaTrack) => void;
-  onSelectSleepTimer?: (choice: SleepTimerChoice) => void;
-  onSelectSubtitle: (track: JellyfinMediaTrack | null) => void;
-  onToggleStats: () => void;
-  selectedAudioIndex?: number;
-  selectedSubtitleIndex?: number;
-  showStats: boolean;
-  showTraces: boolean;
-  sleepMinutesLeft?: number;
-  sleepTimer?: SleepTimerChoice;
-  onToggleTraces: () => void;
-  streamInfo: JellyfinStreamInfo;
-}) => (
-  <View style={styles.settingsOverlay} testID="player-settings-overlay">
-    <Text style={styles.settingsTitle}>{t('player.options')}</Text>
-    <Text style={styles.settingsStreamInfo}>
-      {[
-        streamInfo.width && streamInfo.height
-          ? `${streamInfo.width}x${streamInfo.height}`
-          : undefined,
-        streamInfo.bitrate
-          ? `${(streamInfo.bitrate / 1000000).toFixed(1)} Mbps`
-          : undefined,
-        streamInfo.playMethod,
-      ]
-        .filter(Boolean)
-        .join('  •  ')}
-    </Text>
-    <View style={styles.settingsGrid}>
-      <SettingsColumn title={t('media.audio')}>
-        {streamInfo.audioTracks.length ? (
-          streamInfo.audioTracks.map((track) => (
-            <SettingsButton
-              key={track.id}
-              label={track.title}
-              onPress={() => onSelectAudio(track)}
-              selected={track.index === selectedAudioIndex}
-            />
-          ))
-        ) : (
-          <Text style={styles.settingsEmpty}>{t('player.defaultAudio')}</Text>
-        )}
-      </SettingsColumn>
-      <SettingsColumn title={t('player.subtitles')}>
-        <SettingsButton
-          label={t('player.off')}
-          onPress={() => onSelectSubtitle(null)}
-          selected={selectedSubtitleIndex === undefined}
-        />
-        {streamInfo.subtitleTracks.map((track) => (
-          <SettingsButton
-            key={track.id}
-            // A release with twenty tracks mixes formats Astra draws itself
-            // with picture-based ones the server has to paint into the video.
-            // Those cost very different things to pick, and nothing in the
-            // track title says which is which, so the badge does.
-            badge={
-              track.burnInRequired
-                ? {label: t('player.reloads'), tone: 'reload'}
-                : {label: t('player.instant'), tone: 'instant'}
-            }
-            label={track.title}
-            onPress={() => onSelectSubtitle(track)}
-            selected={track.index === selectedSubtitleIndex}
-          />
-        ))}
-        <Text style={styles.settingsHint}>{t('player.subtitleBadgeHint')}</Text>
-      </SettingsColumn>
-      {onSelectSleepTimer ? (
-        <SettingsColumn title={t('player.sleepTimer')}>
-          <SettingsButton
-            label={t('player.off')}
-            onPress={() => onSelectSleepTimer(null)}
-            selected={sleepTimer === null}
-          />
-          {SLEEP_TIMER_MINUTES.map((minutes) => (
-            <SettingsButton
-              key={minutes}
-              label={t('player.sleepMinutes', {minutes})}
-              onPress={() => onSelectSleepTimer(minutes)}
-              selected={sleepTimer === minutes}
-            />
-          ))}
-          <SettingsButton
-            label={
-              isEpisode
-                ? t('player.sleepEndOfEpisode')
-                : t('player.sleepEndOfVideo')
-            }
-            onPress={() => onSelectSleepTimer('endOfItem')}
-            selected={sleepTimer === 'endOfItem'}
-          />
-          <Text style={styles.settingsHint}>
-            {sleepMinutesLeft !== undefined
-              ? t('player.sleepPausesIn', {minutes: sleepMinutesLeft})
-              : sleepTimer === 'endOfItem'
-              ? t('player.sleepPausesAtEnd')
-              : t('player.sleepHint')}
-          </Text>
-        </SettingsColumn>
-      ) : null}
-      <SettingsColumn title={t('player.diagnostics')}>
-        <SettingsButton
-          label={`${t('settings.statsForNerds')}: ${
-            showStats ? t('player.on') : t('player.off')
-          }`}
-          onPress={onToggleStats}
-          selected={showStats}
-        />
-        <SettingsButton
-          label={`${t('settings.statsWithLogs')}: ${
-            showTraces ? t('player.on') : t('player.off')
-          }`}
-          onPress={onToggleTraces}
-          selected={showTraces}
-        />
-        <Text style={styles.settingsHint}>{t('player.diagnosticsHint')}</Text>
-      </SettingsColumn>
-    </View>
-  </View>
-);
-
-const formatDiagnosticMbps = (bitsPerSecond?: number) =>
-  bitsPerSecond && Number.isFinite(bitsPerSecond)
-    ? `${(bitsPerSecond / 1000000).toFixed(1)} Mbps`
-    : '—';
-
-const formatDiagnosticKbps = (bitsPerSecond?: number) =>
-  bitsPerSecond && Number.isFinite(bitsPerSecond)
-    ? `${Math.round(bitsPerSecond / 1000)} kbps`
-    : '—';
-
-// Vega's getVideoPlaybackQuality() reports absolute frame counts that cannot
-// be true -- roughly 4,600 fps on a 23.976 fps stream -- so printing them
-// invites people to read a wrong number as fact. The ratio between the two
-// still moves in the right direction when the decoder is struggling, so that
-// is the only form worth showing.
-const formatDropRatio = (decoded?: number, dropped?: number) => {
-  if (
-    !decoded ||
-    !Number.isFinite(decoded) ||
-    dropped === undefined ||
-    !Number.isFinite(dropped)
-  ) {
-    return '\u2014';
-  }
-  return `${((dropped / decoded) * 100).toFixed(2)}%`;
-};
-
-const formatDiagnosticCodec = (codec?: string, profile?: string) =>
-  [codec?.toUpperCase() ?? 'UNKNOWN', profile].filter(Boolean).join(' ');
-
-const formatDiagnosticTime = (seconds: number) =>
-  `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(
-    2,
-    '0',
-  )}`;
-
-/**
- * Renders external WebVTT cues off the position store rather than off React
- * state, so a playhead tick that does not change the visible cue costs no
- * render anywhere — and one that does re-renders only this overlay.
- */
-export const ExternalSubtitleOverlay = ({
-  cues,
-  positionStore,
-  controlsVisible = false,
-  appearance = 'shadow',
-}: {
-  cues: WebVttCue[];
-  positionStore: PositionStore;
-  controlsVisible?: boolean;
-  appearance?: UserPreferences['subtitleAppearance'];
-}) => {
-  const [text, setText] = useState(() =>
-    activeWebVttText(cues, positionStore.get()),
-  );
-
-  useEffect(() => {
-    setText(activeWebVttText(cues, positionStore.get()));
-    if (cues.length === 0) {
-      return undefined;
-    }
-    return positionStore.subscribe((seconds) => {
-      const next = activeWebVttText(cues, seconds);
-      setText((current) => (current === next ? current : next));
-    });
-  }, [cues, positionStore]);
-
-  if (!text) {
-    return null;
-  }
-
-  return (
-    <View
-      pointerEvents="none"
-      style={[
-        styles.subtitleOverlay,
-        controlsVisible && styles.subtitleAboveControls,
-      ]}
-      testID="player-external-subtitle">
-      <Text
-        style={[
-          styles.subtitleText,
-          appearance === 'background' && styles.subtitleBackground,
-        ]}>
-        {text}
-      </Text>
-    </View>
-  );
-};
-
-export const PlaybackStatsOverlay = ({
-  diagnostics,
-  positionSeconds,
-  showTraces = false,
-  streamInfo,
-}: {
-  diagnostics: PlaybackDebugInfo | null;
-  positionSeconds: number;
-  showTraces?: boolean;
-  streamInfo: JellyfinStreamInfo;
-}) => {
-  const deliveredAudioIndex =
-    streamInfo.deliveredAudioStreamIndex ?? streamInfo.audioStreamIndex;
-  const audioTrack = streamInfo.audioTracks.find(
-    (track) => track.index === deliveredAudioIndex,
-  );
-  const requestedAudioIndex = streamInfo.audioStreamIndex;
-  const trackMatch = requestedAudioIndex === deliveredAudioIndex;
-  const activeVideoWidth =
-    diagnostics?.activeVideoWidth ??
-    (streamInfo.videoDeliveryMethod === 'Copy' ? streamInfo.width : undefined);
-  const activeVideoHeight =
-    diagnostics?.activeVideoHeight ??
-    (streamInfo.videoDeliveryMethod === 'Copy' ? streamInfo.height : undefined);
-  const sourceResolution = `${streamInfo.width ?? '?'}x${
-    streamInfo.height ?? '?'
-  }`;
-  const activeResolution = `${activeVideoWidth ?? '?'}x${
-    activeVideoHeight ?? '?'
-  }`;
-
-  return (
-    <View style={styles.statsOverlay} testID="player-stats-overlay">
-      <Text style={styles.statsTitle}>Stats for Nerds</Text>
-      <Text style={styles.statsLine}>{`Telemetry ${
-        telemetryStatus().armed ? 'armed' : 'off'
-      }  ${telemetryStatus().reason}  sent=${
-        telemetryStatus().counters?.sent ?? 0
-      } drop=${telemetryStatus().counters?.dropped ?? 0} fail=${
-        telemetryStatus().counters?.failed ?? 0
-      }`}</Text>
-      <Text style={styles.statsLine}>
-        Codec delivery is inferred from the server request.
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Position  ${formatDiagnosticTime(positionSeconds)}   Buffer  ${
-          diagnostics?.bufferedAheadSeconds !== undefined
-            ? `${diagnostics.bufferedAheadSeconds.toFixed(1)}s`
-            : '—'
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Buffer map  ranges ${
-          diagnostics?.bufferedRangeCount ?? '—'
-        }   total ahead ${
-          diagnostics?.furthestBufferedAheadSeconds !== undefined
-            ? `${diagnostics.furthestBufferedAheadSeconds.toFixed(1)}s`
-            : '—'
-        }   next gap ${
-          diagnostics?.nextBufferedGapSeconds !== undefined
-            ? `${diagnostics.nextBufferedGapSeconds.toFixed(3)}s`
-            : '—'
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Video  ${formatDiagnosticCodec(
-          streamInfo.sourceVideoCodec,
-        )} → ${formatDiagnosticCodec(
-          streamInfo.outputVideoCodec ?? streamInfo.deliveredVideoCodec,
-        )}   ${streamInfo.videoDeliveryMethod ?? 'Unknown'}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Resolution  source ${sourceResolution} → active ${activeResolution}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Audio  ${formatDiagnosticCodec(
-          streamInfo.sourceAudioCodec ?? audioTrack?.codec,
-          streamInfo.sourceAudioProfile ?? audioTrack?.profile,
-        )} → ${formatDiagnosticCodec(
-          streamInfo.outputAudioCodec ?? streamInfo.deliveredAudioCodec,
-        )}   ${streamInfo.audioDeliveryMethod ?? 'Unknown'}   ${
-          audioTrack?.channels ?? '?'
-        } ch`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Audio rate  ${formatDiagnosticKbps(
-          streamInfo.sourceAudioBitrate ?? audioTrack?.bitrate,
-        )} → ${formatDiagnosticKbps(streamInfo.outputAudioBitrate)}   ${
-          streamInfo.sourceAudioSampleRate ?? audioTrack?.sampleRate ?? '?'
-        } Hz`}
-      </Text>
-      {streamInfo.audioOutputCapabilities ? (
-        <Text style={styles.statsLine}>
-          {`Audio sink  AC3 ${
-            streamInfo.audioOutputCapabilities.ac3 ? 'yes' : 'no'
-          }   EAC3 ${
-            streamInfo.audioOutputCapabilities.eac3 ? 'yes' : 'no'
-          }   Opus ${
-            streamInfo.audioOutputCapabilities.opus ? 'yes' : 'no'
-          }   MP3 ${
-            streamInfo.audioOutputCapabilities.mp3 ? 'yes' : 'no'
-          }   DTS ${
-            streamInfo.audioOutputCapabilities.dtsDirectPlayVerified
-              ? 'verified'
-              : streamInfo.audioTranscodePolicy?.split(',').includes('dts')
-              ? 'trial'
-              : streamInfo.audioOutputCapabilities.dtsProbeSupported
-              ? 'probe only'
-              : 'no'
-          }`}
-        </Text>
-      ) : null}
-      <Text style={styles.statsLine}>
-        {`Device  ${describeDeviceModel(readDeviceModel())}`}
-      </Text>
-      {streamInfo.videoDecodeLimits ? (
-        <Text style={styles.statsLine}>
-          {`Decoder  ${describeDecodeLimits(streamInfo.videoDecodeLimits)}`}
-        </Text>
-      ) : null}
-      <Text style={styles.statsLine}>
-        {`Audio policy  ${
-          streamInfo.audioTranscodePolicy?.toUpperCase() ?? 'AAC'
-        }`}
-      </Text>
-      <Text style={[styles.statsLine, !trackMatch && styles.statsWarning]}>
-        {`Track  ${requestedAudioIndex ?? 'auto'} → ${
-          deliveredAudioIndex ?? 'unknown'
-        }${trackMatch ? '' : '  MISMATCH'}   ${
-          audioTrack?.title ?? `Track ${deliveredAudioIndex ?? '?'}`
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Container  ${
-          streamInfo.sourceContainer?.toUpperCase() ??
-          streamInfo.container?.toUpperCase() ??
-          'UNKNOWN'
-        } → HLS/${
-          streamInfo.outputContainer?.toUpperCase() ?? 'UNKNOWN'
-        }   Overall ${streamInfo.playMethod}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Delivery  HLS target ${
-          streamInfo.hlsSegmentTargetSeconds !== undefined
-            ? `${streamInfo.hlsSegmentTargetSeconds}s`
-            : '—'
-        }   min segments ${
-          streamInfo.hlsMinimumSegmentCount ?? '—'
-        }   Astra ${APP_VERSION} (${BUILD_NUMBER})`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Bandwidth  stream ${formatDiagnosticMbps(
-          diagnostics?.streamBandwidth ?? streamInfo.bitrate,
-        )}   network ${formatDiagnosticMbps(diagnostics?.estimatedBandwidth)}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Frames  dropped ${formatDropRatio(
-          diagnostics?.decodedFrames,
-          diagnostics?.droppedFrames,
-        )}   Buffering time ${formatBufferingTime(
-          diagnostics?.bufferingTimeSeconds,
-        )}`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Events  waiting ${diagnostics?.waitingEventCount ?? 0} / stalled ${
-          diagnostics?.stalledEventCount ?? 0
-        } / errors ${diagnostics?.errorEventCount ?? 0}   last ${
-          diagnostics?.lastPlaybackEvent ?? '—'
-        }${
-          diagnostics?.lastPlaybackEventSeconds !== undefined
-            ? ` @ ${formatDiagnosticTime(diagnostics.lastPlaybackEventSeconds)}`
-            : ''
-        }`}
-      </Text>
-      <Text style={styles.statsLine}>
-        {`Shaka errors  ${diagnostics?.shakaErrorEventCount ?? 0}   ${
-          diagnostics?.lastError ?? 'No recorded failure'
-        }`}
-      </Text>
-      {streamInfo.transcodeReasons?.length ? (
-        <Text style={styles.statsLine}>
-          {`Server reason  ${streamInfo.transcodeReasons.join(', ')}`}
-        </Text>
-      ) : null}
-      {/* Playback traces. JS console output reaches no artifact that
-          `vega device copy-logs` can retrieve, so timings for the reload path
-          have to be read here on the device. */}
-      {(showTraces ? getTraces() : []).slice(-8).map((entry, index) => (
-        <Text key={`${entry.label}-${index}`} style={styles.statsLine}>
-          {`T+${(entry.sinceStartMs / 1000).toFixed(1)}s  ${entry.label}  ${
-            entry.detail
-          }`}
-        </Text>
-      ))}
-    </View>
-  );
-};
-
-const SettingsColumn = ({
-  children,
-  title,
-}: React.PropsWithChildren<{title: string}>) => (
-  <View style={styles.settingsColumn}>
-    <Text style={styles.settingsHeading}>{title}</Text>
-    <ScrollView
-      showsVerticalScrollIndicator={true}
-      style={styles.settingsColumnScroller}>
-      {children}
-    </ScrollView>
-  </View>
-);
-
-const SettingsButton = ({
-  badge,
-  label,
-  onPress,
-  selected = false,
-}: {
-  badge?: {label: string; tone: 'instant' | 'reload'};
-  label: string;
-  onPress: () => void;
-  selected?: boolean;
-}) => (
-  <FocusableItem
-    focusedStyle={styles.settingsButtonFocused}
-    onPress={onPress}
-    style={[styles.settingsButton, selected && styles.settingsButtonSelected]}>
-    <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
-      {selected ? <View style={styles.radioDot} /> : null}
-    </View>
-    <Text numberOfLines={1} style={styles.settingsButtonText}>
-      {label}
-    </Text>
-    {badge ? (
-      <Text
-        style={[
-          styles.settingsButtonBadge,
-          badge.tone === 'instant'
-            ? styles.settingsButtonBadgeInstant
-            : styles.settingsButtonBadgeReload,
-        ]}>
-        {badge.label}
-      </Text>
-    ) : null}
-  </FocusableItem>
-);
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  videoSurface: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  subtitleOverlay: {
-    position: 'absolute',
-    alignItems: 'center',
-    bottom: 84,
-    left: 72,
-    right: 72,
-    zIndex: 2,
-  },
-  subtitleText: {
-    backgroundColor: 'transparent',
-    color: '#FFFFFF',
-    fontSize: 30,
-    fontWeight: '600',
-    lineHeight: 38,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    textAlign: 'center',
-    textShadowColor: '#000000',
-    textShadowOffset: {width: 0, height: 1},
-    textShadowRadius: 3,
-  },
-  subtitleBackground: {
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 5,
-    textShadowRadius: 0,
-  },
-  subtitleAboveControls: {
-    bottom: 240,
-  },
-  decoderWarning: {
-    position: 'absolute',
-    top: 48,
-    left: 72,
-    right: 72,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    borderRadius: 10,
-    paddingHorizontal: 28,
-    paddingVertical: 18,
-  },
-  decoderWarningText: {
-    color: '#F2D98C',
-    fontSize: 24,
-    textAlign: 'center',
-  },
-  overlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 52,
-    paddingHorizontal: 72,
-    paddingTop: 36,
-    backgroundColor: 'rgba(0,0,0,0.58)',
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '800',
-  },
-  status: {
-    color: '#B8C5CC',
-    fontSize: 22,
-    marginTop: 6,
-  },
-  controls: {
-    flexDirection: 'row',
-    gap: 18,
-    marginTop: 22,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    marginTop: 18,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: '#4CC9F0',
-  },
-  button: {
-    minWidth: 118,
-    height: 58,
-    borderRadius: 8,
-    backgroundColor: '#25313A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  focusedButton: {
-    backgroundColor: '#2E5A72',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  settingsOverlay: {
-    position: 'absolute',
-    top: 44,
-    left: 52,
-    right: 52,
-    maxHeight: 670,
-    borderRadius: 8,
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    padding: 24,
-  },
-  sleepNotice: {
-    position: 'absolute',
-    left: 52,
-    right: 52,
-    bottom: 64,
-    borderRadius: 8,
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    gap: 10,
-    padding: 24,
-  },
-  startupOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    backgroundColor: 'rgba(5, 9, 13, 0.86)',
-    gap: 18,
-    justifyContent: 'center',
-    paddingHorizontal: 80,
-  },
-  startupTitle: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '800',
-  },
-  startupRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 18,
-  },
-  startupText: {
-    color: '#E4EBF0',
-    fontSize: 28,
-    textAlign: 'center',
-  },
-  startupDetail: {
-    color: '#B8C5CC',
-    fontSize: 22,
-    textAlign: 'center',
-  },
-  startupButtons: {
-    flexDirection: 'row',
-    gap: 20,
-    marginTop: 10,
-  },
-  exitOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    justifyContent: 'center',
-    padding: 64,
-  },
-  exitTitle: {
-    color: '#FFFFFF',
-    fontSize: 36,
-    fontWeight: '800',
-    marginBottom: 28,
-  },
-  exitButtons: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  promptCard: {
-    position: 'absolute',
-    alignItems: 'center',
-    backgroundColor: 'rgba(12,17,22,0.94)',
-    borderRadius: 10,
-    bottom: 120,
-    paddingHorizontal: 28,
-    paddingVertical: 18,
-    right: 72,
-    zIndex: 3,
-  },
-  promptTitle: {
-    color: '#4CC9F0',
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-  },
-  promptSubtitle: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 8,
-    maxWidth: 900,
-  },
-  promptHint: {
-    color: '#B8C5CC',
-    fontSize: 20,
-    marginBottom: 24,
-  },
-  settingsTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  settingsStreamInfo: {
-    color: '#8FE3C0',
-    fontSize: 22,
-    marginBottom: 16,
-  },
-  settingsGrid: {
-    flexDirection: 'row',
-    gap: 18,
-  },
-  settingsColumn: {
-    flex: 1,
-    marginBottom: 18,
-  },
-  settingsColumnScroller: {
-    maxHeight: 550,
-  },
-  settingsHeading: {
-    color: '#89CFF0',
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  settingsButton: {
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: '#25313A',
-    flexDirection: 'row',
-    minHeight: 44,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-  },
-  settingsButtonSelected: {
-    backgroundColor: '#1F3746',
-  },
-  settingsButtonFocused: {
-    backgroundColor: '#2E5A72',
-  },
-  settingsButtonText: {
-    color: '#FFFFFF',
-    flexShrink: 1,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  settingsButtonBadge: {
-    borderRadius: 4,
-    fontSize: 13,
-    fontWeight: '700',
-    marginLeft: 'auto',
-    overflow: 'hidden',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  settingsButtonBadgeInstant: {
-    backgroundColor: '#1F5133',
-    color: '#7BE49B',
-  },
-  settingsButtonBadgeReload: {
-    backgroundColor: '#5A2A20',
-    color: '#FF9E80',
-  },
-  radioCircle: {
-    alignItems: 'center',
-    borderColor: '#8CA1AA',
-    borderRadius: 9,
-    borderWidth: 2,
-    height: 18,
-    justifyContent: 'center',
-    marginRight: 9,
-    width: 18,
-  },
-  radioCircleSelected: {
-    borderColor: '#4CC9F0',
-  },
-  radioDot: {
-    backgroundColor: '#4CC9F0',
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  settingsEmpty: {
-    color: '#B8C5CC',
-    fontSize: 18,
-  },
-  settingsHint: {
-    color: '#B8C5CC',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  statsOverlay: {
-    position: 'absolute',
-    right: 42,
-    top: 34,
-    width: 650,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.86)',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  statsTitle: {
-    color: '#4CC9F0',
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  statsLine: {
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    fontSize: 16,
-    lineHeight: 23,
-  },
-  statsWarning: {
-    color: '#FFB86C',
-    fontWeight: '800',
-  },
-});

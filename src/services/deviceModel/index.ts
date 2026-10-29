@@ -22,6 +22,12 @@ export interface KnownDevice {
   name: string;
   /** Highest H.264 bitrate the decoder is specified for, in bits per second. */
   h264MaxBitrate: number;
+  /**
+   * Widest frame the stick decodes, when it is below UHD. Only the HD stick
+   * has one; it is the fallback for when the runtime decoder probe gives no
+   * usable answer (issue #21). A measured answer always wins over this.
+   */
+  maxVideoWidth?: number;
 }
 
 const MBPS = 1_000_000;
@@ -29,7 +35,11 @@ const MBPS = 1_000_000;
 export const KNOWN_DEVICES: Readonly<Record<string, KnownDevice>> = {
   AFTCA002: {name: 'Fire TV Stick 4K Select', h264MaxBitrate: 30 * MBPS},
   AFTCR001: {name: 'Fire TV Stick 4K (3rd Gen)', h264MaxBitrate: 20 * MBPS},
-  AFTCL001: {name: 'Fire TV Stick HD (2026)', h264MaxBitrate: 20 * MBPS},
+  AFTCL001: {
+    name: 'Fire TV Stick HD (2026)',
+    h264MaxBitrate: 20 * MBPS,
+    maxVideoWidth: 1920,
+  },
 };
 
 const UNKNOWN_DEVICE: KnownDevice = {

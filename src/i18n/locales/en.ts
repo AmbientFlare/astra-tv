@@ -135,6 +135,8 @@ export const en = {
   'idle.pressAnyButton': 'Press any button to return',
   'home.latestIn': 'Latest in {name}',
   'app.loading': 'Loading Astra',
+  'app.loadFailed':
+    "Astra couldn't read its saved settings. Your servers and sign-ins are still there; try again.",
   'exit.title': 'Exit Astra?',
   'exit.body': 'Press Back again to close the app, or choose Stay.',
   'exit.stay': 'Stay',

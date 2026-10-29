@@ -137,6 +137,8 @@ export const de: Messages = {
   'idle.pressAnyButton': 'Beliebige Taste drücken, um zurückzukehren',
   'home.latestIn': 'Neu in {name}',
   'app.loading': 'Astra wird geladen',
+  'app.loadFailed':
+    'Astra konnte die gespeicherten Einstellungen nicht lesen. Deine Server und Anmeldungen sind noch da; versuch es noch einmal.',
   'exit.title': 'Astra beenden?',
   'exit.body':
     'Drücke noch einmal Zurück, um die App zu schließen, oder wähle Bleiben.',
