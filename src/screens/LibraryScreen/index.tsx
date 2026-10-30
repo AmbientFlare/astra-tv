@@ -10,9 +10,12 @@ import {LibraryInfoPanel} from '../../components/LibraryInfoPanel';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
+import {TVTextInput} from '../../components/TVTextInput';
 import {
   getItemDetails,
   getItemsPage,
+  getLibraryGenres,
+  JellyfinGenre,
   JellyfinMediaItem,
   JellyfinSortBy,
 } from '../../services/jellyfin';
@@ -127,6 +130,21 @@ export const libraryBrowseScope = (libraryType?: string) =>
     ? {includeItemTypes: 'Movie', recursive: true}
     : {includeItemTypes: null, recursive: false};
 
+/**
+ * Shortest search the grid sends. One letter matches most of a library, which
+ * is a slower way to show what the unfiltered grid already shows.
+ */
+export const LIBRARY_SEARCH_MIN_LENGTH = 2;
+
+/** Typing pause before the grid is searched, so each letter is not a request. */
+const SEARCH_DEBOUNCE_MS = 400;
+
+/** The search the grid should run for what is in the field, or '' for none. */
+export const librarySearchTerm = (draft: string) => {
+  const trimmed = draft.trim();
+  return trimmed.length >= LIBRARY_SEARCH_MIN_LENGTH ? trimmed : '';
+};
+
 /** Rows of cards left below focus at which the next page is fetched. */
 const PAGE_AHEAD_ROWS = 4;
 
@@ -158,8 +176,14 @@ interface LibrarySession {
   sortDescending: boolean;
   filterUnwatched: boolean;
   filterFavorites: boolean;
+  /** The applied search, '' for none. */
+  searchTerm: string;
+  genre: JellyfinGenre | null;
   focusedIndex: number;
 }
+
+/** Which overlay the Menu panel slot is showing. */
+type LibraryPanel = 'options' | 'search' | 'genre';
 
 /** Keyed by library id. A handful of libraries at most. */
 const librarySessions = new Map<string, LibrarySession>();
@@ -278,10 +302,30 @@ export const LibraryScreen = ({
   const [filterFavorites, setFilterFavorites] = useState(
     restored?.filterFavorites ?? false,
   );
+  const [searchTerm, setSearchTerm] = useState(restored?.searchTerm ?? '');
+  /** What is in the search field; applied to the grid after a pause. */
+  const [searchDraft, setSearchDraft] = useState(restored?.searchTerm ?? '');
+  const [genre, setGenre] = useState<JellyfinGenre | null>(
+    restored?.genre ?? null,
+  );
+  /**
+   * The search and genre panels share the Menu panel's slot, so the
+   * navigator's Back handling closes them the same way it closes Options.
+   */
+  const [panel, setPanel] = useState<LibraryPanel>('options');
+  /** The toolbar button that opened the last panel, refocused on close. */
+  const [toolbarFocus, setToolbarFocus] = useState<'search' | 'genre' | null>(
+    null,
+  );
+  /** null until the genre panel first asks the server. */
+  const [genres, setGenres] = useState<JellyfinGenre[] | null>(null);
+  const [genresLoading, setGenresLoading] = useState(false);
+  const [genresError, setGenresError] = useState(false);
   const [focusedItem, setFocusedItem] = useState<JellyfinMediaItem | null>(
     restored ? restored.items[restored.focusedIndex] ?? null : null,
   );
   const [focusedIndex, setFocusedIndex] = useState(restored?.focusedIndex ?? 0);
+  const focusedCardRef = useRef<any>(null);
   /**
    * The card to hand focus to when the grid first draws. Fixed for the life of
    * the mount: `hasTVPreferredFocus` is only read as a card appears, and the
@@ -478,8 +522,10 @@ export const LibraryScreen = ({
       filterFavorites,
       filterUnwatched,
       focusedIndex,
+      genre,
       itemDetails,
       items,
+      searchTerm,
       sortBy,
       sortDescending,
       totalCount,
@@ -495,13 +541,88 @@ export const LibraryScreen = ({
     filterFavorites,
     filterUnwatched,
     focusedIndex,
+    genre,
     itemDetails,
     items,
     libraryId,
+    searchTerm,
     sortBy,
     sortDescending,
     totalCount,
   ]);
+
+  useEffect(() => {
+    const next = librarySearchTerm(searchDraft);
+    if (next === searchTerm) {
+      return;
+    }
+    // Clearing the field shows the whole library at once; only typing waits.
+    if (!next) {
+      setSearchTerm('');
+      return;
+    }
+    const timeout = setTimeout(() => setSearchTerm(next), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [searchDraft, searchTerm]);
+
+  const loadGenres = useCallback(async () => {
+    setGenresLoading(true);
+    setGenresError(false);
+    try {
+      const result = await getLibraryGenres(
+        serverProfile.serverUrl,
+        serverProfile.accessToken,
+        libraryId,
+        serverProfile.userId,
+        libraryBrowseScope(libraryType).includeItemTypes,
+      );
+      if (mountedRef.current) {
+        setGenres(result);
+      }
+    } catch {
+      if (mountedRef.current) {
+        setGenresError(true);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setGenresLoading(false);
+      }
+    }
+  }, [libraryId, libraryType, serverProfile]);
+
+  const openPanel = (next: 'search' | 'genre') => {
+    setPanel(next);
+    setToolbarFocus(next);
+    if (next === 'genre' && genres === null && !genresLoading) {
+      loadGenres();
+    }
+    onMenuVisibleChange(true);
+  };
+
+  // Whatever closed the panel -- Back, Close, a pick -- the next one the Menu
+  // key opens is Options again.
+  //
+  // Closing Options unmounts the focused radio and nothing takes focus back:
+  // the grid cards only read hasTVPreferredFocus as they mount. Left alone,
+  // the next key press lands on the first focusable view, now the Search
+  // button, so Right + Enter opened the keyboard. Hand focus back to the card
+  // the user was on instead. Search and Genre close onto their own buttons.
+  const menuWasVisibleRef = useRef(menuVisible);
+  useEffect(() => {
+    const wasVisible = menuWasVisibleRef.current;
+    menuWasVisibleRef.current = menuVisible;
+    if (menuVisible) {
+      return;
+    }
+    setPanel('options');
+    if (!wasVisible || toolbarFocus) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      focusedCardRef.current?.requestTVFocus?.();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [menuVisible, toolbarFocus]);
 
   const filters = useMemo(
     () =>
@@ -511,6 +632,8 @@ export const LibraryScreen = ({
       ].filter(Boolean) as Array<'IsFavorite' | 'IsUnplayed'>,
     [filterFavorites, filterUnwatched],
   );
+
+  const genreIds = useMemo(() => (genre ? [genre.id] : undefined), [genre]);
 
   const loadItems = useCallback(
     async (mounted = true) => {
@@ -545,9 +668,11 @@ export const LibraryScreen = ({
           serverProfile.userId,
           {
             filters,
+            genreIds,
             limit,
             imageType: displayPreferences.imageType,
             ...libraryBrowseScope(libraryType),
+            searchTerm,
             sortBy,
             sortDescending,
             startIndex: 0,
@@ -599,9 +724,11 @@ export const LibraryScreen = ({
       displayPreferences.imageType,
       ensureDetails,
       filters,
+      genreIds,
       initialFocusIndex,
       libraryId,
       libraryType,
+      searchTerm,
       serverProfile,
       sortBy,
       sortDescending,
@@ -632,9 +759,11 @@ export const LibraryScreen = ({
         serverProfile.userId,
         {
           filters,
+          genreIds,
           imageType: displayPreferences.imageType,
           ...libraryBrowseScope(libraryType),
           limit: LIBRARY_PAGE_SIZE,
+          searchTerm,
           sortBy,
           sortDescending,
           startIndex: loaded,
@@ -669,9 +798,11 @@ export const LibraryScreen = ({
   }, [
     displayPreferences.imageType,
     filters,
+    genreIds,
     isLoading,
     libraryId,
     libraryType,
+    searchTerm,
     serverProfile,
     sortBy,
     sortDescending,
@@ -788,6 +919,11 @@ export const LibraryScreen = ({
     switch (event.eventType) {
       case 'menu':
       case 'context_menu':
+        if (!menuVisible) {
+          setPanel('options');
+          // Options closes back onto the grid, not onto a toolbar button.
+          setToolbarFocus(null);
+        }
         onMenuVisibleChange(!menuVisible);
         break;
       case 'back':
@@ -811,8 +947,42 @@ export const LibraryScreen = ({
                 : '0 | 0'}
             </Text>
           </View>
+          <TVFocusGuideView style={styles.toolbar}>
+            <FocusableItem
+              focusedStyle={styles.toolbarButtonFocused}
+              hasTVPreferredFocus={!menuVisible && toolbarFocus === 'search'}
+              onPress={() => openPanel('search')}
+              style={[
+                styles.toolbarButton,
+                searchTerm ? styles.toolbarButtonActive : null,
+              ]}
+              testID="library-search-button">
+              <Text numberOfLines={1} style={styles.toolbarButtonText}>
+                {searchTerm
+                  ? t('library.searchValue', {term: searchTerm})
+                  : t('library.search')}
+              </Text>
+            </FocusableItem>
+            <FocusableItem
+              focusedStyle={styles.toolbarButtonFocused}
+              hasTVPreferredFocus={!menuVisible && toolbarFocus === 'genre'}
+              onPress={() => openPanel('genre')}
+              style={[
+                styles.toolbarButton,
+                genre ? styles.toolbarButtonActive : null,
+              ]}
+              testID="library-genre-button">
+              <Text numberOfLines={1} style={styles.toolbarButtonText}>
+                {genre
+                  ? t('library.genreValue', {name: genre.name})
+                  : t('library.allGenres')}
+              </Text>
+            </FocusableItem>
+          </TVFocusGuideView>
           <LoadingOrError
-            emptyText={t('library.empty')}
+            emptyText={
+              searchTerm || genre ? t('library.noMatches') : t('library.empty')
+            }
             errorText={errorText}
             isEmpty={items.length === 0}
             isLoading={isLoading}
@@ -840,6 +1010,7 @@ export const LibraryScreen = ({
                       ? formatUnplayedBadge(item.unplayedItemCount)
                       : undefined
                   }
+                  focusRef={index === focusedIndex ? focusedCardRef : undefined}
                   hasTVPreferredFocus={index === preferredFocusIndex}
                   imageUrl={item.imageUrl}
                   imageScale={cardScale}
@@ -876,7 +1047,102 @@ export const LibraryScreen = ({
           />
         </View>
       </View>
-      {menuVisible ? (
+      {menuVisible && panel === 'search' ? (
+        <Panel
+          onClose={() => onMenuVisibleChange(false)}
+          title={t('library.searchTitle', {name: libraryName})}>
+          <TVTextInput
+            autoCorrect={false}
+            auxOptions={`title:${t('library.searchKeyboardTitle')}`}
+            hasTVPreferredFocus={true}
+            inputMode="search"
+            inputStyle={styles.searchInputText}
+            keyboardType="default"
+            onChangeText={setSearchDraft}
+            onSubmitEditing={() => {
+              setSearchTerm(librarySearchTerm(searchDraft));
+              onMenuVisibleChange(false);
+            }}
+            placeholder={t('library.searchPlaceholder')}
+            placeholderTextColor="#7E9098"
+            style={styles.searchInput}
+            testID="library-search-input"
+            value={searchDraft}
+          />
+          {searchDraft ? (
+            <FocusableItem
+              focusedStyle={styles.panelButtonFocused}
+              onPress={() => {
+                setSearchDraft('');
+                setSearchTerm('');
+              }}
+              style={styles.panelButton}
+              testID="library-search-clear">
+              <Text style={styles.panelButtonText}>
+                {t('library.clearSearch')}
+              </Text>
+            </FocusableItem>
+          ) : null}
+        </Panel>
+      ) : null}
+      {menuVisible && panel === 'genre' ? (
+        <Panel
+          onClose={() => onMenuVisibleChange(false)}
+          title={t('library.genre')}>
+          {genresLoading ? (
+            <Text style={styles.panelStatus}>{t('library.genresLoading')}</Text>
+          ) : genresError ? (
+            <>
+              <Text style={styles.panelStatus}>
+                {t('library.genresFailed')}
+              </Text>
+              <FocusableItem
+                focusedStyle={styles.panelButtonFocused}
+                hasTVPreferredFocus={true}
+                onPress={() => loadGenres()}
+                style={styles.panelButton}
+                testID="library-genres-retry">
+                <Text style={styles.panelButtonText}>{t('common.retry')}</Text>
+              </FocusableItem>
+            </>
+          ) : (
+            <FlatList
+              data={[null, ...(genres ?? [])]}
+              keyExtractor={(item) => item?.id ?? 'all'}
+              ListFooterComponent={
+                genres && genres.length === 0 ? (
+                  <Text style={styles.panelStatus}>
+                    {t('library.noGenres')}
+                  </Text>
+                ) : null
+              }
+              renderItem={({item}) => {
+                const selected = (item?.id ?? null) === (genre?.id ?? null);
+                return (
+                  <FocusableItem
+                    focusedStyle={styles.panelButtonFocused}
+                    hasTVPreferredFocus={selected}
+                    onPress={() => {
+                      setGenre(item);
+                      onMenuVisibleChange(false);
+                    }}
+                    style={[
+                      styles.panelButton,
+                      selected ? styles.toolbarButtonActive : null,
+                    ]}
+                    testID={`library-genre-${item?.id ?? 'all'}`}>
+                    <Text style={styles.panelButtonText}>
+                      {item ? item.name : t('library.allGenres')}
+                    </Text>
+                  </FocusableItem>
+                );
+              }}
+              style={styles.genreList}
+            />
+          )}
+        </Panel>
+      ) : null}
+      {menuVisible && panel === 'options' ? (
         <Panel
           onClose={() => onMenuVisibleChange(false)}
           title={t('library.options')}>
@@ -1014,6 +1280,53 @@ const styles = StyleSheet.create({
   },
   gridGuide: {
     flex: 1,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    gap: 14,
+    marginBottom: 22,
+  },
+  toolbarButton: {
+    backgroundColor: '#24313A',
+    borderColor: 'transparent',
+    borderRadius: 8,
+    borderWidth: 2,
+    justifyContent: 'center',
+    maxWidth: 420,
+    minHeight: 50,
+    paddingHorizontal: 18,
+  },
+  toolbarButtonFocused: {
+    backgroundColor: '#2E5A72',
+  },
+  toolbarButtonActive: {
+    borderColor: '#4CC9F0',
+  },
+  toolbarButtonText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  searchInput: {
+    backgroundColor: '#182027',
+    borderColor: '#4CC9F0',
+    borderRadius: 8,
+    borderWidth: 2,
+    height: 62,
+    marginBottom: 14,
+    paddingHorizontal: 18,
+  },
+  searchInputText: {
+    color: '#FFFFFF',
+    fontSize: 26,
+  },
+  genreList: {
+    maxHeight: 560,
+  },
+  panelStatus: {
+    color: '#B8C5CC',
+    fontSize: 22,
+    marginBottom: 14,
   },
   grid: {
     gap: 26,
