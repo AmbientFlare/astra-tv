@@ -213,9 +213,9 @@ describe('playback diagnostics entry points', () => {
     fireEvent.press(screen.getByTestId('settings-About'));
 
     // The version and build are spelled out so a forgotten bump fails here.
-    expect(screen.getByText('Astra 1.6.1')).toBeTruthy();
-    expect(screen.getByText('Build: 20261029.01')).toBeTruthy();
-    expect(screen.getByText("What's new in 1.6.1")).toBeTruthy();
+    expect(screen.getByText('Astra 1.6.2')).toBeTruthy();
+    expect(screen.getByText('Build: 20261029.03')).toBeTruthy();
+    expect(screen.getByText("What's new in 1.6.2")).toBeTruthy();
     // The notes themselves are not: About and the What's New notice both read
     // RELEASE_HIGHLIGHTS, and pinning the prose here only made a version bump
     // mean editing the same sentences twice.
@@ -433,7 +433,7 @@ describe('playback diagnostics entry points', () => {
     ).toBeTruthy();
     expect(screen.getByText(/MKV → HLS\/MP4/)).toBeTruthy();
     expect(screen.getByText(/HLS target 2s {3}min segments 1/)).toBeTruthy();
-    expect(screen.getByText(/Astra 1\.6\.1 \(20261029\.01\)/)).toBeTruthy();
+    expect(screen.getByText(/Astra 1\.6\.2 \(20261029\.03\)/)).toBeTruthy();
     expect(
       screen.getByText(
         /Buffer map {2}ranges 2 {3}total ahead 25\.3s {3}next gap 0\.083s/,

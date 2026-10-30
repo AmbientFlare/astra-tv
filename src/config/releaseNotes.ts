@@ -17,6 +17,8 @@ import {getLocale, Locale} from '../i18n';
  */
 export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
   en: [
+    'Episodes now play to the end and the next one starts, even on ' +
+      'converted streams that used to stop a second short.',
     'Sleep timer: press Menu during a video and pick 15 to 90 minutes ' +
       'or the end of the episode. Astra pauses and saves your place on ' +
       'the server.',
@@ -27,11 +29,11 @@ export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
       'next episodes.',
     'If the network drops, Astra pauses and shows Retry, which picks ' +
       'up where you were.',
-    'Astra knows which Fire TV it is on, and asks the server to ' +
-      'convert files that are too heavy for it instead of failing to ' +
-      'play them.',
   ],
   de: [
+    'Folgen laufen jetzt bis zum Ende und die nächste startet, auch ' +
+      'bei umgewandelten Streams, die früher eine Sekunde vorher ' +
+      'stehen blieben.',
     'Schlaf-Timer: Drück während eines Videos Menü und wähle 15 bis 90 ' +
       'Minuten oder das Ende der Folge. Astra pausiert und speichert ' +
       'deine Position auf dem Server.',
@@ -42,10 +44,11 @@ export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
       'bleibt für die nächsten Folgen erhalten.',
     'Bricht das Netzwerk ab, pausiert Astra und zeigt Erneut ' +
       'versuchen, womit es an derselben Stelle weitergeht.',
-    'Astra erkennt, auf welchem Fire TV es läuft, und lässt zu schwere ' +
-      'Dateien vom Server umwandeln, statt an ihnen zu scheitern.',
   ],
   es: [
+    'Los episodios ahora llegan hasta el final y empieza el ' +
+      'siguiente, también en las transmisiones convertidas que antes ' +
+      'se detenían un segundo antes.',
     'Temporizador para dormir: pulsa Menú durante un video y elige de ' +
       '15 a 90 minutos o el final del episodio. Astra pausa y guarda tu ' +
       'posición en el servidor.',
@@ -56,11 +59,11 @@ export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
       'mantiene en los siguientes episodios.',
     'Si se cae la red, Astra pausa y muestra Reintentar, que sigue ' +
       'desde donde estabas.',
-    'Astra sabe en qué Fire TV está y pide al servidor que convierta ' +
-      'los archivos demasiado pesados para él, en lugar de no poder ' +
-      'reproducirlos.',
   ],
   fr: [
+    'Les épisodes vont maintenant jusqu’au bout et le suivant ' +
+      'démarre, même sur les flux convertis qui s’arrêtaient une ' +
+      'seconde avant la fin.',
     'Minuterie de veille : appuyez sur Menu pendant une vidéo et ' +
       'choisissez de 15 à 90 minutes ou la fin de l’épisode. Astra se ' +
       'met en pause et enregistre votre position sur le serveur.',
@@ -72,11 +75,11 @@ export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
       'conservée pour les épisodes suivants.',
     'Si le réseau coupe, Astra se met en pause et affiche Réessayer, ' +
       'qui reprend là où vous en étiez.',
-    'Astra sait sur quel Fire TV il tourne et demande au serveur de ' +
-      'convertir les fichiers trop lourds pour lui, au lieu d’échouer à ' +
-      'les lire.',
   ],
   it: [
+    'Gli episodi ora arrivano fino alla fine e parte il successivo, ' +
+      'anche nei flussi convertiti che prima si fermavano un secondo ' +
+      'prima.',
     'Timer di sospensione: premi Menu durante un video e scegli da 15 ' +
       'a 90 minuti o la fine dell’episodio. Astra mette in pausa e salva ' +
       'la posizione sul server.',
@@ -87,11 +90,10 @@ export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
       'gli episodi successivi.',
     'Se la rete cade, Astra mette in pausa e mostra Riprova, che ' +
       'riparte da dove eri.',
-    'Astra sa su quale Fire TV si trova e chiede al server di ' +
-      'convertire i file troppo pesanti per lui, invece di non riuscire ' +
-      'a riprodurli.',
   ],
   pt: [
+    'Os episódios agora vão até o fim e o próximo começa, mesmo nos ' +
+      'streams convertidos que paravam um segundo antes.',
     'Timer para dormir: aperte Menu durante um vídeo e escolha de 15 a ' +
       '90 minutos ou o fim do episódio. O Astra pausa e salva sua ' +
       'posição no servidor.',
@@ -102,9 +104,6 @@ export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
       'nos próximos episódios.',
     'Se a rede cair, o Astra pausa e mostra Tentar de novo, que ' +
       'continua de onde você estava.',
-    'O Astra sabe em qual Fire TV está e pede ao servidor para ' +
-      'converter arquivos pesados demais para ele, em vez de falhar ao ' +
-      'reproduzi-los.',
   ],
 };
 
