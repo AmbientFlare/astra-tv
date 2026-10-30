@@ -3,6 +3,33 @@
 Code from outside contributors is credited on its entry and, permanently,
 in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
+## 1.6.2 - 2026-10-29
+
+### Fixed
+
+- If Astra couldn't read its saved settings at launch, it stayed on the
+  Loading screen for good, which looked like a lost sign-in. It now shows
+  Retry, and never sends you to Setup on a failed read.
+- The Fire TV Stick HD is held to 1920-wide video from its model when its
+  decoder check gives no answer, so 4K files are converted for it instead
+  of failing. Stats for Nerds says where the limit came from.
+- Returning to a big library no longer reloads every item up to where you
+  were in one request, and libraries kept in the background are trimmed to
+  save memory.
+- Play on the sleep timer notice works even if the timer ran out on a
+  "Couldn't start" screen, and one Back press leaves that screen.
+- After a video handoff failed to release cleanly, seeking and play/pause
+  could stay disabled.
+- A finished video no longer shows "Paused".
+
+### Changed
+
+- The sign-in token is no longer added to the address of API requests. It
+  still travels in the request headers, so it stays out of reverse-proxy and
+  server access logs. Video, subtitles and artwork are unchanged.
+- The player and settings screens are split into smaller files. Nothing
+  changes on screen.
+
 ## 1.6.1 - 2026-10-29
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.6.1-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.6.2-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.6.1`, build `20261029.01`, for Fire TV
+The current release is Astra `1.6.2`, build `20261029.03`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -32,7 +32,7 @@ Appstore.
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
 - Contributors: [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- Release validation: 819 tests in 83 suites, ESLint, TypeScript, Vega
+- Release validation: 837 tests in 85 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
@@ -46,7 +46,9 @@ Appstore.
   still-watching setting and music on a Jellyfin 12.0 server were checked on
   a Fire TV Stick 4K (3rd Gen) running Vega OS 2.0. For 1.6.1, the same stick
   played converted episodes to their end into the next episode, held Right to
-  the end, and resumed from the sleep timer with one press.
+  the end, and resumed from the sleep timer with one press. For 1.6.2, sign-in
+  across the update, libraries, Settings, the connection test, the player's
+  menus and autoplay into the next episode were rechecked on the same stick.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -119,6 +121,15 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.6.2 — Steadier launch and big libraries — 2026-10-29
+
+- Astra offers Retry instead of hanging on Loading when its saved settings
+  can't be read.
+- Returning to a big library is lighter on memory, and the Fire TV Stick HD
+  always gets video it can decode.
+- The sign-in token no longer appears in API request addresses.
+- Small player fixes around the sleep timer and the "Couldn't start" screen.
 
 ### 1.6.1 — Episodes finish properly — 2026-10-29
 
