@@ -12,12 +12,15 @@ interface FocusableItemProps {
   accessibilityLabel?: string;
   disabled?: boolean;
   hasTVPreferredFocus?: boolean;
+  /** For screens that hand focus back with requestTVFocus. */
+  focusRef?: React.Ref<any>;
 }
 
 export const FocusableItem = ({
   accessibilityLabel,
   children,
   disabled,
+  focusRef,
   focusedStyle,
   hasTVPreferredFocus,
   onBlur,
@@ -53,6 +56,7 @@ export const FocusableItem = ({
         isFocused && styles.focused,
         isFocused && focusedStyle,
       ]}
+      ref={focusRef}
       testID={testID}>
       {children}
     </TouchableOpacity>
