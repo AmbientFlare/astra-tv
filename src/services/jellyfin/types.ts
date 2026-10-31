@@ -55,6 +55,8 @@ export interface JellyfinMediaItem {
   communityRating?: number | null;
   criticsRating?: number;
   genres?: string[];
+  /** Jellyfin tags every live item from a channel plugin `livestream`. */
+  tags?: string[];
   indexNumber?: number;
   isFavorite?: boolean;
   isPlayed?: boolean;

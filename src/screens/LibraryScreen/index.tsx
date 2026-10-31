@@ -8,7 +8,11 @@ import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
 import {LibraryInfoPanel} from '../../components/LibraryInfoPanel';
 import {LoadingOrError} from '../../components/LoadingOrError';
-import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
+import {
+  channelItemLabel,
+  formatUnplayedBadge,
+  MediaCard,
+} from '../../components/MediaCard';
 import {PreferenceRadioGroup} from '../../components/PreferenceRadioGroup';
 import {TVTextInput} from '../../components/TVTextInput';
 import {
@@ -1029,7 +1033,7 @@ export const LibraryScreen = ({
                   subtitle={
                     item.productionYear
                       ? String(item.productionYear)
-                      : item.type.toLowerCase()
+                      : channelItemLabel(item) ?? item.type.toLowerCase()
                   }
                   title={item.name}
                 />

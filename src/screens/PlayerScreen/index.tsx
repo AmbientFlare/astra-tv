@@ -31,6 +31,8 @@ import {
 
 import {
   closeLiveStream,
+  isLiveItem,
+  isPluginLiveItem,
   LiveTvChannel,
   neighbourChannel,
 } from '../../services/jellyfin/liveTv';
@@ -49,6 +51,7 @@ import {
   emitSessionEnd,
 } from '../../services/telemetry/playbackFacts';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
+import {UNPROBED_SOURCE_ATTRIBUTES} from '../../w3cmedia/hlsUnprobedVariant';
 import {
   calibrateTimelineOffset,
   logicalToMediaTime,
@@ -214,7 +217,8 @@ export const PlayerScreen = ({
 }: PlayerScreenProps) => {
   // A live channel has no length, so there is nothing to seek, resume, mark
   // watched or follow with a next episode.
-  const isLive = item.type === 'TvChannel';
+  const isLive = isLiveItem(item);
+  const isPluginLive = isPluginLiveItem(item);
   // The live stream this player has open, if any. Exactly one close goes out
   // per opening, from releaseMedia, whatever ended the session.
   const openLiveStreamId = useRef<string | null>(null);
@@ -1372,7 +1376,8 @@ export const PlayerScreen = ({
         shouldUseSequenceModeForMidFileStart(
           stream.outputContainer,
           startTimeSeconds,
-        );
+        ) ||
+        isPluginLive;
       trace(
         'shaka.mode',
         `${sequenceMode ? 'sequence' : 'segments'} container=${
@@ -1410,6 +1415,9 @@ export const PlayerScreen = ({
         // segments-mode path while evaluating W3C Media 2.2 in isolation.
         hlsSequenceMode: sequenceMode,
         hlsIgnoreManifestTimestampsInSegmentsMode: !sequenceMode,
+        // Only a source Jellyfin knows nothing about lacks codecs, and its
+        // fallback encode is always H.264 and AAC.
+        hlsUnprobedAttributes: UNPROBED_SOURCE_ATTRIBUTES,
         hlsResumePositionSeconds:
           startTimeSeconds && startTimeSeconds > 0
             ? startTimeSeconds
@@ -1472,7 +1480,7 @@ export const PlayerScreen = ({
         context?.signal.removeEventListener('abort', cancel);
       }
     },
-    [unloadAdaptivePlayer],
+    [isPluginLive, unloadAdaptivePlayer],
   );
 
   const attachPlaybackEvents = useCallback(

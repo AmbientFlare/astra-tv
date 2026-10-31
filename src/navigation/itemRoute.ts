@@ -14,6 +14,9 @@ export type DetailRoute = 'detail' | 'episodeDetail' | 'library';
  */
 const BROWSABLE_FOLDER_TYPES = [
   'BoxSet',
+  // A channel plugin's channel and the folders inside it.
+  'Channel',
+  'ChannelFolderItem',
   'CollectionFolder',
   'Folder',
   'UserView',

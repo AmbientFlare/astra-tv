@@ -1,7 +1,11 @@
 import 'react-native';
 import {render} from '@testing-library/react-native';
 import React from 'react';
-import {formatUnplayedBadge, MediaCard} from '../src/components/MediaCard';
+import {
+  channelItemLabel,
+  formatUnplayedBadge,
+  MediaCard,
+} from '../src/components/MediaCard';
 
 describe('series unwatched badge', () => {
   it('renders as a red square on the poster', () => {
@@ -24,5 +28,18 @@ describe('series unwatched badge', () => {
     expect(formatUnplayedBadge(135)).toBe('99+');
     expect(formatUnplayedBadge(0)).toBeUndefined();
     expect(formatUnplayedBadge()).toBeUndefined();
+  });
+});
+
+describe('channelItemLabel', () => {
+  it('names a plugin live stream and folder instead of their API types', () => {
+    expect(channelItemLabel({type: 'Video', tags: ['livestream']})).toBe(
+      'LIVE',
+    );
+    expect(channelItemLabel({type: 'ChannelFolderItem'})).toBe('Folder');
+  });
+
+  it('has nothing to say about other items', () => {
+    expect(channelItemLabel({type: 'Video'})).toBeUndefined();
   });
 });

@@ -17,7 +17,7 @@ import {
  * listed here — asking for them by name is what breaks the request.
  */
 export const itemFields =
-  'Overview,Genres,People,MediaSources,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,RemoteTrailers';
+  'Overview,Genres,People,MediaSources,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,RemoteTrailers,Tags';
 
 export const mapItem = (
   baseUrl: string,
@@ -60,6 +60,7 @@ export const mapItem = (
     };
     Overview?: string;
     Genres?: string[];
+    Tags?: string[];
     People?: Array<{Id?: string; Name?: string; Role?: string; Type?: string}>;
     CommunityRating?: number;
     CriticRating?: number;
@@ -129,6 +130,7 @@ export const mapItem = (
   unplayedItemCount: item.UserData?.UnplayedItemCount,
   overview: item.Overview ?? null,
   genres: item.Genres ?? [],
+  tags: item.Tags,
   people: (item.People ?? []).map((person) => ({
     Id: person.Id,
     Name: person.Name ?? 'Unknown',

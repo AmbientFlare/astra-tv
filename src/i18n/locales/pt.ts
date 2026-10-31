@@ -441,6 +441,7 @@ export const pt: Messages = {
   'library.rating': 'Avaliação',
   'library.ascending': 'Crescente',
   'library.descending': 'Decrescente',
+  'library.folder': 'Pasta',
   'library.all': 'Todos',
   'library.unwatchedOnly': 'Só não assistidos',
   'library.favoritesOnly': 'Só favoritos',

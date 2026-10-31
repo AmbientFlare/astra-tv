@@ -68,6 +68,8 @@ describe('browseItemFields', () => {
       'ChildCount',
       'RecursiveItemCount',
       'PrimaryImageAspectRatio',
+      // Marks a plugin's live streams, which the card labels.
+      'Tags',
     ]) {
       expect(browse).toContain(needed);
     }

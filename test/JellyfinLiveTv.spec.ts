@@ -8,6 +8,8 @@ import {
   getAvailableLiveTvFilters,
   getChannelSchedule,
   getGuidePrograms,
+  isLiveItem,
+  isPluginLiveItem,
   liveChannelItem,
   LiveTvChannel,
   neighbourChannel,
@@ -16,6 +18,7 @@ import {
   LiveTvSession,
   programProgress,
 } from '../src/services/jellyfin/liveTv';
+import {getLatestItemsInLibrary} from '../src/services/jellyfin/itemCollections';
 
 const session: LiveTvSession = {
   accessToken: 'token-123',
@@ -281,6 +284,46 @@ describe('liveChannelItem', () => {
     expect(
       liveChannelItem({id: 'ch-1', name: 'News', isFavorite: false}),
     ).toEqual(expect.objectContaining({id: 'ch-1', type: 'TvChannel'}));
+  });
+});
+
+describe('isLiveItem', () => {
+  it('treats Live TV channels and tagged plugin streams as live', () => {
+    expect(isLiveItem({type: 'TvChannel'})).toBe(true);
+    expect(isLiveItem({type: 'Video', tags: ['LiveStream']})).toBe(true);
+  });
+
+  it('leaves an ordinary video alone', () => {
+    expect(isLiveItem({type: 'Video'})).toBe(false);
+    expect(isLiveItem({type: 'Video', tags: ['clip']})).toBe(false);
+  });
+
+  it('tells a plugin stream from a Live TV channel', () => {
+    expect(isPluginLiveItem({type: 'Video', tags: ['livestream']})).toBe(true);
+    expect(isPluginLiveItem({type: 'TvChannel'})).toBe(false);
+    expect(isPluginLiveItem({type: 'Video'})).toBe(false);
+  });
+});
+
+describe('getLatestItemsInLibrary', () => {
+  it('drops the folders a channel plugin view returns despite IsFolder', async () => {
+    const calls = mockFetch(() => ({
+      Items: [
+        {Id: 'v-1', Name: 'Pluto TV Cars', Type: 'Video', Tags: ['livestream']},
+        {Id: 'f-1', Name: 'Live', Type: 'ChannelFolderItem', IsFolder: true},
+      ],
+    }));
+
+    const items = await getLatestItemsInLibrary(
+      session.serverUrl,
+      session.accessToken,
+      session.userId,
+      'channel-1',
+    );
+
+    expect(items.map((item) => item.id)).toEqual(['v-1']);
+    expect(items[0].tags).toEqual(['livestream']);
+    expect(calls[0].searchParams.get('Fields')).toContain('Tags');
   });
 });
 

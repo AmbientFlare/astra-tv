@@ -3,7 +3,11 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
-import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
+import {
+  channelItemLabel,
+  formatUnplayedBadge,
+  MediaCard,
+} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
@@ -483,7 +487,9 @@ const HomeMediaRow = ({
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.seriesName ??
-                (item.productionYear ? String(item.productionYear) : item.type)
+                (item.productionYear
+                  ? String(item.productionYear)
+                  : channelItemLabel(item) ?? item.type)
               }
               title={item.name}
             />
