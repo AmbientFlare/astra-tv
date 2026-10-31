@@ -9,9 +9,16 @@ import {t} from '../../i18n';
 /**
  * Collection types the fixed home rows already cover. A library of one of
  * these types would only repeat Latest Movies, Latest Shows or the music
- * screens, so it does not get a row of its own.
+ * screens, so it does not get a row of its own. Live TV has its own channel
+ * screen and nothing sensible to show as "latest".
  */
-const COVERED_COLLECTION_TYPES = ['movies', 'tvshows', 'music', 'playlists'];
+const COVERED_COLLECTION_TYPES = [
+  'livetv',
+  'movies',
+  'tvshows',
+  'music',
+  'playlists',
+];
 
 export const isCoveredByBuiltInRows = (library: JellyfinLibrary) =>
   COVERED_COLLECTION_TYPES.includes(library.type?.toLowerCase() ?? '');
