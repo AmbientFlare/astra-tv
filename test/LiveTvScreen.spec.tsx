@@ -134,7 +134,10 @@ describe('LiveTvScreen', () => {
 
     fireEvent.press(await screen.findByTestId('livetv-channel-ch-1'));
 
-    expect(onSelectChannel).toHaveBeenCalledWith(channel);
+    expect(onSelectChannel).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'ch-1'}),
+      [expect.objectContaining({id: 'ch-1'})],
+    );
   });
 });
 

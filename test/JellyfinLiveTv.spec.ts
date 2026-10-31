@@ -4,7 +4,12 @@ jest.mock('../src/services/deviceIdentity', () => ({
 }));
 
 import {
+  closeLiveStream,
   getAvailableLiveTvFilters,
+  getChannelSchedule,
+  liveChannelItem,
+  LiveTvChannel,
+  neighbourChannel,
   getLiveTvChannels,
   getNextPrograms,
   LiveTvSession,
@@ -185,5 +190,95 @@ describe('programProgress', () => {
     expect(programProgress(program, 500)).toBe(0);
     expect(programProgress(program, 3000)).toBe(1);
     expect(programProgress({...program, endTime: 1000}, 1500)).toBe(0);
+  });
+});
+
+describe('getChannelSchedule', () => {
+  const now = Date.parse('2026-10-31T20:00:00Z');
+  const programme = (id: string, start: string, end: string) => ({
+    Id: id,
+    ChannelId: 'ch-1',
+    Name: id,
+    StartDate: start,
+    EndDate: end,
+  });
+
+  it('asks for what is still on and returns now and next', async () => {
+    const calls = mockFetch(() => ({
+      Items: [
+        programme('now', '2026-10-31T19:30:00Z', '2026-10-31T20:30:00Z'),
+        programme('next', '2026-10-31T20:30:00Z', '2026-10-31T21:00:00Z'),
+      ],
+    }));
+
+    const schedule = await getChannelSchedule(session, 'ch-1', now);
+
+    expect(calls[0].pathname).toBe('/LiveTv/Programs');
+    expect(calls[0].searchParams.get('ChannelIds')).toBe('ch-1');
+    expect(calls[0].searchParams.get('MinEndDate')).toBe(
+      new Date(now).toISOString(),
+    );
+    expect(calls[0].searchParams.get('Limit')).toBe('2');
+    expect(schedule.current?.id).toBe('now');
+    expect(schedule.next?.id).toBe('next');
+  });
+
+  it('treats a programme that has not started yet as next', async () => {
+    mockFetch(() => ({
+      Items: [
+        programme('later', '2026-10-31T20:15:00Z', '2026-10-31T21:00:00Z'),
+      ],
+    }));
+
+    const schedule = await getChannelSchedule(session, 'ch-1', now);
+
+    expect(schedule.current).toBeUndefined();
+    expect(schedule.next?.id).toBe('later');
+  });
+});
+
+describe('closeLiveStream', () => {
+  it('posts the stream id to the server once', async () => {
+    const calls: Array<{url: URL; method?: string}> = [];
+    global.fetch = jest.fn(async (url: string, options: {method?: string}) => {
+      calls.push({url: new URL(url), method: options.method});
+      return {ok: true, status: 204, text: async () => ''};
+    }) as unknown as typeof fetch;
+
+    await closeLiveStream(session, 'live-1');
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].url.pathname).toBe('/LiveStreams/Close');
+    expect(calls[0].url.searchParams.get('liveStreamId')).toBe('live-1');
+  });
+});
+
+describe('neighbourChannel', () => {
+  const channels = ['a', 'b', 'c'].map(
+    (id): LiveTvChannel => ({id, name: id, isFavorite: false}),
+  );
+
+  it('steps up and down through the list', () => {
+    expect(neighbourChannel(channels, 'b', 1)?.id).toBe('c');
+    expect(neighbourChannel(channels, 'b', -1)?.id).toBe('a');
+  });
+
+  it('wraps round at either end', () => {
+    expect(neighbourChannel(channels, 'c', 1)?.id).toBe('a');
+    expect(neighbourChannel(channels, 'a', -1)?.id).toBe('c');
+  });
+
+  it('has nowhere to go for an unknown or only channel', () => {
+    expect(neighbourChannel(channels, 'z', 1)).toBeUndefined();
+    expect(neighbourChannel(channels.slice(0, 1), 'a', 1)).toBeUndefined();
+  });
+});
+
+describe('liveChannelItem', () => {
+  it('marks the item as a channel so the player plays it live', () => {
+    expect(
+      liveChannelItem({id: 'ch-1', name: 'News', isFavorite: false}),
+    ).toEqual(expect.objectContaining({id: 'ch-1', type: 'TvChannel'}));
   });
 });

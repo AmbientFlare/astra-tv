@@ -162,6 +162,10 @@ export interface JellyfinQualityOption {
 
 export interface JellyfinStreamInfo {
   itemId: string;
+  /** A live channel: no fixed length, nothing to seek or resume. */
+  isLive?: boolean;
+  /** The live stream the server opened for this session, to close after. */
+  liveStreamId?: string;
   audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
   bitrate?: number;

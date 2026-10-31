@@ -25,6 +25,7 @@ import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {MusicScreen, MusicTab} from '../screens/MusicScreen';
 import {LiveTvScreen} from '../screens/LiveTvScreen';
+import {LiveTvChannel, liveChannelItem} from '../services/jellyfin/liveTv';
 import {ArtistDetailScreen} from '../screens/ArtistDetailScreen';
 import {AlbumDetailScreen} from '../screens/AlbumDetailScreen';
 import {
@@ -85,6 +86,8 @@ type RouteEntry =
       consecutiveAutoAdvances?: number;
       /** Set when a SyncPlay group opened it; a new one remounts the player. */
       syncPlayNonce?: number;
+      /** The list a live channel was picked from, for channel up/down. */
+      liveChannels?: LiveTvChannel[];
     }
   | {route: 'liveTv'}
   | {route: 'music'; tab?: MusicTab}
@@ -775,7 +778,17 @@ export const RootNavigator = () => {
 
   if (current.route === 'liveTv' && serverProfile) {
     return withExitPrompt(
-      <LiveTvScreen onBack={pop} serverProfile={serverProfile} />,
+      <LiveTvScreen
+        onBack={pop}
+        onSelectChannel={(channel, channels) =>
+          push({
+            route: 'player',
+            item: liveChannelItem(channel),
+            liveChannels: channels,
+          })
+        }
+        serverProfile={serverProfile}
+      />,
     );
   }
 
@@ -849,6 +862,7 @@ export const RootNavigator = () => {
         accessToken={serverProfile.accessToken}
         consecutiveAutoAdvances={autoAdvances}
         item={current.item}
+        liveChannels={current.liveChannels}
         // A new item is a new player: remounting releases the old media
         // element and starts the next one from a clean surface.
         key={`${current.item.id}:${current.syncPlayNonce ?? ''}`}
@@ -856,6 +870,13 @@ export const RootNavigator = () => {
           syncPlay.playerClosed();
           pop();
         }}
+        onChangeChannel={(channel) =>
+          replace({
+            route: 'player',
+            item: liveChannelItem(channel),
+            liveChannels: current.liveChannels,
+          })
+        }
         onPlayNext={(next, {automatic}) => {
           if (syncPlay.isInGroup()) {
             // Every member reaches the end at once; letting each one start
