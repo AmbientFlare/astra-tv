@@ -94,7 +94,27 @@ export interface UserPreferences {
   skipIntroCredits: 'ask' | 'auto' | 'ignore';
   subtitleMode: 'default' | 'alwaysOn' | 'alwaysOff' | 'forcedOnly';
   subtitleAppearance: 'shadow' | 'background';
+  subtitleSize: SubtitleSize;
+  subtitleColor: SubtitleColor;
 }
+
+export type SubtitleSize = 'small' | 'medium' | 'large' | 'extraLarge';
+export type SubtitleColor = 'white' | 'gray' | 'yellow' | 'green' | 'cyan';
+
+export const SUBTITLE_SIZES: ReadonlyArray<SubtitleSize> = [
+  'small',
+  'medium',
+  'large',
+  'extraLarge',
+];
+
+export const SUBTITLE_COLORS: ReadonlyArray<SubtitleColor> = [
+  'white',
+  'gray',
+  'yellow',
+  'green',
+  'cyan',
+];
 
 const STORAGE_KEY = 'astra.serverProfiles.v1';
 const APP_STATE_KEY = 'astra.appState.v1';
@@ -151,6 +171,8 @@ export const defaultUserPreferences: UserPreferences = {
   skipIntroCredits: 'ask',
   subtitleMode: 'default',
   subtitleAppearance: 'shadow',
+  subtitleSize: 'medium',
+  subtitleColor: 'white',
 };
 
 export const defaultPlaybackPrefs: PlaybackPreferences = {
@@ -390,6 +412,12 @@ const parseUserPreferences = (
       },
       subtitleAppearance:
         parsed.subtitleAppearance === 'background' ? 'background' : 'shadow',
+      subtitleSize: SUBTITLE_SIZES.includes(parsed.subtitleSize)
+        ? parsed.subtitleSize
+        : defaultUserPreferences.subtitleSize,
+      subtitleColor: SUBTITLE_COLORS.includes(parsed.subtitleColor)
+        ? parsed.subtitleColor
+        : defaultUserPreferences.subtitleColor,
       // The player applies this on every stream request, so a value this
       // build does not know must fall back to per-video behaviour rather
       // than silently disabling or forcing subtitles.

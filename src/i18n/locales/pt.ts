@@ -300,7 +300,7 @@ export const pt: Messages = {
   'settings.subtitleAppearanceHint':
     'Escolha como as legendas aparecem sobre o vídeo.',
   'settings.subtitleAppearanceNote':
-    'Vale para legendas em texto exibidas pelo Astra. Legendas embutidas no vídeo mantêm a aparência original.',
+    'Vale para legendas em texto, como SRT e VTT, que o Astra desenha na tela. Legendas em imagem e legendas ASS/SSA com estilo são desenhadas no vídeo pelo servidor e mantêm a própria aparência.',
   'settings.hlsSegmentLengthHint':
     'Deixe em Automático, a menos que a reprodução de MP4 ou MOV trave. Segmentos mais curtos aumentam as requisições de rede e o trabalho do player.',
   'settings.hevcFmp4': 'HEVC como fMP4 (experimento)',
@@ -328,6 +328,19 @@ export const pt: Messages = {
   'settings.language': 'Idioma',
   'settings.aboutHint': 'Versão, informações do dispositivo, licenças',
   'settings.darkBackground': 'Fundo escuro',
+  'settings.subtitleSize': 'Tamanho do texto',
+  'settings.subtitleColor': 'Cor do texto',
+  'settings.subtitleStyle': 'Estilo',
+  'settings.subtitleSizeSmall': 'Pequeno',
+  'settings.subtitleSizeMedium': 'Médio',
+  'settings.subtitleSizeLarge': 'Grande',
+  'settings.subtitleSizeExtraLarge': 'Muito grande',
+  'settings.subtitleColorWhite': 'Branco',
+  'settings.subtitleColorGray': 'Cinza-claro',
+  'settings.subtitleColorYellow': 'Amarelo',
+  'settings.subtitleColorGreen': 'Verde',
+  'settings.subtitleColorCyan': 'Ciano',
+  'settings.subtitlePreview': 'É assim que suas legendas vão ficar.',
   'settings.subtitleDefault': 'Padrão (por vídeo)',
   'settings.subtitlesAllOn': 'Todas as legendas ativadas',
   'settings.subtitlesAllOff': 'Todas as legendas desativadas',

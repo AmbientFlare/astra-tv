@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Text} from 'react-native';
+import {Text, View} from 'react-native';
 
 import {useKeplerBackHandler} from '@amazon-devices/react-native-kepler';
 
@@ -48,10 +48,13 @@ import {
   hlsSegmentLengthOptions,
   labelForSkip,
   labelForStillWatching,
+  labelForSubtitleLook,
   labelForSubtitleMode,
   languageOptions,
   subtitleAppearanceOptions,
+  subtitleColorOptions,
   subtitleModeOptions,
+  subtitleSizeOptions,
   videoTranscodeOptions,
 } from './options';
 import {styles} from './styles';
@@ -63,6 +66,7 @@ import {
   RadioPage,
   ToggleRow,
 } from './widgets';
+import {SubtitleText} from '../PlayerScreen/ExternalSubtitleOverlay';
 import {AboutPage} from './AboutPage';
 import {ConnectionTestPage} from './ConnectionTestPage';
 import {LiveConnectionPage} from './LiveConnectionPage';
@@ -590,11 +594,7 @@ export const SettingsScreen = ({
             <MenuRow
               icon="▱"
               title={t('settings.subtitleAppearance')}
-              subtitle={
-                subtitleAppearanceOptions().find(
-                  (option) => option.value === preferences.subtitleAppearance,
-                )?.label ?? t('settings.textWithShadow')
-              }
+              subtitle={labelForSubtitleLook(preferences)}
               onPress={() => push({route: 'subtitleAppearance'})}
             />
             <ToggleRow
@@ -795,7 +795,30 @@ export const SettingsScreen = ({
             <Text style={styles.description}>
               {t('settings.subtitleAppearanceHint')}
             </Text>
+            <View style={styles.subtitlePreview} testID="subtitle-preview">
+              <SubtitleText
+                appearance={preferences.subtitleAppearance}
+                color={preferences.subtitleColor}
+                size={preferences.subtitleSize}>
+                {t('settings.subtitlePreview')}
+              </SubtitleText>
+            </View>
             <PreferenceRadioGroup
+              title={t('settings.subtitleSize')}
+              options={subtitleSizeOptions()}
+              selectedValue={preferences.subtitleSize}
+              onSelect={(subtitleSize) => savePreferences({subtitleSize})}
+            />
+            <PreferenceRadioGroup
+              title={t('settings.subtitleColor')}
+              claimsFocus={false}
+              options={subtitleColorOptions()}
+              selectedValue={preferences.subtitleColor}
+              onSelect={(subtitleColor) => savePreferences({subtitleColor})}
+            />
+            <PreferenceRadioGroup
+              title={t('settings.subtitleStyle')}
+              claimsFocus={false}
               options={subtitleAppearanceOptions()}
               selectedValue={preferences.subtitleAppearance}
               onSelect={(subtitleAppearance) =>
@@ -958,7 +981,8 @@ export const SettingsScreen = ({
 
   return (
     <>
-      {page}
+      {/* Keyed by depth so a new page does not inherit the last one's scroll. */}
+      <React.Fragment key={stack.length}>{page}</React.Fragment>
       {confirmAction ? (
         <ConfirmDialog
           body={confirmAction.body}

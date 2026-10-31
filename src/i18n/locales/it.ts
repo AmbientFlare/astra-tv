@@ -301,7 +301,7 @@ export const it: Messages = {
   'settings.subtitleAppearanceHint':
     'Scegli come appaiono i sottotitoli sopra il video.',
   'settings.subtitleAppearanceNote':
-    'Vale per i sottotitoli di testo mostrati da Astra. I sottotitoli incorporati nel video mantengono il loro aspetto originale.',
+    'Vale per i sottotitoli di testo, come SRT e VTT, che Astra disegna sullo schermo. I sottotitoli a immagine e quelli ASS/SSA con stile vengono disegnati nel video dal server e mantengono il loro aspetto.',
   'settings.hlsSegmentLengthHint':
     'Lascia su Automatico a meno che la riproduzione di MP4 o MOV non scatti. Segmenti più corti aumentano le richieste di rete e il lavoro del player.',
   'settings.hevcFmp4': 'HEVC come fMP4 (esperimento)',
@@ -329,6 +329,19 @@ export const it: Messages = {
   'settings.language': 'Lingua',
   'settings.aboutHint': 'Versione, info dispositivo, licenze',
   'settings.darkBackground': 'Sfondo scuro',
+  'settings.subtitleSize': 'Dimensione del testo',
+  'settings.subtitleColor': 'Colore del testo',
+  'settings.subtitleStyle': 'Stile',
+  'settings.subtitleSizeSmall': 'Piccola',
+  'settings.subtitleSizeMedium': 'Media',
+  'settings.subtitleSizeLarge': 'Grande',
+  'settings.subtitleSizeExtraLarge': 'Molto grande',
+  'settings.subtitleColorWhite': 'Bianco',
+  'settings.subtitleColorGray': 'Grigio chiaro',
+  'settings.subtitleColorYellow': 'Giallo',
+  'settings.subtitleColorGreen': 'Verde',
+  'settings.subtitleColorCyan': 'Ciano',
+  'settings.subtitlePreview': 'Ecco come appariranno i sottotitoli.',
   'settings.subtitleDefault': 'Predefinito (per video)',
   'settings.subtitlesAllOn': 'Tutti i sottotitoli attivi',
   'settings.subtitlesAllOff': 'Tutti i sottotitoli disattivati',

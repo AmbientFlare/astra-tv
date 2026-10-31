@@ -296,7 +296,7 @@ export const en = {
   'settings.subtitleAppearanceHint':
     'Choose how subtitles appear over the video.',
   'settings.subtitleAppearanceNote':
-    'Applies to text subtitles displayed by Astra. Subtitles embedded in the video keep their original appearance.',
+    'Applies to text subtitles, such as SRT and VTT, which Astra draws on screen. Picture subtitles and styled ASS/SSA subtitles are drawn into the video by the server and keep their own look.',
   'settings.hlsSegmentLengthHint':
     'Leave this on Auto unless MP4 or MOV playback stutters. Shorter segments increase network requests and player append operations.',
   'settings.hevcFmp4': 'HEVC as fMP4 (experiment)',
@@ -324,6 +324,19 @@ export const en = {
   'settings.language': 'Language',
   'settings.aboutHint': 'Version, device info, licenses',
   'settings.darkBackground': 'Dark background',
+  'settings.subtitleSize': 'Text size',
+  'settings.subtitleColor': 'Text color',
+  'settings.subtitleStyle': 'Style',
+  'settings.subtitleSizeSmall': 'Small',
+  'settings.subtitleSizeMedium': 'Medium',
+  'settings.subtitleSizeLarge': 'Large',
+  'settings.subtitleSizeExtraLarge': 'Extra large',
+  'settings.subtitleColorWhite': 'White',
+  'settings.subtitleColorGray': 'Light gray',
+  'settings.subtitleColorYellow': 'Yellow',
+  'settings.subtitleColorGreen': 'Green',
+  'settings.subtitleColorCyan': 'Cyan',
+  'settings.subtitlePreview': 'This is how your subtitles will look.',
   'settings.subtitleDefault': 'Default (per video)',
   'settings.subtitlesAllOn': 'All subtitles on',
   'settings.subtitlesAllOff': 'All subtitles off',

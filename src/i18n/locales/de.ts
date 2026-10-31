@@ -305,7 +305,7 @@ export const de: Messages = {
   'settings.subtitleAppearanceHint':
     'Wähle, wie Untertitel über dem Video erscheinen.',
   'settings.subtitleAppearanceNote':
-    'Gilt für Textuntertitel, die Astra anzeigt. In das Video eingebettete Untertitel behalten ihr ursprüngliches Aussehen.',
+    'Gilt für Textuntertitel wie SRT und VTT, die Astra auf dem Bildschirm zeichnet. Bilduntertitel und gestaltete ASS/SSA-Untertitel zeichnet der Server ins Video, sie behalten ihr eigenes Aussehen.',
   'settings.hlsSegmentLengthHint':
     'Lass das auf Automatisch, außer MP4- oder MOV-Wiedergabe ruckelt. Kürzere Segmente erhöhen die Netzwerkanfragen und die Arbeit des Players.',
   'settings.hevcFmp4': 'HEVC als fMP4 (Experiment)',
@@ -332,6 +332,19 @@ export const de: Messages = {
   'settings.language': 'Sprache',
   'settings.aboutHint': 'Version, Geräteinfo, Lizenzen',
   'settings.darkBackground': 'Dunkler Hintergrund',
+  'settings.subtitleSize': 'Textgröße',
+  'settings.subtitleColor': 'Textfarbe',
+  'settings.subtitleStyle': 'Stil',
+  'settings.subtitleSizeSmall': 'Klein',
+  'settings.subtitleSizeMedium': 'Mittel',
+  'settings.subtitleSizeLarge': 'Groß',
+  'settings.subtitleSizeExtraLarge': 'Sehr groß',
+  'settings.subtitleColorWhite': 'Weiß',
+  'settings.subtitleColorGray': 'Hellgrau',
+  'settings.subtitleColorYellow': 'Gelb',
+  'settings.subtitleColorGreen': 'Grün',
+  'settings.subtitleColorCyan': 'Cyan',
+  'settings.subtitlePreview': 'So sehen deine Untertitel aus.',
   'settings.subtitleDefault': 'Standard (pro Video)',
   'settings.subtitlesAllOn': 'Alle Untertitel an',
   'settings.subtitlesAllOff': 'Alle Untertitel aus',
