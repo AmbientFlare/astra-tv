@@ -478,6 +478,8 @@ export const en = {
   'liveTv.nextAt': 'Next at {time}',
   'liveTv.live': 'LIVE',
   'liveTv.changeChannelHint': '▲▼ Change channel',
+  'liveTv.view.channels': 'Channels',
+  'liveTv.view.guide': 'Guide',
   'liveTv.channelCount.one': '{count} channel',
   'liveTv.channelCount.other': '{count} channels',
   'music.artists': 'Artists',

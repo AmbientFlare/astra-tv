@@ -484,6 +484,8 @@ export const it: Messages = {
   'liveTv.nextAt': 'Alle {time}',
   'liveTv.live': 'LIVE',
   'liveTv.changeChannelHint': '▲▼ Cambia canale',
+  'liveTv.view.channels': 'Canali',
+  'liveTv.view.guide': 'Guida',
   'liveTv.channelCount.one': '{count} canale',
   'liveTv.channelCount.other': '{count} canali',
   'music.artists': 'Artisti',

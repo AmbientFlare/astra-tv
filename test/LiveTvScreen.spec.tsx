@@ -4,6 +4,7 @@ import {fireEvent, render, waitFor} from '@testing-library/react-native';
 import {LiveTvScreen, nowAndNext} from '../src/screens/LiveTvScreen';
 import {
   getAvailableLiveTvFilters,
+  getGuidePrograms,
   getLiveTvChannels,
   getNextPrograms,
 } from '../src/services/jellyfin/liveTv';
@@ -15,12 +16,14 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
   return {
     TVFocusGuideView: (props: Record<string, unknown>) =>
       MockReact.createElement(View, props),
+    useTVEventHandler: jest.fn(),
   };
 });
 
 jest.mock('../src/services/jellyfin/liveTv', () => ({
   ...jest.requireActual('../src/services/jellyfin/liveTv'),
   getAvailableLiveTvFilters: jest.fn(),
+  getGuidePrograms: jest.fn(),
   getLiveTvChannels: jest.fn(),
   getNextPrograms: jest.fn(),
 }));
@@ -57,6 +60,12 @@ beforeEach(() => {
   });
   (getNextPrograms as jest.Mock).mockResolvedValue({
     'ch-1': program('p2', 'Cheers', 20, 50),
+  });
+  (getGuidePrograms as jest.Mock).mockResolvedValue({
+    'ch-1': [
+      {...program('p1', 'Family Ties', -10, 20), overview: 'Alex runs.'},
+      program('p2', 'Cheers', 20, 50),
+    ],
   });
 });
 
@@ -138,6 +147,35 @@ describe('LiveTvScreen', () => {
       expect.objectContaining({id: 'ch-1'}),
       [expect.objectContaining({id: 'ch-1'})],
     );
+  });
+
+  it('shows the guide grid and plays the channel picked in it', async () => {
+    const onSelectChannel = jest.fn();
+    const screen = render(
+      <LiveTvScreen
+        onBack={jest.fn()}
+        onSelectChannel={onSelectChannel}
+        serverProfile={profile}
+      />,
+    );
+
+    await screen.findByTestId('livetv-channel-ch-1');
+    fireEvent.press(screen.getByTestId('livetv-view-guide'));
+
+    expect(await screen.findByTestId('livetv-guide-row-ch-1')).toBeTruthy();
+    await waitFor(() => expect(getGuidePrograms).toHaveBeenCalled());
+    expect(await screen.findByText('Alex runs.')).toBeTruthy();
+    expect(screen.getAllByText('Cheers').length).toBeGreaterThan(0);
+
+    fireEvent.press(screen.getByTestId('livetv-guide'));
+
+    expect(onSelectChannel).toHaveBeenCalledWith(
+      expect.objectContaining({id: 'ch-1'}),
+      [expect.objectContaining({id: 'ch-1'})],
+    );
+
+    // The view is remembered for next time; put it back for other tests.
+    fireEvent.press(screen.getByTestId('livetv-view-channels'));
   });
 });
 

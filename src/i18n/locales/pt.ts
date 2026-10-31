@@ -483,6 +483,8 @@ export const pt: Messages = {
   'liveTv.nextAt': 'Às {time}',
   'liveTv.live': 'AO VIVO',
   'liveTv.changeChannelHint': '▲▼ Mudar de canal',
+  'liveTv.view.channels': 'Canais',
+  'liveTv.view.guide': 'Guia',
   'liveTv.channelCount.one': '{count} canal',
   'liveTv.channelCount.other': '{count} canais',
   'music.artists': 'Artistas',
