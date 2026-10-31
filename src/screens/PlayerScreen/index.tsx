@@ -83,6 +83,7 @@ import {
   shouldForceVideoConversion,
   assessDecoderRisk,
   computeBufferBudget,
+  liveBufferBudget,
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
@@ -1389,7 +1390,10 @@ export const PlayerScreen = ({
       // stream.bitrate is the server's figure for the delivered stream. It is
       // the closest thing available before the manifest is parsed; the goals
       // only need to be right to within a segment.
-      const bufferBudget = computeBufferBudget(stream.bitrate);
+      const bufferBudget = liveBufferBudget(
+        computeBufferBudget(stream.bitrate),
+        isLive,
+      );
       trace(
         'shaka.buffer',
         `ahead=${bufferBudget.bufferingGoal}s resume=${
@@ -1480,7 +1484,7 @@ export const PlayerScreen = ({
         context?.signal.removeEventListener('abort', cancel);
       }
     },
-    [isPluginLive, unloadAdaptivePlayer],
+    [isLive, isPluginLive, unloadAdaptivePlayer],
   );
 
   const attachPlaybackEvents = useCallback(
@@ -1869,6 +1873,7 @@ export const PlayerScreen = ({
             selectedSubtitleBurnIn.current,
             transcodeForDecoder,
           ),
+          live: isLive,
           maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
           // On a reload the server has already named its source; reusing that
           // id keeps a track change pointed at the same one.
@@ -1977,6 +1982,7 @@ export const PlayerScreen = ({
       accessToken,
       applyPosition,
       decoderTranscodeUnusable,
+      isLive,
       item.id,
       item.mediaStreams,
       item.name,

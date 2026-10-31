@@ -159,6 +159,25 @@ describe('Jellyfin HLS delivery policy', () => {
     ]);
   });
 
+  it('lets live streams keep H.264 instead of re-encoding it to HEVC', () => {
+    // The server never direct-streams live TV, so a live channel always goes
+    // through the first HLS profile. HEVC alone there re-encoded every H.264
+    // channel.
+    const profile = buildDeviceProfile(
+      defaultPlaybackPrefs,
+      capabilities(),
+      false,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(profile.TranscodingProfiles[0]).toEqual(
+      expect.objectContaining({Container: 'ts', VideoCodec: 'hevc,h264'}),
+    );
+  });
+
   it('forces AC3 only for HEVC/MPEG-TS when Vega reports AC3 support', () => {
     const profile = buildDeviceProfile(
       defaultPlaybackPrefs,

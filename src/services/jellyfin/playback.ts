@@ -45,6 +45,16 @@ import {
 } from './playbackHelpers';
 import {t} from '../../i18n';
 
+/**
+ * The most a live stream asks for, in bits per second.
+ *
+ * The server knows no bitrate for a live source, so when it passes a channel
+ * through untouched its playlist advertises the bitrate the app asked for.
+ * Vega's player turns down H.264 advertised above 20 Mbps, which both sticks'
+ * own decoder lists declare, so a higher ask fails before the first frame.
+ */
+export const LIVE_MAX_STREAMING_BITRATE = 20_000_000;
+
 export const getStreamUrl = async (
   serverUrl: string,
   accessToken: string,
@@ -56,6 +66,8 @@ export const getStreamUrl = async (
     alwaysBurnInSubtitleWhenTranscoding?: boolean;
     audioStreamIndex?: number;
     forceTranscode?: boolean;
+    /** A live channel or stream, which the server only ever transcodes. */
+    live?: boolean;
     maxStreamingBitrate?: number;
     mediaSourceId?: string;
     /**
@@ -112,6 +124,7 @@ export const getStreamUrl = async (
     videoDecodeLimits,
     device.h264MaxBitrate,
     device.maxVideoWidth,
+    options.live,
   );
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`);
   console.log(
@@ -223,7 +236,12 @@ export const getStreamUrl = async (
         SubtitleStreamIndex: subtitleStreamIndex,
         AlwaysBurnInSubtitleWhenTranscoding:
           alwaysBurnInSubtitleWhenTranscoding,
-        MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
+        MaxStreamingBitrate: options.live
+          ? Math.min(
+              options.maxStreamingBitrate ?? prefs.maxBitrateBps,
+              LIVE_MAX_STREAMING_BITRATE,
+            )
+          : options.maxStreamingBitrate ?? prefs.maxBitrateBps,
         MaxAudioChannels: prefs.maxAudioChannels,
         // Everything is delivered over HLS — no direct play. Raw-file
         // direct play blocks the JS thread inside setSrcUri when

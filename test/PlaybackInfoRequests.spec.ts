@@ -13,6 +13,7 @@ jest.mock('../src/services/deviceIdentity', () => ({
  * failing.
  */
 import {getStreamUrl, PLAYBACK_INFO_RETRY_MS} from '../src/services/jellyfin';
+import {LIVE_MAX_STREAMING_BITRATE} from '../src/services/jellyfin/playback';
 
 // The device's storage and audio hardware are not part of what these tests
 // are about; both are stood in for so the request sequence is all that varies.
@@ -721,5 +722,32 @@ describe('Issue 21: degraded direct-stream responses', () => {
       'This server is not permitted to transcode video for your account',
     );
     expect(requests).toHaveLength(3);
+  });
+});
+
+describe('a live stream', () => {
+  it('never asks for more than the H.264 rate the player accepts', async () => {
+    const requests = mockPlaybackInfo([playableSource()]);
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      live: true,
+      maxStreamingBitrate: 80_000_000,
+    });
+
+    // The server passes a live channel through with this as its advertised
+    // bitrate, and Vega turns down H.264 advertised above 20 Mbps.
+    expect(requests[0].body.MaxStreamingBitrate).toBe(
+      LIVE_MAX_STREAMING_BITRATE,
+    );
+  });
+
+  it('leaves recorded media at the bitrate asked for', async () => {
+    const requests = mockPlaybackInfo([playableSource()]);
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      maxStreamingBitrate: 80_000_000,
+    });
+
+    expect(requests[0].body.MaxStreamingBitrate).toBe(80_000_000);
   });
 });

@@ -132,6 +132,7 @@ export const buildDeviceProfile = (
   videoDecodeLimits: VideoDecodeLimits = defaultVideoDecodeLimits,
   h264MaxBitrate?: number,
   knownMaxVideoWidth?: number,
+  live = false,
 ) => {
   const audioCodecs = buildTranscodingAudioCodecs(
     audioCapabilities,
@@ -168,10 +169,14 @@ export const buildDeviceProfile = (
   // producing duplicate timestamps that Vega renders as micro-stutter.
   // An equivalent MPEG-TS remux preserves every source timestamp. Keep
   // HEVC first so incompatible/HDR sources still transcode to HEVC.
+  //
+  // Live streams always come through this profile, because the server never
+  // offers them for direct stream. HEVC alone there made it re-encode
+  // compatible H.264 channels, so live also accepts H.264 as-is.
   const hevcTsProfile = {
     Type: 'Video',
     Container: 'ts',
-    VideoCodec: 'hevc',
+    VideoCodec: live ? 'hevc,h264' : 'hevc',
     AudioCodec: mpegTsAudioCodecs,
     Protocol: 'hls',
     Context: 'Streaming',
