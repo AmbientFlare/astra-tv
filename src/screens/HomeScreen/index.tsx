@@ -13,6 +13,7 @@ import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
+import {getLiveTvChannels} from '../../services/jellyfin/liveTv';
 import {
   getLibraries,
   getLatestItems,
@@ -211,6 +212,15 @@ export const HomeScreen = ({
             return musicSession
               ? (await getAlbums(musicSession, {limit: 24})).items
               : null;
+          case 'livetv':
+            // Jellyfin has no artwork for the Live TV view, so the tile
+            // shows channel logos instead.
+            return (
+              await getLiveTvChannels(
+                {accessToken, serverUrl, userId},
+                {limit: 24},
+              )
+            ).items;
           default:
             // Everything else keeps the library's own image.
             return null;
