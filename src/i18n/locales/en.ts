@@ -240,6 +240,7 @@ export const en = {
   'home.nextUp': 'Next Up',
   'home.latestMovies': 'Latest Movies',
   'home.latestShows': 'Latest Shows',
+  'home.onNow': 'On Now',
   'settings.imageSize': 'Image size',
   'settings.small': 'Small',
   'settings.medium': 'Medium',

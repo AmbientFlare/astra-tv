@@ -248,6 +248,7 @@ export const de: Messages = {
   'home.nextUp': 'Als Nächstes',
   'home.latestMovies': 'Neueste Filme',
   'home.latestShows': 'Neueste Serien',
+  'home.onNow': 'Jetzt läuft',
   'settings.imageSize': 'Bildgröße',
   'settings.small': 'Klein',
   'settings.medium': 'Mittel',

@@ -79,6 +79,9 @@ interface RawProgram {
   Overview?: string;
   StartDate?: string;
   EndDate?: string;
+  ChannelName?: string;
+  ChannelNumber?: string;
+  ImageTags?: {Primary?: string; Thumb?: string};
 }
 
 interface RawChannel {
@@ -291,6 +294,84 @@ export const getGuidePrograms = async (
   });
 
   return programs;
+};
+
+/** A programme airing now, with the channel it is on. */
+export interface OnNowProgram extends LiveTvProgram {
+  channel: LiveTvChannel;
+  imageUrl?: string;
+}
+
+export const ON_NOW_LIMIT = 24;
+
+const imageUrl = (
+  session: LiveTvSession,
+  id: string,
+  type: 'Primary' | 'Thumb',
+  tag: string | undefined,
+  size: {fillHeight?: number; fillWidth?: number},
+) =>
+  buildUrl(session.serverUrl, `/Items/${id}/Images/${type}`, {
+    ...size,
+    quality: 90,
+    tag,
+    ...tokenQuery(session.accessToken),
+  });
+
+/**
+ * What is airing now, as Jellyfin's own home screen picks it: the server's
+ * recommended programmes that are on the air. Each comes with its channel so
+ * a card can tune straight to it.
+ */
+export const getOnNowPrograms = async (
+  session: LiveTvSession,
+  limit = ON_NOW_LIMIT,
+): Promise<OnNowProgram[]> => {
+  const raw = await request<RawPage<RawProgram>>(
+    session,
+    '/LiveTv/Programs/Recommended',
+    {
+      EnableImageTypes: 'Primary,Thumb',
+      EnableTotalRecordCount: false,
+      Fields: 'ChannelInfo',
+      ImageTypeLimit: 1,
+      IsAiring: true,
+      Limit: limit,
+      UserId: session.userId,
+    },
+  );
+
+  return (raw.Items ?? []).flatMap((item) => {
+    const program = mapProgram(item);
+
+    if (!program || !item.Id || !item.ChannelId) {
+      return [];
+    }
+
+    const thumbType = item.ImageTags?.Thumb ? 'Thumb' : 'Primary';
+    const thumbTag = item.ImageTags?.[thumbType];
+
+    return [
+      {
+        ...program,
+        channel: {
+          id: item.ChannelId,
+          name: item.ChannelName ?? '',
+          number: item.ChannelNumber || undefined,
+          // The guide's channel image tag is often missing from this
+          // endpoint even when the channel has a logo, so ask for it untagged.
+          imageUrl: imageUrl(session, item.ChannelId, 'Primary', undefined, {
+            fillHeight: 96,
+          }),
+          isFavorite: false,
+          current: program,
+        },
+        imageUrl: thumbTag
+          ? imageUrl(session, item.Id, thumbType, thumbTag, {fillWidth: 400})
+          : undefined,
+      },
+    ];
+  });
 };
 
 /** 0 to 1: how far through its slot a programme is. */

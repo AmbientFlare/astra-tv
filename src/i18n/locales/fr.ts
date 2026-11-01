@@ -248,6 +248,7 @@ export const fr: Messages = {
   'home.nextUp': 'À suivre',
   'home.latestMovies': 'Films récents',
   'home.latestShows': 'Séries récentes',
+  'home.onNow': 'En ce moment',
   'settings.imageSize': 'Taille d’image',
   'settings.small': 'Petite',
   'settings.medium': 'Moyenne',
