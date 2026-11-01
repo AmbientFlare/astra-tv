@@ -30,6 +30,8 @@ import {
   programProgress,
 } from '../../services/jellyfin/liveTv';
 import {ServerProfile} from '../../services/storage';
+import type {JellyfinMediaItem} from '../../services/jellyfin/types';
+import {RecordingsView} from './RecordingsView';
 import {MessageKey, t, tn} from '../../i18n';
 import {LiveTvGuide} from './LiveTvGuide';
 
@@ -37,6 +39,7 @@ interface Props {
   onBack: () => void;
   /** The channel, and the list it was picked from for channel up/down. */
   onSelectChannel?: (channel: LiveTvChannel, channels: LiveTvChannel[]) => void;
+  onPlayRecording?: (item: JellyfinMediaItem) => void;
   serverProfile: ServerProfile;
 }
 
@@ -57,7 +60,7 @@ const CLOCK_TICK_MS = 30_000;
 // The live player's banner uses it too, so it lives with the service.
 export {formatClockTime};
 
-type LiveTvView = 'channels' | 'guide';
+type LiveTvView = 'channels' | 'guide' | 'recordings';
 
 // Playing a channel leaves this screen, so coming back mounts it fresh. These
 // bring the viewer back to the view and channel they left from.
@@ -84,6 +87,7 @@ export const nowAndNext = (
 
 export const LiveTvScreen = ({
   onBack,
+  onPlayRecording,
   onSelectChannel,
   serverProfile,
 }: Props) => {
@@ -274,6 +278,8 @@ export const LiveTvScreen = ({
     [channelsWithNext, onSelectChannel, withNext],
   );
 
+  const isRecordings = view === 'recordings';
+
   const changeView = (next: LiveTvView) => {
     rememberedView = next;
     guideTakesFocus.current = next === 'guide';
@@ -292,7 +298,7 @@ export const LiveTvScreen = ({
         </FocusableItem>
         <Text style={styles.title}>{t('nav.liveTv')}</Text>
         <TVFocusGuideView style={styles.tabs}>
-          {filters.map((entry) => (
+          {(isRecordings ? [] : filters).map((entry) => (
             <FocusableItem
               focusedStyle={styles.tabFocused}
               hasTVPreferredFocus={view === 'channels' && entry === 'all'}
@@ -308,7 +314,7 @@ export const LiveTvScreen = ({
           ))}
         </TVFocusGuideView>
         <TVFocusGuideView style={styles.views}>
-          {(['guide', 'channels'] as const).map((entry) => (
+          {(['guide', 'channels', 'recordings'] as const).map((entry) => (
             <FocusableItem
               focusedStyle={styles.tabFocused}
               key={entry}
@@ -322,10 +328,18 @@ export const LiveTvScreen = ({
       </View>
 
       <Text style={styles.count}>
-        {totalCount ? tn('liveTv.channelCount', totalCount) : ''}
+        {totalCount && !isRecordings
+          ? tn('liveTv.channelCount', totalCount)
+          : ''}
       </Text>
 
-      {view === 'guide' ? (
+      {view === 'recordings' ? (
+        <RecordingsView
+          canManage={canRecord}
+          onPlay={(item) => onPlayRecording?.(item)}
+          session={session}
+        />
+      ) : view === 'guide' ? (
         channels.length ? (
           <LiveTvGuide
             canRecord={canRecord}
@@ -362,9 +376,13 @@ export const LiveTvScreen = ({
         />
       )}
 
-      {isLoading ? <ActivityIndicator style={styles.spinner} /> : null}
-      {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
-      {!isLoading && !errorText && !channels.length ? (
+      {isLoading && !isRecordings ? (
+        <ActivityIndicator style={styles.spinner} />
+      ) : null}
+      {errorText && !isRecordings ? (
+        <Text style={styles.error}>{errorText}</Text>
+      ) : null}
+      {!isRecordings && !isLoading && !errorText && !channels.length ? (
         <Text style={styles.status}>
           {filter === 'all' ? t('liveTv.noChannels') : t('liveTv.noneInFilter')}
         </Text>
