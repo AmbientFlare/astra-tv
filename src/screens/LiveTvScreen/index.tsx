@@ -18,6 +18,7 @@ import {
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {
+  canManageRecordings,
   formatClockTime,
   getAvailableLiveTvFilters,
   getLiveTvChannels,
@@ -60,7 +61,7 @@ type LiveTvView = 'channels' | 'guide';
 
 // Playing a channel leaves this screen, so coming back mounts it fresh. These
 // bring the viewer back to the view and channel they left from.
-let rememberedView: LiveTvView = 'channels';
+let rememberedView: LiveTvView = 'guide';
 let rememberedChannelId: string | undefined;
 
 /**
@@ -100,6 +101,7 @@ export const LiveTvScreen = ({
   const [isLoading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [canRecord, setCanRecord] = useState(false);
 
   // Guards against overlapping page requests and against a late response
   // from a filter the user has already left.
@@ -123,6 +125,16 @@ export const LiveTvScreen = ({
 
   useEffect(() => {
     let active = true;
+
+    canManageRecordings(session)
+      .then((allowed) => {
+        if (active) {
+          setCanRecord(allowed);
+        }
+      })
+      .catch(() => {
+        // Without it, the guide only tunes, as before.
+      });
 
     getAvailableLiveTvFilters(session)
       .then((available) => {
@@ -296,7 +308,7 @@ export const LiveTvScreen = ({
           ))}
         </TVFocusGuideView>
         <TVFocusGuideView style={styles.views}>
-          {(['channels', 'guide'] as const).map((entry) => (
+          {(['guide', 'channels'] as const).map((entry) => (
             <FocusableItem
               focusedStyle={styles.tabFocused}
               key={entry}
@@ -316,6 +328,7 @@ export const LiveTvScreen = ({
       {view === 'guide' ? (
         channels.length ? (
           <LiveTvGuide
+            canRecord={canRecord}
             channels={channelsWithNext}
             hasTVPreferredFocus={guideTakesFocus.current}
             initialChannelId={rememberedChannelId}

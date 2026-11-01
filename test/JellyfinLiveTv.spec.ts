@@ -4,6 +4,9 @@ jest.mock('../src/services/deviceIdentity', () => ({
 }));
 
 import {
+  cancelRecording,
+  cancelSeriesRecording,
+  canManageRecordings,
   closeLiveStream,
   getAvailableLiveTvFilters,
   getChannelSchedule,
@@ -17,7 +20,9 @@ import {
   getNextPrograms,
   getOnNowPrograms,
   LiveTvSession,
+  mapProgram,
   programProgress,
+  recordProgram,
 } from '../src/services/jellyfin/liveTv';
 import {getLatestItemsInLibrary} from '../src/services/jellyfin/itemCollections';
 
@@ -449,5 +454,87 @@ describe('getOnNowPrograms', () => {
     const [program] = await getOnNowPrograms(session);
 
     expect(program.imageUrl).toBeUndefined();
+  });
+});
+
+describe('recordings', () => {
+  const mockRequests = (defaults: unknown = {}) => {
+    const calls: {body?: string; method: string; url: URL}[] = [];
+
+    global.fetch = jest.fn(
+      async (url: string, init: {body?: string; method?: string} = {}) => {
+        const parsed = new URL(url);
+        calls.push({
+          body: init.body,
+          method: init.method ?? 'GET',
+          url: parsed,
+        });
+        return {
+          ok: true,
+          status: parsed.pathname.endsWith('/Defaults') ? 200 : 204,
+          text: async () =>
+            parsed.pathname.endsWith('/Defaults')
+              ? JSON.stringify(defaults)
+              : '',
+        };
+      },
+    ) as unknown as typeof fetch;
+
+    return calls;
+  };
+
+  it('records an airing with the server defaults, sent back unchanged', async () => {
+    const defaults = {PrePaddingSeconds: 60, ProgramId: 'p-1'};
+    const calls = mockRequests(defaults);
+
+    await recordProgram(session, 'p-1');
+
+    expect(calls[0].url.pathname).toBe('/LiveTv/Timers/Defaults');
+    expect(calls[0].url.searchParams.get('programId')).toBe('p-1');
+    expect(calls[1].method).toBe('POST');
+    expect(calls[1].url.pathname).toBe('/LiveTv/Timers');
+    expect(JSON.parse(calls[1].body ?? '')).toEqual(defaults);
+  });
+
+  it('records a whole series through the series timers', async () => {
+    const calls = mockRequests({ProgramId: 'p-1'});
+
+    await recordProgram(session, 'p-1', true);
+
+    expect(calls[1].method).toBe('POST');
+    expect(calls[1].url.pathname).toBe('/LiveTv/SeriesTimers');
+  });
+
+  it('cancels an airing or a series', async () => {
+    const calls = mockRequests();
+
+    await cancelRecording(session, 't-1');
+    await cancelSeriesRecording(session, 's-1');
+
+    expect(calls.map((call) => `${call.method} ${call.url.pathname}`)).toEqual([
+      'DELETE /LiveTv/Timers/t-1',
+      'DELETE /LiveTv/SeriesTimers/s-1',
+    ]);
+  });
+
+  it('allows recording only with the Live TV management permission', async () => {
+    mockFetch(() => ({Policy: {EnableLiveTvManagement: false}}));
+    await expect(canManageRecordings(session)).resolves.toBe(false);
+
+    mockFetch(() => ({Policy: {EnableLiveTvManagement: true}}));
+    await expect(canManageRecordings(session)).resolves.toBe(true);
+  });
+
+  it('reads whether a programme is set to record', () => {
+    expect(
+      mapProgram({
+        Id: 'p-1',
+        IsSeries: true,
+        SeriesTimerId: 's-1',
+        StartDate: '2026-11-01T01:00:00Z',
+        EndDate: '2026-11-01T01:30:00Z',
+        TimerId: 't-1',
+      }),
+    ).toMatchObject({isSeries: true, seriesTimerId: 's-1', timerId: 't-1'});
   });
 });
