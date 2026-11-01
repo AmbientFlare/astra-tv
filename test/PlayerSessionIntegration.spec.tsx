@@ -1017,6 +1017,27 @@ describe('PlayerScreen native session integration', () => {
       view.unmount();
     });
 
+    it('draws cues at the chosen size and color', () => {
+      const positionStore = createPositionStore(10);
+      const cues = [
+        {startTime: 10, endTime: 15, text: 'First line\nSecond line'},
+      ];
+      const view = render(
+        <ExternalSubtitleOverlay
+          cues={cues}
+          positionStore={positionStore}
+          size="large"
+          color="yellow"
+        />,
+      );
+      const style = StyleSheet.flatten(
+        view.getByText('First line\nSecond line').props.style,
+      );
+      expect(style.fontSize).toBe(38);
+      expect(style.color).toBe('#FFE600');
+      view.unmount();
+    });
+
     it.each(['shadow', 'background'] as const)(
       'loads the saved %s appearance and keeps cues updating after controls hide',
       async (appearance) => {

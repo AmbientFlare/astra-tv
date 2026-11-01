@@ -29,6 +29,14 @@ import {
   sanitizeUrlForLog,
 } from '../../services/jellyfin';
 
+import {
+  closeLiveStream,
+  isLiveItem,
+  isPluginLiveItem,
+  LiveTvChannel,
+  neighbourChannel,
+} from '../../services/jellyfin/liveTv';
+import {LiveChannelBanner} from './LiveChannelBanner';
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {resetTraces, trace} from '../../services/logging/trace';
@@ -43,6 +51,7 @@ import {
   emitSessionEnd,
 } from '../../services/telemetry/playbackFacts';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
+import {UNPROBED_SOURCE_ATTRIBUTES} from '../../w3cmedia/hlsUnprobedVariant';
 import {
   calibrateTimelineOffset,
   logicalToMediaTime,
@@ -74,6 +83,7 @@ import {
   shouldForceVideoConversion,
   assessDecoderRisk,
   computeBufferBudget,
+  liveBufferBudget,
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
@@ -178,7 +188,14 @@ interface PlayerScreenProps {
    */
   consecutiveAutoAdvances?: number;
   item: JellyfinMediaItem;
+  /**
+   * The channel list a live channel was chosen from. Up and Down move
+   * through it; without it a channel just plays.
+   */
+  liveChannels?: LiveTvChannel[];
   onBack?: () => void;
+  /** Replaces this player with another channel once the stream is closed. */
+  onChangeChannel?: (channel: LiveTvChannel) => void;
   /**
    * Replaces this player with the given episode once this one has released
    * its media resources. Absent means the player never advances.
@@ -192,11 +209,20 @@ export const PlayerScreen = ({
   accessToken,
   consecutiveAutoAdvances = 0,
   item,
+  liveChannels,
   onBack,
+  onChangeChannel,
   onPlayNext,
   serverUrl,
   userId,
 }: PlayerScreenProps) => {
+  // A live channel has no length, so there is nothing to seek, resume, mark
+  // watched or follow with a next episode.
+  const isLive = isLiveItem(item);
+  const isPluginLive = isPluginLiveItem(item);
+  // The live stream this player has open, if any. Exactly one close goes out
+  // per opening, from releaseMedia, whatever ended the session.
+  const openLiveStreamId = useRef<string | null>(null);
   const videoRef = useRef<VideoPlayer | null>(null);
   const shakaPlayerRef = useRef<ShakaPlayerInstance | null>(null);
   const surfaceHandle = useRef<string | null>(null);
@@ -313,6 +339,12 @@ export const PlayerScreen = ({
   const [subtitleAppearance, setSubtitleAppearance] = useState<
     UserPreferences['subtitleAppearance']
   >(defaultUserPreferences.subtitleAppearance);
+  const [subtitleSize, setSubtitleSize] = useState(
+    defaultUserPreferences.subtitleSize,
+  );
+  const [subtitleColor, setSubtitleColor] = useState(
+    defaultUserPreferences.subtitleColor,
+  );
   // Playback reached its natural end and the player is sitting on the finished
   // frame. Distinct from `isPaused`: a paused movie is still the viewer's, a
   // finished one is not. Drives the user-engagement release below.
@@ -417,6 +449,8 @@ export const PlayerScreen = ({
     onPreferences: (preferences) => {
       episodePreferences.current = preferences;
       setSubtitleAppearance(preferences.subtitleAppearance);
+      setSubtitleSize(preferences.subtitleSize);
+      setSubtitleColor(preferences.subtitleColor);
     },
   });
   const externalSubtitleCues = useExternalSubtitleCues(
@@ -598,6 +632,17 @@ export const PlayerScreen = ({
     lastTelemetrySample.current = null;
     setTelemetrySession(undefined);
     reportStopped();
+    const liveStreamId = openLiveStreamId.current;
+    openLiveStreamId.current = null;
+    // After the stop report, so the server ends its transcode before the
+    // stream it reads from goes away. Never rejects: a failed close must not
+    // read as a failed release.
+    const closingLiveStream = liveStreamId
+      ? reportBarrier.current
+          .catch(() => undefined)
+          .then(() => closeLiveStream({accessToken, serverUrl}, liveStreamId))
+          .catch(() => trace('live.close', 'close request failed'))
+      : undefined;
     sessionReady.current = false;
     seekInPlaceAbort.current?.abort();
     seekInPlaceAbort.current = null;
@@ -634,13 +679,18 @@ export const PlayerScreen = ({
     } catch {
       /* Already detached by the native surface. */
     }
-    const cleanup = (async () => {
+    const unloaded = (async () => {
       try {
         await shaka?.unload();
       } finally {
         await video?.deinitialize();
       }
     })();
+    // The release is not done until the live stream is closed: the next
+    // channel opens straight after, and a single tuner cannot hold both.
+    const cleanup = closingLiveStream
+      ? unloaded.finally(() => closingLiveStream)
+      : unloaded;
     releasePromise.current = cleanup;
     // Keep a rejected cleanup barrier: a failed native release must not allow
     // a new player to attach to resources whose lifetime is still unresolved.
@@ -654,12 +704,14 @@ export const PlayerScreen = ({
     );
     return cleanup;
   }, [
+    accessToken,
     clearControlsHideTimer,
     currentPositionTicks,
     heartbeatRef,
     item,
     lastTelemetrySample,
     reportStopped,
+    serverUrl,
   ]);
 
   const stopPlayback = useCallback(() => {
@@ -934,6 +986,7 @@ export const PlayerScreen = ({
     });
   }
   const canRequestSeek = () =>
+    !isLive &&
     !unmountedRef.current &&
     !handoffInProgress.current &&
     !settingsPanel &&
@@ -1067,6 +1120,52 @@ export const PlayerScreen = ({
       onPlayNext(next, {automatic});
     },
     [cancelCountdown, consecutiveAutoAdvances, onPlayNext, releaseForHandoff],
+  );
+
+  const nextChannel = useCallback(
+    (direction: 1 | -1) =>
+      liveChannels && onChangeChannel
+        ? neighbourChannel(liveChannels, item.id, direction)
+        : undefined,
+    [item.id, liveChannels, onChangeChannel],
+  );
+
+  // Same handoff as the next episode: the old stream is closed before the
+  // next channel opens, so zapping never holds two tuners.
+  const changeChannel = useCallback(
+    async (direction: 1 | -1) => {
+      const next = nextChannel(direction);
+      if (
+        !next ||
+        !onChangeChannel ||
+        handoffInProgress.current ||
+        unmountedRef.current
+      ) {
+        return;
+      }
+      handoffInProgress.current = true;
+      trackReloadInProgress.current = true;
+      trace('channel.change', `to=${next.id.slice(0, 8)}`);
+      setShowExitConfirm(false);
+      setSettingsPanel(null);
+      setStarting(true);
+      try {
+        await releaseForHandoff();
+      } catch (error) {
+        console.warn(
+          '[Astra] Failed to release the player for a channel change:',
+          error,
+        );
+        handoffInProgress.current = false;
+        trackReloadInProgress.current = false;
+        setStatusText(t('player.releaseFailed'));
+        return;
+      }
+      if (!unmountedRef.current) {
+        onChangeChannel(next);
+      }
+    },
+    [nextChannel, onChangeChannel, releaseForHandoff],
   );
 
   // The sleep timer ran out: hold the picture, and tell the server where the
@@ -1278,7 +1377,8 @@ export const PlayerScreen = ({
         shouldUseSequenceModeForMidFileStart(
           stream.outputContainer,
           startTimeSeconds,
-        );
+        ) ||
+        isPluginLive;
       trace(
         'shaka.mode',
         `${sequenceMode ? 'sequence' : 'segments'} container=${
@@ -1290,7 +1390,10 @@ export const PlayerScreen = ({
       // stream.bitrate is the server's figure for the delivered stream. It is
       // the closest thing available before the manifest is parsed; the goals
       // only need to be right to within a segment.
-      const bufferBudget = computeBufferBudget(stream.bitrate);
+      const bufferBudget = liveBufferBudget(
+        computeBufferBudget(stream.bitrate),
+        isLive,
+      );
       trace(
         'shaka.buffer',
         `ahead=${bufferBudget.bufferingGoal}s resume=${
@@ -1316,6 +1419,9 @@ export const PlayerScreen = ({
         // segments-mode path while evaluating W3C Media 2.2 in isolation.
         hlsSequenceMode: sequenceMode,
         hlsIgnoreManifestTimestampsInSegmentsMode: !sequenceMode,
+        // Only a source Jellyfin knows nothing about lacks codecs, and its
+        // fallback encode is always H.264 and AAC.
+        hlsUnprobedAttributes: UNPROBED_SOURCE_ATTRIBUTES,
         hlsResumePositionSeconds:
           startTimeSeconds && startTimeSeconds > 0
             ? startTimeSeconds
@@ -1378,7 +1484,7 @@ export const PlayerScreen = ({
         context?.signal.removeEventListener('abort', cancel);
       }
     },
-    [unloadAdaptivePlayer],
+    [isLive, isPluginLive, unloadAdaptivePlayer],
   );
 
   const attachPlaybackEvents = useCallback(
@@ -1581,6 +1687,13 @@ export const PlayerScreen = ({
         if (!sessionReady.current) {
           return;
         }
+        // A live channel never ends on purpose: the upstream dropped, so
+        // tune in again rather than finish.
+        if (isLive) {
+          recordPlaybackEvent('live-ended');
+          playbackErrorHandler.current({source: 'early-end'});
+          return;
+        }
         if (
           isPrematureEnd(
             currentPositionTicks() / TICKS_PER_SECOND,
@@ -1599,6 +1712,7 @@ export const PlayerScreen = ({
       applyPendingInitialSeek,
       applyPosition,
       currentPositionTicks,
+      isLive,
       item.runTimeTicks,
       positionStore,
       revealControls,
@@ -1759,10 +1873,14 @@ export const PlayerScreen = ({
             selectedSubtitleBurnIn.current,
             transcodeForDecoder,
           ),
+          live: isLive,
           maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
           // On a reload the server has already named its source; reusing that
           // id keeps a track change pointed at the same one.
           mediaSourceId,
+          onLiveStreamOpened: (liveStreamId) => {
+            openLiveStreamId.current = liveStreamId;
+          },
           seriesTrackPick,
           signal: context.signal,
           sourceHeight: sourceVideoStream?.height,
@@ -1864,6 +1982,7 @@ export const PlayerScreen = ({
       accessToken,
       applyPosition,
       decoderTranscodeUnusable,
+      isLive,
       item.id,
       item.mediaStreams,
       item.name,
@@ -1901,10 +2020,13 @@ export const PlayerScreen = ({
       const duration = logicalDurationSeconds(
         streamInfo.current?.runTimeTicks ?? item.runTimeTicks,
       );
-      const target = Math.max(
-        0,
-        duration > 0 ? Math.min(duration - 1, position) : position,
-      );
+      // A live channel always starts from now; the server cannot seek it.
+      const target = isLive
+        ? 0
+        : Math.max(
+            0,
+            duration > 0 ? Math.min(duration - 1, position) : position,
+          );
       const restorePaused = reason === 'seek' && isPausedRef.current;
       const targetTicks = toTicks(target);
       trackReloadInProgress.current = true;
@@ -2076,6 +2198,7 @@ export const PlayerScreen = ({
       createFreshVideoPlayer,
       currentPositionTicks,
       heartbeatRef,
+      isLive,
       item.runTimeTicks,
       loadStream,
       loadVideoSource,
@@ -2346,6 +2469,11 @@ export const PlayerScreen = ({
       key !== 'back' &&
       !isMenuKey(key)
     ) {
+      return;
+    }
+
+    if (isLive && (key === 'up' || key === 'down')) {
+      void changeChannel(key === 'up' ? 1 : -1);
       return;
     }
 
@@ -2655,6 +2783,10 @@ export const PlayerScreen = ({
         )}%`
       : '0%';
   const progressWidth = progressPercent as `${number}%`;
+  const liveSession = useMemo(
+    () => ({accessToken, serverUrl, userId: userId ?? ''}),
+    [accessToken, serverUrl, userId],
+  );
   const controlsVisible =
     showControls ||
     seekPreview !== null ||
@@ -2681,8 +2813,10 @@ export const PlayerScreen = ({
         positionStore={positionStore}
         controlsVisible={controlsVisible}
         appearance={subtitleAppearance}
+        size={subtitleSize}
+        color={subtitleColor}
       />
-      {currentStream?.mediaSourceId ? (
+      {currentStream?.mediaSourceId && !isLive ? (
         <SeekThumbnail
           serverUrl={serverUrl}
           accessToken={accessToken}
@@ -2750,7 +2884,16 @@ export const PlayerScreen = ({
           <Text style={styles.decoderWarningText}>{decoderRiskWarning()}</Text>
         </View>
       ) : null}
-      {controlsVisible ? (
+      {isLive && (controlsVisible || isStarting) && !startupError ? (
+        <LiveChannelBanner
+          channel={liveChannels?.find((channel) => channel.id === item.id)}
+          channelId={item.id}
+          name={item.name}
+          session={liveSession}
+          showChannelHint={Boolean(nextChannel(1))}
+        />
+      ) : null}
+      {controlsVisible && !isLive ? (
         <View style={styles.overlay} testID="player-controls-overlay">
           <Text numberOfLines={1} style={styles.title}>
             {item.name}

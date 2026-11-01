@@ -55,6 +55,8 @@ export interface JellyfinMediaItem {
   communityRating?: number | null;
   criticsRating?: number;
   genres?: string[];
+  /** Jellyfin tags every live item from a channel plugin `livestream`. */
+  tags?: string[];
   indexNumber?: number;
   isFavorite?: boolean;
   isPlayed?: boolean;
@@ -162,6 +164,10 @@ export interface JellyfinQualityOption {
 
 export interface JellyfinStreamInfo {
   itemId: string;
+  /** A live channel: no fixed length, nothing to seek or resume. */
+  isLive?: boolean;
+  /** The live stream the server opened for this session, to close after. */
+  liveStreamId?: string;
   audioStreamIndex?: number;
   audioTracks: JellyfinMediaTrack[];
   bitrate?: number;
@@ -215,6 +221,8 @@ export type JellyfinImageType = 'Primary' | 'Thumb' | 'Banner';
 
 export interface GetItemsOptions {
   filters?: Array<'IsFavorite' | 'IsUnplayed'>;
+  /** Only items tagged with one of these genres (ids from getLibraryGenres). */
+  genreIds?: string[];
   imageType?: JellyfinImageType;
   /**
    * null asks the server for whatever it puts at the top of the view, with no
@@ -222,11 +230,18 @@ export interface GetItemsOptions {
    */
   includeItemTypes?: string | null;
   recursive?: boolean;
+  /** Matched by the server against titles, the way its own search does. */
+  searchTerm?: string;
   sortBy?: JellyfinSortBy;
   sortDescending?: boolean;
   /** Paging. Omitted means the whole collection in one response. */
   startIndex?: number;
   limit?: number;
+}
+
+export interface JellyfinGenre {
+  id: string;
+  name: string;
 }
 
 export interface JellyfinItemsPage {

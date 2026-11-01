@@ -29,6 +29,12 @@ describe('detailRouteForItem: every type the API can return', () => {
     ['CollectionFolder', 'library', {type: 'CollectionFolder', isFolder: true}],
     ['UserView', 'library', {type: 'UserView', isFolder: true}],
     ['BoxSet', 'library', {type: 'BoxSet', isFolder: true}],
+    ['Channel', 'library', {type: 'Channel', isFolder: true}],
+    [
+      'ChannelFolderItem',
+      'library',
+      {type: 'ChannelFolderItem', isFolder: true},
+    ],
 
     // Music and photos are reached through their own screens, so these
     // fall through to the generic detail screen. Recorded, not endorsed —

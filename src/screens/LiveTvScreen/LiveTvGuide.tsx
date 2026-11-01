@@ -1,0 +1,599 @@
+/**
+ * The Live TV guide grid: channels down the side, time across the top.
+ *
+ * The grid is one focus target, and the remote moves a cursor through it in
+ * code. Rows that each scroll sideways on their own fall out of line with
+ * each other on a TV, and native focus picks odd neighbours between cells of
+ * different widths. The header above keeps ordinary focus; Up from the first
+ * row goes back to it.
+ */
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {Image, LayoutChangeEvent, StyleSheet, Text, View} from 'react-native';
+import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
+import {FocusableItem} from '../../components/FocusableItem';
+import {RemoteAction, useRemoteInput} from '../../hooks/useRemoteInput';
+import {
+  formatClockTime,
+  getGuidePrograms,
+  LiveTvChannel,
+  LiveTvProgram,
+  LiveTvSession,
+} from '../../services/jellyfin/liveTv';
+import {t} from '../../i18n';
+import {
+  cellIndexAt,
+  firstVisibleRowFor,
+  floorToSlot,
+  GUIDE_HORIZON_MS,
+  GUIDE_WINDOW_MS,
+  GuideCell,
+  moveHorizontally,
+  rowCells,
+  slotMarks,
+  windowFor,
+} from './guideLayout';
+
+interface Props {
+  channels: LiveTvChannel[];
+  hasTVPreferredFocus?: boolean;
+  /** The channel to start on, such as the one last watched. */
+  initialChannelId?: string;
+  now: number;
+  /** Asks the list for its next page when the cursor nears the end. */
+  onNeedMore: () => void;
+  onSelectChannel: (channel: LiveTvChannel) => void;
+  session: LiveTvSession;
+}
+
+const CHANNEL_COLUMN = 220;
+const ROW_HEIGHT = 76;
+const RULER_HEIGHT = 36;
+
+// Guide data is fetched a block of hours at a time, aligned to the clock so
+// the blocks line up whatever time the guide opens.
+const TIME_BLOCK_MS = 6 * 60 * 60 * 1000;
+const CHANNELS_PER_REQUEST = 20;
+
+// How many rows past the screen to fetch ahead, and how close to the end of
+// the loaded channels the cursor gets before the next page is asked for.
+const ROW_PREFETCH = 4;
+const PAGE_AHEAD_ROWS = 10;
+
+// The key press that moves focus into the grid can reach the grid as well.
+// Ignore arrows for a moment after it gains focus so it does not also move.
+const FOCUS_SETTLE_MS = 300;
+
+const blockKey = (channelId: string, blockStart: number) =>
+  `${channelId}:${blockStart}`;
+
+const mergePrograms = (
+  existing: LiveTvProgram[] | undefined,
+  incoming: LiveTvProgram[],
+) => {
+  const byId = new Map(
+    (existing ?? []).map((program) => [program.id, program]),
+  );
+  incoming.forEach((program) => byId.set(program.id, program));
+
+  return [...byId.values()].sort((a, b) => a.startTime - b.startTime);
+};
+
+export const LiveTvGuide = ({
+  channels,
+  hasTVPreferredFocus,
+  initialChannelId,
+  now,
+  onNeedMore,
+  onSelectChannel,
+  session,
+}: Props) => {
+  const guideStart = floorToSlot(now);
+  const guideEnd = guideStart + GUIDE_HORIZON_MS;
+
+  const [size, setSize] = useState({height: 0, width: 0});
+  const [isFocused, setFocused] = useState(false);
+  const focusedAt = useRef(0);
+  const [cursor, setCursor] = useState(() => ({
+    anchor: now,
+    firstRow: 0,
+    row: Math.max(
+      0,
+      channels.findIndex((channel) => channel.id === initialChannelId),
+    ),
+    windowStart: guideStart,
+  }));
+  const [programs, setPrograms] = useState<Record<string, LiveTvProgram[]>>({});
+  // Which channel and time blocks have been asked for, and which answered.
+  const blocks = useRef(new Map<string, 'loading' | 'done'>());
+  const [, setBlocksVersion] = useState(0);
+
+  const visibleRows = Math.max(
+    1,
+    Math.floor((size.height - RULER_HEIGHT) / ROW_HEIGHT),
+  );
+  const gridWidth = Math.max(1, size.width - CHANNEL_COLUMN);
+  const pxPerMs = gridWidth / GUIDE_WINDOW_MS;
+
+  // The clock moving on can leave the cursor or window on a past half hour.
+  const anchor = Math.max(cursor.anchor, guideStart);
+  const windowStart = windowFor(cursor.windowStart, anchor, guideStart);
+  const row = Math.min(cursor.row, Math.max(0, channels.length - 1));
+  const firstRow = firstVisibleRowFor(cursor.firstRow, row, visibleRows);
+  const windowEnd = windowStart + GUIDE_WINDOW_MS;
+
+  // A new filter is a new list: start again at the top, at now.
+  const firstChannelId = channels[0]?.id;
+  const listStart = useRef(firstChannelId);
+  useEffect(() => {
+    if (listStart.current === firstChannelId) {
+      return;
+    }
+
+    listStart.current = firstChannelId;
+    setCursor({
+      anchor: Date.now(),
+      firstRow: 0,
+      row: 0,
+      windowStart: floorToSlot(Date.now()),
+    });
+  }, [firstChannelId]);
+
+  const programsFor = useCallback(
+    (channel: LiveTvChannel) => {
+      const loaded = programs[channel.id];
+
+      if (loaded) {
+        return loaded;
+      }
+
+      // The channel list already knows now and next; show those until the
+      // guide answers.
+      return [channel.current, channel.next].filter(
+        (program): program is LiveTvProgram => Boolean(program),
+      );
+    },
+    [programs],
+  );
+
+  const timeBlocks = useMemo(() => {
+    const starts: number[] = [];
+
+    for (
+      let start = Math.floor(windowStart / TIME_BLOCK_MS) * TIME_BLOCK_MS;
+      start < windowEnd;
+      start += TIME_BLOCK_MS
+    ) {
+      starts.push(start);
+    }
+
+    return starts;
+  }, [windowEnd, windowStart]);
+
+  // Fetch the guide for the rows on screen and a few past them.
+  useEffect(() => {
+    const rows = channels.slice(
+      Math.max(0, firstRow - ROW_PREFETCH),
+      firstRow + visibleRows + ROW_PREFETCH,
+    );
+
+    timeBlocks.forEach((blockStart) => {
+      const missing = rows
+        .map((channel) => channel.id)
+        .filter((id) => !blocks.current.has(blockKey(id, blockStart)));
+
+      for (
+        let index = 0;
+        index < missing.length;
+        index += CHANNELS_PER_REQUEST
+      ) {
+        const ids = missing.slice(index, index + CHANNELS_PER_REQUEST);
+        ids.forEach((id) =>
+          blocks.current.set(blockKey(id, blockStart), 'loading'),
+        );
+
+        getGuidePrograms(session, ids, blockStart, blockStart + TIME_BLOCK_MS)
+          .then((result) => {
+            setPrograms((existing) => {
+              const next = {...existing};
+              ids.forEach((id) => {
+                next[id] = mergePrograms(existing[id], result[id] ?? []);
+              });
+              return next;
+            });
+          })
+          .catch((error) => {
+            // Shown as no guide information rather than retried in a loop.
+            console.warn('[Astra] Unable to load the guide:', error);
+          })
+          .finally(() => {
+            ids.forEach((id) =>
+              blocks.current.set(blockKey(id, blockStart), 'done'),
+            );
+            setBlocksVersion((version) => version + 1);
+          });
+      }
+    });
+  }, [channels, firstRow, session, timeBlocks, visibleRows]);
+
+  useEffect(() => {
+    if (channels.length && row >= channels.length - PAGE_AHEAD_ROWS) {
+      onNeedMore();
+    }
+  }, [channels.length, onNeedMore, row]);
+
+  const cellsFor = useCallback(
+    (channel: LiveTvChannel) =>
+      rowCells(programsFor(channel), guideStart, guideEnd),
+    [guideEnd, guideStart, programsFor],
+  );
+
+  const move = useCallback(
+    (action: RemoteAction) => {
+      const channel = channels[row];
+
+      if (!channel) {
+        return;
+      }
+
+      const next = {anchor, firstRow, row, windowStart};
+
+      switch (action) {
+        case 'up':
+          next.row = Math.max(0, row - 1);
+          break;
+        case 'down':
+          next.row = Math.min(channels.length - 1, row + 1);
+          break;
+        case 'left':
+        case 'right':
+          next.anchor = moveHorizontally(
+            cellsFor(channel),
+            anchor,
+            action === 'right' ? 1 : -1,
+            guideStart,
+          );
+          next.windowStart = windowFor(windowStart, next.anchor, guideStart);
+          break;
+        default:
+          return;
+      }
+
+      next.firstRow = firstVisibleRowFor(firstRow, next.row, visibleRows);
+      setCursor(next);
+    },
+    [
+      anchor,
+      cellsFor,
+      channels,
+      firstRow,
+      guideStart,
+      row,
+      visibleRows,
+      windowStart,
+    ],
+  );
+
+  useRemoteInput(
+    (action) => {
+      if (Date.now() - focusedAt.current < FOCUS_SETTLE_MS) {
+        return;
+      }
+
+      move(action);
+    },
+    {allowWhileDisabled: [], enabled: isFocused},
+  );
+
+  const focusedChannel = channels[row];
+  const focusedCells = focusedChannel ? cellsFor(focusedChannel) : [];
+  const focusedCell = focusedCells[cellIndexAt(focusedCells, anchor)];
+
+  const onLayout = (event: LayoutChangeEvent) => {
+    const {height, width} = event.nativeEvent.layout;
+    setSize({height, width});
+  };
+
+  const isRowLoaded = (channelId: string) =>
+    timeBlocks.every(
+      (blockStart) =>
+        blocks.current.get(blockKey(channelId, blockStart)) === 'done',
+    );
+
+  const nowX = (now - windowStart) * pxPerMs;
+
+  return (
+    <View style={styles.root}>
+      <ProgramDetails
+        cell={focusedCell}
+        channel={focusedChannel}
+        loaded={focusedChannel ? isRowLoaded(focusedChannel.id) : false}
+      />
+      <TVFocusGuideView
+        style={styles.gridArea}
+        trapFocusDown
+        trapFocusLeft
+        trapFocusRight
+        trapFocusUp={row > 0}>
+        <FocusableItem
+          focusedStyle={styles.gridFocused}
+          hasTVPreferredFocus={hasTVPreferredFocus}
+          onBlur={() => setFocused(false)}
+          onFocus={() => {
+            focusedAt.current = Date.now();
+            setFocused(true);
+          }}
+          onPress={() => focusedChannel && onSelectChannel(focusedChannel)}
+          style={styles.grid}
+          testID="livetv-guide">
+          <View onLayout={onLayout} style={styles.gridInner}>
+            <View style={styles.ruler}>
+              {slotMarks(windowStart).map((mark) => (
+                <Text
+                  key={mark}
+                  numberOfLines={1}
+                  style={[
+                    styles.rulerText,
+                    {left: CHANNEL_COLUMN + (mark - windowStart) * pxPerMs},
+                  ]}>
+                  {formatClockTime(mark)}
+                </Text>
+              ))}
+            </View>
+            {channels
+              .slice(firstRow, firstRow + visibleRows)
+              .map((channel, index) => {
+                const rowIndex = firstRow + index;
+                const cells = cellsFor(channel);
+                const focusedIndex =
+                  isFocused && rowIndex === row
+                    ? cellIndexAt(cells, anchor)
+                    : -1;
+                const loaded = isRowLoaded(channel.id);
+
+                return (
+                  <View
+                    key={channel.id}
+                    style={styles.row}
+                    testID={`livetv-guide-row-${channel.id}`}>
+                    <ChannelLabel
+                      channel={channel}
+                      isCurrent={rowIndex === row}
+                    />
+                    <View style={styles.cells}>
+                      {cells.map((cell, cellIndex) => {
+                        if (
+                          cell.end <= windowStart ||
+                          cell.start >= windowEnd
+                        ) {
+                          return null;
+                        }
+
+                        const left =
+                          (Math.max(cell.start, windowStart) - windowStart) *
+                          pxPerMs;
+                        const width =
+                          (Math.min(cell.end, windowEnd) -
+                            Math.max(cell.start, windowStart)) *
+                          pxPerMs;
+
+                        return (
+                          <GuideCellView
+                            cell={cell}
+                            clippedStart={
+                              (cell.program?.startTime ?? cell.start) <
+                              windowStart
+                            }
+                            // One label per empty stretch, not one per half
+                            // hour.
+                            emptyLabel={
+                              loaded &&
+                              !cell.program &&
+                              (cellIndex === 0 ||
+                                Boolean(cells[cellIndex - 1].program) ||
+                                cells[cellIndex - 1].end <= windowStart)
+                            }
+                            isFocused={cellIndex === focusedIndex}
+                            isOnNow={cell.start <= now && now < cell.end}
+                            key={`${cell.start}`}
+                            left={left}
+                            width={width}
+                          />
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })}
+            {nowX >= 0 && nowX <= gridWidth ? (
+              <View
+                pointerEvents="none"
+                style={[styles.nowLine, {left: CHANNEL_COLUMN + nowX}]}
+              />
+            ) : null}
+          </View>
+        </FocusableItem>
+      </TVFocusGuideView>
+    </View>
+  );
+};
+
+const ProgramDetails = ({
+  cell,
+  channel,
+  loaded,
+}: {
+  cell?: GuideCell;
+  channel?: LiveTvChannel;
+  loaded: boolean;
+}) => {
+  const program = cell?.program;
+
+  return (
+    <View style={styles.details} testID="livetv-guide-details">
+      <Text numberOfLines={1} style={styles.detailsTitle}>
+        {program
+          ? program.name
+          : loaded
+          ? t('liveTv.noGuide')
+          : channel?.name ?? ''}
+      </Text>
+      <Text numberOfLines={1} style={styles.detailsMeta}>
+        {[
+          program
+            ? `${formatClockTime(program.startTime)} – ${formatClockTime(
+                program.endTime,
+              )}`
+            : '',
+          program?.episodeTitle ?? '',
+          channel
+            ? [channel.number, channel.name].filter(Boolean).join(' ')
+            : '',
+        ]
+          .filter(Boolean)
+          .join('  ·  ')}
+      </Text>
+      <Text numberOfLines={2} style={styles.detailsOverview}>
+        {program?.overview ?? ''}
+      </Text>
+    </View>
+  );
+};
+
+const ChannelLabel = ({
+  channel,
+  isCurrent,
+}: {
+  channel: LiveTvChannel;
+  isCurrent: boolean;
+}) => (
+  <View style={[styles.channel, isCurrent && styles.channelCurrent]}>
+    <Text numberOfLines={1} style={styles.channelNumber}>
+      {channel.number ?? ''}
+    </Text>
+    {channel.imageUrl ? (
+      <Image
+        resizeMode="contain"
+        source={{uri: channel.imageUrl}}
+        style={styles.channelLogo}
+      />
+    ) : (
+      <Text numberOfLines={2} style={styles.channelName}>
+        {channel.name}
+      </Text>
+    )}
+  </View>
+);
+
+const GuideCellView = ({
+  cell,
+  clippedStart,
+  emptyLabel,
+  isFocused,
+  isOnNow,
+  left,
+  width,
+}: {
+  cell: GuideCell;
+  clippedStart: boolean;
+  /** Whether an empty cell says so. */
+  emptyLabel: boolean;
+  isFocused: boolean;
+  isOnNow: boolean;
+  left: number;
+  width: number;
+}) => (
+  <View
+    style={[
+      styles.cell,
+      isOnNow && styles.cellOnNow,
+      !cell.program && styles.cellEmpty,
+      isFocused && styles.cellFocused,
+      {left, width},
+    ]}>
+    <Text
+      numberOfLines={1}
+      style={[
+        styles.cellTitle,
+        !cell.program && styles.cellEmptyText,
+        isFocused && styles.cellTitleFocused,
+      ]}>
+      {cell.program
+        ? `${clippedStart ? '‹ ' : ''}${cell.program.name}`
+        : emptyLabel || isFocused
+        ? t('liveTv.noGuide')
+        : ''}
+    </Text>
+    {cell.program?.episodeTitle ? (
+      <Text
+        numberOfLines={1}
+        style={[styles.cellSub, isFocused && styles.cellTitleFocused]}>
+        {cell.program.episodeTitle}
+      </Text>
+    ) : null}
+  </View>
+);
+
+const styles = StyleSheet.create({
+  root: {flex: 1},
+  details: {height: 118, justifyContent: 'flex-start', paddingBottom: 8},
+  detailsTitle: {color: '#f4f6f8', fontSize: 26, fontWeight: '700'},
+  detailsMeta: {color: '#8b97a5', fontSize: 16, marginTop: 4},
+  detailsOverview: {color: '#c8d2dc', fontSize: 16, marginTop: 6},
+  gridArea: {flex: 1},
+  grid: {borderRadius: 10, flex: 1},
+  gridFocused: {borderColor: 'transparent'},
+  gridInner: {flex: 1, overflow: 'hidden'},
+  ruler: {height: RULER_HEIGHT},
+  rulerText: {
+    color: '#8b97a5',
+    fontSize: 15,
+    position: 'absolute',
+    top: 8,
+  },
+  row: {flexDirection: 'row', height: ROW_HEIGHT},
+  channel: {
+    alignItems: 'center',
+    backgroundColor: '#12161c',
+    borderRadius: 8,
+    flexDirection: 'row',
+    marginBottom: 4,
+    marginRight: 4,
+    paddingHorizontal: 10,
+    width: CHANNEL_COLUMN - 4,
+  },
+  channelCurrent: {backgroundColor: '#1d2530'},
+  channelNumber: {
+    color: '#8b97a5',
+    fontSize: 16,
+    fontWeight: '600',
+    width: 52,
+  },
+  channelLogo: {flex: 1, height: 48},
+  channelName: {color: '#c8d2dc', flex: 1, fontSize: 15},
+  cells: {flex: 1},
+  cell: {
+    backgroundColor: '#12161c',
+    borderColor: '#0b0d10',
+    borderRadius: 6,
+    borderWidth: 2,
+    bottom: 4,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    position: 'absolute',
+    top: 0,
+  },
+  cellOnNow: {backgroundColor: '#18202a'},
+  cellEmpty: {backgroundColor: '#0f1217'},
+  cellFocused: {backgroundColor: '#54d38a', borderColor: '#54d38a'},
+  cellTitle: {color: '#f4f6f8', fontSize: 17, fontWeight: '600'},
+  cellSub: {color: '#8b97a5', fontSize: 14, marginTop: 2},
+  cellTitleFocused: {color: '#0b0d10'},
+  cellEmptyText: {color: '#6f7d8c', fontWeight: '400'},
+  nowLine: {
+    backgroundColor: '#ff5a5f',
+    bottom: 0,
+    position: 'absolute',
+    top: RULER_HEIGHT - 4,
+    width: 2,
+  },
+});

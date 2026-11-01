@@ -131,6 +131,8 @@ export {
   MEDIA_BUFFER_BUDGET_BYTES,
   DEFAULT_BUFFER_BUDGET,
   computeBufferBudget,
+  LIVE_REBUFFERING_GOAL,
+  liveBufferBudget,
 } from './bufferBudget';
 export type {BufferBudget} from './bufferBudget';
 export {

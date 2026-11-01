@@ -15,6 +15,7 @@ import {MessageKey, t} from '../../i18n';
 export type NavEntryKind =
   | 'movies'
   | 'tvshows'
+  | 'livetv'
   | 'music'
   | 'playlists'
   | 'other';
@@ -36,19 +37,21 @@ export interface NavSection {
 
 /**
  * Display order, fixed rather than following whatever order the server
- * returns. Music sits after video because this is primarily a video app;
- * playlists last because they are the least-visited. Unrecognised types come
+ * returns. Live TV sits with the other video entries. Music sits after video
+ * because this is primarily a video app; playlists last because they are the least-visited. Unrecognised types come
  * after everything the app has a name for.
  */
 const KIND_ORDER: NavEntryKind[] = [
   'movies',
   'tvshows',
+  'livetv',
   'music',
   'playlists',
   'other',
 ];
 
 const LABELS: Record<NavEntryKind, MessageKey> = {
+  livetv: 'nav.liveTv',
   movies: 'nav.movies',
   music: 'nav.music',
   other: 'nav.library',
@@ -57,6 +60,7 @@ const LABELS: Record<NavEntryKind, MessageKey> = {
 };
 
 const SECTION_TITLES: Record<NavEntryKind, MessageKey> = {
+  livetv: 'nav.liveTv',
   movies: 'nav.movies',
   music: 'nav.music',
   other: 'nav.libraries',
@@ -69,6 +73,7 @@ const SECTION_TITLES: Record<NavEntryKind, MessageKey> = {
  * a "Movies" heading reads better as "Trending".
  */
 const REDUNDANT_WORDS: Record<NavEntryKind, RegExp | null> = {
+  livetv: /\b(?:live\s*tv)\b/gi,
   movies: /\b(?:movies?|films?)\b/gi,
   music: /\b(?:music)\b/gi,
   other: null,
@@ -82,6 +87,8 @@ const kindFor = (library: JellyfinLibrary): NavEntryKind => {
       return 'movies';
     case 'tvshows':
       return 'tvshows';
+    case 'livetv':
+      return 'livetv';
     case 'music':
       return 'music';
     case 'playlists':

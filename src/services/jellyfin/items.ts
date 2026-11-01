@@ -2,6 +2,7 @@ import type {
   JellyfinLibrary,
   JellyfinSortBy,
   GetItemsOptions,
+  JellyfinGenre,
   JellyfinItemsPage,
   JellyfinMediaItem,
   JellyfinMediaSource,
@@ -53,7 +54,7 @@ export const isIncompleteSeasonList = (
  * jellyfin-web, whose grid requests carry little more than the aspect ratio.
  */
 export const browseItemFields =
-  'Overview,Genres,RecursiveItemCount,ChildCount,PrimaryImageAspectRatio';
+  'Overview,Genres,RecursiveItemCount,ChildCount,PrimaryImageAspectRatio,Tags';
 
 export const getLibraries = async (
   serverUrl: string,
@@ -167,6 +168,10 @@ export const getItemsPage = async (
       ImageTypeLimit: 1,
       EnableImageTypes: `${options.imageType ?? 'Primary'},Backdrop`,
       Filters: options.filters?.join(','),
+      GenreIds: options.genreIds?.length
+        ? options.genreIds.join(',')
+        : undefined,
+      SearchTerm: options.searchTerm || undefined,
       SortBy: sortByMap[options.sortBy ?? 'name'],
       SortOrder: options.sortDescending ? 'Descending' : 'Ascending',
       StartIndex: options.startIndex,
@@ -187,6 +192,39 @@ export const getItemsPage = async (
       (options.startIndex ?? 0) + items.length,
     ),
   };
+};
+
+/**
+ * The genres found in one library, for the grid's genre filter. Asked for by
+ * the same item types the grid shows, so a TV library lists the genres of its
+ * series rather than of every episode, and only genres that would match
+ * something are offered.
+ */
+export const getLibraryGenres = async (
+  serverUrl: string,
+  accessToken: string,
+  libraryId: string,
+  userId: string,
+  includeItemTypes?: string | null,
+): Promise<JellyfinGenre[]> => {
+  const baseUrl = normalizeServerUrl(serverUrl);
+  const response = await getJson<{
+    Items?: Array<{Id?: string; Name?: string}>;
+  }>(
+    buildUrl(baseUrl, '/Genres', {
+      ParentId: libraryId,
+      UserId: userId,
+      IncludeItemTypes: includeItemTypes ?? undefined,
+      Recursive: true,
+      SortBy: 'SortName',
+      EnableImages: false,
+    }),
+    {headers: getAuthHeaders(accessToken)},
+  );
+
+  return (response.Items ?? []).flatMap((genre) =>
+    genre.Id && genre.Name ? [{id: genre.Id, name: genre.Name}] : [],
+  );
 };
 
 /**

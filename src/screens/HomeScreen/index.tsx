@@ -3,12 +3,18 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
-import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
+import {
+  channelItemLabel,
+  formatUnplayedBadge,
+  MediaCard,
+} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
+import {getLiveTvChannels, LiveTvChannel} from '../../services/jellyfin/liveTv';
+import {OnNowRow} from './OnNowRow';
 import {
   getLibraries,
   getLatestItems,
@@ -28,6 +34,9 @@ import {
 import {t} from '../../i18n';
 
 interface HomeScreenProps {
+  onOpenLiveTv?: () => void;
+  /** Tunes to a channel; `channels` is the order channel up/down follows. */
+  onPlayChannel?: (channel: LiveTvChannel, channels: LiveTvChannel[]) => void;
   onOpenMusic?: () => void;
   onOpenPlaylists?: () => void;
   onProfiles?: () => void;
@@ -39,6 +48,8 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen = ({
+  onOpenLiveTv,
+  onPlayChannel,
   onOpenMusic,
   onOpenPlaylists,
   onProfiles,
@@ -88,9 +99,15 @@ export const HomeScreen = ({
         return;
       }
 
+      // Live TV is not a folder of items; browsing it like one shows nothing.
+      if (entry.kind === 'livetv') {
+        onOpenLiveTv?.();
+        return;
+      }
+
       onSelectLibrary?.(entry.library);
     },
-    [onOpenMusic, onOpenPlaylists, onSelectLibrary],
+    [onOpenLiveTv, onOpenMusic, onOpenPlaylists, onSelectLibrary],
   );
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -199,6 +216,15 @@ export const HomeScreen = ({
             return musicSession
               ? (await getAlbums(musicSession, {limit: 24})).items
               : null;
+          case 'livetv':
+            // Jellyfin has no artwork for the Live TV view, so the tile
+            // shows channel logos instead.
+            return (
+              await getLiveTvChannels(
+                {accessToken, serverUrl, userId},
+                {limit: 24},
+              )
+            ).items;
           default:
             // Everything else keeps the library's own image.
             return null;
@@ -297,6 +323,18 @@ export const HomeScreen = ({
     }));
   }, [libraries, serverProfile]);
 
+  // Only servers that offer this user Live TV get the On Now row.
+  const liveTvSession = useMemo(() => {
+    if (
+      !serverProfile ||
+      !libraries.some((library) => library.type?.toLowerCase() === 'livetv')
+    ) {
+      return null;
+    }
+    const {accessToken, serverUrl, userId} = serverProfile;
+    return {accessToken, serverUrl, userId};
+  }, [libraries, serverProfile]);
+
   return (
     <View style={styles.screen} testID="home-screen">
       {preferences.focusedBackdropEnabled ? (
@@ -371,6 +409,18 @@ export const HomeScreen = ({
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
             title={t('home.continueWatching')}
+          />
+        ) : null}
+        {preferences.homeSections.onNow && liveTvSession ? (
+          <OnNowRow
+            onFocusBackdrop={queueBackdrop}
+            onSelect={(program, programs) =>
+              onPlayChannel?.(
+                program.channel,
+                programs.map((entry) => entry.channel),
+              )
+            }
+            session={liveTvSession}
           />
         ) : null}
         {preferences.homeSections.nextUp ? (
@@ -475,7 +525,9 @@ const HomeMediaRow = ({
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.seriesName ??
-                (item.productionYear ? String(item.productionYear) : item.type)
+                (item.productionYear
+                  ? String(item.productionYear)
+                  : channelItemLabel(item) ?? item.type)
               }
               title={item.name}
             />

@@ -24,6 +24,8 @@ describe('isCoveredByBuiltInRows', () => {
     ['tvshows', true],
     ['music', true],
     ['playlists', true],
+    // Live TV has its own screen; a "Latest in Live TV" row would be empty.
+    ['livetv', true],
     ['homevideos', false],
     ['boxsets', false],
     ['books', false],

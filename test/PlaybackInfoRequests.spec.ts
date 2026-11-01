@@ -13,6 +13,7 @@ jest.mock('../src/services/deviceIdentity', () => ({
  * failing.
  */
 import {getStreamUrl, PLAYBACK_INFO_RETRY_MS} from '../src/services/jellyfin';
+import {LIVE_MAX_STREAMING_BITRATE} from '../src/services/jellyfin/playback';
 
 // The device's storage and audio hardware are not part of what these tests
 // are about; both are stood in for so the request sequence is all that varies.
@@ -197,6 +198,60 @@ describe('the audio re-request', () => {
     expect(requests).toHaveLength(2);
     expect(stream.mediaSourceId).toBe('source-from-server');
     expect(stream.url).toContain('master.m3u8');
+  });
+});
+
+describe('a live channel', () => {
+  const liveSource = () =>
+    playableSource({
+      Container: 'ts',
+      IsInfiniteStream: true,
+      LiveStreamId: 'live-1',
+    });
+
+  it('opens the stream once and reuses it on the re-request', async () => {
+    // Each PlaybackInfo without the id opens the channel again, which on a
+    // real tuner takes another tuner.
+    const requests = mockPlaybackInfo([liveSource(), liveSource()]);
+    const onLiveStreamOpened = jest.fn();
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      onLiveStreamOpened,
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0].body.LiveStreamId).toBeUndefined();
+    expect(requests[1].body.LiveStreamId).toBe('live-1');
+    expect(onLiveStreamOpened).toHaveBeenCalledTimes(1);
+    expect(onLiveStreamOpened).toHaveBeenCalledWith('live-1');
+    expect(stream.isLive).toBe(true);
+    expect(stream.liveStreamId).toBe('live-1');
+  });
+
+  it('reports the opening before a later request can fail', async () => {
+    // The caller must be able to close a stream even when the rest of the
+    // request sequence throws.
+    const requests = mockPlaybackInfo([liveSource(), unresolved()]);
+    const onLiveStreamOpened = jest.fn();
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {onLiveStreamOpened});
+
+    expect(requests).toHaveLength(2);
+    expect(onLiveStreamOpened).toHaveBeenCalledWith('live-1');
+  });
+
+  it('leaves ordinary items alone', async () => {
+    mockPlaybackInfo([playableSource()]);
+    const onLiveStreamOpened = jest.fn();
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+      onLiveStreamOpened,
+    });
+
+    expect(onLiveStreamOpened).not.toHaveBeenCalled();
+    expect(stream.isLive).toBe(false);
+    expect(stream.liveStreamId).toBeUndefined();
   });
 });
 
@@ -667,5 +722,32 @@ describe('Issue 21: degraded direct-stream responses', () => {
       'This server is not permitted to transcode video for your account',
     );
     expect(requests).toHaveLength(3);
+  });
+});
+
+describe('a live stream', () => {
+  it('never asks for more than the H.264 rate the player accepts', async () => {
+    const requests = mockPlaybackInfo([playableSource()]);
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      live: true,
+      maxStreamingBitrate: 80_000_000,
+    });
+
+    // The server passes a live channel through with this as its advertised
+    // bitrate, and Vega turns down H.264 advertised above 20 Mbps.
+    expect(requests[0].body.MaxStreamingBitrate).toBe(
+      LIVE_MAX_STREAMING_BITRATE,
+    );
+  });
+
+  it('leaves recorded media at the bitrate asked for', async () => {
+    const requests = mockPlaybackInfo([playableSource()]);
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      maxStreamingBitrate: 80_000_000,
+    });
+
+    expect(requests[0].body.MaxStreamingBitrate).toBe(80_000_000);
   });
 });

@@ -258,4 +258,5 @@ export const getLatestItemsInLibrary = (
     ImageTypeLimit: 1,
     EnableImageTypes: 'Primary,Backdrop',
     Limit: 24,
-  });
+    // A channel plugin's view ignores IsFolder and returns its folders too.
+  }).then((items) => items.filter((item) => !item.isFolder));

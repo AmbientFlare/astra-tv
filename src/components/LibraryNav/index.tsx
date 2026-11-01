@@ -63,13 +63,23 @@ export const LibraryNav = ({
                   )
                     .filter((url): url is string => Boolean(url))
                     .slice(0, 6)
-                    .map((url, artIndex) => (
-                      <Image
-                        key={`${url}-${artIndex}`}
-                        source={{uri: url}}
-                        style={styles.art}
-                      />
-                    ))}
+                    .map((url, artIndex) =>
+                      // Channel logos are wide and often transparent, so
+                      // fit them whole instead of cropping them like posters.
+                      entry.kind === 'livetv' ? (
+                        <View
+                          key={`${url}-${artIndex}`}
+                          style={styles.logoCell}>
+                          <Image source={{uri: url}} style={styles.logo} />
+                        </View>
+                      ) : (
+                        <Image
+                          key={`${url}-${artIndex}`}
+                          source={{uri: url}}
+                          style={styles.art}
+                        />
+                      ),
+                    )}
                 </View>
                 <View style={styles.scrim} />
                 <Text numberOfLines={2} style={styles.label}>
@@ -121,6 +131,15 @@ const styles = StyleSheet.create({
     height: '50%',
     resizeMode: 'cover',
     width: '33.333%',
+  },
+  logoCell: {
+    height: '50%',
+    padding: 18,
+    width: '33.333%',
+  },
+  logo: {
+    flex: 1,
+    resizeMode: 'contain',
   },
   scrim: {
     backgroundColor: 'rgba(5, 9, 13, 0.68)',

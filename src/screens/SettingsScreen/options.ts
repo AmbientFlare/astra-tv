@@ -6,6 +6,8 @@ import type {
 import type {
   PlaybackPreferences,
   StillWatchingAfter,
+  SubtitleColor,
+  SubtitleSize,
   UserPreferences,
 } from '../../services/storage';
 import {t, tn} from '../../i18n';
@@ -105,6 +107,44 @@ export const subtitleAppearanceOptions = (): Array<{
   {label: t('settings.textWithShadow'), value: 'shadow'},
   {label: t('settings.darkBackground'), value: 'background'},
 ];
+
+export const subtitleSizeOptions = (): Array<{
+  label: string;
+  value: SubtitleSize;
+}> => [
+  {label: t('settings.subtitleSizeSmall'), value: 'small'},
+  {label: t('settings.subtitleSizeMedium'), value: 'medium'},
+  {label: t('settings.subtitleSizeLarge'), value: 'large'},
+  {label: t('settings.subtitleSizeExtraLarge'), value: 'extraLarge'},
+];
+
+export const subtitleColorOptions = (): Array<{
+  label: string;
+  value: SubtitleColor;
+}> => [
+  {label: t('settings.subtitleColorWhite'), value: 'white'},
+  {label: t('settings.subtitleColorGray'), value: 'gray'},
+  {label: t('settings.subtitleColorYellow'), value: 'yellow'},
+  {label: t('settings.subtitleColorGreen'), value: 'green'},
+  {label: t('settings.subtitleColorCyan'), value: 'cyan'},
+];
+
+/** One line for the Playback menu, e.g. "Large · Yellow · Dark background". */
+export const labelForSubtitleLook = (
+  preferences: Pick<
+    UserPreferences,
+    'subtitleSize' | 'subtitleColor' | 'subtitleAppearance'
+  >,
+) =>
+  [
+    subtitleSizeOptions().find((o) => o.value === preferences.subtitleSize)
+      ?.label ?? t('settings.subtitleSizeMedium'),
+    subtitleColorOptions().find((o) => o.value === preferences.subtitleColor)
+      ?.label ?? t('settings.subtitleColorWhite'),
+    subtitleAppearanceOptions().find(
+      (o) => o.value === preferences.subtitleAppearance,
+    )?.label ?? t('settings.textWithShadow'),
+  ].join(' · ');
 
 export const subtitleModeOptions = (): Array<{
   label: string;

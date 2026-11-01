@@ -9,6 +9,11 @@ interface PreferenceRadioGroupProps<Value extends RadioValue> {
   onSelect: (value: Value) => void;
   options: Array<{label: string; value: Value}>;
   preferredFocusValue?: Value;
+  /**
+   * False for every group but the first on a page with several, so focus
+   * opens at the top instead of on whichever group mounted last.
+   */
+  claimsFocus?: boolean;
   selectedValue: Value;
   title?: string;
 }
@@ -17,6 +22,7 @@ export const PreferenceRadioGroup = <Value extends RadioValue>({
   onSelect,
   options,
   preferredFocusValue,
+  claimsFocus = true,
   selectedValue,
   title,
 }: PreferenceRadioGroupProps<Value>) => (
@@ -30,6 +36,7 @@ export const PreferenceRadioGroup = <Value extends RadioValue>({
           <FocusableItem
             focusedStyle={styles.optionFocused}
             hasTVPreferredFocus={
+              claimsFocus &&
               option.value === (preferredFocusValue ?? selectedValue)
             }
             key={`${title ?? 'radio'}-${option.label}`}

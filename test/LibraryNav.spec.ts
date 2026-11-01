@@ -98,3 +98,29 @@ describe('buildNavEntries music gating', () => {
     expect(entries[0].label).toBe('Mystery');
   });
 });
+
+describe('Live TV entry', () => {
+  it('gives Live TV its own kind and label, after the other video entries', () => {
+    const entries = buildNavEntries(
+      [library('9', 'Live TV', 'livetv'), ...allLibraries],
+      {musicAvailable: true},
+    );
+
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Movies',
+      'TV Shows',
+      'Live TV',
+      'Music',
+      'Playlists',
+    ]);
+    expect(entries[2].kind).toBe('livetv');
+  });
+
+  it('stays visible when music is off', () => {
+    const entries = buildNavEntries([library('9', 'Live TV', 'livetv')], {
+      musicAvailable: false,
+    });
+
+    expect(entries.map((entry) => entry.kind)).toEqual(['livetv']);
+  });
+});

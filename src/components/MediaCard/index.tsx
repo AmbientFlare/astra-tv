@@ -1,12 +1,15 @@
 import React from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
+import {isLiveItem} from '../../services/jellyfin/liveTv';
+import {t} from '../../i18n';
 
 interface MediaCardProps {
   imageUrl?: string;
   title: string;
   subtitle?: string;
   hasTVPreferredFocus?: boolean;
+  focusRef?: React.Ref<any>;
   imageScale?: number;
   onFocus?: () => void;
   onPress?: () => void;
@@ -16,7 +19,19 @@ interface MediaCardProps {
 export const formatUnplayedBadge = (count?: number) =>
   count && count > 0 ? (count > 99 ? '99+' : String(count)) : undefined;
 
+/**
+ * A card's label for a channel plugin's items, whose API type names
+ * (Video, ChannelFolderItem) mean nothing on screen. Undefined for the rest.
+ */
+export const channelItemLabel = (item: {type: string; tags?: string[]}) =>
+  isLiveItem(item)
+    ? t('liveTv.live')
+    : item.type === 'ChannelFolderItem'
+    ? t('library.folder')
+    : undefined;
+
 export const MediaCard = ({
+  focusRef,
   hasTVPreferredFocus,
   badgeText,
   imageUrl,
@@ -28,6 +43,7 @@ export const MediaCard = ({
 }: MediaCardProps) => (
   <FocusableItem
     accessibilityLabel={title}
+    focusRef={focusRef}
     focusedStyle={styles.focused}
     hasTVPreferredFocus={hasTVPreferredFocus}
     onFocus={onFocus}

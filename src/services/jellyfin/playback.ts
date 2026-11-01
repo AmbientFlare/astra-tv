@@ -45,6 +45,16 @@ import {
 } from './playbackHelpers';
 import {t} from '../../i18n';
 
+/**
+ * The most a live stream asks for, in bits per second.
+ *
+ * The server knows no bitrate for a live source, so when it passes a channel
+ * through untouched its playlist advertises the bitrate the app asked for.
+ * Vega's player turns down H.264 advertised above 20 Mbps, which both sticks'
+ * own decoder lists declare, so a higher ask fails before the first frame.
+ */
+export const LIVE_MAX_STREAMING_BITRATE = 20_000_000;
+
 export const getStreamUrl = async (
   serverUrl: string,
   accessToken: string,
@@ -56,8 +66,16 @@ export const getStreamUrl = async (
     alwaysBurnInSubtitleWhenTranscoding?: boolean;
     audioStreamIndex?: number;
     forceTranscode?: boolean;
+    /** A live channel or stream, which the server only ever transcodes. */
+    live?: boolean;
     maxStreamingBitrate?: number;
     mediaSourceId?: string;
+    /**
+     * Called as soon as the server opens a live stream for this request,
+     * before anything else can fail. The caller owns closing it: an open live
+     * stream can hold a tuner until it is closed.
+     */
+    onLiveStreamOpened?: (liveStreamId: string) => void;
     sourceHeight?: number;
     sourceWidth?: number;
     /**
@@ -106,6 +124,7 @@ export const getStreamUrl = async (
     videoDecodeLimits,
     device.h264MaxBitrate,
     device.maxVideoWidth,
+    options.live,
   );
   const playbackInfoUrl = buildUrl(baseUrl, `/Items/${itemId}/PlaybackInfo`);
   console.log(
@@ -123,6 +142,8 @@ export const getStreamUrl = async (
       Container?: string;
       ETag?: string;
       Bitrate?: number;
+      IsInfiniteStream?: boolean;
+      LiveStreamId?: string;
       Width?: number;
       Height?: number;
       TranscodingUrl?: string;
@@ -160,6 +181,10 @@ export const getStreamUrl = async (
   // Some restricted accounts receive the raw source as a TranscodingUrl.
   // Keep the normal policy unless that answer cannot be demuxed by Vega.
   let enableDirectStream = false;
+  // Every PlaybackInfo with AutoOpenLiveStream opens a live channel again,
+  // and on real hardware each opening takes a tuner. Once the first answer
+  // names its live stream, the requests that follow reuse it.
+  let liveStreamId: string | undefined;
   const isDegradedSource = (result: PlaybackInfoResponse) => {
     const source = result.MediaSources?.[0];
     const url = source?.TranscodingUrl;
@@ -181,7 +206,7 @@ export const getStreamUrl = async (
       return false;
     }
   };
-  const requestPlaybackInfo = (
+  const requestPlaybackInfo = async (
     audioStreamIndex?: number,
     mediaSourceId?: string,
     subtitleStreamIndex: number | undefined = requestedSubtitleStreamIndex,
@@ -189,8 +214,8 @@ export const getStreamUrl = async (
       | boolean
       | undefined = options.alwaysBurnInSubtitleWhenTranscoding,
     allowVideoStreamCopy: boolean = !options.forceTranscode,
-  ) =>
-    getJson<PlaybackInfoResponse>(playbackInfoUrl, {
+  ) => {
+    const result = await getJson<PlaybackInfoResponse>(playbackInfoUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -211,7 +236,12 @@ export const getStreamUrl = async (
         SubtitleStreamIndex: subtitleStreamIndex,
         AlwaysBurnInSubtitleWhenTranscoding:
           alwaysBurnInSubtitleWhenTranscoding,
-        MaxStreamingBitrate: options.maxStreamingBitrate ?? prefs.maxBitrateBps,
+        MaxStreamingBitrate: options.live
+          ? Math.min(
+              options.maxStreamingBitrate ?? prefs.maxBitrateBps,
+              LIVE_MAX_STREAMING_BITRATE,
+            )
+          : options.maxStreamingBitrate ?? prefs.maxBitrateBps,
         MaxAudioChannels: prefs.maxAudioChannels,
         // Everything is delivered over HLS — no direct play. Raw-file
         // direct play blocks the JS thread inside setSrcUri when
@@ -224,9 +254,19 @@ export const getStreamUrl = async (
         AllowVideoStreamCopy: allowVideoStreamCopy,
         AllowAudioStreamCopy: options.allowAudioStreamCopy ?? true,
         AutoOpenLiveStream: true,
+        LiveStreamId: liveStreamId,
       }),
       signal: options.signal,
     });
+    const opened = result.MediaSources?.find(
+      (source) => source.LiveStreamId,
+    )?.LiveStreamId;
+    if (opened && !liveStreamId) {
+      liveStreamId = opened;
+      options.onLiveStreamOpened?.(opened);
+    }
+    return result;
+  };
 
   const postPlaybackInfo = async (
     ...args: Parameters<typeof requestPlaybackInfo>
@@ -544,6 +584,8 @@ export const getStreamUrl = async (
 
   return {
     itemId,
+    isLive: Boolean(mediaSource?.IsInfiniteStream),
+    liveStreamId: mediaSource?.LiveStreamId ?? liveStreamId,
     audioStreamIndex: selectedAudioStreamIndex ?? undefined,
     audioTracks: streams
       .filter((track) => track.Type === 'Audio')

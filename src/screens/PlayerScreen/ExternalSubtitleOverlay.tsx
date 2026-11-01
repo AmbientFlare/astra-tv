@@ -1,7 +1,11 @@
 import React, {useEffect, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {activeWebVttText, WebVttCue} from '../../services/subtitles';
-import type {UserPreferences} from '../../services/storage';
+import type {
+  SubtitleColor,
+  SubtitleSize,
+  UserPreferences,
+} from '../../services/storage';
 import type {PositionStore} from './positionStore';
 
 /**
@@ -14,11 +18,15 @@ export const ExternalSubtitleOverlay = ({
   positionStore,
   controlsVisible = false,
   appearance = 'shadow',
+  size = 'medium',
+  color = 'white',
 }: {
   cues: WebVttCue[];
   positionStore: PositionStore;
   controlsVisible?: boolean;
   appearance?: UserPreferences['subtitleAppearance'];
+  size?: SubtitleSize;
+  color?: SubtitleColor;
 }) => {
   const [text, setText] = useState(() =>
     activeWebVttText(cues, positionStore.get()),
@@ -47,16 +55,49 @@ export const ExternalSubtitleOverlay = ({
         controlsVisible && styles.subtitleAboveControls,
       ]}
       testID="player-external-subtitle">
-      <Text
-        style={[
-          styles.subtitleText,
-          appearance === 'background' && styles.subtitleBackground,
-        ]}>
+      <SubtitleText appearance={appearance} size={size} color={color}>
         {text}
-      </Text>
+      </SubtitleText>
     </View>
   );
 };
+
+const SIZES: Record<SubtitleSize, {fontSize: number; lineHeight: number}> = {
+  small: {fontSize: 24, lineHeight: 31},
+  medium: {fontSize: 30, lineHeight: 38},
+  large: {fontSize: 38, lineHeight: 48},
+  extraLarge: {fontSize: 48, lineHeight: 60},
+};
+
+const COLORS: Record<SubtitleColor, string> = {
+  white: '#FFFFFF',
+  gray: '#D2D2D2',
+  yellow: '#FFE600',
+  green: '#7CFC7C',
+  cyan: '#5CE1FF',
+};
+
+/** Subtitle text as the viewer set it up; Settings previews with this too. */
+export const SubtitleText = ({
+  appearance,
+  children,
+  color,
+  size,
+}: React.PropsWithChildren<{
+  appearance: UserPreferences['subtitleAppearance'];
+  color: SubtitleColor;
+  size: SubtitleSize;
+}>) => (
+  <Text
+    style={[
+      styles.subtitleText,
+      SIZES[size] ?? SIZES.medium,
+      {color: COLORS[color] ?? COLORS.white},
+      appearance === 'background' && styles.subtitleBackground,
+    ]}>
+    {children}
+  </Text>
+);
 
 const styles = StyleSheet.create({
   subtitleOverlay: {
@@ -69,10 +110,7 @@ const styles = StyleSheet.create({
   },
   subtitleText: {
     backgroundColor: 'transparent',
-    color: '#FFFFFF',
-    fontSize: 30,
     fontWeight: '600',
-    lineHeight: 38,
     paddingHorizontal: 12,
     paddingVertical: 5,
     textAlign: 'center',

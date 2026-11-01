@@ -54,6 +54,18 @@ jest.mock('../src/services/jellyfin', () => ({
   getResumeItems: jest.fn(async () => []),
 }));
 
+jest.mock('../src/services/jellyfin/liveTv', () => ({
+  ...jest.requireActual('../src/services/jellyfin/liveTv'),
+  getLiveTvChannels: jest.fn(async () => ({
+    items: [
+      {id: 'c1', imageUrl: 'https://img.example.com/logo1.png', name: 'One'},
+      {id: 'c2', name: 'No logo'},
+    ],
+    startIndex: 0,
+    totalCount: 2,
+  })),
+}));
+
 jest.mock('../src/services/jellyfin/music', () => ({
   ...jest.requireActual('../src/services/jellyfin/music'),
   getAlbums: jest.fn(async () => ({items: [], total: 0})),
@@ -170,5 +182,20 @@ it("falls back to the library's own image when it has no posters", async () => {
 
   expect(tileImages(screen.getByTestId('home-nav-movies'))).toEqual([
     'https://img.example.com/films.jpg',
+  ]);
+});
+
+it('shows channel logos on the Live TV tile', async () => {
+  (getLibraries as jest.Mock).mockResolvedValue([
+    {id: 'live', name: 'Live TV', type: 'livetv'},
+  ]);
+
+  const screen = render(<HomeScreen serverProfile={profile} />);
+  await settle();
+
+  // Jellyfin has no artwork for the Live TV view, so without the logos the
+  // tile was an empty box. Channels without a logo are skipped.
+  expect(tileImages(screen.getByTestId('home-nav-livetv'))).toEqual([
+    'https://img.example.com/logo1.png',
   ]);
 });

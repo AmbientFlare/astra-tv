@@ -117,6 +117,27 @@ describe('subtitle appearance', () => {
     );
     expect((await getUserPreferences()).subtitleAppearance).toBe('shadow');
   });
+
+  it('defaults to medium white text and keeps a saved size and color', async () => {
+    const fresh = await getUserPreferences();
+    expect(fresh.subtitleSize).toBe('medium');
+    expect(fresh.subtitleColor).toBe('white');
+
+    await updateUserPreferences({subtitleSize: 'large', subtitleColor: 'cyan'});
+    const saved = await getUserPreferences();
+    expect(saved.subtitleSize).toBe('large');
+    expect(saved.subtitleColor).toBe('cyan');
+  });
+
+  it('falls back to medium white for an unknown stored size or color', async () => {
+    await AsyncStorage.setItem(
+      KEY,
+      JSON.stringify({subtitleSize: 'huge', subtitleColor: 'purple'}),
+    );
+    const preferences = await getUserPreferences();
+    expect(preferences.subtitleSize).toBe('medium');
+    expect(preferences.subtitleColor).toBe('white');
+  });
 });
 
 describe('the "Continue watching?" episode count', () => {

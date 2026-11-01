@@ -1,4 +1,6 @@
 import {
+  LIVE_REBUFFERING_GOAL,
+  liveBufferBudget,
   DEFAULT_BUFFER_BUDGET,
   MEDIA_BUFFER_BUDGET_BYTES,
   computeBufferBudget,
@@ -50,5 +52,23 @@ describe('computeBufferBudget', () => {
   it('biases forward of the playhead', () => {
     const budget = computeBufferBudget(24_836_532);
     expect(budget.bufferingGoal).toBeGreaterThan(budget.bufferBehind);
+  });
+});
+
+describe('liveBufferBudget', () => {
+  it('holds a live stream back from the live edge before it plays', () => {
+    const budget = computeBufferBudget(3_000_000);
+
+    expect(liveBufferBudget(budget, true)).toEqual({
+      ...budget,
+      bufferingGoal: 30,
+      rebufferingGoal: LIVE_REBUFFERING_GOAL,
+    });
+  });
+
+  it('leaves recorded media alone', () => {
+    const budget = computeBufferBudget(3_000_000);
+
+    expect(liveBufferBudget(budget, false)).toBe(budget);
   });
 });
