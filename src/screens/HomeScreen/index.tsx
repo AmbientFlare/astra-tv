@@ -643,9 +643,11 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     marginBottom: 30,
   },
+  // Room above and below for a focused card, which grows past its row.
   mediaScroller: {
     flexGrow: 0,
-    marginBottom: 30,
+    marginBottom: 18,
+    paddingVertical: 12,
   },
   libraryRow: {
     flexDirection: 'row',

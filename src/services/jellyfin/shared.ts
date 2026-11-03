@@ -19,6 +19,41 @@ import {
 export const itemFields =
   'Overview,Genres,People,MediaSources,ProviderIds,RecursiveItemCount,ChildCount,MediaStreams,Chapters,PrimaryImageAspectRatio,RemoteTrailers,Tags';
 
+/**
+ * An episode with no poster of its own (common for ones a plugin adds before
+ * their artwork exists) borrows its series poster rather than showing blank.
+ */
+const cardImageUrl = (
+  baseUrl: string,
+  accessToken: string,
+  item: {
+    Id?: string;
+    ImageTags?: {Banner?: string; Primary?: string; Thumb?: string};
+    SeriesId?: string;
+    SeriesPrimaryImageTag?: string;
+  },
+  imageType: 'Primary' | 'Thumb' | 'Banner',
+) => {
+  if (!item.Id) {
+    return undefined;
+  }
+
+  const [id, tag] =
+    imageType === 'Primary' &&
+    !item.ImageTags?.Primary &&
+    item.SeriesId &&
+    item.SeriesPrimaryImageTag
+      ? [item.SeriesId, item.SeriesPrimaryImageTag]
+      : [item.Id, item.ImageTags?.[imageType]];
+
+  return buildUrl(baseUrl, `/Items/${id}/Images/${imageType}`, {
+    fillWidth: 360,
+    quality: 90,
+    tag,
+    ...tokenQuery(accessToken),
+  });
+};
+
 export const mapItem = (
   baseUrl: string,
   accessToken: string,
@@ -73,6 +108,7 @@ export const mapItem = (
     SeasonId?: string;
     SeriesId?: string;
     SeriesName?: string;
+    SeriesPrimaryImageTag?: string;
   },
   imageType: 'Primary' | 'Thumb' | 'Banner' = 'Primary',
 ): JellyfinMediaItem => ({
@@ -106,14 +142,7 @@ export const mapItem = (
     name: chapter.Name ?? `Chapter ${index + 1}`,
     startPositionTicks: chapter.StartPositionTicks ?? 0,
   })),
-  imageUrl: item.Id
-    ? buildUrl(baseUrl, `/Items/${item.Id}/Images/${imageType}`, {
-        fillWidth: 360,
-        quality: 90,
-        tag: item.ImageTags?.[imageType],
-        ...tokenQuery(accessToken),
-      })
-    : undefined,
+  imageUrl: cardImageUrl(baseUrl, accessToken, item, imageType),
   backdropUrl:
     item.Id && item.BackdropImageTags?.[0]
       ? buildUrl(baseUrl, `/Items/${item.Id}/Images/Backdrop/0`, {

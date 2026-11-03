@@ -277,9 +277,11 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     marginHorizontal: 72,
   },
+  // Vertical room for a focused card, which grows past its row.
   rowScroller: {
-    marginBottom: 36,
+    marginBottom: 24,
     paddingHorizontal: 72,
+    paddingVertical: 12,
   },
   row: {
     flexDirection: 'row',
