@@ -17,93 +17,64 @@ import {getLocale, Locale} from '../i18n';
  */
 export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
   en: [
-    'Episodes now play to the end and the next one starts, even on ' +
-      'converted streams that used to stop a second short.',
-    'Sleep timer: press Menu during a video and pick 15 to 90 minutes ' +
-      'or the end of the episode. Astra pauses and saves your place on ' +
-      'the server.',
-    'Audio can follow the language set on your Jellyfin account, and a ' +
-      'second-choice language covers videos that lack your first. ' +
-      'Commentary tracks are never picked on their own.',
-    'An audio or subtitle track you choose in a series is kept for its ' +
-      'next episodes.',
-    'If the network drops, Astra pauses and shows Retry, which picks ' +
-      'up where you were.',
+    'Fire TV no longer closes Astra when you leave it during a video ' +
+      'or the screensaver comes on, so coming back no longer starts ' +
+      'over from Home.',
+    'Astra now sends crash reports and anonymous playback stats so ' +
+      'crashes and playback problems can be fixed. Never titles, ' +
+      'searches, server addresses or account details. Turn it off under ' +
+      'Settings → Send crash reports and usage stats.',
   ],
   de: [
-    'Folgen laufen jetzt bis zum Ende und die nächste startet, auch ' +
-      'bei umgewandelten Streams, die früher eine Sekunde vorher ' +
-      'stehen blieben.',
-    'Schlaf-Timer: Drück während eines Videos Menü und wähle 15 bis 90 ' +
-      'Minuten oder das Ende der Folge. Astra pausiert und speichert ' +
-      'deine Position auf dem Server.',
-    'Die Audiosprache kann deinem Jellyfin-Konto folgen, und eine ' +
-      'Zweitsprache springt ein, wenn ein Video deine erste nicht hat. ' +
-      'Kommentarspuren werden nie von selbst gewählt.',
-    'Eine Audio- oder Untertitelspur, die du in einer Serie wählst, ' +
-      'bleibt für die nächsten Folgen erhalten.',
-    'Bricht das Netzwerk ab, pausiert Astra und zeigt Erneut ' +
-      'versuchen, womit es an derselben Stelle weitergeht.',
+    'Fire TV beendet Astra nicht mehr, wenn du es während eines ' +
+      'Videos verlässt oder der Bildschirmschoner startet. Beim ' +
+      'Zurückkehren beginnt es nicht mehr von vorn auf der Startseite.',
+    'Astra sendet jetzt Absturzberichte und anonyme ' +
+      'Wiedergabestatistiken, damit Abstürze und Wiedergabeprobleme ' +
+      'behoben werden können. Nie Titel, Suchen, Serveradressen oder ' +
+      'Kontodaten. Abschalten unter Einstellungen → Absturzberichte und ' +
+      'Nutzungsstatistiken senden.',
   ],
   es: [
-    'Los episodios ahora llegan hasta el final y empieza el ' +
-      'siguiente, también en las transmisiones convertidas que antes ' +
-      'se detenían un segundo antes.',
-    'Temporizador para dormir: pulsa Menú durante un video y elige de ' +
-      '15 a 90 minutos o el final del episodio. Astra pausa y guarda tu ' +
-      'posición en el servidor.',
-    'El audio puede seguir el idioma de tu cuenta de Jellyfin, y un ' +
-      'segundo idioma cubre los videos que no tienen el primero. Las ' +
-      'pistas de comentarios nunca se eligen solas.',
-    'La pista de audio o de subtítulos que elijas en una serie se ' +
-      'mantiene en los siguientes episodios.',
-    'Si se cae la red, Astra pausa y muestra Reintentar, que sigue ' +
-      'desde donde estabas.',
+    'Fire TV ya no cierra Astra cuando lo dejas durante un video o se ' +
+      'activa el protector de pantalla, así que al volver ya no empieza ' +
+      'de nuevo desde el inicio.',
+    'Astra ahora envía informes de errores y estadísticas anónimas de ' +
+      'reproducción para poder corregir fallos y problemas al ' +
+      'reproducir. Nunca títulos, búsquedas, direcciones de servidor ni ' +
+      'datos de la cuenta. Desactívalo en Ajustes → Enviar informes de ' +
+      'errores y estadísticas de uso.',
   ],
   fr: [
-    'Les épisodes vont maintenant jusqu’au bout et le suivant ' +
-      'démarre, même sur les flux convertis qui s’arrêtaient une ' +
-      'seconde avant la fin.',
-    'Minuterie de veille : appuyez sur Menu pendant une vidéo et ' +
-      'choisissez de 15 à 90 minutes ou la fin de l’épisode. Astra se ' +
-      'met en pause et enregistre votre position sur le serveur.',
-    'L’audio peut suivre la langue réglée sur votre compte Jellyfin, ' +
-      'et une langue de secours prend le relais quand une vidéo n’a pas ' +
-      'la première. Les pistes de commentaires ne sont jamais choisies ' +
-      'd’office.',
-    'La piste audio ou de sous-titres choisie dans une série est ' +
-      'conservée pour les épisodes suivants.',
-    'Si le réseau coupe, Astra se met en pause et affiche Réessayer, ' +
-      'qui reprend là où vous en étiez.',
+    'Fire TV ne ferme plus Astra quand vous le quittez pendant une ' +
+      'vidéo ou que l’économiseur d’écran se lance : en y revenant, il ne ' +
+      'redémarre plus depuis l’accueil.',
+    'Astra envoie désormais des rapports de plantage et des ' +
+      'statistiques de lecture anonymes pour corriger les plantages et ' +
+      'les problèmes de lecture. Jamais de titres, de recherches, ' +
+      'd’adresses de serveur ni d’informations de compte. Désactivez-le ' +
+      'dans Paramètres → Envoyer les rapports de plantage et ' +
+      "statistiques d'utilisation.",
   ],
   it: [
-    'Gli episodi ora arrivano fino alla fine e parte il successivo, ' +
-      'anche nei flussi convertiti che prima si fermavano un secondo ' +
-      'prima.',
-    'Timer di sospensione: premi Menu durante un video e scegli da 15 ' +
-      'a 90 minuti o la fine dell’episodio. Astra mette in pausa e salva ' +
-      'la posizione sul server.',
-    'L’audio può seguire la lingua impostata nel tuo account Jellyfin, ' +
-      'e una seconda lingua copre i video che non hanno la prima. Le ' +
-      'tracce di commento non vengono mai scelte da sole.',
-    'La traccia audio o di sottotitoli scelta in una serie resta per ' +
-      'gli episodi successivi.',
-    'Se la rete cade, Astra mette in pausa e mostra Riprova, che ' +
-      'riparte da dove eri.',
+    'Fire TV non chiude più Astra quando lo lasci durante un video o ' +
+      'parte il salvaschermo, quindi tornandoci non riparte più dalla ' +
+      'Home.',
+    'Astra ora invia segnalazioni di arresto e statistiche di ' +
+      'riproduzione anonime per correggere arresti e problemi di ' +
+      'riproduzione. Mai titoli, ricerche, indirizzi del server o dati ' +
+      'dell’account. Disattivalo in Impostazioni → Invia segnalazioni di ' +
+      "arresto e statistiche d'uso.",
   ],
   pt: [
-    'Os episódios agora vão até o fim e o próximo começa, mesmo nos ' +
-      'streams convertidos que paravam um segundo antes.',
-    'Timer para dormir: aperte Menu durante um vídeo e escolha de 15 a ' +
-      '90 minutos ou o fim do episódio. O Astra pausa e salva sua ' +
-      'posição no servidor.',
-    'O áudio pode seguir o idioma definido na sua conta do Jellyfin, e ' +
-      'um segundo idioma cobre os vídeos que não têm o primeiro. Faixas ' +
-      'de comentário nunca são escolhidas sozinhas.',
-    'A faixa de áudio ou de legenda escolhida em uma série continua ' +
-      'nos próximos episódios.',
-    'Se a rede cair, o Astra pausa e mostra Tentar de novo, que ' +
-      'continua de onde você estava.',
+    'O Fire TV não fecha mais o Astra quando você sai dele durante um ' +
+      'vídeo ou o protetor de tela liga, então ao voltar ele não ' +
+      'recomeça mais pelo Início.',
+    'O Astra agora envia relatórios de falhas e estatísticas anônimas ' +
+      'de reprodução para corrigir falhas e problemas de reprodução. ' +
+      'Nunca títulos, buscas, endereços de servidor ou dados da conta. ' +
+      'Desative em Configurações → Enviar relatórios de falhas e ' +
+      'estatísticas de uso.',
   ],
 };
 
