@@ -327,6 +327,9 @@ export const pt: Messages = {
   'settings.customizationHint': 'Layout do Início, exibição',
   'settings.playbackHint': 'Vídeo, legendas, próximo episódio',
   'settings.language': 'Idioma',
+  'settings.crashReports': 'Enviar relatórios de falhas e estatísticas de uso',
+  'settings.crashReportsHint':
+    'Ajuda a corrigir falhas e problemas de reprodução: o que o Astra estava fazendo, como os vídeos foram reproduzidos e quais recursos são usados. Nunca títulos, endereços de servidor ou dados da conta.',
   'settings.aboutHint': 'Versão, informações do dispositivo, licenças',
   'settings.darkBackground': 'Fundo escuro',
   'settings.subtitleSize': 'Tamanho do texto',

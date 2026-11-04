@@ -3,6 +3,30 @@
 Code from outside contributors is credited on its entry and, permanently,
 in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
+## 1.6.3 - 2026-11-04
+
+### Added
+
+- Crash reports and usage stats, on by default, with a switch in
+  Settings > Send crash reports and usage stats. After an unexpected exit,
+  Astra sends the last actions it took and what was playing at a technical
+  level. It also sends one summary per playback (formats, transcode reasons,
+  start time, buffering, errors), daily counts of the screens and features
+  used, and a random install ID that changes every month. Titles, searches,
+  server addresses and names, and account details never leave the device.
+  Web addresses, IP addresses and email addresses are removed before
+  sending. Details: <https://watchastra.com/privacy/>.
+
+### Fixed
+
+- Leaving Astra during a video, with Home or another app, made Vega OS
+  close it, because the video decoder was released too late. The decoder is
+  now released before Astra goes to the background.
+- After a video, Astra was the first app closed when the screensaver came
+  on: memory it had already freed was still counted against it. Astra now
+  leaves the player straight away and hands that memory back, using
+  about 60–100 MB in the background instead of 210–250 MB.
+
 ## 1.6.2 - 2026-10-29
 
 ### Fixed
