@@ -243,6 +243,7 @@ export const pt: Messages = {
   'home.nextUp': 'A seguir',
   'home.latestMovies': 'Filmes recentes',
   'home.latestShows': 'Séries recentes',
+  'home.onNow': 'Agora no ar',
   'settings.imageSize': 'Tamanho da imagem',
   'settings.small': 'Pequeno',
   'settings.medium': 'Médio',

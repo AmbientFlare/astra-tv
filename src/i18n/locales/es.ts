@@ -244,6 +244,7 @@ export const es: Messages = {
   'home.nextUp': 'A continuación',
   'home.latestMovies': 'Películas recientes',
   'home.latestShows': 'Series recientes',
+  'home.onNow': 'Ahora en directo',
   'settings.imageSize': 'Tamaño de imagen',
   'settings.small': 'Pequeño',
   'settings.medium': 'Mediano',

@@ -13,7 +13,8 @@ import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
-import {getLiveTvChannels} from '../../services/jellyfin/liveTv';
+import {getLiveTvChannels, LiveTvChannel} from '../../services/jellyfin/liveTv';
+import {OnNowRow} from './OnNowRow';
 import {
   getLibraries,
   getLatestItems,
@@ -34,6 +35,8 @@ import {t} from '../../i18n';
 
 interface HomeScreenProps {
   onOpenLiveTv?: () => void;
+  /** Tunes to a channel; `channels` is the order channel up/down follows. */
+  onPlayChannel?: (channel: LiveTvChannel, channels: LiveTvChannel[]) => void;
   onOpenMusic?: () => void;
   onOpenPlaylists?: () => void;
   onProfiles?: () => void;
@@ -46,6 +49,7 @@ interface HomeScreenProps {
 
 export const HomeScreen = ({
   onOpenLiveTv,
+  onPlayChannel,
   onOpenMusic,
   onOpenPlaylists,
   onProfiles,
@@ -319,6 +323,18 @@ export const HomeScreen = ({
     }));
   }, [libraries, serverProfile]);
 
+  // Only servers that offer this user Live TV get the On Now row.
+  const liveTvSession = useMemo(() => {
+    if (
+      !serverProfile ||
+      !libraries.some((library) => library.type?.toLowerCase() === 'livetv')
+    ) {
+      return null;
+    }
+    const {accessToken, serverUrl, userId} = serverProfile;
+    return {accessToken, serverUrl, userId};
+  }, [libraries, serverProfile]);
+
   return (
     <View style={styles.screen} testID="home-screen">
       {preferences.focusedBackdropEnabled ? (
@@ -393,6 +409,18 @@ export const HomeScreen = ({
             onFocusBackdrop={queueBackdrop}
             onSelectItem={onSelectItem}
             title={t('home.continueWatching')}
+          />
+        ) : null}
+        {preferences.homeSections.onNow && liveTvSession ? (
+          <OnNowRow
+            onFocusBackdrop={queueBackdrop}
+            onSelect={(program, programs) =>
+              onPlayChannel?.(
+                program.channel,
+                programs.map((entry) => entry.channel),
+              )
+            }
+            session={liveTvSession}
           />
         ) : null}
         {preferences.homeSections.nextUp ? (

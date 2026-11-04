@@ -429,6 +429,7 @@ export const SettingsScreen = ({
           <Page title={t('settings.homeSections')} onBack={pop}>
             {[
               ['continueWatching', t('home.continueWatching')],
+              ['onNow', t('home.onNow')],
               ['nextUp', t('home.nextUp')],
               ['latestMovies', t('home.latestMovies')],
               ['latestShows', t('home.latestShows')],

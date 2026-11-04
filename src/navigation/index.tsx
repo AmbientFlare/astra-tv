@@ -729,6 +729,13 @@ export const RootNavigator = () => {
           onOpenLiveTv={() => push({route: 'liveTv'})}
           onOpenMusic={() => push({route: 'music', tab: 'artists'})}
           onOpenPlaylists={() => push({route: 'music', tab: 'playlists'})}
+          onPlayChannel={(channel, channels) =>
+            push({
+              route: 'player',
+              item: liveChannelItem(channel),
+              liveChannels: channels,
+            })
+          }
           onProfiles={() => setProfileSwitcherVisible(true)}
           onSearch={() => push({route: 'search'})}
           onSelectLibrary={(library) => push({route: 'library', library})}
@@ -994,6 +1001,13 @@ export const RootNavigator = () => {
         onOpenLiveTv={() => push({route: 'liveTv'})}
         onOpenMusic={() => push({route: 'music', tab: 'artists'})}
         onOpenPlaylists={() => push({route: 'music', tab: 'playlists'})}
+        onPlayChannel={(channel, channels) =>
+          push({
+            route: 'player',
+            item: liveChannelItem(channel),
+            liveChannels: channels,
+          })
+        }
         onProfiles={() => setProfileSwitcherVisible(true)}
         onSearch={() => push({route: 'search'})}
         onSelectLibrary={(library) => push({route: 'library', library})}

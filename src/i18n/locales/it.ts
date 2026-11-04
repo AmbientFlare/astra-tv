@@ -243,6 +243,7 @@ export const it: Messages = {
   'home.nextUp': 'Prossimi',
   'home.latestMovies': 'Ultimi film',
   'home.latestShows': 'Ultime serie',
+  'home.onNow': 'In onda ora',
   'settings.imageSize': 'Dimensione immagine',
   'settings.small': 'Piccola',
   'settings.medium': 'Media',

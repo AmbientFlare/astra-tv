@@ -15,6 +15,7 @@ import {
   neighbourChannel,
   getLiveTvChannels,
   getNextPrograms,
+  getOnNowPrograms,
   LiveTvSession,
   programProgress,
 } from '../src/services/jellyfin/liveTv';
@@ -384,5 +385,69 @@ describe('getGuidePrograms', () => {
 
     expect(await getGuidePrograms(session, [], 0, 1)).toEqual({});
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('getOnNowPrograms', () => {
+  it('asks for what is airing and pairs each programme with its channel', async () => {
+    const calls = mockFetch(() => ({
+      Items: [
+        {
+          Id: 'p-1',
+          Name: 'Columbo',
+          EpisodeTitle: 'Uneasy Lies the Crown',
+          ChannelId: 'ch-1',
+          ChannelName: 'Universal Crime',
+          ChannelNumber: '120',
+          ImageTags: {Primary: 'img-1'},
+          StartDate: '2026-10-31T22:11:00.0000000Z',
+          EndDate: '2026-10-31T23:58:00.0000000Z',
+        },
+        // No channel: nothing to tune to, so it is left out.
+        {
+          Id: 'p-2',
+          Name: 'Orphan',
+          StartDate: '2026-10-31T22:00:00.0000000Z',
+          EndDate: '2026-10-31T23:00:00.0000000Z',
+        },
+      ],
+    }));
+
+    const programs = await getOnNowPrograms(session);
+
+    expect(calls[0].pathname).toBe('/LiveTv/Programs/Recommended');
+    expect(calls[0].searchParams.get('IsAiring')).toBe('true');
+    expect(calls[0].searchParams.get('Fields')).toBe('ChannelInfo');
+    expect(calls[0].searchParams.get('UserId')).toBe('user-1');
+    expect(programs).toHaveLength(1);
+    expect(programs[0]).toMatchObject({
+      id: 'p-1',
+      name: 'Columbo',
+      episodeTitle: 'Uneasy Lies the Crown',
+      channel: {id: 'ch-1', name: 'Universal Crime', number: '120'},
+    });
+    expect(programs[0].channel.current?.id).toBe('p-1');
+    expect(programs[0].imageUrl).toContain('/Items/p-1/Images/Primary');
+    expect(programs[0].channel.imageUrl).toContain(
+      '/Items/ch-1/Images/Primary',
+    );
+  });
+
+  it('leaves the image out when the programme has none', async () => {
+    mockFetch(() => ({
+      Items: [
+        {
+          Id: 'p-1',
+          Name: 'News',
+          ChannelId: 'ch-1',
+          StartDate: '2026-10-31T22:00:00.0000000Z',
+          EndDate: '2026-10-31T23:00:00.0000000Z',
+        },
+      ],
+    }));
+
+    const [program] = await getOnNowPrograms(session);
+
+    expect(program.imageUrl).toBeUndefined();
   });
 });

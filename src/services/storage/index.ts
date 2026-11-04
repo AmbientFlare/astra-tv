@@ -67,6 +67,7 @@ export interface UserPreferences {
     latestMovies: boolean;
     latestShows: boolean;
     nextUp: boolean;
+    onNow: boolean;
   };
   /**
    * User-facing switch for the music section. Gating also requires the signed-in
@@ -159,6 +160,7 @@ export const defaultUserPreferences: UserPreferences = {
     latestMovies: true,
     latestShows: true,
     nextUp: true,
+    onNow: true,
   },
   maxStreamingBitrate: 'auto',
   musicEnabled: true,
