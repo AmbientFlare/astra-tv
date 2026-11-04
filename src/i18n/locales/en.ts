@@ -323,6 +323,9 @@ export const en = {
   'settings.customizationHint': 'Home layout, display preferences',
   'settings.playbackHint': 'Video, subtitles, next up',
   'settings.language': 'Language',
+  'settings.crashReports': 'Send crash reports and usage stats',
+  'settings.crashReportsHint':
+    'Helps fix crashes and playback problems: what Astra was doing, how videos played, which features get used. Never titles, server addresses or account details.',
   'settings.aboutHint': 'Version, device info, licenses',
   'settings.darkBackground': 'Dark background',
   'settings.subtitleSize': 'Text size',
