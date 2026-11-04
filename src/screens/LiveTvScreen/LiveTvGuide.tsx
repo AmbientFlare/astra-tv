@@ -13,13 +13,18 @@ import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {RemoteAction, useRemoteInput} from '../../hooks/useRemoteInput';
 import {
+  cancelRecording,
+  cancelSeriesRecording,
   formatClockTime,
   getGuidePrograms,
+  getProgram,
   LiveTvChannel,
   LiveTvProgram,
   LiveTvSession,
+  recordProgram,
 } from '../../services/jellyfin/liveTv';
 import {t} from '../../i18n';
+import {RecordAction, RecordPanel} from './RecordPanel';
 import {
   cellIndexAt,
   firstVisibleRowFor,
@@ -34,6 +39,8 @@ import {
 } from './guideLayout';
 
 interface Props {
+  /** Whether selecting a programme that has not started offers to record it. */
+  canRecord?: boolean;
   channels: LiveTvChannel[];
   hasTVPreferredFocus?: boolean;
   /** The channel to start on, such as the one last watched. */
@@ -79,6 +86,7 @@ const mergePrograms = (
 };
 
 export const LiveTvGuide = ({
+  canRecord = false,
   channels,
   hasTVPreferredFocus,
   initialChannelId,
@@ -106,6 +114,13 @@ export const LiveTvGuide = ({
   // Which channel and time blocks have been asked for, and which answered.
   const blocks = useRef(new Map<string, 'loading' | 'done'>());
   const [, setBlocksVersion] = useState(0);
+  // Bumped to fetch the rows on screen again after a recording change.
+  const [refreshCount, setRefreshCount] = useState(0);
+  const [recordTarget, setRecordTarget] = useState<{
+    channel: LiveTvChannel;
+    program: LiveTvProgram;
+  } | null>(null);
+  const gridRef = useRef<any>(null);
 
   const visibleRows = Math.max(
     1,
@@ -213,7 +228,7 @@ export const LiveTvGuide = ({
           });
       }
     });
-  }, [channels, firstRow, session, timeBlocks, visibleRows]);
+  }, [channels, firstRow, refreshCount, session, timeBlocks, visibleRows]);
 
   useEffect(() => {
     if (channels.length && row >= channels.length - PAGE_AHEAD_ROWS) {
@@ -281,7 +296,58 @@ export const LiveTvGuide = ({
 
       move(action);
     },
-    {allowWhileDisabled: [], enabled: isFocused},
+    {allowWhileDisabled: [], enabled: isFocused && !recordTarget},
+  );
+
+  const closeRecordPanel = useCallback(() => {
+    setRecordTarget(null);
+    // Focus does not come back to the grid on its own.
+    setTimeout(() => gridRef.current?.requestTVFocus?.(), 120);
+  }, []);
+
+  const runRecordAction = useCallback(
+    async (action: RecordAction) => {
+      if (!recordTarget) {
+        return;
+      }
+
+      const {channel, program} = recordTarget;
+
+      if (action === 'watch') {
+        setRecordTarget(null);
+        onSelectChannel(channel);
+        return;
+      }
+
+      if (action === 'record' || action === 'recordSeries') {
+        await recordProgram(session, program.id, action === 'recordSeries');
+      } else if (action === 'cancel' && program.timerId) {
+        await cancelRecording(session, program.timerId);
+      } else if (action === 'cancelSeries' && program.seriesTimerId) {
+        await cancelSeriesRecording(session, program.seriesTimerId);
+      }
+
+      const updated = await getProgram(session, program.id).catch(
+        () => undefined,
+      );
+
+      if (updated) {
+        setPrograms((existing) =>
+          existing[channel.id]
+            ? {
+                ...existing,
+                [channel.id]: mergePrograms(existing[channel.id], [updated]),
+              }
+            : existing,
+        );
+      }
+
+      // A series change reaches its other airings too, so fetch again.
+      blocks.current.clear();
+      setRefreshCount((count) => count + 1);
+      closeRecordPanel();
+    },
+    [closeRecordPanel, onSelectChannel, recordTarget, session],
   );
 
   const focusedChannel = channels[row];
@@ -322,7 +388,20 @@ export const LiveTvGuide = ({
             focusedAt.current = Date.now();
             setFocused(true);
           }}
-          onPress={() => focusedChannel && onSelectChannel(focusedChannel)}
+          focusRef={gridRef}
+          onPress={() => {
+            const program = focusedCell?.program;
+
+            if (!focusedChannel) {
+              return;
+            }
+
+            if (canRecord && program && program.startTime > Date.now()) {
+              setRecordTarget({channel: focusedChannel, program});
+            } else {
+              onSelectChannel(focusedChannel);
+            }
+          }}
           style={styles.grid}
           testID="livetv-guide">
           <View onLayout={onLayout} style={styles.gridInner}>
@@ -413,9 +492,20 @@ export const LiveTvGuide = ({
           </View>
         </FocusableItem>
       </TVFocusGuideView>
+      {recordTarget ? (
+        <RecordPanel
+          channel={recordTarget.channel}
+          onAction={runRecordAction}
+          onClose={closeRecordPanel}
+          program={recordTarget.program}
+        />
+      ) : null}
     </View>
   );
 };
+
+const isRecording = (program?: LiveTvProgram) =>
+  Boolean(program?.timerId || program?.seriesTimerId);
 
 const ProgramDetails = ({
   cell,
@@ -431,6 +521,7 @@ const ProgramDetails = ({
   return (
     <View style={styles.details} testID="livetv-guide-details">
       <Text numberOfLines={1} style={styles.detailsTitle}>
+        {isRecording(program) ? <Text style={styles.recDot}>● </Text> : null}
         {program
           ? program.name
           : loaded
@@ -517,6 +608,7 @@ const GuideCellView = ({
         !cell.program && styles.cellEmptyText,
         isFocused && styles.cellTitleFocused,
       ]}>
+      {isRecording(cell.program) ? <Text style={styles.recDot}>● </Text> : null}
       {cell.program
         ? `${clippedStart ? '‹ ' : ''}${cell.program.name}`
         : emptyLabel || isFocused
@@ -582,13 +674,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
   },
-  cellOnNow: {backgroundColor: '#18202a'},
+  cellOnNow: {backgroundColor: '#1f3a2c', borderColor: '#2c5a40'},
   cellEmpty: {backgroundColor: '#0f1217'},
   cellFocused: {backgroundColor: '#54d38a', borderColor: '#54d38a'},
   cellTitle: {color: '#f4f6f8', fontSize: 17, fontWeight: '600'},
   cellSub: {color: '#8b97a5', fontSize: 14, marginTop: 2},
   cellTitleFocused: {color: '#0b0d10'},
   cellEmptyText: {color: '#6f7d8c', fontWeight: '400'},
+  recDot: {color: '#ff5a5f'},
   nowLine: {
     backgroundColor: '#ff5a5f',
     bottom: 0,

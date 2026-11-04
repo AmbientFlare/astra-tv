@@ -29,6 +29,11 @@ export interface LiveTvProgram {
   /** Milliseconds since the epoch. */
   startTime: number;
   endTime: number;
+  isSeries?: boolean;
+  /** Set when this airing is scheduled to record. */
+  timerId?: string;
+  /** Set when the series this airing belongs to is set to record. */
+  seriesTimerId?: string;
 }
 
 export interface LiveTvChannel {
@@ -82,6 +87,9 @@ interface RawProgram {
   ChannelName?: string;
   ChannelNumber?: string;
   ImageTags?: {Primary?: string; Thumb?: string};
+  IsSeries?: boolean;
+  TimerId?: string;
+  SeriesTimerId?: string;
 }
 
 interface RawChannel {
@@ -138,6 +146,9 @@ export const mapProgram = (raw?: RawProgram): LiveTvProgram | undefined => {
     overview: raw.Overview || undefined,
     startTime,
     endTime,
+    isSeries: raw.IsSeries || undefined,
+    timerId: raw.TimerId || undefined,
+    seriesTimerId: raw.SeriesTimerId || undefined,
   };
 };
 
@@ -419,6 +430,75 @@ export const getChannelSchedule = async (
  * Lets the server release a live stream, and with it the tuner. Each opening
  * counts once on the server, so this goes out exactly once per opening.
  */
+const send = (
+  session: LiveTvSession,
+  method: 'DELETE' | 'POST',
+  path: string,
+  body?: unknown,
+) =>
+  getJson<void>(buildUrl(session.serverUrl, path), {
+    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: {
+      ...getAuthHeaders(session.accessToken),
+      'Content-Type': 'application/json',
+    },
+    method,
+  });
+
+/**
+ * Whether this user may schedule recordings. Without the server's Live TV
+ * management permission, every record request is refused.
+ */
+export const canManageRecordings = async (session: LiveTvSession) => {
+  const user = await request<{
+    Policy?: {EnableLiveTvManagement?: boolean; IsAdministrator?: boolean};
+  }>(session, `/Users/${session.userId}`);
+
+  return Boolean(
+    user.Policy?.EnableLiveTvManagement || user.Policy?.IsAdministrator,
+  );
+};
+
+/** Re-reads one programme, so its recording state is current. */
+export const getProgram = async (session: LiveTvSession, programId: string) =>
+  mapProgram(
+    await request<RawProgram>(session, `/LiveTv/Programs/${programId}`, {
+      UserId: session.userId,
+    }),
+  );
+
+/**
+ * Schedules a recording the way Jellyfin's own clients do: the server fills
+ * in its default settings (padding, keep rules) for the programme, and those
+ * are sent back unchanged.
+ */
+export const recordProgram = async (
+  session: LiveTvSession,
+  programId: string,
+  series = false,
+) => {
+  const defaults = await request<Record<string, unknown>>(
+    session,
+    '/LiveTv/Timers/Defaults',
+    {programId},
+  );
+
+  await send(
+    session,
+    'POST',
+    series ? '/LiveTv/SeriesTimers' : '/LiveTv/Timers',
+    defaults,
+  );
+};
+
+export const cancelRecording = (session: LiveTvSession, timerId: string) =>
+  send(session, 'DELETE', `/LiveTv/Timers/${timerId}`);
+
+export const cancelSeriesRecording = (
+  session: LiveTvSession,
+  seriesTimerId: string,
+) => send(session, 'DELETE', `/LiveTv/SeriesTimers/${seriesTimerId}`);
+
 export const closeLiveStream = async (
   session: Pick<LiveTvSession, 'accessToken' | 'serverUrl'>,
   liveStreamId: string,
