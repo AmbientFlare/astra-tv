@@ -1,6 +1,8 @@
 import {getTraces} from '../logging/trace';
 import {getItem, setItem, removeItem} from '../storageAdapter';
 import {scrubText} from './envelope';
+import {JS_ERROR_DETAIL_MAX} from './jsErrors';
+import {crashContext} from './playbackStats';
 
 const KEY = 'astra.telemetry.crashtail.v1';
 const PENDING_KEY = 'astra.telemetry.crashtail.pending.v1';
@@ -13,6 +15,8 @@ export interface CrashTail {
   savedAtMs: number;
   sid?: string;
   cleanExit?: boolean;
+  /** The playback and app state at the last save (playbackStats.ts). */
+  ctx?: Record<string, unknown>;
 }
 
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -55,6 +59,8 @@ const valid = (value: unknown): value is CrashTail => {
     Number.isFinite(item.savedAtMs) &&
     item.savedAtMs <= Date.now() &&
     Date.now() - item.savedAtMs <= MAX_AGE &&
+    (item.ctx === undefined ||
+      (typeof item.ctx === 'object' && item.ctx !== null)) &&
     (item.sid === undefined ||
       (typeof item.sid === 'string' && item.sid.length <= 128)) &&
     Array.isArray(item.traces) &&
@@ -98,6 +104,9 @@ export const prepareCrashTail = async (): Promise<
         pending?.cleanExit ?? (await getItem(CLEAN_KEY)) === '1';
       if (!pending && prior) {
         await setItem(PENDING_KEY, JSON.stringify({...prior, cleanExit}));
+        // Consumed: a run that crashes before tracing anything must not
+        // report this tail a second time as its own.
+        await removeItem(KEY);
       }
       original = prior ? {...prior, cleanExit} : undefined;
       await markActive();
@@ -116,13 +125,24 @@ export const persistCrashTail = async (sid?: string): Promise<void> => {
         .slice(-40)
         .map(({label, detail, atMs}) => ({
           label: scrubText(label).slice(0, 128),
-          detail: scrubText(detail).slice(0, 300),
+          detail: scrubText(detail).slice(
+            0,
+            label.startsWith('js.') ? JS_ERROR_DETAIL_MAX : 300,
+          ),
           atMs,
         }));
       if (!traces.length) {
         return;
       }
-      await setItem(KEY, JSON.stringify({traces, savedAtMs: Date.now(), sid}));
+      await setItem(
+        KEY,
+        JSON.stringify({
+          traces,
+          savedAtMs: Date.now(),
+          sid,
+          ctx: crashContext(),
+        }),
+      );
     } catch {
       /* telemetry must never affect playback */
     }

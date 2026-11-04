@@ -28,6 +28,7 @@ import {
   parseServerDate,
 } from './api';
 import {MessageKey, t} from '../../i18n';
+import {countUsage} from '../telemetry/playbackStats';
 
 export * from './api';
 
@@ -327,12 +328,14 @@ export class SyncPlayManager {
   async create(groupName: string): Promise<void> {
     await this.syncClock();
     await this.requireApi().create(groupName);
+    countUsage('syncplay.create');
   }
 
   async join(groupId: string): Promise<void> {
     await this.syncClock();
     // The server answers on the socket: GroupJoined, then the play queue.
     await this.requireApi().join(groupId);
+    countUsage('syncplay.join');
   }
 
   async leave(): Promise<void> {

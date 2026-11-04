@@ -293,6 +293,12 @@ jest.mock('../src/services/storage', () => ({
 
 // These tests are about navigation, so the first-run capability questions are
 // answered here. The wizard itself is covered in ServerCapabilities.spec.
+// Crash reports and stats are on by default; keep the test app from posting
+// to the real endpoint.
+jest.mock('../src/services/telemetry/crashReports', () => ({
+  ...jest.requireActual('../src/services/telemetry/crashReports'),
+  readCrashReportsEnabled: jest.fn(async () => false),
+}));
 jest.mock('../src/services/serverCapabilities', () => ({
   acknowledgeCapabilityNotice: jest.fn(async () => undefined),
   applyServerCapabilities: jest.fn(async () => ({
