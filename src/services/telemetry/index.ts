@@ -1,10 +1,17 @@
 import {initializeDeviceIdentity} from '../deviceIdentity';
 import {getCapturedLogs} from '../logging';
-import {setTraceSink} from '../logging/trace';
+import {setTraceSink, trace} from '../logging/trace';
 import {TELEMETRY_ENABLED, TELEMETRY_ENDPOINT, TELEMETRY_TOKEN} from './config';
 import {getTelemetrySession, makeEvent, TelemetryEvent} from './envelope';
 import {readManualGate, setManualGate} from './manualGate';
 import {TelemetryTransport} from './transport';
+import {
+  readCrashReportsEnabled,
+  sendCrashReport,
+  storeCrashReportsEnabled,
+} from './crashReports';
+import {installJsErrorCapture} from './jsErrors';
+import {backgroundStats, startStats, stopStats} from './playbackStats';
 import {
   acknowledgeCrashTail,
   markActive,
@@ -20,7 +27,18 @@ let transport: TelemetryTransport | undefined;
 let bootstrap: Promise<void> | undefined;
 let reason = 'not-initialized';
 let generation = 0;
+// Public crash reports: the tail is kept, and sent after an unclean exit, but
+// nothing streams. Never on together with operator telemetry.
+let crashReports = false;
 export const isTelemetryArmed = () => transport !== undefined;
+const capturing = () => crashReports || transport !== undefined;
+/** The player's heartbeat runs for crash context even when nothing streams. */
+export const isPlaybackSampling = capturing;
+// Every trace rewrites the stored tail (crashTail coalesces the writes), so a
+// native crash right after a seek still has the seek in it. The 30 s timer
+// alone would lose the last actions, which are the ones that matter.
+const persistNow = (): Promise<void> | undefined =>
+  capturing() ? persistCrashTail(getTelemetrySession()) : undefined;
 export const telemetryStatus = () => ({
   armed: isTelemetryArmed(),
   reason,
@@ -34,6 +52,7 @@ const immediate = new Set([
   'session.failed',
   'playback.stall',
   'report.error',
+  'js.fatal',
 ]);
 export const emit = (
   ev: string,
@@ -65,22 +84,50 @@ export const emitError = (
 export const flushTelemetry = (): Promise<void> =>
   transport?.flush() ?? Promise.resolve();
 
+const startCrashReports = async (mine: number): Promise<void> => {
+  if (!(await readCrashReportsEnabled()) || mine !== generation) {
+    return;
+  }
+  const prior = await prepareCrashTail();
+  if (mine !== generation) {
+    return;
+  }
+  crashReports = true;
+  setTraceSink(() => void persistNow());
+  startCrashTailPersistence(() => ({sid: getTelemetrySession()}));
+  void startStats({cleanExit: prior ? prior.cleanExit : null});
+  if (!prior) {
+    return;
+  }
+  // A clean exit is an ordinary close; only an unclean one is a crash.
+  const delivered = prior.cleanExit
+    ? Promise.resolve(true)
+    : sendCrashReport(prior);
+  void delivered.then((ok) => {
+    if (ok) {
+      void acknowledgeCrashTail(prior.savedAtMs);
+    }
+  });
+};
+
 export const bootstrapTelemetry = (): Promise<void> => {
   if (bootstrap) {
     return bootstrap;
   }
+  installJsErrorCapture(persistNow);
   const mine = generation;
   bootstrap = (async () => {
     if (!TELEMETRY_ENABLED) {
       reason = 'disabled';
       return;
     }
-    if (!TELEMETRY_ENDPOINT || !TELEMETRY_TOKEN) {
-      reason = 'not-configured';
-      return;
-    }
-    if (!(await readManualGate())) {
-      reason = 'manual-off';
+    const operator =
+      Boolean(TELEMETRY_ENDPOINT && TELEMETRY_TOKEN) &&
+      (await readManualGate());
+    if (!operator) {
+      reason =
+        TELEMETRY_ENDPOINT && TELEMETRY_TOKEN ? 'manual-off' : 'not-configured';
+      await startCrashReports(mine);
       return;
     }
     await initializeDeviceIdentity();
@@ -104,9 +151,10 @@ export const bootstrapTelemetry = (): Promise<void> => {
       },
     });
     reason = 'manual-gate';
-    setTraceSink((entry) =>
-      emit(entry.label, {detail: entry.detail}, immediate.has(entry.label)),
-    );
+    setTraceSink((entry) => {
+      emit(entry.label, {detail: entry.detail}, immediate.has(entry.label));
+      void persistNow();
+    });
     emit(
       'app.start',
       {
@@ -128,6 +176,8 @@ export const bootstrapTelemetry = (): Promise<void> => {
 
 export const stopTelemetry = (): void => {
   generation += 1;
+  crashReports = false;
+  stopStats();
   setTraceSink(null);
   stopCrashTailPersistence();
   transport?.stop();
@@ -147,7 +197,35 @@ export const configureManualTelemetry = async (
   }
   return enabled && isTelemetryArmed();
 };
+/** The Settings switch. Takes effect at once, either way. */
+export const configureCrashReports = async (
+  enabled: boolean,
+): Promise<void> => {
+  await storeCrashReportsEnabled(enabled);
+  if (transport) {
+    return;
+  }
+  stopTelemetry();
+  if (enabled) {
+    await bootstrapTelemetry();
+  }
+};
+export {readCrashReportsEnabled} from './crashReports';
+
 export const telemetryAppState = (active: boolean): void => {
+  trace('app.state', active ? 'foreground' : 'background');
+  if (crashReports) {
+    if (active) {
+      void markActive();
+      startCrashTailPersistence(() => ({sid: getTelemetrySession()}));
+    } else {
+      stopCrashTailPersistence();
+      void persistCrashTail(getTelemetrySession());
+      void markCleanExit();
+      backgroundStats();
+    }
+    return;
+  }
   if (!transport) {
     return;
   }
