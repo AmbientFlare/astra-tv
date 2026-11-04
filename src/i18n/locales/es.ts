@@ -446,6 +446,7 @@ export const es: Messages = {
   'library.rating': 'Calificación',
   'library.ascending': 'Ascendente',
   'library.descending': 'Descendente',
+  'library.folder': 'Carpeta',
   'library.all': 'Todo',
   'library.unwatchedOnly': 'Solo no vistos',
   'library.favoritesOnly': 'Solo favoritos',

@@ -62,3 +62,29 @@ export const computeBufferBudget = (
     bufferBehind: round(clamp((budgetBytes * 0.25) / bytesPerSecond, 8, 15)),
   };
 };
+
+/** Seconds a live stream holds back before it plays, and after any stall. */
+export const LIVE_REBUFFERING_GOAL = 15;
+
+/**
+ * A live stream can never get ahead of the broadcast. The server has only the
+ * last 15 to 20 seconds of a channel ready when it opens, then makes the rest
+ * as it airs, so playback that starts as soon as it can sits on the live edge
+ * and stalls at every hiccup upstream. Waiting for a cushion first keeps the
+ * playhead behind the edge, which is what a 20 second pause did on a stick.
+ * At the low bitrates of real channels the larger goals cost little memory.
+ */
+export const liveBufferBudget = (
+  budget: BufferBudget,
+  live: boolean,
+): BufferBudget =>
+  live
+    ? {
+        ...budget,
+        bufferingGoal: Math.max(budget.bufferingGoal, 30),
+        rebufferingGoal: Math.max(
+          budget.rebufferingGoal,
+          LIVE_REBUFFERING_GOAL,
+        ),
+      }
+    : budget;

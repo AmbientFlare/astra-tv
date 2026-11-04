@@ -17,6 +17,7 @@ import {
   setFavorite,
   setPlayed,
 } from '../../services/jellyfin';
+import {isLiveItem} from '../../services/jellyfin/liveTv';
 import {ServerProfile} from '../../services/storage';
 import {t} from '../../i18n';
 
@@ -465,18 +466,21 @@ export const ItemDetailScreen = ({
                   </Text>
                 </FocusableItem>
               ) : null}
-              <FocusableItem
-                disabled={isUpdatingUserData}
-                focusedStyle={styles.actionFocused}
-                onPress={updatePlayed}
-                style={styles.actionButton}
-                testID="detail-watched-button">
-                <Text style={styles.actionText}>
-                  {detail.isPlayed
-                    ? t('detail.unwatched')
-                    : t('detail.watched')}
-                </Text>
-              </FocusableItem>
+              {/* A live stream never finishes, so watched means nothing. */}
+              {isLiveItem(detail) ? null : (
+                <FocusableItem
+                  disabled={isUpdatingUserData}
+                  focusedStyle={styles.actionFocused}
+                  onPress={updatePlayed}
+                  style={styles.actionButton}
+                  testID="detail-watched-button">
+                  <Text style={styles.actionText}>
+                    {detail.isPlayed
+                      ? t('detail.unwatched')
+                      : t('detail.watched')}
+                  </Text>
+                </FocusableItem>
+              )}
               <FocusableItem
                 disabled={isUpdatingUserData}
                 focusedStyle={styles.actionFocused}

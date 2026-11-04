@@ -439,6 +439,7 @@ export const en = {
   'library.rating': 'Rating',
   'library.ascending': 'Ascending',
   'library.descending': 'Descending',
+  'library.folder': 'Folder',
   'library.all': 'All',
   'library.unwatchedOnly': 'Unwatched Only',
   'library.favoritesOnly': 'Favorites Only',

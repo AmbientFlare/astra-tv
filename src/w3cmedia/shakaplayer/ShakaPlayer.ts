@@ -28,6 +28,10 @@ import TextDecoderPolyfill from '../polyfills/TextDecoderPolyfill';
 import W3CMediaPolyfill from '../polyfills/W3CMediaPolyfill';
 import {BufferOperationTracker} from '../bufferOperationTracker';
 import {
+  describeUnprobedVariants,
+  UNPROBED_SOURCE_MAX_BANDWIDTH,
+} from '../hlsUnprobedVariant';
+import {
   byteOffsetOfLine,
   trimHlsMediaPlaylistForResume,
 } from '../hlsResumePlaylist';
@@ -56,6 +60,11 @@ export interface ShakaPlayerSettings {
   hlsSequenceMode?: boolean;
   hlsIgnoreManifestTimestampsInSegmentsMode?: boolean;
   hlsResumePositionSeconds?: number;
+  /**
+   * Attributes to add to master-playlist variants that name no codecs. Video
+   * only: see hlsUnprobedVariant for why Jellyfin leaves them off.
+   */
+  hlsUnprobedAttributes?: Readonly<Record<string, string>>;
   /**
    * Bitrate-aware buffer goals, in seconds. Supplied by the caller so the
    * media buffer targets a fixed byte budget instead of a fixed duration --
@@ -473,6 +482,41 @@ export class ShakaPlayer implements PlayerInterface {
     netEngine.clearAllResponseFilters();
     netEngine.registerRequestFilter(this.uplynkRequestFilter);
     netEngine.registerResponseFilter(this.uplynkResponseFilter);
+
+    const unprobedAttributes = this.setting_.hlsUnprobedAttributes;
+    if (unprobedAttributes) {
+      netEngine.registerResponseFilter((type, response) => {
+        if (
+          type !== shaka.net.NetworkingEngine.RequestType.MANIFEST ||
+          !response?.data
+        ) {
+          return;
+        }
+
+        try {
+          const playlist = describeUnprobedVariants(
+            new TextDecoder('utf-8').decode(response.data),
+            unprobedAttributes,
+            UNPROBED_SOURCE_MAX_BANDWIDTH,
+          );
+          if (!playlist) {
+            return;
+          }
+          // A master playlist is a few hundred ASCII bytes.
+          const bytes = new Uint8Array(playlist.length);
+          for (let index = 0; index < playlist.length; index += 1) {
+            bytes[index] = playlist.charCodeAt(index);
+          }
+          response.data = bytes.buffer;
+          trace('manifest.unprobed', 'described the variant');
+        } catch (error) {
+          console.warn(
+            '[Astra] Could not describe an unprobed variant:',
+            error,
+          );
+        }
+      });
+    }
 
     if (
       this.setting_.hlsResumePositionSeconds &&

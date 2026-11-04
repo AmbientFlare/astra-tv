@@ -54,7 +54,7 @@ export const isIncompleteSeasonList = (
  * jellyfin-web, whose grid requests carry little more than the aspect ratio.
  */
 export const browseItemFields =
-  'Overview,Genres,RecursiveItemCount,ChildCount,PrimaryImageAspectRatio';
+  'Overview,Genres,RecursiveItemCount,ChildCount,PrimaryImageAspectRatio,Tags';
 
 export const getLibraries = async (
   serverUrl: string,

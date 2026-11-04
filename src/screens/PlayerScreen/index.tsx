@@ -31,6 +31,8 @@ import {
 
 import {
   closeLiveStream,
+  isLiveItem,
+  isPluginLiveItem,
   LiveTvChannel,
   neighbourChannel,
 } from '../../services/jellyfin/liveTv';
@@ -57,6 +59,7 @@ import {
   notePlaybackStream,
 } from '../../services/telemetry/playbackStats';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
+import {UNPROBED_SOURCE_ATTRIBUTES} from '../../w3cmedia/hlsUnprobedVariant';
 import {
   calibrateTimelineOffset,
   logicalToMediaTime,
@@ -88,6 +91,7 @@ import {
   shouldForceVideoConversion,
   assessDecoderRisk,
   computeBufferBudget,
+  liveBufferBudget,
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
@@ -231,7 +235,8 @@ export const PlayerScreen = ({
 }: PlayerScreenProps) => {
   // A live channel has no length, so there is nothing to seek, resume, mark
   // watched or follow with a next episode.
-  const isLive = item.type === 'TvChannel';
+  const isLive = isLiveItem(item);
+  const isPluginLive = isPluginLiveItem(item);
   // The live stream this player has open, if any. Exactly one close goes out
   // per opening, from releaseMedia, whatever ended the session.
   const openLiveStreamId = useRef<string | null>(null);
@@ -1477,7 +1482,8 @@ export const PlayerScreen = ({
         shouldUseSequenceModeForMidFileStart(
           stream.outputContainer,
           startTimeSeconds,
-        );
+        ) ||
+        isPluginLive;
       trace(
         'shaka.mode',
         `${sequenceMode ? 'sequence' : 'segments'} container=${
@@ -1489,7 +1495,10 @@ export const PlayerScreen = ({
       // stream.bitrate is the server's figure for the delivered stream. It is
       // the closest thing available before the manifest is parsed; the goals
       // only need to be right to within a segment.
-      const bufferBudget = computeBufferBudget(stream.bitrate);
+      const bufferBudget = liveBufferBudget(
+        computeBufferBudget(stream.bitrate),
+        isLive,
+      );
       trace(
         'shaka.buffer',
         `ahead=${bufferBudget.bufferingGoal}s resume=${
@@ -1515,6 +1524,9 @@ export const PlayerScreen = ({
         // segments-mode path while evaluating W3C Media 2.2 in isolation.
         hlsSequenceMode: sequenceMode,
         hlsIgnoreManifestTimestampsInSegmentsMode: !sequenceMode,
+        // Only a source Jellyfin knows nothing about lacks codecs, and its
+        // fallback encode is always H.264 and AAC.
+        hlsUnprobedAttributes: UNPROBED_SOURCE_ATTRIBUTES,
         hlsResumePositionSeconds:
           startTimeSeconds && startTimeSeconds > 0
             ? startTimeSeconds
@@ -1577,7 +1589,7 @@ export const PlayerScreen = ({
         context?.signal.removeEventListener('abort', cancel);
       }
     },
-    [unloadAdaptivePlayer],
+    [isLive, isPluginLive, unloadAdaptivePlayer],
   );
 
   const attachPlaybackEvents = useCallback(
@@ -1966,6 +1978,7 @@ export const PlayerScreen = ({
             selectedSubtitleBurnIn.current,
             transcodeForDecoder,
           ),
+          live: isLive,
           maxStreamingBitrate: selectedBitrate.current ?? preferredMaxBitrate,
           // On a reload the server has already named its source; reusing that
           // id keeps a track change pointed at the same one.
@@ -2078,6 +2091,7 @@ export const PlayerScreen = ({
       accessToken,
       applyPosition,
       decoderTranscodeUnusable,
+      isLive,
       item.id,
       item.mediaStreams,
       item.name,

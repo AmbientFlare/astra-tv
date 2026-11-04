@@ -373,7 +373,27 @@ export const formatClockTime = (time: number) =>
     minute: '2-digit',
   });
 
+/**
+ * Whether an item plays as live: a Live TV channel, or a live stream from a
+ * channel plugin. Jellyfin marks the second kind only with its tag; to the
+ * rest of the API it is an ordinary video with no length.
+ */
+export const isLiveItem = (item: Pick<JellyfinMediaItem, 'tags' | 'type'>) =>
+  item.type === 'TvChannel' ||
+  Boolean(item.tags?.some((tag) => tag.toLowerCase() === 'livestream'));
+
 /** A channel as the player's item; its type is what puts the player in live mode. */
+/**
+ * A live stream from a channel plugin rather than a Live TV channel. Jellyfin
+ * never probes it, so its HLS keeps the source's timestamps (no
+ * -start_at_zero): segments mode buffers it minutes past the playhead, which
+ * Shaka will not seek to. It needs sequence mode, even though sequence mode
+ * was turned down for MPEG-TS films over slow A/V drift.
+ */
+export const isPluginLiveItem = (
+  item: Pick<JellyfinMediaItem, 'tags' | 'type'>,
+) => item.type !== 'TvChannel' && isLiveItem(item);
+
 export const liveChannelItem = (channel: LiveTvChannel): JellyfinMediaItem => ({
   id: channel.id,
   name: channel.name,

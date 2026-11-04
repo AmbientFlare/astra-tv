@@ -450,6 +450,7 @@ export const fr: Messages = {
   'library.rating': 'Note',
   'library.ascending': 'Croissant',
   'library.descending': 'Décroissant',
+  'library.folder': 'Dossier',
   'library.all': 'Tout',
   'library.unwatchedOnly': 'Non vus uniquement',
   'library.favoritesOnly': 'Favoris uniquement',

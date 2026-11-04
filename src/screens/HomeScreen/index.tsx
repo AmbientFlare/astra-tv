@@ -3,12 +3,17 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {FocusedBackdrop} from '../../components/FocusedBackdrop';
-import {formatUnplayedBadge, MediaCard} from '../../components/MediaCard';
+import {
+  channelItemLabel,
+  formatUnplayedBadge,
+  MediaCard,
+} from '../../components/MediaCard';
 import {LibraryNav, NavEntry} from '../../components/LibraryNav';
 import {LoadingOrError} from '../../components/LoadingOrError';
 import {selectExtraLibraryRows} from './libraryRows';
 import {useMusicAvailability} from '../../hooks/useMusicAvailability';
 import {getAlbums} from '../../services/jellyfin/music';
+import {getLiveTvChannels} from '../../services/jellyfin/liveTv';
 import {
   getLibraries,
   getLatestItems,
@@ -207,6 +212,15 @@ export const HomeScreen = ({
             return musicSession
               ? (await getAlbums(musicSession, {limit: 24})).items
               : null;
+          case 'livetv':
+            // Jellyfin has no artwork for the Live TV view, so the tile
+            // shows channel logos instead.
+            return (
+              await getLiveTvChannels(
+                {accessToken, serverUrl, userId},
+                {limit: 24},
+              )
+            ).items;
           default:
             // Everything else keeps the library's own image.
             return null;
@@ -483,7 +497,9 @@ const HomeMediaRow = ({
               onPress={() => onSelectItem?.(item)}
               subtitle={
                 item.seriesName ??
-                (item.productionYear ? String(item.productionYear) : item.type)
+                (item.productionYear
+                  ? String(item.productionYear)
+                  : channelItemLabel(item) ?? item.type)
               }
               title={item.name}
             />
