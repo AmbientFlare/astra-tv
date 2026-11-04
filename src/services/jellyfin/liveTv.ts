@@ -13,6 +13,7 @@
 import {buildUrl, getAuthHeaders, getJson, tokenQuery} from './http';
 import type {Page} from './music';
 import {getLocaleTag} from '../../i18n';
+import {mapItem} from './shared';
 import type {JellyfinMediaItem} from './types';
 
 export interface LiveTvSession {
@@ -498,6 +499,251 @@ export const cancelSeriesRecording = (
   session: LiveTvSession,
   seriesTimerId: string,
 ) => send(session, 'DELETE', `/LiveTv/SeriesTimers/${seriesTimerId}`);
+
+/** A finished recording, or one still being made. */
+export interface LiveTvRecording {
+  id: string;
+  name: string;
+  episodeTitle?: string;
+  overview?: string;
+  channelName?: string;
+  /** When the airing started and ends, if the server says. */
+  startTime?: number;
+  endTime?: number;
+  inProgress: boolean;
+  /** The timer making it, while it is in progress. */
+  timerId?: string;
+  imageUrl?: string;
+  /** The recording as a playable item. */
+  item: JellyfinMediaItem;
+}
+
+/** A single airing set to record. */
+export interface ScheduledRecording {
+  id: string;
+  name: string;
+  episodeTitle?: string;
+  channelName?: string;
+  startTime: number;
+  endTime: number;
+  imageUrl?: string;
+  /** Set when a series recording scheduled it. */
+  seriesTimerId?: string;
+}
+
+/** A series set to record. */
+export interface SeriesRecording {
+  id: string;
+  name: string;
+  channelName?: string;
+  recordAnyChannel: boolean;
+  recordNewOnly: boolean;
+  imageUrl?: string;
+}
+
+interface RawRecording extends RawProgram {
+  SeriesName?: string;
+  Status?: string;
+  DateCreated?: string;
+  Type?: string;
+  MediaType?: string;
+  RunTimeTicks?: number;
+  UserData?: {PlaybackPositionTicks?: number; Played?: boolean};
+  ParentThumbItemId?: string;
+  ParentThumbImageTag?: string;
+  ParentPrimaryImageItemId?: string;
+  ParentPrimaryImageTag?: string;
+}
+
+interface RawTimer {
+  Id?: string;
+  Name?: string;
+  Status?: string;
+  ChannelName?: string;
+  StartDate?: string;
+  EndDate?: string;
+  SeriesTimerId?: string;
+  ProgramInfo?: RawProgram;
+}
+
+interface RawSeriesTimer {
+  Id?: string;
+  Name?: string;
+  ChannelName?: string;
+  RecordAnyChannel?: boolean;
+  RecordNewOnly?: boolean;
+  ParentPrimaryImageItemId?: string;
+  ParentPrimaryImageTag?: string;
+}
+
+const parseTime = (value?: string) => {
+  const time = value ? Date.parse(value) : NaN;
+  return Number.isNaN(time) ? undefined : time;
+};
+
+const CARD_IMAGE = {fillWidth: 400};
+
+const recordingImage = (session: LiveTvSession, raw: RawRecording) => {
+  if (raw.Id && raw.ImageTags?.Primary) {
+    return imageUrl(
+      session,
+      raw.Id,
+      'Primary',
+      raw.ImageTags.Primary,
+      CARD_IMAGE,
+    );
+  }
+  if (raw.ParentThumbItemId && raw.ParentThumbImageTag) {
+    return imageUrl(
+      session,
+      raw.ParentThumbItemId,
+      'Thumb',
+      raw.ParentThumbImageTag,
+      CARD_IMAGE,
+    );
+  }
+  if (raw.ParentPrimaryImageItemId && raw.ParentPrimaryImageTag) {
+    return imageUrl(
+      session,
+      raw.ParentPrimaryImageItemId,
+      'Primary',
+      raw.ParentPrimaryImageTag,
+      CARD_IMAGE,
+    );
+  }
+  return undefined;
+};
+
+/**
+ * The server's recordings, newest first. It ignores its own in-progress
+ * filter, so recordings still being made are told apart by their status.
+ */
+export const getRecordings = async (
+  session: LiveTvSession,
+): Promise<LiveTvRecording[]> => {
+  const raw = await request<RawPage<RawRecording>>(
+    session,
+    '/LiveTv/Recordings',
+    {
+      EnableImageTypes: 'Primary,Thumb',
+      EnableTotalRecordCount: false,
+      Fields: 'DateCreated,Overview',
+      UserId: session.userId,
+    },
+  );
+
+  // Once finished, a recording becomes a library episode: the show moves to
+  // SeriesName and its name becomes the episode title.
+  return (raw.Items ?? [])
+    .flatMap((item): LiveTvRecording[] =>
+      item.Id
+        ? [
+            {
+              id: item.Id,
+              name: item.SeriesName || item.Name || '',
+              episodeTitle:
+                item.EpisodeTitle ||
+                (item.SeriesName && item.Name !== item.SeriesName
+                  ? item.Name
+                  : undefined),
+              overview: item.Overview || undefined,
+              channelName: item.ChannelName || undefined,
+              startTime:
+                parseTime(item.StartDate) ?? parseTime(item.DateCreated),
+              endTime: parseTime(item.EndDate),
+              inProgress: item.Status === 'InProgress',
+              timerId: item.TimerId || undefined,
+              imageUrl: recordingImage(session, item),
+              item: mapItem(session.serverUrl, session.accessToken, item),
+            },
+          ]
+        : [],
+    )
+    .sort((a, b) => (b.startTime ?? 0) - (a.startTime ?? 0));
+};
+
+/** Airings still to come that are set to record, soonest first. */
+export const getScheduledRecordings = async (
+  session: LiveTvSession,
+): Promise<ScheduledRecording[]> => {
+  const raw = await request<RawPage<RawTimer>>(session, '/LiveTv/Timers');
+
+  return (raw.Items ?? [])
+    .flatMap((timer): ScheduledRecording[] => {
+      const startTime = parseTime(timer.StartDate);
+      const endTime = parseTime(timer.EndDate);
+      const program = timer.ProgramInfo;
+
+      if (
+        !timer.Id ||
+        timer.Status !== 'New' ||
+        startTime === undefined ||
+        endTime === undefined
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          id: timer.Id,
+          name: timer.Name ?? program?.Name ?? '',
+          episodeTitle: program?.EpisodeTitle || undefined,
+          channelName: timer.ChannelName || undefined,
+          startTime,
+          endTime,
+          imageUrl:
+            program?.Id && program.ImageTags?.Primary
+              ? imageUrl(
+                  session,
+                  program.Id,
+                  'Primary',
+                  program.ImageTags.Primary,
+                  CARD_IMAGE,
+                )
+              : undefined,
+          seriesTimerId: timer.SeriesTimerId || undefined,
+        },
+      ];
+    })
+    .sort((a, b) => a.startTime - b.startTime);
+};
+
+export const getSeriesRecordings = async (
+  session: LiveTvSession,
+): Promise<SeriesRecording[]> => {
+  const raw = await request<RawPage<RawSeriesTimer>>(
+    session,
+    '/LiveTv/SeriesTimers',
+  );
+
+  return (raw.Items ?? []).flatMap((timer): SeriesRecording[] =>
+    timer.Id
+      ? [
+          {
+            id: timer.Id,
+            name: timer.Name ?? '',
+            channelName: timer.ChannelName || undefined,
+            recordAnyChannel: Boolean(timer.RecordAnyChannel),
+            recordNewOnly: Boolean(timer.RecordNewOnly),
+            imageUrl:
+              timer.ParentPrimaryImageItemId && timer.ParentPrimaryImageTag
+                ? imageUrl(
+                    session,
+                    timer.ParentPrimaryImageItemId,
+                    'Primary',
+                    timer.ParentPrimaryImageTag,
+                    CARD_IMAGE,
+                  )
+                : undefined,
+          },
+        ]
+      : [],
+  );
+};
+
+/** Deletes a finished recording and its file from the server. */
+export const deleteRecording = (session: LiveTvSession, recordingId: string) =>
+  send(session, 'DELETE', `/Items/${recordingId}`);
 
 export const closeLiveStream = async (
   session: Pick<LiveTvSession, 'accessToken' | 'serverUrl'>,

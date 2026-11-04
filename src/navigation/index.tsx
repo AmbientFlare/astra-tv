@@ -801,6 +801,7 @@ export const RootNavigator = () => {
     return withExitPrompt(
       <LiveTvScreen
         onBack={pop}
+        onPlayRecording={playItem}
         onSelectChannel={(channel, channels) =>
           push({
             route: 'player',

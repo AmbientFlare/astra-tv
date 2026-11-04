@@ -8,6 +8,7 @@ import {
   cancelSeriesRecording,
   canManageRecordings,
   closeLiveStream,
+  deleteRecording,
   getAvailableLiveTvFilters,
   getChannelSchedule,
   getGuidePrograms,
@@ -19,6 +20,9 @@ import {
   getLiveTvChannels,
   getNextPrograms,
   getOnNowPrograms,
+  getRecordings,
+  getScheduledRecordings,
+  getSeriesRecordings,
   LiveTvSession,
   mapProgram,
   programProgress,
@@ -536,5 +540,120 @@ describe('recordings', () => {
         TimerId: 't-1',
       }),
     ).toMatchObject({isSeries: true, seriesTimerId: 's-1', timerId: 't-1'});
+  });
+
+  it('splits recordings still being made from finished ones, newest first', async () => {
+    const calls = mockFetch(() => ({
+      Items: [
+        {
+          Id: 'r-old',
+          Name: 'Pilot',
+          SeriesName: 'Cheers',
+          DateCreated: '2026-10-30T02:00:00Z',
+          Type: 'Episode',
+          ImageTags: {Primary: 'img'},
+        },
+        {
+          Id: 'r-now',
+          Name: 'Sabrina',
+          StartDate: '2026-11-01T01:30:00Z',
+          EndDate: '2026-11-01T02:00:00Z',
+          Status: 'InProgress',
+          TimerId: 't-9',
+          Type: 'Recording',
+          ParentThumbItemId: 'series-1',
+          ParentThumbImageTag: 'thumb',
+        },
+        {Name: 'No id'},
+      ],
+    }));
+
+    const recordings = await getRecordings(session);
+
+    expect(calls[0].pathname).toBe('/LiveTv/Recordings');
+    expect(calls[0].searchParams.get('UserId')).toBe('user-1');
+    expect(calls[0].searchParams.get('Fields')).toContain('DateCreated');
+    expect(recordings.map((entry) => entry.id)).toEqual(['r-now', 'r-old']);
+    expect(recordings[0]).toMatchObject({inProgress: true, timerId: 't-9'});
+    expect(recordings[0].imageUrl).toContain('/Items/series-1/Images/Thumb');
+    expect(recordings[1]).toMatchObject({
+      episodeTitle: 'Pilot',
+      inProgress: false,
+      name: 'Cheers',
+      startTime: Date.parse('2026-10-30T02:00:00Z'),
+    });
+    expect(recordings[1].imageUrl).toContain('/Items/r-old/Images/Primary');
+    expect(recordings[1].item).toMatchObject({id: 'r-old'});
+  });
+
+  it('lists only airings still to come as scheduled, soonest first', async () => {
+    mockFetch(() => ({
+      Items: [
+        {
+          Id: 't-2',
+          Name: 'Later',
+          Status: 'New',
+          StartDate: '2026-11-02T01:00:00Z',
+          EndDate: '2026-11-02T01:30:00Z',
+          SeriesTimerId: 's-1',
+        },
+        {
+          Id: 't-1',
+          Name: 'Sooner',
+          Status: 'New',
+          StartDate: '2026-11-01T01:00:00Z',
+          EndDate: '2026-11-01T01:30:00Z',
+          ProgramInfo: {Id: 'p-1', ImageTags: {Primary: 'img'}},
+        },
+        {
+          Id: 't-0',
+          Name: 'Recording now',
+          Status: 'InProgress',
+          StartDate: '2026-10-31T01:00:00Z',
+          EndDate: '2026-10-31T01:30:00Z',
+        },
+      ],
+    }));
+
+    const scheduled = await getScheduledRecordings(session);
+
+    expect(scheduled.map((entry) => entry.id)).toEqual(['t-1', 't-2']);
+    expect(scheduled[0].imageUrl).toContain('/Items/p-1/Images/Primary');
+    expect(scheduled[1].seriesTimerId).toBe('s-1');
+  });
+
+  it('lists series recordings with their rules', async () => {
+    mockFetch(() => ({
+      Items: [
+        {
+          Id: 's-1',
+          Name: 'Cheers',
+          RecordAnyChannel: true,
+          RecordNewOnly: false,
+          ParentPrimaryImageItemId: 'series-1',
+          ParentPrimaryImageTag: 'img',
+        },
+      ],
+    }));
+
+    const [series] = await getSeriesRecordings(session);
+
+    expect(series).toMatchObject({
+      id: 's-1',
+      name: 'Cheers',
+      recordAnyChannel: true,
+      recordNewOnly: false,
+    });
+    expect(series.imageUrl).toContain('/Items/series-1/Images/Primary');
+  });
+
+  it('deletes a recording as an item', async () => {
+    const calls = mockRequests();
+
+    await deleteRecording(session, 'r-1');
+
+    expect(`${calls[0].method} ${calls[0].url.pathname}`).toBe(
+      'DELETE /Items/r-1',
+    );
   });
 });
