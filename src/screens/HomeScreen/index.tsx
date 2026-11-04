@@ -28,6 +28,7 @@ import {
 import {t} from '../../i18n';
 
 interface HomeScreenProps {
+  onOpenLiveTv?: () => void;
   onOpenMusic?: () => void;
   onOpenPlaylists?: () => void;
   onProfiles?: () => void;
@@ -39,6 +40,7 @@ interface HomeScreenProps {
 }
 
 export const HomeScreen = ({
+  onOpenLiveTv,
   onOpenMusic,
   onOpenPlaylists,
   onProfiles,
@@ -88,9 +90,15 @@ export const HomeScreen = ({
         return;
       }
 
+      // Live TV is not a folder of items; browsing it like one shows nothing.
+      if (entry.kind === 'livetv') {
+        onOpenLiveTv?.();
+        return;
+      }
+
       onSelectLibrary?.(entry.library);
     },
-    [onOpenMusic, onOpenPlaylists, onSelectLibrary],
+    [onOpenLiveTv, onOpenMusic, onOpenPlaylists, onSelectLibrary],
   );
   const backdropTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,

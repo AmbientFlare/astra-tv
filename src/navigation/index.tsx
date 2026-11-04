@@ -29,6 +29,7 @@ import {PlayerScreen} from '../screens/PlayerScreen';
 import {PersonDetailScreen} from '../screens/PersonDetailScreen';
 import {SearchScreen} from '../screens/SearchScreen';
 import {MusicScreen, MusicTab} from '../screens/MusicScreen';
+import {LiveTvScreen} from '../screens/LiveTvScreen';
 import {ArtistDetailScreen} from '../screens/ArtistDetailScreen';
 import {AlbumDetailScreen} from '../screens/AlbumDetailScreen';
 import {
@@ -90,6 +91,7 @@ type RouteEntry =
       /** Set when a SyncPlay group opened it; a new one remounts the player. */
       syncPlayNonce?: number;
     }
+  | {route: 'liveTv'}
   | {route: 'music'; tab?: MusicTab}
   | {route: 'musicArtist'; artistId: string}
   | {route: 'musicAlbum'; albumId: string}
@@ -721,6 +723,7 @@ export const RootNavigator = () => {
     return withExitPrompt(
       <>
         <HomeScreen
+          onOpenLiveTv={() => push({route: 'liveTv'})}
           onOpenMusic={() => push({route: 'music', tab: 'artists'})}
           onOpenPlaylists={() => push({route: 'music', tab: 'playlists'})}
           onProfiles={() => setProfileSwitcherVisible(true)}
@@ -781,6 +784,12 @@ export const RootNavigator = () => {
         }
         serverProfile={serverProfile}
       />,
+    );
+  }
+
+  if (current.route === 'liveTv' && serverProfile) {
+    return withExitPrompt(
+      <LiveTvScreen onBack={pop} serverProfile={serverProfile} />,
     );
   }
 
@@ -961,6 +970,7 @@ export const RootNavigator = () => {
   return withExitPrompt(
     <>
       <HomeScreen
+        onOpenLiveTv={() => push({route: 'liveTv'})}
         onOpenMusic={() => push({route: 'music', tab: 'artists'})}
         onOpenPlaylists={() => push({route: 'music', tab: 'playlists'})}
         onProfiles={() => setProfileSwitcherVisible(true)}
