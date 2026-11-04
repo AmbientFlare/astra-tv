@@ -42,6 +42,13 @@ import {
   emitPlaybackDecision,
   emitSessionEnd,
 } from '../../services/telemetry/playbackFacts';
+import {
+  beginPlayback,
+  endPlayback,
+  notePlaybackReady,
+  notePlaybackSession,
+  notePlaybackStream,
+} from '../../services/telemetry/playbackStats';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
 import {
   calibrateTimelineOffset,
@@ -159,6 +166,15 @@ import {usePlaybackDiagnostics} from './usePlaybackDiagnostics';
 import {usePlaybackPreferences} from './usePlaybackPreferences';
 import {useServerTranscodeCapability} from './useServerTranscodeCapability';
 
+// After a background release, how long Shaka may take to clean up before a
+// new player is allowed to attach.
+const BACKGROUND_UNLOAD_WAIT_MS = 3000;
+// How long the background switch blocks on the native player teardown. The
+// OS holds the background transition while JS is blocked and only checks for a
+// held decoder after it, so blocking is what keeps the app alive. A paused
+// player takes ~0.4 s to let go on one stick and ~0.9 s on another.
+const BACKGROUND_DEINIT_WAIT_MS = 1500;
+
 // The overlays and pure helpers live beside this file; the names below are
 // the module's public surface and stay importable from here.
 export {
@@ -273,6 +289,22 @@ export const PlayerScreen = ({
     exit: () => syncPlayHandlers.current?.exit(),
   });
   const telemetrySessionStartedMs = useRef<number | null>(null);
+  // This visit's playback summary (playbackStats.ts), across every reload.
+  const statsPlayback = useRef<object | undefined>(undefined);
+  if (statsPlayback.current === undefined) {
+    statsPlayback.current = beginPlayback({
+      live: item.type === 'TvChannel',
+      serverUrl,
+    });
+  }
+  useEffect(() => {
+    const handle = statsPlayback.current;
+    // stopPlayback ends it once the last session's totals are in; this only
+    // covers an unmount that never stopped.
+    return () => {
+      setTimeout(() => endPlayback(handle), 5000);
+    };
+  }, []);
   const episodePreferences = useRef<
     Pick<
       UserPreferences,
@@ -566,110 +598,178 @@ export const PlayerScreen = ({
     });
   }, [currentPositionTicks]);
 
-  const releaseMedia = useCallback((): Promise<void> => {
-    if (releasePromise.current) {
-      return releasePromise.current;
-    }
-    // Telemetry closes out before the media refs go away, in the same spirit
-    // as reportStopped() above: snapshot, never own the media lifetime.
-    heartbeatRef.current?.stop();
-    if (isTelemetryArmed() && telemetrySessionStartedMs.current !== null) {
-      const sample = lastTelemetrySample.current;
-      const startedMs = telemetrySessionStartedMs.current;
-      emitSessionEnd({
-        reason: sessionFailed.current ? 'error' : 'ended',
-        failed: sessionFailed.current,
-        positionSec: currentPositionTicks() / TICKS_PER_SECOND,
-        durationSec:
-          (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
-          TICKS_PER_SECOND,
-        watchedSec: (Date.now() - startedMs) / 1000,
-        bufferingTimeSec: sample?.bufferingTimeSeconds,
-        droppedFrames: sample?.droppedFrames,
-        decodedFrames: sample?.decodedFrames,
-        errorsSeen: playbackEventDiagnostics.current.errorEventCount,
-        stalledEvents: playbackEventDiagnostics.current.stalledEventCount,
-        waitingEvents: playbackEventDiagnostics.current.waitingEventCount,
-        lastError: playbackEventDiagnostics.current.lastError,
-      });
-      void flushTelemetry();
-    }
-    telemetrySessionStartedMs.current = null;
-    lastTelemetrySample.current = null;
-    setTelemetrySession(undefined);
-    reportStopped();
-    sessionReady.current = false;
-    seekInPlaceAbort.current?.abort();
-    seekInPlaceAbort.current = null;
-    activeContext.current = null;
-    healthMonitor.current.reset();
-    const video = videoRef.current;
-    const shaka = shakaPlayerRef.current;
-    const handle = surfaceHandle.current;
-    playbackGeneration.current += 1;
-    detachPlaybackEvents.current?.();
-    detachPlaybackEvents.current = null;
-    videoRef.current = null;
-    shakaPlayerRef.current = null;
-    streamInfo.current = null;
-    countdownRef.current?.cancel();
-    countdownRef.current = null;
-    clearControlsHideTimer();
-    if (initialSeekTimer.current) {
-      clearTimeout(initialSeekTimer.current);
-      initialSeekTimer.current = null;
-    }
-    // The surface goes first, before anything that waits: unloading can take
-    // seconds while appends finish, and a surface the system destroys in that
-    // time must not still be attached when the player is finally torn down.
-    try {
-      if (handle) {
-        video?.clearSurfaceHandle(handle);
+  /**
+   * `immediate` is for the background switch. Vega OS suspends JS once the app
+   * is in the background and ends an app that still holds a decoder (Amazon
+   * reports it as ReclaimMediaResource), so the decoder is released before
+   * anything is awaited, in Amazon's documented order: the video player
+   * first, Shaka after.
+   */
+  const releaseMedia = useCallback(
+    (immediate = false): Promise<void> => {
+      if (releasePromise.current) {
+        return releasePromise.current;
       }
-    } catch {
-      /* Already detached by the native surface. */
-    }
-    try {
-      video?.pause();
-    } catch {
-      /* Already detached by the native surface. */
-    }
-    const cleanup = (async () => {
+      // Telemetry closes out before the media refs go away, in the same spirit
+      // as reportStopped() above: snapshot, never own the media lifetime.
+      heartbeatRef.current?.stop();
+      if (telemetrySessionStartedMs.current !== null) {
+        const sample = lastTelemetrySample.current;
+        const diagnostics = playbackEventDiagnostics.current;
+        notePlaybackSession({
+          failed: sessionFailed.current,
+          watchedSec: (Date.now() - telemetrySessionStartedMs.current) / 1000,
+          bufferingSec: sample?.bufferingTimeSeconds,
+          dropped: sample?.droppedFrames,
+          decoded: sample?.decodedFrames,
+          errors: diagnostics.errorEventCount,
+          stalls: diagnostics.stalledEventCount,
+          waiting: diagnostics.waitingEventCount,
+          lastError: diagnostics.lastError,
+        });
+      } else if (sessionFailed.current) {
+        notePlaybackSession({
+          failed: true,
+          lastError: playbackEventDiagnostics.current.lastError,
+        });
+      }
+      if (isTelemetryArmed() && telemetrySessionStartedMs.current !== null) {
+        const sample = lastTelemetrySample.current;
+        const startedMs = telemetrySessionStartedMs.current;
+        emitSessionEnd({
+          reason: sessionFailed.current ? 'error' : 'ended',
+          failed: sessionFailed.current,
+          positionSec: currentPositionTicks() / TICKS_PER_SECOND,
+          durationSec:
+            (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+            TICKS_PER_SECOND,
+          watchedSec: (Date.now() - startedMs) / 1000,
+          bufferingTimeSec: sample?.bufferingTimeSeconds,
+          droppedFrames: sample?.droppedFrames,
+          decodedFrames: sample?.decodedFrames,
+          errorsSeen: playbackEventDiagnostics.current.errorEventCount,
+          stalledEvents: playbackEventDiagnostics.current.stalledEventCount,
+          waitingEvents: playbackEventDiagnostics.current.waitingEventCount,
+          lastError: playbackEventDiagnostics.current.lastError,
+        });
+        void flushTelemetry();
+      }
+      telemetrySessionStartedMs.current = null;
+      lastTelemetrySample.current = null;
+      setTelemetrySession(undefined);
+      reportStopped();
+      sessionReady.current = false;
+      seekInPlaceAbort.current?.abort();
+      seekInPlaceAbort.current = null;
+      activeContext.current = null;
+      healthMonitor.current.reset();
+      const video = videoRef.current;
+      const shaka = shakaPlayerRef.current;
+      const handle = surfaceHandle.current;
+      playbackGeneration.current += 1;
+      detachPlaybackEvents.current?.();
+      detachPlaybackEvents.current = null;
+      videoRef.current = null;
+      shakaPlayerRef.current = null;
+      streamInfo.current = null;
+      countdownRef.current?.cancel();
+      countdownRef.current = null;
+      clearControlsHideTimer();
+      if (initialSeekTimer.current) {
+        clearTimeout(initialSeekTimer.current);
+        initialSeekTimer.current = null;
+      }
+      // The surface goes first, before anything that waits: unloading can take
+      // seconds while appends finish, and a surface the system destroys in that
+      // time must not still be attached when the player is finally torn down.
       try {
-        await shaka?.unload();
-      } finally {
-        await video?.deinitialize();
-      }
-    })();
-    releasePromise.current = cleanup;
-    // Keep a rejected cleanup barrier: a failed native release must not allow
-    // a new player to attach to resources whose lifetime is still unresolved.
-    void cleanup.then(
-      () => {
-        if (releasePromise.current === cleanup) {
-          releasePromise.current = null;
+        if (handle) {
+          video?.clearSurfaceHandle(handle);
         }
-      },
-      () => undefined,
-    );
-    return cleanup;
-  }, [
-    clearControlsHideTimer,
-    currentPositionTicks,
-    heartbeatRef,
-    item,
-    lastTelemetrySample,
-    reportStopped,
-  ]);
+      } catch {
+        /* Already detached by the native surface. */
+      }
+      try {
+        video?.pause();
+      } catch {
+        /* Already detached by the native surface. */
+      }
+      let deinitialized: Promise<void> | undefined;
+      if (immediate) {
+        try {
+          if (video && typeof video.deinitializeSync === 'function') {
+            const status = video.deinitializeSync(BACKGROUND_DEINIT_WAIT_MS);
+            trace('session.background', `decoder release ${status}`);
+            deinitialized = Promise.resolve();
+          } else {
+            deinitialized = Promise.resolve(video?.deinitialize());
+          }
+        } catch (error) {
+          deinitialized = Promise.reject(error);
+        }
+      }
+      const cleanup = deinitialized
+        ? (async () => {
+            try {
+              await deinitialized;
+            } finally {
+              // Bounded: appends cut off by the release may never report back,
+              // and a later player must not wait on them forever.
+              await Promise.race([
+                shaka?.unload().catch(() => undefined),
+                new Promise((resolve) =>
+                  setTimeout(resolve, BACKGROUND_UNLOAD_WAIT_MS),
+                ),
+              ]);
+            }
+          })()
+        : (async () => {
+            try {
+              await shaka?.unload();
+            } finally {
+              await video?.deinitialize();
+            }
+          })();
+      releasePromise.current = cleanup;
+      // Keep a rejected cleanup barrier: a failed native release must not allow
+      // a new player to attach to resources whose lifetime is still unresolved.
+      void cleanup.then(
+        () => {
+          if (releasePromise.current === cleanup) {
+            releasePromise.current = null;
+          }
+        },
+        () => undefined,
+      );
+      return cleanup;
+    },
+    [
+      clearControlsHideTimer,
+      currentPositionTicks,
+      heartbeatRef,
+      item,
+      lastTelemetrySample,
+      reportStopped,
+    ],
+  );
 
   const stopPlayback = useCallback(() => {
+    trace(
+      'session.stop',
+      `position=${(currentPositionTicks() / TICKS_PER_SECOND).toFixed(1)}`,
+    );
     latestPositionTicks.current = currentPositionTicks();
     seekController.current?.cancel();
     sessionController.current.invalidate();
     sessionReady.current = false;
     countdownRef.current?.cancel();
     void shakaPlayerRef.current?.cancelLoad().catch(() => undefined);
-    return sessionController.current.dispose(releaseMedia);
+    const handle = statsPlayback.current;
+    const disposed = sessionController.current.dispose(releaseMedia);
+    void Promise.resolve(disposed)
+      .catch(() => undefined)
+      .then(() => endPlayback(handle));
+    return disposed;
   }, [currentPositionTicks, releaseMedia]);
   stopPlaybackRef.current = stopPlayback;
 
@@ -787,6 +887,10 @@ export const PlayerScreen = ({
         if (operation.signal.aborted || videoRef.current !== video) {
           return;
         }
+        trace(
+          'seek.inPlace',
+          `from=${fromSeconds.toFixed(1)} to=${target.toFixed(1)}`,
+        );
         await seekMedia(video, clampedMediaTarget, operation.signal);
         if (operation.signal.aborted || videoRef.current !== video) {
           return;
@@ -1791,6 +1895,10 @@ export const PlayerScreen = ({
       // log and FFmpeg.Transcode-*.log. Set it before the decision event so
       // every event on this session carries it.
       setTelemetrySession(stream.playSessionId);
+      notePlaybackStream(
+        stream,
+        selectedBitrate.current ?? preferredMaxBitrate,
+      );
       if (isTelemetryArmed()) {
         emitPlaybackDecision({
           itemId: item.id,
@@ -2004,6 +2112,7 @@ export const PlayerScreen = ({
             return;
           }
           telemetrySessionStartedMs.current = Date.now();
+          notePlaybackReady();
           forcedTranscodeReadyAtMs.current = Date.now();
           heartbeatRef.current?.start();
           if (!playbackCounted.current) {
@@ -2406,6 +2515,12 @@ export const PlayerScreen = ({
       (nextState) => {
         if (nextState === 'background') {
           syncPlay.playerBackgrounded(syncPlayPlayer.current);
+          trace('session.background', 'releasing decoder');
+          // Before anything else: nothing after the first await is
+          // guaranteed to run once the app is in the background.
+          void releaseMedia(true).catch(() =>
+            trace('session.background', 'decoder release failed'),
+          );
           // The stop report goes out now, not after the native release: that
           // waits behind any running load, and the system may end Astra first.
           reportStopped();
@@ -2427,6 +2542,7 @@ export const PlayerScreen = ({
   }, [
     currentPositionTicks,
     keplerAppStateManager,
+    releaseMedia,
     returnToLibrary,
     reportProgress,
     reportStopped,

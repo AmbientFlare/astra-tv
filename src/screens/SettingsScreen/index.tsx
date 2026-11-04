@@ -68,6 +68,10 @@ import {ConnectionTestPage} from './ConnectionTestPage';
 import {LiveConnectionPage} from './LiveConnectionPage';
 import {SyncPlayPage} from './SyncPlayPage';
 import {TelemetryPage} from './TelemetryPage';
+import {
+  configureCrashReports,
+  readCrashReportsEnabled,
+} from '../../services/telemetry';
 
 interface SettingsScreenProps {
   onAddServer?: () => void;
@@ -87,6 +91,7 @@ export const SettingsScreen = ({
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
   );
+  const [crashReports, setCrashReports] = useState(true);
   const [playbackPrefs, setPlaybackPrefs] =
     useState<PlaybackPreferences>(defaultPlaybackPrefs);
   const [displayPreferencesState, setDisplayPreferenceState] =
@@ -148,6 +153,7 @@ export const SettingsScreen = ({
     getUserPreferences().then(setPreferences);
     readPlaybackPreferences().then(setPlaybackPrefs);
     getDisplayPreferences().then(setDisplayPreferenceState);
+    readCrashReportsEnabled().then(setCrashReports);
   }, [refreshProfiles]);
 
   // Kept per server: the NAS and the GPU box give different answers, and the
@@ -944,6 +950,16 @@ export const SettingsScreen = ({
                   ?.name
               }
               onPress={() => push({route: 'language'})}
+            />
+            <ToggleRow
+              title={t('settings.crashReports')}
+              subtitle={t('settings.crashReportsHint')}
+              value={crashReports}
+              onToggle={() => {
+                const next = !crashReports;
+                setCrashReports(next);
+                void configureCrashReports(next).catch(() => undefined);
+              }}
             />
             <MenuRow
               icon="ⓘ"

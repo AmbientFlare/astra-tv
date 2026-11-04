@@ -49,6 +49,7 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
       setSurfaceHandle: jest.fn(),
       clearSurfaceHandle: jest.fn(),
       deinitialize: jest.fn(async () => undefined),
+      deinitializeSync: jest.fn(() => 'success'),
       addEventListener: (event: string, fn: () => void) => {
         const set = listeners.get(event) ?? new Set();
         set.add(fn);
@@ -824,8 +825,32 @@ describe('PlayerScreen native session integration', () => {
         .props.onSurfaceViewDestroyed('surface');
       await flush();
     });
-    expect(mockVideos[0].deinitialize).toHaveBeenCalledTimes(1);
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
     expect(onBack).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it('releases the decoder on background before anything is awaited', async () => {
+    const view = mount();
+    await start(view);
+    const order: string[] = [];
+    mockVideos[0].deinitializeSync.mockImplementation(() => {
+      order.push('deinitializeSync');
+      return 'success';
+    });
+    mockShakas[0].unload.mockImplementation(async () => {
+      order.push('unload');
+    });
+    act(() => {
+      mockAppState('background');
+    });
+    // No flush: JS may never run again after the background switch.
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await flush();
+    });
+    expect(order).toEqual(['deinitializeSync', 'unload']);
+    expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
     view.unmount();
   });
 
@@ -847,7 +872,9 @@ describe('PlayerScreen native session integration', () => {
       await flush();
     });
     expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
-    expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
+    // Vega OS ends a backgrounded app that still holds a decoder, so the
+    // release does not wait for the load.
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
     await act(async () => {
       load.resolve();
       await Promise.resolve(started).catch(() => undefined);

@@ -330,6 +330,9 @@ export const de: Messages = {
   'settings.customizationHint': 'Startseite, Anzeige',
   'settings.playbackHint': 'Video, Untertitel, nächste Folge',
   'settings.language': 'Sprache',
+  'settings.crashReports': 'Absturzberichte und Nutzungsstatistiken senden',
+  'settings.crashReportsHint':
+    'Hilft, Abstürze und Wiedergabeprobleme zu beheben: was Astra gerade tat, wie Videos liefen und welche Funktionen genutzt werden. Niemals Titel, Serveradressen oder Kontodaten.',
   'settings.aboutHint': 'Version, Geräteinfo, Lizenzen',
   'settings.darkBackground': 'Dunkler Hintergrund',
   'settings.subtitleDefault': 'Standard (pro Video)',
