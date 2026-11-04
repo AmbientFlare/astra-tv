@@ -142,14 +142,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 14,
   },
+  // Two title lines and the subtitle fill the caption; set line heights so
+  // they fit inside it rather than running into the card's bottom edge.
   title: {
     color: '#FFFFFF',
-    fontSize: 23,
+    fontSize: 22,
     fontWeight: '700',
+    lineHeight: 26,
   },
   subtitle: {
     color: '#B8C5CC',
-    fontSize: 19,
-    marginTop: 4,
+    fontSize: 18,
+    lineHeight: 22,
+    marginTop: 2,
   },
 });
