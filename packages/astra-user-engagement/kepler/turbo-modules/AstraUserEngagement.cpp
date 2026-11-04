@@ -3,6 +3,7 @@
 #include <apmf/iface/com/amazon/kepler/user_engagement/IKeplerUserEngagementModuleV2.h>
 #include <apmf/process.h>
 #include <apmf/string_view.h>
+#include <malloc.h>
 
 using apmf::iface::com::amazon::kepler::user_engagement::
     IKeplerUserEngagementModuleV2;
@@ -26,6 +27,10 @@ void AstraUserEngagement::aggregateMethods(
         "stopVideoEngagement",
         0,
         &AstraUserEngagement::stopVideoEngagement);
+    methodAggregator.addMethod(
+        "releaseFreedMemory",
+        0,
+        &AstraUserEngagement::releaseFreedMemory);
 }
 
 bool AstraUserEngagement::startVideoEngagement() {
@@ -70,5 +75,13 @@ bool AstraUserEngagement::stopVideoEngagement() {
         videoEngagementStarted = false;
         return false;
     }
+}
+
+// glibc keeps memory the app has freed in its per-thread arenas instead of
+// handing it back, and the stick's memory manager still counts it. After
+// playback that is ~120 MB, enough to make Astra the first app killed
+// behind the screensaver. This returns the free pages to the system.
+bool AstraUserEngagement::releaseFreedMemory() {
+    return malloc_trim(0) != 0;
 }
 }

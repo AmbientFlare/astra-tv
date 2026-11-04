@@ -31,6 +31,7 @@ import {
 
 import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
+import {collectGarbage} from '../../services/memoryTrim';
 import {resetTraces, trace} from '../../services/logging/trace';
 import {
   emitError,
@@ -2524,11 +2525,16 @@ export const PlayerScreen = ({
           // The stop report goes out now, not after the native release: that
           // waits behind any running load, and the system may end Astra first.
           reportStopped();
-          // Release VOD resources and return to details with the saved item context.
+          // Leave for the details page now, not once the release settles: JS
+          // is paused a few seconds into the background, and a player screen
+          // still mounted then keeps ~100 MB that the low-memory killer counts
+          // against Astra behind the screensaver. A later player waits on this
+          // release through the shared native queue.
           void stopPlaybackRef
             .current()
-            .then(returnToLibrary)
-            .catch(() => trace('session.background', 'native release failed'));
+            .catch(() => trace('session.background', 'native release failed'))
+            .then(collectGarbage);
+          returnToLibrary();
         } else if (nextState === 'inactive') {
           seekController.current?.cancelPreview();
           videoRef.current?.pause();

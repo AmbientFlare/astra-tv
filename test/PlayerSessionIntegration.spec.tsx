@@ -3,6 +3,7 @@ import {StyleSheet} from 'react-native';
 import {getTrickplayInfo} from '../src/services/jellyfin/trickplay';
 import {render, act, fireEvent} from '@testing-library/react-native';
 import {
+  releaseFreedMemory,
   startVideoEngagement,
   stopVideoEngagement,
 } from '@astra/user-engagement';
@@ -93,6 +94,7 @@ jest.mock('../src/components/VideoPauseIdleVisual', () => ({
   VideoPauseIdleVisual: () => null,
 }));
 jest.mock('@astra/user-engagement', () => ({
+  releaseFreedMemory: jest.fn(),
   startVideoEngagement: jest.fn(),
   stopVideoEngagement: jest.fn(),
 }));
@@ -851,6 +853,34 @@ describe('PlayerScreen native session integration', () => {
     });
     expect(order).toEqual(['deinitializeSync', 'unload']);
     expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('leaves the player on background without waiting for the release', async () => {
+    const onBack = jest.fn();
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+        onBack={onBack}
+      />,
+    );
+    await start(view);
+    // An unload still running must not keep the player screen mounted.
+    const unload = deferred<void>();
+    mockShakas[0].unload.mockImplementation(() => unload.promise);
+    act(() => {
+      mockAppState('background');
+    });
+    expect(onBack).toHaveBeenCalledTimes(1);
+    (releaseFreedMemory as jest.Mock).mockClear();
+    await act(async () => {
+      unload.resolve();
+      await flush();
+    });
+    // Once released, what the player freed goes back to the system.
+    expect(releaseFreedMemory).toHaveBeenCalled();
     view.unmount();
   });
 
