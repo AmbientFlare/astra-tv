@@ -7,6 +7,7 @@ interface MediaCardProps {
   title: string;
   subtitle?: string;
   hasTVPreferredFocus?: boolean;
+  focusRef?: React.Ref<any>;
   imageScale?: number;
   onFocus?: () => void;
   onPress?: () => void;
@@ -17,6 +18,7 @@ export const formatUnplayedBadge = (count?: number) =>
   count && count > 0 ? (count > 99 ? '99+' : String(count)) : undefined;
 
 export const MediaCard = ({
+  focusRef,
   hasTVPreferredFocus,
   badgeText,
   imageUrl,
@@ -28,6 +30,7 @@ export const MediaCard = ({
 }: MediaCardProps) => (
   <FocusableItem
     accessibilityLabel={title}
+    focusRef={focusRef}
     focusedStyle={styles.focused}
     hasTVPreferredFocus={hasTVPreferredFocus}
     onFocus={onFocus}
