@@ -346,6 +346,12 @@ export const PlayerScreen = ({
   const [subtitleAppearance, setSubtitleAppearance] = useState<
     UserPreferences['subtitleAppearance']
   >(defaultUserPreferences.subtitleAppearance);
+  const [subtitleSize, setSubtitleSize] = useState(
+    defaultUserPreferences.subtitleSize,
+  );
+  const [subtitleColor, setSubtitleColor] = useState(
+    defaultUserPreferences.subtitleColor,
+  );
   // Playback reached its natural end and the player is sitting on the finished
   // frame. Distinct from `isPaused`: a paused movie is still the viewer's, a
   // finished one is not. Drives the user-engagement release below.
@@ -450,6 +456,8 @@ export const PlayerScreen = ({
     onPreferences: (preferences) => {
       episodePreferences.current = preferences;
       setSubtitleAppearance(preferences.subtitleAppearance);
+      setSubtitleSize(preferences.subtitleSize);
+      setSubtitleColor(preferences.subtitleColor);
     },
   });
   const externalSubtitleCues = useExternalSubtitleCues(
@@ -2803,6 +2811,8 @@ export const PlayerScreen = ({
         positionStore={positionStore}
         controlsVisible={controlsVisible}
         appearance={subtitleAppearance}
+        size={subtitleSize}
+        color={subtitleColor}
       />
       {currentStream?.mediaSourceId ? (
         <SeekThumbnail

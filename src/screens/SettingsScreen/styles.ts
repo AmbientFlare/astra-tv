@@ -73,6 +73,16 @@ export const styles = StyleSheet.create({
   statusLine: {
     marginTop: 0,
   },
+  subtitlePreview: {
+    alignItems: 'center',
+    backgroundColor: '#46565E',
+    borderRadius: 8,
+    justifyContent: 'center',
+    marginBottom: 22,
+    minHeight: 120,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
   infoText: {
     color: '#9FB0BA',
     fontSize: 19,

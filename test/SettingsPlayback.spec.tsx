@@ -1,4 +1,5 @@
 import React from 'react';
+import {StyleSheet} from 'react-native';
 import {fireEvent, render, waitFor} from '@testing-library/react-native';
 
 import {
@@ -192,7 +193,9 @@ describe('playback diagnostics entry points', () => {
     const screen = render(<SettingsScreen serverProfile={serverProfile} />);
     fireEvent.press(screen.getByTestId('settings-Playback'));
     await waitFor(() =>
-      expect(screen.getByText('Text with shadow')).toBeTruthy(),
+      expect(
+        screen.getByText('Medium · White · Text with shadow'),
+      ).toBeTruthy(),
     );
     fireEvent.press(screen.getByTestId('settings-Subtitle appearance'));
     expect(screen.getByText('Text with shadow')).toBeTruthy();
@@ -202,6 +205,35 @@ describe('playback diagnostics entry points', () => {
         subtitleAppearance: 'background',
       }),
     );
+  });
+
+  it('saves subtitle size and color and previews them on the page', async () => {
+    mockUpdateUserPreferences.mockClear();
+    const screen = render(<SettingsScreen serverProfile={serverProfile} />);
+    fireEvent.press(screen.getByTestId('settings-Playback'));
+    await waitFor(() =>
+      expect(screen.getByTestId('settings-Subtitle appearance')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('settings-Subtitle appearance'));
+
+    const preview = () =>
+      StyleSheet.flatten(
+        screen.getByText('This is how your subtitles will look.').props.style,
+      );
+    expect(preview().fontSize).toBe(30);
+    expect(preview().color).toBe('#FFFFFF');
+
+    // The storage mock answers with only the patch, so check one at a time.
+    fireEvent.press(screen.getByText('Extra large'));
+    await waitFor(() => expect(preview().fontSize).toBe(48));
+    expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+      subtitleSize: 'extraLarge',
+    });
+    fireEvent.press(screen.getByText('Yellow'));
+    await waitFor(() => expect(preview().color).toBe('#FFE600'));
+    expect(mockUpdateUserPreferences).toHaveBeenCalledWith({
+      subtitleColor: 'yellow',
+    });
   });
 
   it('shows the release version and build number on the About page', async () => {

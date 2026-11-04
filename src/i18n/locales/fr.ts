@@ -305,7 +305,7 @@ export const fr: Messages = {
   'settings.subtitleAppearanceHint':
     'Choisissez l’apparence des sous-titres sur la vidéo.',
   'settings.subtitleAppearanceNote':
-    'S’applique aux sous-titres texte affichés par Astra. Les sous-titres incrustés dans la vidéo gardent leur apparence d’origine.',
+    'S’applique aux sous-titres texte, comme SRT et VTT, qu’Astra affiche à l’écran. Les sous-titres image et les sous-titres ASS/SSA stylisés sont incrustés dans la vidéo par le serveur et gardent leur propre apparence.',
   'settings.hlsSegmentLengthHint':
     'Laissez sur Auto sauf si la lecture MP4 ou MOV saccade. Des segments plus courts augmentent les requêtes réseau et le travail du lecteur.',
   'settings.hevcFmp4': 'HEVC en fMP4 (expérimental)',
@@ -337,6 +337,19 @@ export const fr: Messages = {
     "Aide à corriger les plantages et problèmes de lecture : ce que faisait Astra, comment les vidéos ont été lues, quelles fonctions sont utilisées. Jamais de titres, d'adresses de serveur ni de détails de compte.",
   'settings.aboutHint': 'Version, infos appareil, licences',
   'settings.darkBackground': 'Fond sombre',
+  'settings.subtitleSize': 'Taille du texte',
+  'settings.subtitleColor': 'Couleur du texte',
+  'settings.subtitleStyle': 'Style',
+  'settings.subtitleSizeSmall': 'Petite',
+  'settings.subtitleSizeMedium': 'Moyenne',
+  'settings.subtitleSizeLarge': 'Grande',
+  'settings.subtitleSizeExtraLarge': 'Très grande',
+  'settings.subtitleColorWhite': 'Blanc',
+  'settings.subtitleColorGray': 'Gris clair',
+  'settings.subtitleColorYellow': 'Jaune',
+  'settings.subtitleColorGreen': 'Vert',
+  'settings.subtitleColorCyan': 'Cyan',
+  'settings.subtitlePreview': 'Voici l’aspect de vos sous-titres.',
   'settings.subtitleDefault': 'Par défaut (par vidéo)',
   'settings.subtitlesAllOn': 'Tous les sous-titres activés',
   'settings.subtitlesAllOff': 'Tous les sous-titres désactivés',
