@@ -58,6 +58,12 @@ export const getStreamUrl = async (
     forceTranscode?: boolean;
     maxStreamingBitrate?: number;
     mediaSourceId?: string;
+    /**
+     * Called as soon as the server opens a live stream for this request,
+     * before anything else can fail. The caller owns closing it: an open live
+     * stream can hold a tuner until it is closed.
+     */
+    onLiveStreamOpened?: (liveStreamId: string) => void;
     sourceHeight?: number;
     sourceWidth?: number;
     /**
@@ -123,6 +129,8 @@ export const getStreamUrl = async (
       Container?: string;
       ETag?: string;
       Bitrate?: number;
+      IsInfiniteStream?: boolean;
+      LiveStreamId?: string;
       Width?: number;
       Height?: number;
       TranscodingUrl?: string;
@@ -160,6 +168,10 @@ export const getStreamUrl = async (
   // Some restricted accounts receive the raw source as a TranscodingUrl.
   // Keep the normal policy unless that answer cannot be demuxed by Vega.
   let enableDirectStream = false;
+  // Every PlaybackInfo with AutoOpenLiveStream opens a live channel again,
+  // and on real hardware each opening takes a tuner. Once the first answer
+  // names its live stream, the requests that follow reuse it.
+  let liveStreamId: string | undefined;
   const isDegradedSource = (result: PlaybackInfoResponse) => {
     const source = result.MediaSources?.[0];
     const url = source?.TranscodingUrl;
@@ -181,7 +193,7 @@ export const getStreamUrl = async (
       return false;
     }
   };
-  const requestPlaybackInfo = (
+  const requestPlaybackInfo = async (
     audioStreamIndex?: number,
     mediaSourceId?: string,
     subtitleStreamIndex: number | undefined = requestedSubtitleStreamIndex,
@@ -189,8 +201,8 @@ export const getStreamUrl = async (
       | boolean
       | undefined = options.alwaysBurnInSubtitleWhenTranscoding,
     allowVideoStreamCopy: boolean = !options.forceTranscode,
-  ) =>
-    getJson<PlaybackInfoResponse>(playbackInfoUrl, {
+  ) => {
+    const result = await getJson<PlaybackInfoResponse>(playbackInfoUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -224,9 +236,19 @@ export const getStreamUrl = async (
         AllowVideoStreamCopy: allowVideoStreamCopy,
         AllowAudioStreamCopy: options.allowAudioStreamCopy ?? true,
         AutoOpenLiveStream: true,
+        LiveStreamId: liveStreamId,
       }),
       signal: options.signal,
     });
+    const opened = result.MediaSources?.find(
+      (source) => source.LiveStreamId,
+    )?.LiveStreamId;
+    if (opened && !liveStreamId) {
+      liveStreamId = opened;
+      options.onLiveStreamOpened?.(opened);
+    }
+    return result;
+  };
 
   const postPlaybackInfo = async (
     ...args: Parameters<typeof requestPlaybackInfo>
@@ -544,6 +566,8 @@ export const getStreamUrl = async (
 
   return {
     itemId,
+    isLive: Boolean(mediaSource?.IsInfiniteStream),
+    liveStreamId: mediaSource?.LiveStreamId ?? liveStreamId,
     audioStreamIndex: selectedAudioStreamIndex ?? undefined,
     audioTracks: streams
       .filter((track) => track.Type === 'Audio')

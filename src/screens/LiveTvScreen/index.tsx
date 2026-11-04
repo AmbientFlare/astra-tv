@@ -18,6 +18,7 @@ import {
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {
+  formatClockTime,
   getAvailableLiveTvFilters,
   getLiveTvChannels,
   getNextPrograms,
@@ -28,11 +29,12 @@ import {
   programProgress,
 } from '../../services/jellyfin/liveTv';
 import {ServerProfile} from '../../services/storage';
-import {getLocaleTag, MessageKey, t, tn} from '../../i18n';
+import {MessageKey, t, tn} from '../../i18n';
 
 interface Props {
   onBack: () => void;
-  onSelectChannel?: (channel: LiveTvChannel) => void;
+  /** The channel, and the list it was picked from for channel up/down. */
+  onSelectChannel?: (channel: LiveTvChannel, channels: LiveTvChannel[]) => void;
   serverProfile: ServerProfile;
 }
 
@@ -50,11 +52,8 @@ const FILTER_LABELS: Record<LiveTvFilter, MessageKey> = {
 // way to the next one, rarely enough to cost nothing.
 const CLOCK_TICK_MS = 30_000;
 
-export const formatClockTime = (time: number) =>
-  new Date(time).toLocaleTimeString(getLocaleTag(), {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+// The live player's banner uses it too, so it lives with the service.
+export {formatClockTime};
 
 /**
  * What to show as on now. The channel list is fetched once, so a programme
@@ -275,7 +274,15 @@ export const LiveTvScreen = ({
           <ChannelRow
             channel={{...item, next: item.next ?? nextPrograms[item.id]}}
             now={now}
-            onPress={() => onSelectChannel?.(item)}
+            onPress={() =>
+              onSelectChannel?.(
+                {...item, next: item.next ?? nextPrograms[item.id]},
+                channels.map((channel) => ({
+                  ...channel,
+                  next: channel.next ?? nextPrograms[channel.id],
+                })),
+              )
+            }
           />
         )}
         windowSize={7}

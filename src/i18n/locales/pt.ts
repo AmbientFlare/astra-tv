@@ -484,6 +484,8 @@ export const pt: Messages = {
   'liveTv.noneInFilter': 'Nenhum canal nesta categoria.',
   'liveTv.noGuide': 'Sem informações do guia',
   'liveTv.nextAt': 'Às {time}',
+  'liveTv.live': 'AO VIVO',
+  'liveTv.changeChannelHint': '▲▼ Mudar de canal',
   'liveTv.channelCount.one': '{count} canal',
   'liveTv.channelCount.other': '{count} canais',
   'music.artists': 'Artistas',

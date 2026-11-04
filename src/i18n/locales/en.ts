@@ -479,6 +479,8 @@ export const en = {
   'liveTv.noneInFilter': 'No channels in this category.',
   'liveTv.noGuide': 'No guide information',
   'liveTv.nextAt': 'Next at {time}',
+  'liveTv.live': 'LIVE',
+  'liveTv.changeChannelHint': '▲▼ Change channel',
   'liveTv.channelCount.one': '{count} channel',
   'liveTv.channelCount.other': '{count} channels',
   'music.artists': 'Artists',

@@ -12,6 +12,8 @@
  */
 import {buildUrl, getAuthHeaders, getJson, tokenQuery} from './http';
 import type {Page} from './music';
+import {getLocaleTag} from '../../i18n';
+import type {JellyfinMediaItem} from './types';
 
 export interface LiveTvSession {
   accessToken: string;
@@ -65,6 +67,8 @@ export const LIVE_TV_PAGE_SIZE = 60;
 
 /** How far ahead to look for each channel's next programme. */
 const NEXT_PROGRAM_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+const CLOSE_TIMEOUT_MS = 10_000;
 
 interface RawProgram {
   Id?: string;
@@ -254,3 +258,80 @@ export const programProgress = (program: LiveTvProgram, now = Date.now()) => {
 
   return Math.min(1, Math.max(0, (now - program.startTime) / length));
 };
+
+/**
+ * What is on a channel now and next, fresh from the guide. The player's info
+ * banner uses this instead of the channel list, which may be an hour old.
+ */
+export const getChannelSchedule = async (
+  session: LiveTvSession,
+  channelId: string,
+  now = Date.now(),
+): Promise<{current?: LiveTvProgram; next?: LiveTvProgram}> => {
+  const raw = await request<RawPage<RawProgram>>(session, '/LiveTv/Programs', {
+    ChannelIds: channelId,
+    EnableImages: false,
+    EnableTotalRecordCount: false,
+    EnableUserData: false,
+    Limit: 2,
+    MaxStartDate: new Date(now + NEXT_PROGRAM_WINDOW_MS).toISOString(),
+    MinEndDate: new Date(now).toISOString(),
+    SortBy: 'StartDate',
+    UserId: session.userId,
+  });
+  const [first, second] = (raw.Items ?? [])
+    .map(mapProgram)
+    .filter((program): program is LiveTvProgram => Boolean(program));
+
+  // A gap in the guide means the first programme has not started yet.
+  return first && first.startTime > now
+    ? {next: first}
+    : {current: first, next: second};
+};
+
+/**
+ * Lets the server release a live stream, and with it the tuner. Each opening
+ * counts once on the server, so this goes out exactly once per opening.
+ */
+export const closeLiveStream = async (
+  session: Pick<LiveTvSession, 'accessToken' | 'serverUrl'>,
+  liveStreamId: string,
+) => {
+  await getJson(
+    buildUrl(session.serverUrl, '/LiveStreams/Close', {liveStreamId}),
+    {method: 'POST', headers: getAuthHeaders(session.accessToken)},
+    // A channel change waits on this, so an unreachable server must not
+    // hold it for the usual 45 seconds.
+    CLOSE_TIMEOUT_MS,
+  );
+};
+
+/** The channel before or after this one, wrapping round at either end. */
+export const neighbourChannel = (
+  channels: LiveTvChannel[],
+  channelId: string,
+  direction: 1 | -1,
+): LiveTvChannel | undefined => {
+  const index = channels.findIndex((channel) => channel.id === channelId);
+
+  if (index < 0 || channels.length < 2) {
+    return undefined;
+  }
+
+  return channels[(index + direction + channels.length) % channels.length];
+};
+
+/** A programme time as the viewer's locale writes a clock time. */
+export const formatClockTime = (time: number) =>
+  new Date(time).toLocaleTimeString(getLocaleTag(), {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+/** A channel as the player's item; its type is what puts the player in live mode. */
+export const liveChannelItem = (channel: LiveTvChannel): JellyfinMediaItem => ({
+  id: channel.id,
+  name: channel.name,
+  type: 'TvChannel',
+  imageUrl: channel.imageUrl,
+});

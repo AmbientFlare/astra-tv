@@ -200,6 +200,60 @@ describe('the audio re-request', () => {
   });
 });
 
+describe('a live channel', () => {
+  const liveSource = () =>
+    playableSource({
+      Container: 'ts',
+      IsInfiniteStream: true,
+      LiveStreamId: 'live-1',
+    });
+
+  it('opens the stream once and reuses it on the re-request', async () => {
+    // Each PlaybackInfo without the id opens the channel again, which on a
+    // real tuner takes another tuner.
+    const requests = mockPlaybackInfo([liveSource(), liveSource()]);
+    const onLiveStreamOpened = jest.fn();
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      onLiveStreamOpened,
+    });
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0].body.LiveStreamId).toBeUndefined();
+    expect(requests[1].body.LiveStreamId).toBe('live-1');
+    expect(onLiveStreamOpened).toHaveBeenCalledTimes(1);
+    expect(onLiveStreamOpened).toHaveBeenCalledWith('live-1');
+    expect(stream.isLive).toBe(true);
+    expect(stream.liveStreamId).toBe('live-1');
+  });
+
+  it('reports the opening before a later request can fail', async () => {
+    // The caller must be able to close a stream even when the rest of the
+    // request sequence throws.
+    const requests = mockPlaybackInfo([liveSource(), unresolved()]);
+    const onLiveStreamOpened = jest.fn();
+
+    await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {onLiveStreamOpened});
+
+    expect(requests).toHaveLength(2);
+    expect(onLiveStreamOpened).toHaveBeenCalledWith('live-1');
+  });
+
+  it('leaves ordinary items alone', async () => {
+    mockPlaybackInfo([playableSource()]);
+    const onLiveStreamOpened = jest.fn();
+
+    const stream = await getStreamUrl(SERVER, TOKEN, ITEM, USER, 0, {
+      audioStreamIndex: 1,
+      onLiveStreamOpened,
+    });
+
+    expect(onLiveStreamOpened).not.toHaveBeenCalled();
+    expect(stream.isLive).toBe(false);
+    expect(stream.liveStreamId).toBeUndefined();
+  });
+});
+
 describe('an item the server has not resolved yet', () => {
   it('retries once and succeeds when the second answer is playable', async () => {
     const requests = mockPlaybackInfo([unresolved(), playableSource()]);
