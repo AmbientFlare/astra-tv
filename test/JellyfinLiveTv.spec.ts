@@ -7,6 +7,7 @@ import {
   closeLiveStream,
   getAvailableLiveTvFilters,
   getChannelSchedule,
+  getGuidePrograms,
   liveChannelItem,
   LiveTvChannel,
   neighbourChannel,
@@ -280,5 +281,65 @@ describe('liveChannelItem', () => {
     expect(
       liveChannelItem({id: 'ch-1', name: 'News', isFavorite: false}),
     ).toEqual(expect.objectContaining({id: 'ch-1', type: 'TvChannel'}));
+  });
+});
+
+describe('getGuidePrograms', () => {
+  it('asks for the time range with overviews and groups by channel', async () => {
+    const start = Date.parse('2026-10-31T18:00:00Z');
+    const end = start + 6 * 60 * 60 * 1000;
+    const calls = mockFetch(() => ({
+      Items: [
+        {
+          Id: 'p-2',
+          ChannelId: 'ch-1',
+          Name: 'Cheers',
+          Overview: 'Sam reopens the bar.',
+          StartDate: '2026-10-31T18:30:00Z',
+          EndDate: '2026-10-31T19:00:00Z',
+        },
+        {
+          Id: 'p-1',
+          ChannelId: 'ch-1',
+          Name: 'Family Ties',
+          StartDate: '2026-10-31T18:00:00Z',
+          EndDate: '2026-10-31T18:30:00Z',
+        },
+        {
+          Id: 'p-3',
+          ChannelId: 'ch-2',
+          Name: 'News',
+          StartDate: '2026-10-31T18:00:00Z',
+          EndDate: '2026-10-31T19:00:00Z',
+        },
+      ],
+    }));
+
+    const programs = await getGuidePrograms(
+      session,
+      ['ch-1', 'ch-2'],
+      start,
+      end,
+    );
+
+    const params = calls[0].searchParams;
+    expect(calls[0].pathname).toBe('/LiveTv/Programs');
+    expect(params.get('ChannelIds')).toBe('ch-1,ch-2');
+    expect(params.get('MinEndDate')).toBe(new Date(start).toISOString());
+    expect(params.get('MaxStartDate')).toBe(new Date(end).toISOString());
+    expect(params.get('Fields')).toBe('Overview');
+    expect(programs['ch-1'].map((program) => program.id)).toEqual([
+      'p-2',
+      'p-1',
+    ]);
+    expect(programs['ch-1'][0].overview).toBe('Sam reopens the bar.');
+    expect(programs['ch-2']).toHaveLength(1);
+  });
+
+  it('does not ask the server about no channels', async () => {
+    const calls = mockFetch(() => ({}));
+
+    expect(await getGuidePrograms(session, [], 0, 1)).toEqual({});
+    expect(calls).toHaveLength(0);
   });
 });

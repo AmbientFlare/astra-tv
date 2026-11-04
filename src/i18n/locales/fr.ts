@@ -492,6 +492,8 @@ export const fr: Messages = {
   'liveTv.nextAt': 'À {time}',
   'liveTv.live': 'DIRECT',
   'liveTv.changeChannelHint': '▲▼ Changer de chaîne',
+  'liveTv.view.channels': 'Chaînes',
+  'liveTv.view.guide': 'Guide',
   'liveTv.channelCount.one': '{count} chaîne',
   'liveTv.channelCount.other': '{count} chaînes',
   'music.artists': 'Artistes',

@@ -25,6 +25,7 @@ export interface LiveTvProgram {
   id: string;
   name: string;
   episodeTitle?: string;
+  overview?: string;
   /** Milliseconds since the epoch. */
   startTime: number;
   endTime: number;
@@ -75,6 +76,7 @@ interface RawProgram {
   ChannelId?: string;
   Name?: string;
   EpisodeTitle?: string;
+  Overview?: string;
   StartDate?: string;
   EndDate?: string;
 }
@@ -130,6 +132,7 @@ export const mapProgram = (raw?: RawProgram): LiveTvProgram | undefined => {
     id: raw.Id,
     name: raw.Name ?? '',
     episodeTitle: raw.EpisodeTitle || undefined,
+    overview: raw.Overview || undefined,
     startTime,
     endTime,
   };
@@ -246,6 +249,48 @@ export const getAvailableLiveTvFilters = async (
   );
 
   return LIVE_TV_FILTERS.filter((_, index) => counts[index] > 0);
+};
+
+/**
+ * Every programme on these channels that overlaps the time range, keyed by
+ * channel id and in start order. The guide grid asks for a block of channels
+ * and hours at a time.
+ */
+export const getGuidePrograms = async (
+  session: LiveTvSession,
+  channelIds: string[],
+  start: number,
+  end: number,
+): Promise<Record<string, LiveTvProgram[]>> => {
+  const ids = channelIds.filter(Boolean);
+
+  if (!ids.length) {
+    return {};
+  }
+
+  const raw = await request<RawPage<RawProgram>>(session, '/LiveTv/Programs', {
+    ChannelIds: ids.join(','),
+    EnableImages: false,
+    EnableTotalRecordCount: false,
+    EnableUserData: false,
+    Fields: 'Overview',
+    MaxStartDate: new Date(end).toISOString(),
+    MinEndDate: new Date(start).toISOString(),
+    SortBy: 'StartDate',
+    UserId: session.userId,
+  });
+
+  const programs: Record<string, LiveTvProgram[]> = {};
+
+  (raw.Items ?? []).forEach((item) => {
+    const program = mapProgram(item);
+
+    if (item.ChannelId && program) {
+      (programs[item.ChannelId] ??= []).push(program);
+    }
+  });
+
+  return programs;
 };
 
 /** 0 to 1: how far through its slot a programme is. */

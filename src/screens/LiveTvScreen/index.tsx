@@ -1,6 +1,6 @@
 /**
- * Live TV channel list: every channel the server's tuners provide, with what
- * is on now and what comes next.
+ * Live TV: every channel the server's tuners provide, either as a list with
+ * what is on now and next, or as a guide grid.
  *
  * Jellyfin exposes Live TV as a "livetv" view in the library list, but it is
  * not a folder of items; browsing it like one shows nothing playable. This
@@ -30,6 +30,7 @@ import {
 } from '../../services/jellyfin/liveTv';
 import {ServerProfile} from '../../services/storage';
 import {MessageKey, t, tn} from '../../i18n';
+import {LiveTvGuide} from './LiveTvGuide';
 
 interface Props {
   onBack: () => void;
@@ -55,6 +56,13 @@ const CLOCK_TICK_MS = 30_000;
 // The live player's banner uses it too, so it lives with the service.
 export {formatClockTime};
 
+type LiveTvView = 'channels' | 'guide';
+
+// Playing a channel leaves this screen, so coming back mounts it fresh. These
+// bring the viewer back to the view and channel they left from.
+let rememberedView: LiveTvView = 'channels';
+let rememberedChannelId: string | undefined;
+
 /**
  * What to show as on now. The channel list is fetched once, so a programme
  * that has since ended gives way to the next one rather than sitting there
@@ -79,6 +87,10 @@ export const LiveTvScreen = ({
   serverProfile,
 }: Props) => {
   const [filter, setFilter] = useState<LiveTvFilter>('all');
+  const [view, setView] = useState<LiveTvView>(rememberedView);
+  // The guide takes focus when it is opened or returned to, but not when a
+  // filter changes under it; focus stays on the filter then, as in the list.
+  const guideTakesFocus = useRef(view === 'guide');
   const [filters, setFilters] = useState<LiveTvFilter[]>(['all']);
   const [channels, setChannels] = useState<LiveTvChannel[]>([]);
   const [nextPrograms, setNextPrograms] = useState<
@@ -229,6 +241,33 @@ export const LiveTvScreen = ({
     totalCount,
   ]);
 
+  const withNext = useCallback(
+    (channel: LiveTvChannel) => ({
+      ...channel,
+      next: channel.next ?? nextPrograms[channel.id],
+    }),
+    [nextPrograms],
+  );
+
+  const channelsWithNext = useMemo(
+    () => channels.map(withNext),
+    [channels, withNext],
+  );
+
+  const selectChannel = useCallback(
+    (channel: LiveTvChannel) => {
+      rememberedChannelId = channel.id;
+      onSelectChannel?.(withNext(channel), channelsWithNext);
+    },
+    [channelsWithNext, onSelectChannel, withNext],
+  );
+
+  const changeView = (next: LiveTvView) => {
+    rememberedView = next;
+    guideTakesFocus.current = next === 'guide';
+    setView(next);
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -244,12 +283,27 @@ export const LiveTvScreen = ({
           {filters.map((entry) => (
             <FocusableItem
               focusedStyle={styles.tabFocused}
-              hasTVPreferredFocus={entry === 'all'}
+              hasTVPreferredFocus={view === 'channels' && entry === 'all'}
               key={entry}
-              onPress={() => setFilter(entry)}
+              onPress={() => {
+                guideTakesFocus.current = false;
+                setFilter(entry);
+              }}
               style={[styles.tab, filter === entry && styles.tabActive]}
               testID={`livetv-filter-${entry}`}>
               <Text style={styles.tabText}>{t(FILTER_LABELS[entry])}</Text>
+            </FocusableItem>
+          ))}
+        </TVFocusGuideView>
+        <TVFocusGuideView style={styles.views}>
+          {(['channels', 'guide'] as const).map((entry) => (
+            <FocusableItem
+              focusedStyle={styles.tabFocused}
+              key={entry}
+              onPress={() => changeView(entry)}
+              style={[styles.tab, view === entry && styles.tabActive]}
+              testID={`livetv-view-${entry}`}>
+              <Text style={styles.tabText}>{t(`liveTv.view.${entry}`)}</Text>
             </FocusableItem>
           ))}
         </TVFocusGuideView>
@@ -259,34 +313,41 @@ export const LiveTvScreen = ({
         {totalCount ? tn('liveTv.channelCount', totalCount) : ''}
       </Text>
 
-      <FlatList
-        contentContainerStyle={styles.listContent}
-        data={channels}
-        extraData={[nextPrograms, now]}
-        initialNumToRender={8}
-        key={filter}
-        keyExtractor={(channel) => channel.id}
-        maxToRenderPerBatch={8}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.6}
-        removeClippedSubviews={true}
-        renderItem={({item}) => (
-          <ChannelRow
-            channel={{...item, next: item.next ?? nextPrograms[item.id]}}
+      {view === 'guide' ? (
+        channels.length ? (
+          <LiveTvGuide
+            channels={channelsWithNext}
+            hasTVPreferredFocus={guideTakesFocus.current}
+            initialChannelId={rememberedChannelId}
+            key={filter}
             now={now}
-            onPress={() =>
-              onSelectChannel?.(
-                {...item, next: item.next ?? nextPrograms[item.id]},
-                channels.map((channel) => ({
-                  ...channel,
-                  next: channel.next ?? nextPrograms[channel.id],
-                })),
-              )
-            }
+            onNeedMore={loadMore}
+            onSelectChannel={selectChannel}
+            session={session}
           />
-        )}
-        windowSize={7}
-      />
+        ) : null
+      ) : (
+        <FlatList
+          contentContainerStyle={styles.listContent}
+          data={channels}
+          extraData={[nextPrograms, now]}
+          initialNumToRender={8}
+          key={filter}
+          keyExtractor={(channel) => channel.id}
+          maxToRenderPerBatch={8}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.6}
+          removeClippedSubviews={true}
+          renderItem={({item}) => (
+            <ChannelRow
+              channel={withNext(item)}
+              now={now}
+              onPress={() => selectChannel(item)}
+            />
+          )}
+          windowSize={7}
+        />
+      )}
 
       {isLoading ? <ActivityIndicator style={styles.spinner} /> : null}
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
@@ -395,6 +456,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   tabs: {flex: 1, flexDirection: 'row', marginHorizontal: 16},
+  views: {flexDirection: 'row'},
   tab: {
     borderRadius: 8,
     marginRight: 10,
