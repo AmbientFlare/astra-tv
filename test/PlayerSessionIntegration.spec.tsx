@@ -3,6 +3,7 @@ import {StyleSheet} from 'react-native';
 import {getTrickplayInfo} from '../src/services/jellyfin/trickplay';
 import {render, act, fireEvent} from '@testing-library/react-native';
 import {
+  releaseFreedMemory,
   startVideoEngagement,
   stopVideoEngagement,
 } from '@astra/user-engagement';
@@ -49,6 +50,7 @@ jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
       setSurfaceHandle: jest.fn(),
       clearSurfaceHandle: jest.fn(),
       deinitialize: jest.fn(async () => undefined),
+      deinitializeSync: jest.fn(() => 'success'),
       addEventListener: (event: string, fn: () => void) => {
         const set = listeners.get(event) ?? new Set();
         set.add(fn);
@@ -92,6 +94,7 @@ jest.mock('../src/components/VideoPauseIdleVisual', () => ({
   VideoPauseIdleVisual: () => null,
 }));
 jest.mock('@astra/user-engagement', () => ({
+  releaseFreedMemory: jest.fn(),
   startVideoEngagement: jest.fn(),
   stopVideoEngagement: jest.fn(),
 }));
@@ -824,8 +827,60 @@ describe('PlayerScreen native session integration', () => {
         .props.onSurfaceViewDestroyed('surface');
       await flush();
     });
-    expect(mockVideos[0].deinitialize).toHaveBeenCalledTimes(1);
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
     expect(onBack).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it('releases the decoder on background before anything is awaited', async () => {
+    const view = mount();
+    await start(view);
+    const order: string[] = [];
+    mockVideos[0].deinitializeSync.mockImplementation(() => {
+      order.push('deinitializeSync');
+      return 'success';
+    });
+    mockShakas[0].unload.mockImplementation(async () => {
+      order.push('unload');
+    });
+    act(() => {
+      mockAppState('background');
+    });
+    // No flush: JS may never run again after the background switch.
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await flush();
+    });
+    expect(order).toEqual(['deinitializeSync', 'unload']);
+    expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it('leaves the player on background without waiting for the release', async () => {
+    const onBack = jest.fn();
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+        onBack={onBack}
+      />,
+    );
+    await start(view);
+    // An unload still running must not keep the player screen mounted.
+    const unload = deferred<void>();
+    mockShakas[0].unload.mockImplementation(() => unload.promise);
+    act(() => {
+      mockAppState('background');
+    });
+    expect(onBack).toHaveBeenCalledTimes(1);
+    (releaseFreedMemory as jest.Mock).mockClear();
+    await act(async () => {
+      unload.resolve();
+      await flush();
+    });
+    // Once released, what the player freed goes back to the system.
+    expect(releaseFreedMemory).toHaveBeenCalled();
     view.unmount();
   });
 
@@ -847,7 +902,9 @@ describe('PlayerScreen native session integration', () => {
       await flush();
     });
     expect(reportPlaybackStopped).toHaveBeenCalledTimes(1);
-    expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
+    // Vega OS ends a backgrounded app that still holds a decoder, so the
+    // release does not wait for the load.
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
     await act(async () => {
       load.resolve();
       await Promise.resolve(started).catch(() => undefined);

@@ -11,6 +11,11 @@ import {CURRENT_NOTICE_ID, WhatsNewNotice} from '../components/WhatsNewNotice';
 import {CapabilityNotice} from '../components/CapabilityNotice';
 import {SupportCard} from '../components/SupportCard';
 import {trimMemory} from '../services/memoryTrim';
+import {trace} from '../services/logging/trace';
+import {
+  noteMemoryWarning,
+  noteScreen,
+} from '../services/telemetry/playbackStats';
 import {readAppState, writeAppState} from '../services/storage';
 import {nextAutoAdvanceCount} from '../services/episodePlayback';
 import {HomeScreen} from '../screens/HomeScreen';
@@ -127,7 +132,11 @@ export const RootNavigator = () => {
     );
     const memoryWarning = appStateManager.addAppStateListener(
       'memoryWarning',
-      () => trimMemory('critical'),
+      () => {
+        trace('app.memoryWarning');
+        noteMemoryWarning();
+        trimMemory('critical');
+      },
     );
     return () => {
       subscription.remove();
@@ -181,6 +190,11 @@ export const RootNavigator = () => {
   const current = stack[stack.length - 1] ?? {route: 'home'};
   // The player shows its own connection panel, so it can pause first.
   const inPlayer = current.route === 'player';
+  // Where the viewer was, for the crash tail. Route names only, no items.
+  useEffect(() => {
+    trace('nav', `${current.route} depth=${stack.length}`);
+    noteScreen(current.route);
+  }, [current.route, stack.length]);
   const connection = useConnectionLoss(!inPlayer);
   const [stillOffline, setStillOffline] = useState(false);
   const [screenKey, setScreenKey] = useState(0);

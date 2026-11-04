@@ -1,6 +1,10 @@
 jest.mock('../src/services/telemetry/index', () => ({
   emit: jest.fn(),
   isTelemetryArmed: jest.fn(),
+  isPlaybackSampling: jest.fn(),
+}));
+jest.mock('../src/services/telemetry/playbackStats', () => ({
+  notePlaybackSample: jest.fn(),
 }));
 jest.mock('../src/services/telemetry/config', () => ({
   TELEMETRY_HEARTBEAT_STEADY_MS: 10000,
@@ -11,9 +15,15 @@ import {
   HeartbeatSample,
   PlaybackHeartbeat,
 } from '../src/services/telemetry/heartbeat';
-import {emit, isTelemetryArmed} from '../src/services/telemetry/index';
+import {
+  emit,
+  isPlaybackSampling,
+  isTelemetryArmed,
+} from '../src/services/telemetry/index';
+import {notePlaybackSample} from '../src/services/telemetry/playbackStats';
 
 const armed = isTelemetryArmed as jest.Mock;
+const sampling = isPlaybackSampling as jest.Mock;
 const emitted = emit as jest.Mock;
 
 describe('PlaybackHeartbeat', () => {
@@ -21,6 +31,7 @@ describe('PlaybackHeartbeat', () => {
     jest.useFakeTimers();
     jest.clearAllMocks();
     armed.mockReturnValue(true);
+    sampling.mockReturnValue(true);
   });
   afterEach(() => jest.useRealTimers());
 
@@ -86,6 +97,7 @@ describe('PlaybackHeartbeat', () => {
 
   it('does not emit while unarmed and start/stop are idempotent', () => {
     armed.mockReturnValue(false);
+    sampling.mockReturnValue(false);
     const h = new PlaybackHeartbeat(() => ({pos: 1}));
     h.start();
     expect(emitted).not.toHaveBeenCalled();
@@ -126,8 +138,20 @@ describe('PlaybackHeartbeat', () => {
 
   it('does not schedule polling while unarmed', () => {
     armed.mockReturnValue(false);
+    sampling.mockReturnValue(false);
     const h = new PlaybackHeartbeat(() => ({pos: 1}));
     h.start();
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('keeps samples for crash reports without streaming them', () => {
+    armed.mockReturnValue(false);
+    const h = new PlaybackHeartbeat(() => ({pos: 30, ahead: 8}));
+    h.start();
+    jest.advanceTimersByTime(10000);
+    expect(emitted).not.toHaveBeenCalled();
+    expect(notePlaybackSample).toHaveBeenCalledTimes(2);
+    expect(notePlaybackSample).toHaveBeenLastCalledWith({pos: 30, ahead: 8});
+    h.stop();
   });
 });

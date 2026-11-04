@@ -2,6 +2,11 @@ import operator from './operator.generated';
 export const TELEMETRY_ENDPOINT = operator.endpoint;
 export const TELEMETRY_TOKEN = operator.token;
 export const TELEMETRY_ENABLED = true;
+// Public and unauthenticated by design: it accepts only crash tails, and every
+// build carries it anyway. See crashReports.ts.
+export const CRASH_REPORT_ENDPOINT = 'https://crash.watchastra.com/crash';
+// Same switch, same host; see playbackStats.ts.
+export const STATS_ENDPOINT = 'https://crash.watchastra.com/usage';
 export const TELEMETRY_SCHEMA_VERSION = 1;
 export const TELEMETRY_HEARTBEAT_STEADY_MS = 10000;
 export const TELEMETRY_HEARTBEAT_ACTIVE_MS = 2000;
