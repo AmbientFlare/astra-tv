@@ -1,4 +1,5 @@
-import {emit, isTelemetryArmed} from './index';
+import {emit, isPlaybackSampling, isTelemetryArmed} from './index';
+import {notePlaybackSample} from './playbackStats';
 import {
   TELEMETRY_HEARTBEAT_STEADY_MS,
   TELEMETRY_HEARTBEAT_ACTIVE_MS,
@@ -54,7 +55,7 @@ export class PlaybackHeartbeat {
 
   start(): void {
     this.stop();
-    if (!isTelemetryArmed()) {
+    if (!isPlaybackSampling()) {
       return;
     }
     this.hasBaseline = false;
@@ -73,7 +74,7 @@ export class PlaybackHeartbeat {
     if (generation !== this.generation) {
       return;
     }
-    if (!isTelemetryArmed()) {
+    if (!isPlaybackSampling()) {
       return;
     }
     let now: HeartbeatSample;
@@ -88,9 +89,10 @@ export class PlaybackHeartbeat {
       }
       return;
     }
-    if (generation !== this.generation || !isTelemetryArmed()) {
+    if (generation !== this.generation || !isPlaybackSampling()) {
       return;
     }
+    notePlaybackSample(now);
     const n = Object.fromEntries(
       Object.entries(now).map(([k, v]) => [
         k,
@@ -124,6 +126,11 @@ export class PlaybackHeartbeat {
       n.segP95 !== undefined &&
       (n.segmentDurationSec ?? 0) > 0 &&
       n.segP95 > n.segmentDurationSec! * 1000;
+    // Crash reports keep the sample above; only operator telemetry streams it.
+    if (!isTelemetryArmed()) {
+      this.schedule(generation, n);
+      return;
+    }
     emit('hb', {
       ...n,
       dDropped,
@@ -139,6 +146,10 @@ export class PlaybackHeartbeat {
         ? 'unknown'
         : 'none',
     });
+    this.schedule(generation, n);
+  };
+
+  private schedule(generation: number, n: HeartbeatSample): void {
     if (generation !== this.generation) {
       return;
     }
@@ -149,5 +160,5 @@ export class PlaybackHeartbeat {
       () => this.tick(generation),
       active ? TELEMETRY_HEARTBEAT_ACTIVE_MS : TELEMETRY_HEARTBEAT_STEADY_MS,
     );
-  };
+  }
 }

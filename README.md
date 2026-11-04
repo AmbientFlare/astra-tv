@@ -1,6 +1,6 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.6.2-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.6.3-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.6.2`, build `20261029.03`, for Fire TV
+The current release is Astra `1.6.3`, build `20261104.20`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -32,7 +32,7 @@ Appstore.
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
 - Contributors: [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- Release validation: 837 tests in 85 suites, ESLint, TypeScript, Vega
+- Release validation: 857 tests in 87 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
@@ -49,6 +49,10 @@ Appstore.
   the end, and resumed from the sleep timer with one press. For 1.6.2, sign-in
   across the update, libraries, Settings, the connection test, the player's
   menus and autoplay into the next episode were rechecked on the same stick.
+  For 1.6.3, crash reports, playback stats and feature counts were received
+  from a Vega OS 2.0 stick, and two sticks stayed open in the background
+  after leaving a playing or paused video and after five minutes of
+  screensaver.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -114,6 +118,32 @@ creation on Vega.
 - Starting video cleanly stops music and transfers playback controls and
   metadata to the video player.
 
+## Privacy
+
+Astra talks directly to the Jellyfin server you add. Your libraries, artwork,
+playback and watch progress go only between Astra and that server.
+
+Since 1.6.3, Astra also sends crash reports and usage stats to its developer
+so crashes and playback problems can be found and fixed. This is on by
+default and can be turned off in Settings > Send crash reports and usage
+stats. It covers:
+
+- Crash reports, sent after an unexpected exit: the last 40 actions Astra
+  took, and what was playing at a technical level (formats, resolution,
+  transcoding, buffer).
+- One summary per playback: formats, why the server transcoded, how long the
+  picture took, buffering and errors.
+- Daily counts of the screens and features used.
+- The Fire TV model and OS version, the Astra version, the Jellyfin server
+  version, and a random install ID that changes every month.
+
+Titles, artwork, searches, server addresses or names, usernames, account IDs
+and access tokens are never sent. Web addresses, IP addresses and email
+addresses are removed before anything is sent. Reports are kept for up to
+12 months, are never sold or shared, and are never used for advertising.
+
+The full policy is at <https://watchastra.com/privacy/>.
+
 ## Release history
 
 Every release below is tagged in the repository as `vMAJOR.MINOR.PATCH` and
@@ -121,6 +151,13 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.6.3 — Stays open in the background — 2026-11-04
+
+- Fire TV no longer closes Astra when you leave it during a video or the
+  screensaver comes on.
+- Astra now sends crash reports and anonymous playback stats to help fix
+  problems, with a switch to turn them off. See [Privacy](#privacy).
 
 ### 1.6.2 — Steadier launch and big libraries — 2026-10-29
 
