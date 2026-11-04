@@ -34,6 +34,7 @@ import {
 } from '../jellyfin/music';
 import {isCleartextUrl} from '../serverUrl';
 import {initializeDeviceIdentity} from '../deviceIdentity';
+import {countUsage} from '../telemetry/playbackStats';
 
 interface AdaptiveAudioPlayer {
   load(
@@ -421,6 +422,7 @@ export class AudioPlaybackService {
     if (!tracks.length) {
       return;
     }
+    countUsage('play.music');
 
     this.syncQueue(createQueue(tracks, options));
     await this.loadCurrent();

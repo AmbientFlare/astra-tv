@@ -19,6 +19,7 @@ public:
 
     bool startVideoEngagement();
     bool stopVideoEngagement();
+    bool releaseFreedMemory();
 
 private:
     apmf::Ptr<apmf::iface::com::amazon::kepler::user_engagement::IUserEngagement>
