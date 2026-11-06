@@ -91,6 +91,7 @@ import {
   shouldForceVideoConversion,
   assessDecoderRisk,
   computeBufferBudget,
+  fitBufferBudget,
   liveBufferBudget,
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
@@ -416,6 +417,10 @@ export const PlayerScreen = ({
     return () => clearTimeout(timer);
   }, [decoderRiskWarned]);
   const forcedDecoderTranscode = useRef(false);
+  // A heavy title (see assessDecoderRisk) going out untouched because the
+  // server cannot re-encode it. The largest media load the device ever takes,
+  // so its buffers are held to budget and a recovery frees memory first.
+  const heavyPassthrough = useRef(false);
   const decodedFramesThisSession = useRef(0);
   const forcedTranscodeReadyAtMs = useRef<number | null>(null);
   const serverKey = serverCapabilityKey(serverUrl);
@@ -1495,10 +1500,13 @@ export const PlayerScreen = ({
       // stream.bitrate is the server's figure for the delivered stream. It is
       // the closest thing available before the manifest is parsed; the goals
       // only need to be right to within a segment.
-      const bufferBudget = liveBufferBudget(
+      const timeBudget = liveBufferBudget(
         computeBufferBudget(stream.bitrate),
         isLive,
       );
+      const bufferBudget = heavyPassthrough.current
+        ? fitBufferBudget(timeBudget, stream.bitrate)
+        : timeBudget;
       trace(
         'shaka.buffer',
         `ahead=${bufferBudget.bufferingGoal}s resume=${
@@ -1923,6 +1931,8 @@ export const PlayerScreen = ({
         serverCanTranscodeVideo,
       );
       forcedDecoderTranscode.current = transcodeForDecoder;
+      heavyPassthrough.current =
+        decoderRisk.risk === 'heavy' && !transcodeForDecoder;
       // Spend the probe here, where the request is genuinely going out.
       const probing = transcodeForDecoder && transcodeProbeArmed.current;
       if (probing) {
@@ -2154,6 +2164,14 @@ export const PlayerScreen = ({
         try {
           await releaseMedia();
           context.assertCurrent();
+          // Crash report 2026-11-06: a 31 Mbps 4K Dolby Vision passthrough
+          // failed, and the app died seconds after the recovery reload built a
+          // second 4K pipeline on top of the first one's leftovers. Hand the
+          // freed native memory back before asking for it again.
+          if (reason === 'recovery' && heavyPassthrough.current) {
+            collectGarbage();
+            trace('memory.trim', 'before heavy passthrough recovery');
+          }
           await audioPlayback.stop();
           context.assertCurrent();
           if (audioTrack) {
