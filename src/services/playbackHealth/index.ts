@@ -131,6 +131,8 @@ export {
   MEDIA_BUFFER_BUDGET_BYTES,
   DEFAULT_BUFFER_BUDGET,
   computeBufferBudget,
+  fitBufferBudget,
+  MIN_FITTED_BUFFER_BEHIND,
   LIVE_REBUFFERING_GOAL,
   liveBufferBudget,
 } from './bufferBudget';
