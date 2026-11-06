@@ -254,7 +254,9 @@ export const PlayerScreen = ({
   const reportBarrier = useRef<Promise<void>>(Promise.resolve());
   const releasePromise = useRef<Promise<void> | null>(null);
   const detachPlaybackEvents = useRef<(() => void) | null>(null);
-  const stopPlaybackRef = useRef<() => Promise<void>>(async () => undefined);
+  const stopPlaybackRef = useRef<(immediate?: boolean) => Promise<void>>(
+    async () => undefined,
+  );
   const healthMonitor = useRef(new PlaybackHealthMonitor());
   const sessionReady = useRef(false);
   // A playback counts once per player screen, however often it reloads.
@@ -634,14 +636,15 @@ export const PlayerScreen = ({
   }, [currentPositionTicks]);
 
   /**
-   * `immediate` is for the background switch. Vega OS suspends JS once the app
+   * `immediate` is for the background switch and for the viewer leaving the
+   * player (`traceLabel` tells the two apart in the crash tail). Vega OS suspends JS once the app
    * is in the background and ends an app that still holds a decoder (Amazon
    * reports it as ReclaimMediaResource), so the decoder is released before
    * anything is awaited, in Amazon's documented order: the video player
    * first, Shaka after.
    */
   const releaseMedia = useCallback(
-    (immediate = false): Promise<void> => {
+    (immediate = false, traceLabel = 'session.background'): Promise<void> => {
       if (releasePromise.current) {
         return releasePromise.current;
       }
@@ -745,7 +748,7 @@ export const PlayerScreen = ({
         try {
           if (video && typeof video.deinitializeSync === 'function') {
             const status = video.deinitializeSync(BACKGROUND_DEINIT_WAIT_MS);
-            trace('session.background', `decoder release ${status}`);
+            trace(traceLabel, `decoder release ${status}`);
             deinitialized = Promise.resolve();
           } else {
             deinitialized = Promise.resolve(video?.deinitialize());
@@ -806,24 +809,33 @@ export const PlayerScreen = ({
     ],
   );
 
-  const stopPlayback = useCallback(() => {
-    trace(
-      'session.stop',
-      `position=${(currentPositionTicks() / TICKS_PER_SECOND).toFixed(1)}`,
-    );
-    latestPositionTicks.current = currentPositionTicks();
-    seekController.current?.cancel();
-    sessionController.current.invalidate();
-    sessionReady.current = false;
-    countdownRef.current?.cancel();
-    void shakaPlayerRef.current?.cancelLoad().catch(() => undefined);
-    const handle = statsPlayback.current;
-    const disposed = sessionController.current.dispose(releaseMedia);
-    void Promise.resolve(disposed)
-      .catch(() => undefined)
-      .then(() => endPlayback(handle));
-    return disposed;
-  }, [currentPositionTicks, releaseMedia]);
+  // `immediate` releases in Amazon's documented order, as the background
+  // switch does. Leaving the player used the other order (Shaka unloaded
+  // while the video player still ran), and 1.6.3 crash tails cluster in the
+  // 30 s after a Back; Amazon's stacks are media pipeline heap faults.
+  const stopPlayback = useCallback(
+    (immediate = false) => {
+      trace(
+        'session.stop',
+        `position=${(currentPositionTicks() / TICKS_PER_SECOND).toFixed(1)}`,
+      );
+      latestPositionTicks.current = currentPositionTicks();
+      seekController.current?.cancel();
+      sessionController.current.invalidate();
+      sessionReady.current = false;
+      countdownRef.current?.cancel();
+      void shakaPlayerRef.current?.cancelLoad().catch(() => undefined);
+      const handle = statsPlayback.current;
+      const disposed = sessionController.current.dispose(() =>
+        releaseMedia(immediate, 'session.exit'),
+      );
+      void Promise.resolve(disposed)
+        .catch(() => undefined)
+        .then(() => endPlayback(handle));
+      return disposed;
+    },
+    [currentPositionTicks, releaseMedia],
+  );
   stopPlaybackRef.current = stopPlayback;
 
   const returnToLibrary = useCallback(() => {
@@ -848,8 +860,13 @@ export const PlayerScreen = ({
   }, []);
 
   const handleBack = useCallback(() => {
-    void stopPlayback()
-      .then(returnToLibrary)
+    void stopPlayback(true)
+      .then(() => {
+        // What the player freed goes back to the system before the next
+        // screen allocates, as on the background path.
+        collectGarbage();
+        returnToLibrary();
+      })
       .catch(() => {
         setStatusText(t('player.releaseFailed'));
       });
