@@ -95,6 +95,9 @@ import {
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
+  MAX_PLAYBACK_RECOVERIES,
+  shouldResetRecoveryBudget,
+  shouldRetryFailedRecovery,
 } from '../../services/playbackHealth';
 import {
   recordTranscodeFailure,
@@ -180,6 +183,8 @@ import {useServerTranscodeCapability} from './useServerTranscodeCapability';
 // After a background release, how long Shaka may take to clean up before a
 // new player is allowed to attach.
 const BACKGROUND_UNLOAD_WAIT_MS = 3000;
+/** Pause before restarting after a restart that failed to start. */
+const RECOVERY_RETRY_DELAY_MS = 2000;
 // How long the background switch blocks on the native player teardown. The
 // OS holds the background transition while JS is blocked and only checks for a
 // held decoder after it, so blocking is what keeps the app alive. A paused
@@ -293,6 +298,11 @@ export const PlayerScreen = ({
   const requestSeek = useRef<(position: number) => void>(() => undefined);
   const mediaControlsOwnSeeking = useRef(false);
   const playbackRecoveryAttempt = useRef(0);
+  const playbackReadyAtMs = useRef<number | null>(null);
+  const recoveryRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startPlaybackRef = useRef<
+    (options: {failure?: PlaybackFailure; reason?: string}) => Promise<void>
+  >(async () => undefined);
   const trackReloadInProgress = useRef(false);
   const pendingInitialSeekSeconds = useRef<number | null>(null);
   const pendingAdaptiveResumeSeconds = useRef<number | null>(null);
@@ -2236,6 +2246,7 @@ export const PlayerScreen = ({
           }
           telemetrySessionStartedMs.current = Date.now();
           notePlaybackReady();
+          playbackReadyAtMs.current = Date.now();
           forcedTranscodeReadyAtMs.current = Date.now();
           heartbeatRef.current?.start();
           if (!playbackCounted.current) {
@@ -2277,6 +2288,29 @@ export const PlayerScreen = ({
           }
           context.assertCurrent();
           trace('session.failed', 'generation=' + context.generation);
+          if (
+            failure &&
+            shouldRetryFailedRecovery(reason, playbackRecoveryAttempt.current)
+          ) {
+            playbackRecoveryAttempt.current += 1;
+            trace(
+              'session.recoveryRetry',
+              'attempt=' + playbackRecoveryAttempt.current,
+            );
+            // Outside this transition: a restart queued from inside it would
+            // wait on the very transition that is queuing it.
+            const generation = playbackGeneration.current;
+            recoveryRetryTimer.current = setTimeout(() => {
+              recoveryRetryTimer.current = null;
+              if (
+                !unmountedRef.current &&
+                playbackGeneration.current === generation
+              ) {
+                void startPlaybackRef.current({failure, reason: 'recovery'});
+              }
+            }, RECOVERY_RETRY_DELAY_MS);
+            return;
+          }
           setStarting(false);
           setStartupError(
             startupFailureMessage(
@@ -2318,6 +2352,7 @@ export const PlayerScreen = ({
       serverUrl,
     ],
   );
+  startPlaybackRef.current = startPlayback;
 
   const reloadWithTrack = useCallback(
     async (selection: {
@@ -2451,7 +2486,7 @@ export const PlayerScreen = ({
       void startPlayback({failure, reason: 'recovery'});
       return;
     }
-    if (playbackRecoveryAttempt.current >= 2) {
+    if (playbackRecoveryAttempt.current >= MAX_PLAYBACK_RECOVERIES) {
       sessionReady.current = false;
       videoRef.current?.pause();
       void sessionController.current
@@ -2627,6 +2662,10 @@ export const PlayerScreen = ({
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
+      if (recoveryRetryTimer.current) {
+        clearTimeout(recoveryRetryTimer.current);
+        recoveryRetryTimer.current = null;
+      }
       // A timer belongs to this sitting: it follows the viewer into the next
       // episode, but not out of the player.
       if (!handoffInProgress.current) {
@@ -2730,6 +2769,19 @@ export const PlayerScreen = ({
         !seekController.current?.seeking;
       const previousSeconds = lastActivePosition.current;
       lastActivePosition.current = active ? positionSeconds : null;
+      if (
+        shouldResetRecoveryBudget(
+          playbackRecoveryAttempt.current,
+          playbackReadyAtMs.current,
+          Date.now(),
+          active &&
+            previousSeconds !== null &&
+            positionSeconds > previousSeconds,
+        )
+      ) {
+        trace('playback.recovered', 'budget reset');
+        playbackRecoveryAttempt.current = 0;
+      }
       if (
         active &&
         isFrozenAtEnd(positionSeconds, previousSeconds, runTimeTicks)
