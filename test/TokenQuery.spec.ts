@@ -63,6 +63,25 @@ describe('token in URLs', () => {
     expect(params(fromOldServer).getAll('api_key')).toEqual(['server-tok']);
     expect(params(fromOldServer).get('ApiKey')).toBe('tok-1');
   });
+
+  it('names the item as the source only when the server named none', () => {
+    // A plugin source with no id gets a URL the server itself refuses.
+    const unnamed = buildTranscodingUrl(
+      'http://media.example.com:8096',
+      '/videos/abc/master.m3u8?PlaySessionId=p1&ApiKey=server-tok',
+      'tok-1',
+      'item-1',
+    );
+    expect(params(unnamed).getAll('MediaSourceId')).toEqual(['item-1']);
+
+    const named = buildTranscodingUrl(
+      'http://media.example.com:8096',
+      '/videos/abc/master.m3u8?mediaSourceId=src-9&ApiKey=server-tok',
+      'tok-1',
+      'item-1',
+    );
+    expect(named).not.toContain('item-1');
+  });
 });
 
 /**
