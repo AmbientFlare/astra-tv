@@ -33,6 +33,7 @@ import {
   GUIDE_WINDOW_MS,
   GuideCell,
   moveHorizontally,
+  rowBlocks,
   rowCells,
   slotMarks,
   windowFor,
@@ -428,6 +429,15 @@ export const LiveTvGuide = ({
                     ? cellIndexAt(cells, anchor)
                     : -1;
                 const loaded = isRowLoaded(channel.id);
+                const span = (range: {start: number; end: number}) => ({
+                  left:
+                    (Math.max(range.start, windowStart) - windowStart) *
+                    pxPerMs,
+                  width:
+                    (Math.min(range.end, windowEnd) -
+                      Math.max(range.start, windowStart)) *
+                    pxPerMs,
+                });
 
                 return (
                   <View
@@ -439,46 +449,49 @@ export const LiveTvGuide = ({
                       isCurrent={rowIndex === row}
                     />
                     <View style={styles.cells}>
-                      {cells.map((cell, cellIndex) => {
+                      {rowBlocks(cells).map((block) => {
                         if (
-                          cell.end <= windowStart ||
-                          cell.start >= windowEnd
+                          block.end <= windowStart ||
+                          block.start >= windowEnd
                         ) {
                           return null;
                         }
 
-                        const left =
-                          (Math.max(cell.start, windowStart) - windowStart) *
-                          pxPerMs;
-                        const width =
-                          (Math.min(cell.end, windowEnd) -
-                            Math.max(cell.start, windowStart)) *
-                          pxPerMs;
+                        const cursorCell = cells[focusedIndex];
+                        const focusedHere =
+                          focusedIndex >= 0 &&
+                          cursorCell.start < block.end &&
+                          block.start < cursorCell.end;
 
                         return (
                           <GuideCellView
-                            cell={cell}
                             clippedStart={
-                              (cell.program?.startTime ?? cell.start) <
+                              (block.program?.startTime ?? block.start) <
                               windowStart
                             }
-                            // One label per empty stretch, not one per half
-                            // hour.
-                            emptyLabel={
-                              loaded &&
-                              !cell.program &&
-                              (cellIndex === 0 ||
-                                Boolean(cells[cellIndex - 1].program) ||
-                                cells[cellIndex - 1].end <= windowStart)
-                            }
-                            isFocused={cellIndex === focusedIndex}
-                            isOnNow={cell.start <= now && now < cell.end}
-                            key={`${cell.start}`}
-                            left={left}
-                            width={width}
+                            emptyText={loaded ? channel.name : ''}
+                            isFocused={focusedHere && Boolean(block.program)}
+                            isOnNow={block.start <= now && now < block.end}
+                            key={`${block.start}`}
+                            program={block.program}
+                            {...span(block)}
                           />
                         );
                       })}
+                      {/* An empty stretch is one bar; the half hour the
+                          cursor is on is lit on top of it. */}
+                      {focusedIndex >= 0 &&
+                      !cells[focusedIndex].program &&
+                      cells[focusedIndex].end > windowStart &&
+                      cells[focusedIndex].start < windowEnd ? (
+                        <GuideCellView
+                          clippedStart={false}
+                          emptyText={loaded ? channel.name : ''}
+                          isFocused
+                          isOnNow={false}
+                          {...span(cells[focusedIndex])}
+                        />
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -522,11 +535,7 @@ const ProgramDetails = ({
     <View style={styles.details} testID="livetv-guide-details">
       <Text numberOfLines={1} style={styles.detailsTitle}>
         {isRecording(program) ? <Text style={styles.recDot}>● </Text> : null}
-        {program
-          ? program.name
-          : loaded
-          ? t('liveTv.noGuide')
-          : channel?.name ?? ''}
+        {program ? program.name : channel?.name ?? ''}
       </Text>
       <Text numberOfLines={1} style={styles.detailsMeta}>
         {[
@@ -536,6 +545,7 @@ const ProgramDetails = ({
               )}`
             : '',
           program?.episodeTitle ?? '',
+          !program && loaded ? t('liveTv.noGuide') : '',
           channel
             ? [channel.number, channel.name].filter(Boolean).join(' ')
             : '',
@@ -576,28 +586,28 @@ const ChannelLabel = ({
 );
 
 const GuideCellView = ({
-  cell,
   clippedStart,
-  emptyLabel,
+  emptyText,
   isFocused,
   isOnNow,
   left,
+  program,
   width,
 }: {
-  cell: GuideCell;
   clippedStart: boolean;
-  /** Whether an empty cell says so. */
-  emptyLabel: boolean;
+  /** What a stretch without guide data says: the channel's own name. */
+  emptyText: string;
   isFocused: boolean;
   isOnNow: boolean;
   left: number;
+  program?: LiveTvProgram;
   width: number;
 }) => (
   <View
     style={[
       styles.cell,
       isOnNow && styles.cellOnNow,
-      !cell.program && styles.cellEmpty,
+      !program && styles.cellEmpty,
       isFocused && styles.cellFocused,
       {left, width},
     ]}>
@@ -605,21 +615,17 @@ const GuideCellView = ({
       numberOfLines={1}
       style={[
         styles.cellTitle,
-        !cell.program && styles.cellEmptyText,
+        !program && styles.cellEmptyText,
         isFocused && styles.cellTitleFocused,
       ]}>
-      {isRecording(cell.program) ? <Text style={styles.recDot}>● </Text> : null}
-      {cell.program
-        ? `${clippedStart ? '‹ ' : ''}${cell.program.name}`
-        : emptyLabel || isFocused
-        ? t('liveTv.noGuide')
-        : ''}
+      {isRecording(program) ? <Text style={styles.recDot}>● </Text> : null}
+      {program ? `${clippedStart ? '‹ ' : ''}${program.name}` : emptyText}
     </Text>
-    {cell.program?.episodeTitle ? (
+    {program?.episodeTitle ? (
       <Text
         numberOfLines={1}
         style={[styles.cellSub, isFocused && styles.cellTitleFocused]}>
-        {cell.program.episodeTitle}
+        {program.episodeTitle}
       </Text>
     ) : null}
   </View>
