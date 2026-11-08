@@ -17,64 +17,34 @@ import {getLocale, Locale} from '../i18n';
  */
 export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
   en: [
-    'Fire TV no longer closes Astra when you leave it during a video ' +
-      'or the screensaver comes on, so coming back no longer starts ' +
-      'over from Home.',
-    'Astra now sends crash reports and anonymous playback stats so ' +
-      'crashes and playback problems can be fixed. Never titles, ' +
-      'searches, server addresses or account details. Turn it off under ' +
-      'Settings → Send crash reports and usage stats.',
+    "Live TV (beta): a channel list with what's on now and next, a guide, an On Now row on Home, recording, and Up/Down to change channels.",
+    'Search and filter by genre inside a library.',
+    'Choose the size and color of subtitles under Settings → Playback.',
   ],
   de: [
-    'Fire TV beendet Astra nicht mehr, wenn du es während eines ' +
-      'Videos verlässt oder der Bildschirmschoner startet. Beim ' +
-      'Zurückkehren beginnt es nicht mehr von vorn auf der Startseite.',
-    'Astra sendet jetzt Absturzberichte und anonyme ' +
-      'Wiedergabestatistiken, damit Abstürze und Wiedergabeprobleme ' +
-      'behoben werden können. Nie Titel, Suchen, Serveradressen oder ' +
-      'Kontodaten. Abschalten unter Einstellungen → Absturzberichte und ' +
-      'Nutzungsstatistiken senden.',
+    'Live-TV (Beta): Senderliste mit dem, was jetzt und danach läuft, ein Programmführer, eine Zeile „Jetzt läuft“ auf der Startseite, Aufnahmen und Hoch/Runter zum Umschalten.',
+    'In einer Mediathek nach Genre suchen und filtern.',
+    'Größe und Farbe der Untertitel unter Einstellungen → Wiedergabe wählen.',
   ],
   es: [
-    'Fire TV ya no cierra Astra cuando lo dejas durante un video o se ' +
-      'activa el protector de pantalla, así que al volver ya no empieza ' +
-      'de nuevo desde el inicio.',
-    'Astra ahora envía informes de errores y estadísticas anónimas de ' +
-      'reproducción para poder corregir fallos y problemas al ' +
-      'reproducir. Nunca títulos, búsquedas, direcciones de servidor ni ' +
-      'datos de la cuenta. Desactívalo en Ajustes → Enviar informes de ' +
-      'errores y estadísticas de uso.',
+    'TV en directo (beta): lista de canales con lo que se emite ahora y después, una guía, una fila «Ahora en directo» en el inicio, grabación y Arriba/Abajo para cambiar de canal.',
+    'Busca y filtra por género dentro de una biblioteca.',
+    'Elige el tamaño y el color de los subtítulos en Ajustes → Reproducción.',
   ],
   fr: [
-    'Fire TV ne ferme plus Astra quand vous le quittez pendant une ' +
-      'vidéo ou que l’économiseur d’écran se lance : en y revenant, il ne ' +
-      'redémarre plus depuis l’accueil.',
-    'Astra envoie désormais des rapports de plantage et des ' +
-      'statistiques de lecture anonymes pour corriger les plantages et ' +
-      'les problèmes de lecture. Jamais de titres, de recherches, ' +
-      'd’adresses de serveur ni d’informations de compte. Désactivez-le ' +
-      'dans Paramètres → Envoyer les rapports de plantage et ' +
-      "statistiques d'utilisation.",
+    'TV en direct (bêta) : liste des chaînes avec le programme en cours et le suivant, un guide, une rangée « En ce moment » sur l’accueil, l’enregistrement, et Haut/Bas pour changer de chaîne.',
+    'Recherchez et filtrez par genre dans une bibliothèque.',
+    'Choisissez la taille et la couleur des sous-titres dans Paramètres → Lecture.',
   ],
   it: [
-    'Fire TV non chiude più Astra quando lo lasci durante un video o ' +
-      'parte il salvaschermo, quindi tornandoci non riparte più dalla ' +
-      'Home.',
-    'Astra ora invia segnalazioni di arresto e statistiche di ' +
-      'riproduzione anonime per correggere arresti e problemi di ' +
-      'riproduzione. Mai titoli, ricerche, indirizzi del server o dati ' +
-      'dell’account. Disattivalo in Impostazioni → Invia segnalazioni di ' +
-      "arresto e statistiche d'uso.",
+    'TV in diretta (beta): elenco dei canali con il programma in onda e il successivo, una guida, una riga «In onda ora» nella Home, la registrazione e Su/Giù per cambiare canale.',
+    'Cerca e filtra per genere all’interno di una libreria.',
+    'Scegli dimensione e colore dei sottotitoli in Impostazioni → Riproduzione.',
   ],
   pt: [
-    'O Fire TV não fecha mais o Astra quando você sai dele durante um ' +
-      'vídeo ou o protetor de tela liga, então ao voltar ele não ' +
-      'recomeça mais pelo Início.',
-    'O Astra agora envia relatórios de falhas e estatísticas anônimas ' +
-      'de reprodução para corrigir falhas e problemas de reprodução. ' +
-      'Nunca títulos, buscas, endereços de servidor ou dados da conta. ' +
-      'Desative em Configurações → Enviar relatórios de falhas e ' +
-      'estatísticas de uso.',
+    'TV ao vivo (beta): lista de canais com o que passa agora e a seguir, um guia, uma fileira “Agora no ar” no Início, gravação e Cima/Baixo para trocar de canal.',
+    'Pesquise e filtre por gênero dentro de uma biblioteca.',
+    'Escolha o tamanho e a cor das legendas em Configurações → Reprodução.',
   ],
 };
 

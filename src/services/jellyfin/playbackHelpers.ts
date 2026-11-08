@@ -108,6 +108,12 @@ export const buildTranscodingUrl = (
   baseUrl: string,
   rawTranscodingUrl: string,
   accessToken: string,
+  /**
+   * Sent when the server's URL names no media source. A plugin may leave its
+   * source id empty; the server then builds a URL without one and refuses
+   * that same URL with HTTP 400, but accepts the item id in its place.
+   */
+  fallbackMediaSourceId?: string,
 ) => {
   const rawPath = String(rawTranscodingUrl);
   const base = baseUrl.replace(/\/+$/, '');
@@ -116,6 +122,12 @@ export const buildTranscodingUrl = (
     : `${base}${rawPath.startsWith('/') ? '' : '/'}${rawPath}`;
 
   url = url.replace('?&', '?').replace(/&&+/g, '&');
+
+  if (fallbackMediaSourceId && !hasQueryParam(url, 'MediaSourceId')) {
+    url = `${url}${
+      url.includes('?') ? '&' : '?'
+    }MediaSourceId=${encodeURIComponent(fallbackMediaSourceId)}`;
+  }
 
   // Newer servers put `ApiKey` in the URL themselves; see tokenQuery for
   // why both names are sent.

@@ -127,6 +127,39 @@ export class PlaybackHealthMonitor {
   }
 }
 
+/** Automatic restarts allowed before the viewer is shown the error. */
+export const MAX_PLAYBACK_RECOVERIES = 2;
+
+/**
+ * How long a recovered session must play before its restarts are forgiven.
+ * Without this the budget lasts the whole session, so a live channel whose
+ * source stalls at every ad break dies at the third one even when the first
+ * two recovered hours earlier.
+ */
+export const RECOVERY_BUDGET_RESET_MS = 60_000;
+
+export const shouldResetRecoveryBudget = (
+  attempt: number,
+  readyAtMs: number | null,
+  now: number,
+  progressing: boolean,
+): boolean =>
+  attempt > 0 &&
+  progressing &&
+  readyAtMs !== null &&
+  now - readyAtMs >= RECOVERY_BUDGET_RESET_MS;
+
+/**
+ * A restart that itself fails to start spends one more attempt instead of
+ * ending the session while attempts remain. A live source that stalled is
+ * often still stalled for the first restart's whole load, and the next one
+ * plays (seen on Pluto ad breaks).
+ */
+export const shouldRetryFailedRecovery = (
+  reason: string,
+  attempt: number,
+): boolean => reason === 'recovery' && attempt < MAX_PLAYBACK_RECOVERIES;
+
 export {
   MEDIA_BUFFER_BUDGET_BYTES,
   DEFAULT_BUFFER_BUDGET,

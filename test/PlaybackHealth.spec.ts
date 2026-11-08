@@ -1,7 +1,11 @@
 import {
   isMediaFailure,
+  MAX_PLAYBACK_RECOVERIES,
   PlaybackHealthMonitor,
+  RECOVERY_BUDGET_RESET_MS,
   shouldForceVideoConversion,
+  shouldResetRecoveryBudget,
+  shouldRetryFailedRecovery,
 } from '../src/services/playbackHealth';
 import {
   isPrematureEnd,
@@ -51,5 +55,26 @@ describe('playback health', () => {
     expect(shouldForceVideoConversion(false, true)).toBe(true);
     expect(shouldForceVideoConversion(false, false)).toBe(false);
     expect(shouldForceVideoConversion(true, false)).toBe(true);
+  });
+});
+
+describe('recovery budget', () => {
+  it('retries a failed restart only while attempts remain', () => {
+    expect(shouldRetryFailedRecovery('recovery', 1)).toBe(true);
+    expect(shouldRetryFailedRecovery('recovery', MAX_PLAYBACK_RECOVERIES)).toBe(
+      false,
+    );
+    expect(shouldRetryFailedRecovery('reload', 0)).toBe(false);
+    expect(shouldRetryFailedRecovery('seek', 0)).toBe(false);
+  });
+
+  it('forgives restarts after a minute of progress', () => {
+    const ready = 1_000;
+    const later = ready + RECOVERY_BUDGET_RESET_MS;
+    expect(shouldResetRecoveryBudget(2, ready, later, true)).toBe(true);
+    expect(shouldResetRecoveryBudget(2, ready, later - 1, true)).toBe(false);
+    expect(shouldResetRecoveryBudget(2, ready, later, false)).toBe(false);
+    expect(shouldResetRecoveryBudget(0, ready, later, true)).toBe(false);
+    expect(shouldResetRecoveryBudget(1, null, later, true)).toBe(false);
   });
 });

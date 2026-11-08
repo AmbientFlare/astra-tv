@@ -54,6 +54,26 @@ const targetKey = (target: Target) =>
     ? `scheduled-${target.scheduled.id}`
     : `series-${target.series.id}`;
 
+/** Card keys in the order the rows show them. */
+const cardKeys = (
+  recordings: LiveTvRecording[],
+  scheduled: ScheduledRecording[],
+  series: SeriesRecording[],
+) => [
+  ...recordings
+    .filter((recording) => recording.inProgress)
+    .map((recording) => `recording-${recording.id}`),
+  ...recordings
+    .filter((recording) => !recording.inProgress)
+    .map((recording) => `recording-${recording.id}`),
+  ...scheduled.map((entry) => `scheduled-${entry.id}`),
+  ...series.map((entry) => `series-${entry.id}`),
+];
+
+// The card last opened, kept past the view: playing a recording unmounts this
+// view, and coming back should land on the same card.
+let rememberedTarget: string | undefined;
+
 /**
  * The DVR: what is recording now, what has been recorded, and what is set to
  * record, as rows of cards like the home screen.
@@ -67,7 +87,9 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
   const [target, setTarget] = useState<Target | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const cardRefs = useRef(new Map<string, any>());
-  const lastTarget = useRef<string | undefined>(undefined);
+  const lastTarget = useRef<string | undefined>(rememberedTarget);
+  // Counts finished loads; each one puts focus back on a card.
+  const [loaded, setLoaded] = useState(0);
 
   const load = useCallback(async () => {
     const [recorded, upcoming, rules] = await Promise.allSettled([
@@ -88,7 +110,30 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
         : null,
     );
     setLoading(false);
+
+    setLoaded((count) => count + 1);
   }, [session]);
+
+  // Nothing else takes focus once the cards are up: not on opening the view,
+  // not on coming back from a recording, not after an action reloads the
+  // rows. Land on the card last opened, or the first one. This runs after the
+  // rows are committed, so the cards are registered by then.
+  useEffect(() => {
+    if (!loaded) {
+      return undefined;
+    }
+    const keys = cardKeys(recordings, scheduled, series);
+    const key =
+      lastTarget.current && keys.includes(lastTarget.current)
+        ? lastTarget.current
+        : keys[0];
+    const timer = setTimeout(() => {
+      (key && cardRefs.current.get(key))?.requestTVFocus?.();
+    }, 120);
+    return () => clearTimeout(timer);
+    // Only a finished load moves focus; the rows it set are read as they are.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   useEffect(() => {
     load();
@@ -96,6 +141,7 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
 
   const open = (next: Target) => {
     lastTarget.current = targetKey(next);
+    rememberedTarget = lastTarget.current;
     setConfirmingDelete(false);
     setTarget(next);
   };
@@ -155,6 +201,7 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
 
     // What was acted on is gone, so put focus back at the start.
     lastTarget.current = undefined;
+    rememberedTarget = undefined;
     setTarget(null);
     await load();
   };

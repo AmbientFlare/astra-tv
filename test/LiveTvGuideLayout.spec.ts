@@ -3,6 +3,7 @@ import {
   firstVisibleRowFor,
   GUIDE_WINDOW_MS,
   moveHorizontally,
+  rowBlocks,
   rowCells,
   SLOT_MS,
   slotMarks,
@@ -121,5 +122,34 @@ describe('slotMarks', () => {
   it('marks every half hour across the window', () => {
     expect(slotMarks(at(0))).toHaveLength(GUIDE_WINDOW_MS / SLOT_MS);
     expect(slotMarks(at(0))[1]).toBe(at(30));
+  });
+});
+
+describe('rowBlocks', () => {
+  it('draws a run of empty half hours as one block', () => {
+    const cells = rowCells([program('a', 30, 60)], at(0), at(180));
+    const blocks = rowBlocks(cells);
+
+    expect(blocks).toEqual([
+      {start: at(0), end: at(30), firstCell: 0, program: undefined},
+      {start: at(30), end: at(60), firstCell: 1, program: cells[1].program},
+      {start: at(60), end: at(180), firstCell: 2, program: undefined},
+    ]);
+  });
+
+  it('draws a channel without guide data as a single bar', () => {
+    const blocks = rowBlocks(rowCells(undefined, at(0), at(24 * 60)));
+
+    expect(blocks).toEqual([
+      {start: at(0), end: at(24 * 60), firstCell: 0, program: undefined},
+    ]);
+  });
+
+  it('keeps back-to-back programmes apart', () => {
+    const blocks = rowBlocks(
+      rowCells([program('a', 0, 30), program('b', 30, 60)], at(0), at(60)),
+    );
+
+    expect(blocks.map((block) => block.program?.id)).toEqual(['a', 'b']);
   });
 });

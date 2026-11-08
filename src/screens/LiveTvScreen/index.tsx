@@ -401,6 +401,8 @@ const ChannelRow = ({
   onPress: () => void;
 }) => {
   const {current, next} = nowAndNext(channel, now);
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => setLogoFailed(false), [channel.imageUrl]);
 
   return (
     <FocusableItem
@@ -411,8 +413,9 @@ const ChannelRow = ({
       <Text numberOfLines={1} style={styles.number}>
         {channel.number ?? ''}
       </Text>
-      {channel.imageUrl ? (
+      {channel.imageUrl && !logoFailed ? (
         <Image
+          onError={() => setLogoFailed(true)}
           resizeMode="contain"
           source={{uri: channel.imageUrl}}
           style={styles.logo}
