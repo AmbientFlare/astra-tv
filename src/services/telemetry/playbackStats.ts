@@ -24,6 +24,7 @@ import {getItem, setItem} from '../storageAdapter';
 import {STATS_ENDPOINT, TELEMETRY_REQUEST_TIMEOUT_MS} from './config';
 import {scrubForCrashReport} from './crashReports';
 import type {HeartbeatSample} from './heartbeat';
+import {readJsHeap} from './jsHeap';
 
 const INSTALL_KEY = 'astra.stats.install.v1';
 const QUEUE_KEY = 'astra.stats.queue.v1';
@@ -549,6 +550,7 @@ export const crashContext = (): Record<string, unknown> => ({
   screen,
   uptimeSec: Math.round((Date.now() - startedAtMs) / 1000),
   memoryWarnings,
+  jsHeap: readJsHeap(),
   playback: playback && {
     live: playback.live,
     ...playback.stream,

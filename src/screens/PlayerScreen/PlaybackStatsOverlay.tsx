@@ -9,6 +9,10 @@ import {
 } from '../../services/deviceModel';
 import {getTraces} from '../../services/logging/trace';
 import {telemetryStatus} from '../../services/telemetry';
+import {
+  describeJsHeap,
+  readJsHeap,
+} from '../../services/telemetry/jsHeap';
 import {formatBufferingTime} from '../../services/playbackHealth';
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {
@@ -134,6 +138,9 @@ export const PlaybackStatsOverlay = ({
       ) : null}
       <Text style={styles.statsLine}>
         {`Device  ${describeDeviceModel(readDeviceModel())}`}
+      </Text>
+      <Text style={styles.statsLine}>
+        {`JS memory  ${describeJsHeap(readJsHeap())}`}
       </Text>
       {streamInfo.videoDecodeLimits ? (
         <Text style={styles.statsLine}>
