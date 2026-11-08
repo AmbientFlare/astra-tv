@@ -566,24 +566,31 @@ const ChannelLabel = ({
 }: {
   channel: LiveTvChannel;
   isCurrent: boolean;
-}) => (
-  <View style={[styles.channel, isCurrent && styles.channelCurrent]}>
-    <Text numberOfLines={1} style={styles.channelNumber}>
-      {channel.number ?? ''}
-    </Text>
-    {channel.imageUrl ? (
-      <Image
-        resizeMode="contain"
-        source={{uri: channel.imageUrl}}
-        style={styles.channelLogo}
-      />
-    ) : (
-      <Text numberOfLines={2} style={styles.channelName}>
-        {channel.name}
+}) => {
+  // A server can advertise a logo it then fails to serve; show the name then.
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => setLogoFailed(false), [channel.imageUrl]);
+
+  return (
+    <View style={[styles.channel, isCurrent && styles.channelCurrent]}>
+      <Text numberOfLines={1} style={styles.channelNumber}>
+        {channel.number ?? ''}
       </Text>
-    )}
-  </View>
-);
+      {channel.imageUrl && !logoFailed ? (
+        <Image
+          onError={() => setLogoFailed(true)}
+          resizeMode="contain"
+          source={{uri: channel.imageUrl}}
+          style={styles.channelLogo}
+        />
+      ) : (
+        <Text numberOfLines={2} style={styles.channelName}>
+          {channel.name}
+        </Text>
+      )}
+    </View>
+  );
+};
 
 const GuideCellView = ({
   clippedStart,
