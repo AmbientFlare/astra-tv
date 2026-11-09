@@ -11,7 +11,12 @@ import {
   storeCrashReportsEnabled,
 } from './crashReports';
 import {installJsErrorCapture} from './jsErrors';
-import {backgroundStats, startStats, stopStats} from './playbackStats';
+import {
+  backgroundStats,
+  readMonthlyInstallId,
+  startStats,
+  stopStats,
+} from './playbackStats';
 import {
   acknowledgeCrashTail,
   markActive,
@@ -102,7 +107,10 @@ const startCrashReports = async (mine: number): Promise<void> => {
   // A clean exit is an ordinary close; only an unclean one is a crash.
   const delivered = prior.cleanExit
     ? Promise.resolve(true)
-    : sendCrashReport(prior);
+    : readMonthlyInstallId().then(
+        (inst) => sendCrashReport(prior, inst),
+        () => sendCrashReport(prior),
+      );
   void delivered.then((ok) => {
     if (ok) {
       void acknowledgeCrashTail(prior.savedAtMs);
