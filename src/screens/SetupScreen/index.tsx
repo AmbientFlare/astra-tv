@@ -28,6 +28,10 @@ import {
 } from '../../services/storage';
 import {cleartextMediaMessage, isCleartextUrl} from '../../services/serverUrl';
 import {t} from '../../i18n';
+import {
+  countUsage,
+  setupFailKind,
+} from '../../services/telemetry/playbackStats';
 
 const serverTypes: ServerType[] = ['jellyfin', 'emby'];
 type WizardStep = 'serverType' | 'server' | 'authMethod' | 'code' | 'password';
@@ -69,6 +73,10 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   }, []);
 
   useEffect(() => dismissTextInput, [dismissTextInput]);
+
+  useEffect(() => {
+    countUsage(`setup.step.${step}`);
+  }, [step]);
 
   const changeStep = useCallback(
     (nextStep: WizardStep) => {
@@ -149,6 +157,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       };
 
       await upsertServerProfile(profile);
+      countUsage('setup.connected');
       dismissTextInput();
       onConnected?.(profile);
     },
@@ -175,6 +184,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       setQuickConnectEnabled(enabled);
       changeStep(enabled ? 'authMethod' : 'password');
     } catch (error) {
+      countUsage(`setup.fail.connect.${setupFailKind(error)}`);
       setErrorText(
         error instanceof Error ? error.message : t('setup.unreachable'),
       );
@@ -197,6 +207,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       const authResult = await authenticate(info.baseUrl, username, password);
       await saveProfile(authResult, info);
     } catch (error) {
+      countUsage(`setup.fail.signIn.${setupFailKind(error)}`);
       setErrorText(
         error instanceof Error ? error.message : t('setup.signInFailed'),
       );
@@ -221,6 +232,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
       setQuickConnectCode(code);
       changeStep('code');
     } catch (error) {
+      countUsage(`setup.fail.quickConnect.${setupFailKind(error)}`);
       setErrorText(
         error instanceof Error
           ? error.message
@@ -296,6 +308,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
         quickConnectSecret.current = null;
         await saveProfile(authResult, info);
       } catch (error) {
+        countUsage(`setup.fail.quickConnect.${setupFailKind(error)}`);
         if (active) {
           quickConnectSecret.current = null;
           setBusy(false);
