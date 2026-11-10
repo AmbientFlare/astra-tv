@@ -16,6 +16,7 @@ import {audioPlayback, PlaybackStatus} from '../../services/audioPlayer';
 import {formatSeconds} from '../../utils/duration';
 import {FocusableItem} from '../FocusableItem';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface NowPlayingBarProps {
   /** Shows the stream URL and player readyState. */
@@ -118,26 +119,35 @@ export const NowPlayingBar = ({
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: '#12171d',
-    borderTopColor: '#232c36',
+    backgroundColor: colors.surface.sunken,
+    borderTopColor: colors.border.subtle,
     borderTopWidth: 1,
     paddingBottom: 8,
   },
-  focused: {borderColor: '#54d38a'},
-  progressTrack: {backgroundColor: '#232c36', flexDirection: 'row', height: 3},
-  progressFill: {backgroundColor: '#54d38a'},
+  focused: {borderColor: colors.border.focus},
+  progressTrack: {
+    backgroundColor: colors.fill.trackSolid,
+    flexDirection: 'row',
+    height: 3,
+  },
+  progressFill: {backgroundColor: colors.fill.accent},
   row: {alignItems: 'center', flexDirection: 'row', padding: 12},
-  art: {backgroundColor: '#1d2530', borderRadius: 6, height: 54, width: 54},
+  art: {
+    backgroundColor: colors.surface.raised,
+    borderRadius: 6,
+    height: 54,
+    width: 54,
+  },
   artPlaceholder: {opacity: 0.6},
   text: {flex: 1, paddingHorizontal: 14},
-  title: {color: '#f4f6f8', fontSize: 18, fontWeight: '600'},
-  subtitle: {color: '#8b97a5', fontSize: 14, marginTop: 2},
+  title: {color: colors.text.primary, fontSize: 18, fontWeight: '600'},
+  subtitle: {color: colors.text.muted, fontSize: 14, marginTop: 2},
   state: {alignItems: 'flex-end'},
-  stateText: {color: '#54d38a', fontSize: 15, fontWeight: '700'},
-  time: {color: '#6f7d8c', fontSize: 13, marginTop: 2},
-  error: {color: '#ff8a80', fontSize: 14, paddingHorizontal: 14},
+  stateText: {color: colors.text.accent, fontSize: 15, fontWeight: '700'},
+  time: {color: colors.text.faint, fontSize: 13, marginTop: 2},
+  error: {color: colors.text.error, fontSize: 14, paddingHorizontal: 14},
   diagnostics: {
-    color: '#4d5a67',
+    color: colors.text.faint,
     fontFamily: 'monospace',
     fontSize: 11,
     paddingHorizontal: 14,

@@ -8,6 +8,7 @@ import {formatDiagnosticTime} from './formatDiagnostics';
 import {episodeLabel} from './playbackPolicy';
 import {styles} from './styles';
 import type {EndPrompt} from './types';
+import {colors} from '../../theme';
 
 /**
  * The panels the player draws over the video. Each one only displays what it
@@ -43,7 +44,7 @@ export const StartupPanel = ({
     </Text>
     {error === null ? (
       <View style={styles.startupRow}>
-        <ActivityIndicator color="#4CC9F0" size="large" />
+        <ActivityIndicator color={colors.text.accent} size="large" />
         <Text style={styles.startupText}>{t('player.startingPlayback')}</Text>
       </View>
     ) : (

@@ -26,6 +26,7 @@ import {
 import type {JellyfinMediaItem} from '../../services/jellyfin/types';
 import {getLocaleTag, t} from '../../i18n';
 import {ActionPanel, PanelAction} from './ActionPanel';
+import {colors} from '../../theme';
 
 type Target =
   | {kind: 'recording'; recording: LiveTvRecording}
@@ -599,9 +600,14 @@ const styles = StyleSheet.create({
   root: {flex: 1},
   content: {paddingBottom: 40},
   spinner: {marginTop: 40},
-  status: {color: '#c8d2dc', fontSize: 20, marginTop: 40, textAlign: 'center'},
+  status: {
+    color: colors.text.secondary,
+    fontSize: 20,
+    marginTop: 40,
+    textAlign: 'center',
+  },
   rowTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
     fontWeight: '800',
     marginBottom: 12,
@@ -610,31 +616,34 @@ const styles = StyleSheet.create({
   scroller: {flexGrow: 0, marginBottom: 18},
   row: {flexDirection: 'row', gap: 24},
   card: {
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     overflow: 'hidden',
     width: CARD_WIDTH,
   },
-  focused: {backgroundColor: '#24313A', transform: [{scale: 1.04}]},
+  focused: {
+    backgroundColor: colors.surface.control,
+    transform: [{scale: 1.04}],
+  },
   art: {
     alignItems: 'center',
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     height: CARD_WIDTH,
     justifyContent: 'center',
     padding: 20,
     width: CARD_WIDTH,
   },
   fallbackText: {
-    color: '#8CA1AA',
+    color: colors.text.muted,
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
   },
   image: {...StyleSheet.absoluteFillObject, resizeMode: 'cover'},
   badge: {
-    backgroundColor: '#ff5a5f',
+    backgroundColor: colors.fill.live,
     borderRadius: 4,
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: '800',
     left: 10,
@@ -645,6 +654,6 @@ const styles = StyleSheet.create({
     top: 10,
   },
   caption: {alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10},
-  title: {color: '#FFFFFF', fontSize: 20, fontWeight: '700'},
-  subtitle: {color: '#B8C5CC', fontSize: 16, marginTop: 3},
+  title: {color: colors.text.primary, fontSize: 20, fontWeight: '700'},
+  subtitle: {color: colors.text.secondary, fontSize: 16, marginTop: 3},
 });

@@ -2,6 +2,7 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../../components/FocusableItem';
 import {LANGUAGES, Locale} from '../../i18n';
+import {colors} from '../../theme';
 
 // Shown before any language is chosen, so the prompt is written in every
 // language rather than read through t().
@@ -42,25 +43,25 @@ export const LanguagePickerScreen = ({onSelect}: LanguagePickerScreenProps) => (
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
     paddingHorizontal: 144,
     paddingVertical: 76,
   },
   logo: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 82,
     fontWeight: '800',
     letterSpacing: 0,
     marginBottom: 36,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '700',
     marginBottom: 12,
   },
   subtitle: {
-    color: '#AAB7C0',
+    color: colors.text.secondary,
     fontSize: 24,
     lineHeight: 34,
     marginBottom: 36,
@@ -75,17 +76,17 @@ const styles = StyleSheet.create({
     width: 260,
     height: 100,
     borderRadius: 8,
-    backgroundColor: '#172129',
-    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.surface.card,
+    borderColor: colors.border.hairline,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   optionFocused: {
-    backgroundColor: '#285168',
+    backgroundColor: colors.surface.focus,
   },
   optionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 28,
     fontWeight: '700',
   },

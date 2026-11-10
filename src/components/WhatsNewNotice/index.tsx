@@ -9,6 +9,7 @@ import {
   releaseHighlights,
 } from '../../config/releaseNotes';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 /**
  * Shown once after an update, then never again for that version.
@@ -89,7 +90,7 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
 const styles = StyleSheet.create({
   backdrop: {
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    backgroundColor: colors.scrim.heavy,
     bottom: 0,
     justifyContent: 'center',
     left: 0,
@@ -99,8 +100,8 @@ const styles = StyleSheet.create({
     zIndex: 40,
   },
   card: {
-    backgroundColor: '#14161c',
-    borderColor: '#2c313d',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.subtle,
     borderRadius: 18,
     borderWidth: 1,
     maxWidth: 900,
@@ -108,46 +109,46 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   title: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '700',
     marginBottom: 24,
   },
   body: {
-    color: '#c8cddb',
+    color: colors.text.secondary,
     fontSize: 22,
     lineHeight: 32,
     marginBottom: 18,
   },
   languages: {
-    borderTopColor: '#2c313d',
+    borderTopColor: colors.border.subtle,
     borderTopWidth: 1,
     marginBottom: 18,
     paddingTop: 16,
   },
   language: {
-    color: '#a9b0c0',
+    color: colors.text.secondary,
     fontSize: 18,
     lineHeight: 26,
     marginBottom: 4,
   },
   signature: {
-    color: '#8f97a8',
+    color: colors.text.muted,
     fontSize: 22,
     marginBottom: 32,
   },
   button: {
     alignSelf: 'flex-start',
-    backgroundColor: '#2c313d',
+    backgroundColor: colors.surface.control,
     borderRadius: 10,
     paddingHorizontal: 44,
     paddingVertical: 16,
   },
   buttonFocused: {
-    backgroundColor: '#4b8dff',
+    backgroundColor: colors.surface.focus,
   },
   buttonLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '600',
   },

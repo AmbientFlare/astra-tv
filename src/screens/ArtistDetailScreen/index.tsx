@@ -42,6 +42,7 @@ import {audioPlayback} from '../../services/audioPlayer';
 import {ServerProfile} from '../../services/storage';
 import {formatTotalRuntime, metaLine} from '../../utils/duration';
 import {t, tn} from '../../i18n';
+import {colors} from '../../theme';
 
 interface ArtistDetailScreenProps {
   artistId: string;
@@ -449,25 +450,25 @@ export const ArtistDetailScreen = ({
 };
 
 const styles = StyleSheet.create({
-  root: {backgroundColor: '#0b0d10', flex: 1},
+  root: {backgroundColor: colors.surface.screen, flex: 1},
   centered: {
     alignItems: 'center',
-    backgroundColor: '#0b0d10',
+    backgroundColor: colors.surface.screen,
     flex: 1,
     justifyContent: 'center',
   },
   hero: {flexDirection: 'row', padding: 32},
   portrait: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 140,
     height: 240,
     width: 240,
   },
   placeholder: {alignItems: 'center', justifyContent: 'center'},
-  placeholderText: {color: '#54d38a', fontSize: 60, fontWeight: '700'},
+  placeholderText: {color: colors.text.accent, fontSize: 60, fontWeight: '700'},
   heroText: {flex: 1, paddingLeft: 30},
-  title: {color: '#f4f6f8', fontSize: 46, fontWeight: '700'},
-  meta: {color: '#8b97a5', fontSize: 17, marginTop: 10},
+  title: {color: colors.text.primary, fontSize: 46, fontWeight: '700'},
+  meta: {color: colors.text.muted, fontSize: 17, marginTop: 10},
   actions: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 24},
   action: {
     borderRadius: 8,
@@ -476,11 +477,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  actionFocused: {backgroundColor: '#54d38a'},
-  actionText: {color: '#f4f6f8', fontSize: 19, fontWeight: '600'},
+  actionFocused: {backgroundColor: colors.fill.accent},
+  actionText: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   section: {paddingBottom: 26, paddingHorizontal: 26},
   sectionTitle: {
-    color: '#f4f6f8',
+    color: colors.text.primary,
     fontSize: 26,
     fontWeight: '700',
     marginBottom: 10,
@@ -494,30 +495,34 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   albumHeadingArt: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 6,
     height: 76,
     marginRight: 14,
     width: 76,
   },
   albumHeadingPlaceholder: {
-    color: '#54d38a',
+    color: colors.text.accent,
     fontSize: 28,
     fontWeight: '700',
   },
-  albumHeadingTitle: {color: '#c8d2dc', fontSize: 21, fontWeight: '700'},
-  albumHeadingYear: {color: '#71808d', fontSize: 15, marginTop: 3},
+  albumHeadingTitle: {
+    color: colors.text.secondary,
+    fontSize: 21,
+    fontWeight: '700',
+  },
+  albumHeadingYear: {color: colors.text.faint, fontSize: 15, marginTop: 3},
   albumRow: {flexDirection: 'row'},
   albumTile: {marginRight: 16, width: 200},
   albumFocused: {transform: [{scale: 1.05}]},
   albumCover: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 8,
     height: 200,
     width: 200,
   },
-  albumName: {color: '#f4f6f8', fontSize: 17, marginTop: 8},
-  albumMeta: {color: '#8b97a5', fontSize: 14},
-  status: {color: '#8b97a5', fontSize: 17, padding: 14},
-  error: {color: '#ff8a80', fontSize: 18, paddingHorizontal: 26},
+  albumName: {color: colors.text.primary, fontSize: 17, marginTop: 8},
+  albumMeta: {color: colors.text.muted, fontSize: 14},
+  status: {color: colors.text.muted, fontSize: 17, padding: 14},
+  error: {color: colors.text.error, fontSize: 18, paddingHorizontal: 26},
 });

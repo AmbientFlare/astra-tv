@@ -4,6 +4,7 @@ import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import {audioPlayback} from '../../services/audioPlayer';
 import {orderedTracks} from '../../services/audioQueue';
 import {audioIdleGate} from '../../services/audioIdleGate';
+import {colors} from '../../theme';
 
 export const AUDIO_IDLE_DELAY_MS = 3 * 60 * 1000;
 const ART_CHANGE_MS = 30 * 1000;
@@ -281,7 +282,7 @@ export const AudioIdleVisual = () => {
 const styles = StyleSheet.create({
   overlay: {
     alignItems: 'center',
-    backgroundColor: '#030506',
+    backgroundColor: colors.scrim.idle,
     bottom: 0,
     justifyContent: 'center',
     left: 0,
@@ -303,10 +304,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   title: {
-    color: '#eef3f6',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '700',
     maxWidth: 760,
   },
-  artist: {color: '#71808d', fontSize: 20, marginTop: 8, maxWidth: 760},
+  artist: {color: colors.text.faint, fontSize: 20, marginTop: 8, maxWidth: 760},
 });

@@ -32,6 +32,7 @@ import {
   UserPreferences,
 } from '../../services/storage';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface HomeScreenProps {
   onOpenLiveTv?: () => void;
@@ -541,7 +542,7 @@ const HomeMediaRow = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
   },
   content: {
     flex: 1,
@@ -559,7 +560,7 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     alignItems: 'center',
-    backgroundColor: '#1B2832',
+    backgroundColor: colors.surface.raised,
     borderRadius: 28,
     flexDirection: 'row',
     gap: 12,
@@ -569,23 +570,23 @@ const styles = StyleSheet.create({
     paddingRight: 22,
   },
   profileFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   profileBadge: {
     alignItems: 'center',
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
     borderRadius: 24,
     height: 48,
     justifyContent: 'center',
     width: 48,
   },
   profileIcon: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
     fontWeight: '800',
   },
   profileName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     flexShrink: 1,
     fontSize: 22,
     fontWeight: '700',
@@ -595,11 +596,11 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   actionFocused: {
-    backgroundColor: '#315066',
+    backgroundColor: colors.surface.focus,
   },
   pillButton: {
     alignItems: 'center',
-    backgroundColor: '#1A252E',
+    backgroundColor: colors.surface.raised,
     borderRadius: 28,
     height: 54,
     justifyContent: 'center',
@@ -607,34 +608,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
   },
   pillSelected: {
-    backgroundColor: '#2B4150',
+    backgroundColor: colors.surface.selected,
   },
   pillFocused: {
-    backgroundColor: '#3D6E88',
+    backgroundColor: colors.surface.focus,
   },
   pillText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '800',
   },
   actionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
   },
   status: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 30,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 28,
   },
   retryButton: {
     width: 130,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 14,
@@ -654,7 +655,7 @@ const styles = StyleSheet.create({
     gap: 28,
   },
   featureTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '800',
     marginBottom: 16,
@@ -663,12 +664,12 @@ const styles = StyleSheet.create({
     width: 330,
     height: 186,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
   libraryTileFocused: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
     borderWidth: 4,
   },
   libraryImage: {
@@ -677,23 +678,23 @@ const styles = StyleSheet.create({
   },
   libraryShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.28)',
+    backgroundColor: colors.scrim.tile,
   },
   libraryTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '800',
     padding: 18,
   },
   rowTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '800',
     marginBottom: 14,
     marginTop: 18,
   },
   rowStatus: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     marginBottom: 10,
   },
@@ -707,7 +708,7 @@ const styles = StyleSheet.create({
     width: 110,
     height: 46,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
   },

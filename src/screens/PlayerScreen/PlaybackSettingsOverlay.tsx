@@ -7,6 +7,7 @@ import type {
 } from '../../services/jellyfin';
 import {SLEEP_TIMER_MINUTES, SleepTimerChoice} from '../../services/sleepTimer';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 // Only track selection lives in-player; quality/speed/chapters were removed
 // deliberately — chapters ride the FF/RW keys, and quality is meant to be
@@ -206,17 +207,17 @@ const styles = StyleSheet.create({
     right: 52,
     maxHeight: 670,
     borderRadius: 8,
-    backgroundColor: 'rgba(12,17,22,0.94)',
+    backgroundColor: colors.scrim.panel,
     padding: 24,
   },
   settingsTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
   },
   settingsStreamInfo: {
-    color: '#8FE3C0',
+    color: colors.text.success,
     fontSize: 22,
     marginBottom: 16,
   },
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
     maxHeight: 550,
   },
   settingsHeading: {
-    color: '#89CFF0',
+    color: colors.text.accentSoft,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 8,
@@ -240,20 +241,20 @@ const styles = StyleSheet.create({
   settingsButton: {
     alignItems: 'center',
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     flexDirection: 'row',
     minHeight: 44,
     marginBottom: 8,
     paddingHorizontal: 12,
   },
   settingsButtonSelected: {
-    backgroundColor: '#1F3746',
+    backgroundColor: colors.surface.selected,
   },
   settingsButtonFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   settingsButtonText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     flexShrink: 1,
     fontSize: 18,
     fontWeight: '700',
@@ -268,16 +269,16 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   settingsButtonBadgeInstant: {
-    backgroundColor: '#1F5133',
-    color: '#7BE49B',
+    backgroundColor: colors.surface.success,
+    color: colors.text.success,
   },
   settingsButtonBadgeReload: {
-    backgroundColor: '#5A2A20',
-    color: '#FF9E80',
+    backgroundColor: colors.surface.danger,
+    color: colors.text.error,
   },
   radioCircle: {
     alignItems: 'center',
-    borderColor: '#8CA1AA',
+    borderColor: colors.border.control,
     borderRadius: 9,
     borderWidth: 2,
     height: 18,
@@ -286,20 +287,20 @@ const styles = StyleSheet.create({
     width: 18,
   },
   radioCircleSelected: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
   },
   radioDot: {
-    backgroundColor: '#4CC9F0',
+    backgroundColor: colors.fill.accent,
     borderRadius: 4,
     height: 8,
     width: 8,
   },
   settingsEmpty: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 18,
   },
   settingsHint: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 16,
     lineHeight: 22,
   },

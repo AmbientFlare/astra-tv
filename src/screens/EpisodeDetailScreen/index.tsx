@@ -14,6 +14,7 @@ import {
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 import {getLocaleTag, t} from '../../i18n';
+import {colors} from '../../theme';
 
 const TICKS_PER_SECOND = 10000000;
 
@@ -487,7 +488,7 @@ const PersonCard = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
   },
   hero: {
     minHeight: 560,
@@ -498,7 +499,7 @@ const styles = StyleSheet.create({
   },
   heroShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,17,22,0.62)',
+    backgroundColor: colors.scrim.hero,
   },
   heroContent: {
     paddingHorizontal: 72,
@@ -506,18 +507,18 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
   },
   seriesName: {
-    color: '#9FB0BA',
+    color: colors.text.muted,
     fontSize: 26,
     fontWeight: '700',
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 56,
     fontWeight: '800',
     marginTop: 8,
   },
   meta: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 23,
     marginTop: 12,
   },
@@ -527,23 +528,23 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   badge: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: '800',
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
   overview: {
-    color: '#E4ECEF',
+    color: colors.text.body,
     fontSize: 25,
     lineHeight: 34,
     marginTop: 22,
     maxWidth: 980,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 22,
     marginTop: 16,
   },
@@ -557,21 +558,21 @@ const styles = StyleSheet.create({
     minWidth: 128,
     height: 58,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
   actionFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   actionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 21,
     fontWeight: '800',
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '800',
     marginBottom: 14,
@@ -591,45 +592,45 @@ const styles = StyleSheet.create({
   personCard: {
     width: 170,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     padding: 12,
   },
   personFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   personImage: {
     width: 146,
     height: 146,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     marginBottom: 10,
   },
   personName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '800',
   },
   personRole: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 17,
     marginTop: 4,
   },
   chapterCard: {
     width: 260,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     overflow: 'hidden',
   },
   chapterFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   chapterImage: {
     width: 260,
     height: 146,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
   },
   chapterTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '800',
     padding: 12,

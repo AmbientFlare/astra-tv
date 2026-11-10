@@ -20,6 +20,7 @@ import {
 import {isLiveItem} from '../../services/jellyfin/liveTv';
 import {ServerProfile} from '../../services/storage';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -663,7 +664,7 @@ const PersonCard = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
   },
   hero: {
     minHeight: 520,
@@ -681,45 +682,45 @@ const styles = StyleSheet.create({
     width: 250,
     height: 375,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
   },
   copy: {
     flex: 1,
     paddingTop: 12,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 54,
     fontWeight: '800',
   },
   meta: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 24,
     marginTop: 10,
   },
   overview: {
-    color: '#E4ECEF',
+    color: colors.text.body,
     fontSize: 26,
     lineHeight: 34,
     marginTop: 22,
   },
   genres: {
-    color: '#89CFF0',
+    color: colors.text.accentSoft,
     fontSize: 22,
     marginTop: 18,
   },
   director: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 20,
     marginTop: 16,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 22,
     marginTop: 16,
   },
   status: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     marginTop: 16,
   },
@@ -732,20 +733,20 @@ const styles = StyleSheet.create({
     minWidth: 128,
     height: 58,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   actionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '800',
     marginBottom: 14,
@@ -765,26 +766,26 @@ const styles = StyleSheet.create({
   personCard: {
     width: 170,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     padding: 12,
   },
   personFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   personImage: {
     width: 146,
     height: 146,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     marginBottom: 10,
   },
   personName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '800',
   },
   personRole: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 17,
     marginTop: 4,
   },

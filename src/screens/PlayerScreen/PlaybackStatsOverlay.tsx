@@ -20,6 +20,7 @@ import {
   formatDropRatio,
 } from './formatDiagnostics';
 import type {PlaybackDebugInfo} from './types';
+import {colors} from '../../theme';
 
 export const PlaybackStatsOverlay = ({
   diagnostics,
@@ -232,24 +233,24 @@ const styles = StyleSheet.create({
     top: 34,
     width: 650,
     borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.86)',
+    backgroundColor: colors.scrim.heavy,
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
   statsTitle: {
-    color: '#4CC9F0',
+    color: colors.text.accent,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 8,
   },
   statsLine: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontFamily: 'monospace',
     fontSize: 16,
     lineHeight: 23,
   },
   statsWarning: {
-    color: '#FFB86C',
+    color: colors.text.warning,
     fontWeight: '800',
   },
 });

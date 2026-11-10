@@ -15,6 +15,7 @@ import {
   NavEntry,
   NavSection,
 } from './entries';
+import {colors} from '../../theme';
 
 interface LibraryNavProps {
   /** Poster URLs per library id; a library without any shows its own image. */
@@ -105,13 +106,13 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '800',
     marginBottom: 14,
   },
   item: {
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     borderRadius: 12,
     height: 210,
     justifyContent: 'flex-end',
@@ -119,7 +120,7 @@ const styles = StyleSheet.create({
     width: 340,
   },
   itemFocused: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
     borderWidth: 5,
   },
   collage: {
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   scrim: {
-    backgroundColor: 'rgba(5, 9, 13, 0.68)',
+    backgroundColor: colors.scrim.hero,
     bottom: 0,
     height: 72,
     left: 0,
@@ -150,7 +151,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   label: {
-    color: '#f4f6f8',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '800',
     paddingBottom: 17,

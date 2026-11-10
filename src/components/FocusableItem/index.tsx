@@ -1,6 +1,7 @@
 import React, {PropsWithChildren, useState} from 'react';
 import {StyleProp, StyleSheet, TouchableOpacity, ViewStyle} from 'react-native';
 import {audioIdleGate} from '../../services/audioIdleGate';
+import {colors} from '../../theme';
 
 interface FocusableItemProps {
   onBlur?: () => void;
@@ -69,6 +70,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   focused: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
   },
 });

@@ -8,6 +8,7 @@ import {TVTextInput} from '../../components/TVTextInput';
 import {JellyfinMediaItem, searchItems} from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface SearchScreenProps {
   onBack?: () => void;
@@ -116,7 +117,7 @@ export const SearchScreen = ({
         keyboardType="default"
         onChangeText={setQuery}
         placeholder={t('search.placeholder')}
-        placeholderTextColor="#7E9098"
+        placeholderTextColor={colors.text.faint}
         ref={searchInputRef}
         style={styles.input}
         testID="search-input"
@@ -164,12 +165,12 @@ export const SearchScreen = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
     paddingHorizontal: 84,
     paddingTop: 60,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 58,
     fontWeight: '800',
   },
@@ -177,40 +178,40 @@ const styles = StyleSheet.create({
     width: 700,
     height: 62,
     borderRadius: 8,
-    backgroundColor: '#182027',
-    borderColor: '#4CC9F0',
+    backgroundColor: colors.surface.card,
+    borderColor: colors.border.focus,
     borderWidth: 2,
     marginTop: 24,
     paddingHorizontal: 18,
   },
   inputText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
   },
   backButton: {
     width: 120,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,
   },
   backFocused: {
-    backgroundColor: '#315066',
+    backgroundColor: colors.surface.focus,
   },
   backText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '700',
   },
   status: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 26,
     marginTop: 22,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 24,
     marginTop: 18,
   },
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 16,

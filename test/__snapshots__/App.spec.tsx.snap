@@ -4,7 +4,7 @@ exports[`App matches snapshot 1`] = `
 <View
   style={
     Object {
-      "backgroundColor": "#0b0d10",
+      "backgroundColor": "#0c1116",
       "flex": 1,
     }
   }
@@ -19,7 +19,7 @@ exports[`App matches snapshot 1`] = `
     <View
       style={
         Object {
-          "backgroundColor": "#0C1116",
+          "backgroundColor": "#0c1116",
           "flex": 1,
           "paddingHorizontal": 144,
           "paddingVertical": 76,
@@ -37,7 +37,7 @@ exports[`App matches snapshot 1`] = `
         <Text
           style={
             Object {
-              "color": "#FFFFFF",
+              "color": "#ffffff",
               "fontSize": 82,
               "fontWeight": "800",
               "letterSpacing": 0,
@@ -49,7 +49,7 @@ exports[`App matches snapshot 1`] = `
         <Text
           style={
             Object {
-              "color": "#AAB7C0",
+              "color": "#b8c5cc",
               "fontSize": 30,
               "marginTop": 8,
             }
@@ -68,7 +68,7 @@ exports[`App matches snapshot 1`] = `
         <Text
           style={
             Object {
-              "color": "#FFFFFF",
+              "color": "#ffffff",
               "fontSize": 34,
               "fontWeight": "700",
               "marginBottom": 12,
@@ -80,7 +80,7 @@ exports[`App matches snapshot 1`] = `
         <Text
           style={
             Object {
-              "color": "#AAB7C0",
+              "color": "#b8c5cc",
               "fontSize": 26,
               "lineHeight": 36,
               "marginBottom": 26,
@@ -106,7 +106,7 @@ exports[`App matches snapshot 1`] = `
               Array [
                 Object {
                   "alignItems": "center",
-                  "backgroundColor": "#172129",
+                  "backgroundColor": "#182027",
                   "borderRadius": 8,
                   "height": 100,
                   "justifyContent": "center",
@@ -117,8 +117,8 @@ exports[`App matches snapshot 1`] = `
                   "borderWidth": 1,
                 },
                 Object {
-                  "backgroundColor": "#1B2630",
-                  "borderColor": "#7B5EA7",
+                  "backgroundColor": "#1d2530",
+                  "borderColor": "#2e5a72",
                   "borderWidth": 2,
                 },
                 false,
@@ -130,7 +130,7 @@ exports[`App matches snapshot 1`] = `
               style={
                 Array [
                   Object {
-                    "color": "#FFFFFF",
+                    "color": "#ffffff",
                     "fontSize": 24,
                     "fontWeight": "700",
                   },
@@ -144,7 +144,7 @@ exports[`App matches snapshot 1`] = `
               style={
                 Array [
                   Object {
-                    "color": "#9FB0B8",
+                    "color": "#8b97a5",
                     "fontSize": 18,
                     "marginTop": 6,
                   },
@@ -162,7 +162,7 @@ exports[`App matches snapshot 1`] = `
               Array [
                 Object {
                   "alignItems": "center",
-                  "backgroundColor": "#172129",
+                  "backgroundColor": "#182027",
                   "borderRadius": 8,
                   "height": 100,
                   "justifyContent": "center",
@@ -174,7 +174,7 @@ exports[`App matches snapshot 1`] = `
                 },
                 false,
                 Object {
-                  "backgroundColor": "#11181E",
+                  "backgroundColor": "#12171d",
                   "borderColor": "rgba(255,255,255,0.08)",
                   "opacity": 0.55,
                 },
@@ -186,12 +186,12 @@ exports[`App matches snapshot 1`] = `
               style={
                 Array [
                   Object {
-                    "color": "#FFFFFF",
+                    "color": "#ffffff",
                     "fontSize": 24,
                     "fontWeight": "700",
                   },
                   Object {
-                    "color": "#7C8991",
+                    "color": "#6f7d8c",
                   },
                 ]
               }
@@ -202,12 +202,12 @@ exports[`App matches snapshot 1`] = `
               style={
                 Array [
                   Object {
-                    "color": "#9FB0B8",
+                    "color": "#8b97a5",
                     "fontSize": 18,
                     "marginTop": 6,
                   },
                   Object {
-                    "color": "#69757D",
+                    "color": "#6f7d8c",
                   },
                 ]
               }

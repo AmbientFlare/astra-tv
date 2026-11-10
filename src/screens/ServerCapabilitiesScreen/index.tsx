@@ -14,6 +14,7 @@ import {
   videoTranscodeChoices,
 } from './questions';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface ServerCapabilitiesScreenProps {
   onDone: () => void;
@@ -126,7 +127,7 @@ export const ServerCapabilitiesScreen = ({
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: '#0E171E',
+    backgroundColor: colors.surface.screen,
     flex: 1,
   },
   content: {
@@ -134,20 +135,20 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
   },
   step: {
-    color: '#8CA1AA',
+    color: colors.text.muted,
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: 1,
     marginBottom: 8,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 38,
     fontWeight: '800',
     marginBottom: 10,
   },
   body: {
-    color: '#C7D4DA',
+    color: colors.text.secondary,
     fontSize: 21,
     lineHeight: 29,
     marginBottom: 28,
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   choice: {
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 10,
     justifyContent: 'center',
     maxWidth: 900,
@@ -166,21 +167,21 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   choiceFocused: {
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
   },
   choiceLabel: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
   },
   choiceDetail: {
-    color: '#C7D4DA',
+    color: colors.text.secondary,
     fontSize: 18,
     lineHeight: 24,
     marginTop: 4,
   },
   footnote: {
-    color: '#8CA1AA',
+    color: colors.text.muted,
     fontSize: 17,
     lineHeight: 23,
     marginTop: 28,

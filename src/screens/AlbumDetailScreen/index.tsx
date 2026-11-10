@@ -33,6 +33,7 @@ import {audioPlayback} from '../../services/audioPlayer';
 import {ServerProfile} from '../../services/storage';
 import {formatTotalRuntime, metaLine} from '../../utils/duration';
 import {t, tn} from '../../i18n';
+import {colors} from '../../theme';
 
 interface AlbumDetailScreenProps {
   albumId: string;
@@ -234,26 +235,26 @@ export const AlbumDetailScreen = ({
 };
 
 const styles = StyleSheet.create({
-  root: {backgroundColor: '#0b0d10', flex: 1},
+  root: {backgroundColor: colors.surface.screen, flex: 1},
   centered: {
     alignItems: 'center',
-    backgroundColor: '#0b0d10',
+    backgroundColor: colors.surface.screen,
     flex: 1,
     justifyContent: 'center',
   },
   hero: {flexDirection: 'row', padding: 32},
   cover: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 10,
     height: 260,
     width: 260,
   },
   placeholder: {alignItems: 'center', justifyContent: 'center'},
-  placeholderText: {color: '#54d38a', fontSize: 64, fontWeight: '700'},
+  placeholderText: {color: colors.text.accent, fontSize: 64, fontWeight: '700'},
   heroText: {flex: 1, paddingLeft: 28},
-  title: {color: '#f4f6f8', fontSize: 40, fontWeight: '700'},
-  artist: {color: '#c8d2dc', fontSize: 24, marginTop: 6},
-  meta: {color: '#8b97a5', fontSize: 17, marginTop: 10},
+  title: {color: colors.text.primary, fontSize: 40, fontWeight: '700'},
+  artist: {color: colors.text.secondary, fontSize: 24, marginTop: 6},
+  meta: {color: colors.text.muted, fontSize: 17, marginTop: 10},
   actions: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 22},
   action: {
     borderRadius: 8,
@@ -262,9 +263,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  actionFocused: {backgroundColor: '#54d38a'},
-  actionText: {color: '#f4f6f8', fontSize: 19, fontWeight: '600'},
+  actionFocused: {backgroundColor: colors.fill.accent},
+  actionText: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   trackList: {paddingBottom: 40, paddingHorizontal: 26},
-  status: {color: '#8b97a5', fontSize: 17, padding: 14},
-  error: {color: '#ff8a80', fontSize: 19, marginBottom: 16},
+  status: {color: colors.text.muted, fontSize: 17, padding: 14},
+  error: {color: colors.text.error, fontSize: 19, marginBottom: 16},
 });

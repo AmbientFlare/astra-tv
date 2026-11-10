@@ -32,6 +32,7 @@ import {
   countUsage,
   setupFailKind,
 } from '../../services/telemetry/playbackStats';
+import {colors} from '../../theme';
 
 const serverTypes: ServerType[] = ['jellyfin', 'emby'];
 type WizardStep = 'serverType' | 'server' | 'authMethod' | 'code' | 'password';
@@ -456,7 +457,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
               onChangeText={setServerUrl}
               onFocus={() => handleInputFocus('serverUrl')}
               placeholder="https://jellyfin.example.com"
-              placeholderTextColor="#7D8A92"
+              placeholderTextColor={colors.text.faint}
               textContentType="URL"
               style={inputStyle('serverUrl')}
               testID="setup-server-url-input"
@@ -587,7 +588,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             onChangeText={setUsername}
             onFocus={() => handleInputFocus('username')}
             placeholder={t('setup.usernamePlaceholder')}
-            placeholderTextColor="#7D8A92"
+            placeholderTextColor={colors.text.faint}
             textContentType="username"
             style={inputStyle('username')}
             testID="setup-username-input"
@@ -608,7 +609,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             onChangeText={setPassword}
             onFocus={() => handleInputFocus('password')}
             placeholder={t('setup.password')}
-            placeholderTextColor="#7D8A92"
+            placeholderTextColor={colors.text.faint}
             secureTextEntry={true}
             textContentType="password"
             style={inputStyle('password')}
@@ -659,7 +660,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
     paddingHorizontal: 144,
     paddingVertical: 76,
   },
@@ -667,13 +668,13 @@ const styles = StyleSheet.create({
     marginBottom: 36,
   },
   logo: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 82,
     fontWeight: '800',
     letterSpacing: 0,
   },
   subtitle: {
-    color: '#AAB7C0',
+    color: colors.text.secondary,
     fontSize: 30,
     marginTop: 8,
   },
@@ -681,13 +682,13 @@ const styles = StyleSheet.create({
     width: 840,
   },
   stepTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '700',
     marginBottom: 12,
   },
   stepSubtitle: {
-    color: '#AAB7C0',
+    color: colors.text.secondary,
     fontSize: 26,
     lineHeight: 36,
     marginBottom: 26,
@@ -697,7 +698,7 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   discoveryTitle: {
-    color: '#E6EDF2',
+    color: colors.text.body,
     fontSize: 26,
     fontWeight: '700',
     marginBottom: 10,
@@ -706,35 +707,35 @@ const styles = StyleSheet.create({
     width: 840,
     minHeight: 72,
     borderRadius: 8,
-    backgroundColor: '#14202A',
+    backgroundColor: colors.surface.card,
     justifyContent: 'center',
     marginBottom: 10,
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
   discoveredFocused: {
-    backgroundColor: '#244654',
+    backgroundColor: colors.surface.focus,
   },
   scanButton: {
     width: 180,
     height: 48,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scanText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '700',
   },
   discoveredName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
     fontWeight: '700',
   },
   discoveredAddress: {
-    color: '#AAB7C0',
+    color: colors.text.secondary,
     fontSize: 22,
     marginTop: 4,
   },
@@ -742,7 +743,7 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   label: {
-    color: '#E6EDF2',
+    color: colors.text.body,
     fontSize: 26,
     fontWeight: '700',
     marginBottom: 8,
@@ -752,20 +753,20 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: 8,
     borderWidth: 3,
-    borderColor: '#2F3D46',
-    backgroundColor: '#162027',
+    borderColor: colors.border.subtle,
+    backgroundColor: colors.surface.card,
     paddingHorizontal: 24,
   },
   inputText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 28,
   },
   inputFocused: {
-    borderColor: '#4CC9F0',
-    backgroundColor: '#1D303A',
+    borderColor: colors.border.focus,
+    backgroundColor: colors.surface.selected,
   },
   helperText: {
-    color: '#91A2AD',
+    color: colors.text.muted,
     fontSize: 22,
     marginTop: 8,
   },
@@ -777,42 +778,42 @@ const styles = StyleSheet.create({
     width: 250,
     height: 100,
     borderRadius: 8,
-    backgroundColor: '#172129',
+    backgroundColor: colors.surface.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   segmentBorder: {
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: colors.border.hairline,
     borderWidth: 1,
   },
   segmentSelected: {
-    backgroundColor: '#1B2630',
-    borderColor: '#7B5EA7',
+    backgroundColor: colors.surface.raised,
+    borderColor: colors.border.selected,
     borderWidth: 2,
   },
   segmentDisabled: {
-    backgroundColor: '#11181E',
-    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.disabled,
     opacity: 0.55,
   },
   segmentFocused: {
-    backgroundColor: '#285168',
+    backgroundColor: colors.surface.focus,
   },
   segmentText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
   },
   segmentTextDisabled: {
-    color: '#7C8991',
+    color: colors.text.faint,
   },
   segmentHint: {
-    color: '#9FB0B8',
+    color: colors.text.muted,
     fontSize: 18,
     marginTop: 6,
   },
   segmentHintDisabled: {
-    color: '#69757D',
+    color: colors.text.faint,
   },
   buttonRow: {
     alignItems: 'center',
@@ -821,7 +822,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignItems: 'center',
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     height: 68,
     justifyContent: 'center',
@@ -829,10 +830,10 @@ const styles = StyleSheet.create({
     width: 180,
   },
   backFocused: {
-    backgroundColor: '#334550',
+    backgroundColor: colors.surface.focus,
   },
   backText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
     fontWeight: '700',
   },
@@ -843,8 +844,8 @@ const styles = StyleSheet.create({
   },
   methodButton: {
     alignItems: 'center',
-    backgroundColor: '#172129',
-    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: colors.surface.card,
+    borderColor: colors.border.hairline,
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: 'center',
@@ -854,27 +855,27 @@ const styles = StyleSheet.create({
     width: 390,
   },
   methodRecommended: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
     borderWidth: 2,
   },
   methodFocused: {
-    backgroundColor: '#285168',
+    backgroundColor: colors.surface.focus,
   },
   methodBadge: {
-    color: '#4CC9F0',
+    color: colors.text.accent,
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: 1.5,
     marginBottom: 8,
   },
   methodTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '800',
     textAlign: 'center',
   },
   methodHint: {
-    color: '#9FB0B8',
+    color: colors.text.muted,
     fontSize: 21,
     lineHeight: 28,
     marginTop: 10,
@@ -884,7 +885,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   codeStep: {
-    color: '#D3DDE3',
+    color: colors.text.body,
     fontSize: 24,
     lineHeight: 34,
     marginBottom: 10,
@@ -892,8 +893,8 @@ const styles = StyleSheet.create({
   codeBox: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#14202A',
-    borderColor: '#4CC9F0',
+    backgroundColor: colors.surface.card,
+    borderColor: colors.border.focus,
     borderRadius: 12,
     borderWidth: 2,
     marginBottom: 22,
@@ -902,46 +903,46 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   codeBoxLabel: {
-    color: '#AAB7C0',
+    color: colors.text.secondary,
     fontSize: 22,
     fontWeight: '700',
   },
   code: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 64,
     fontWeight: '800',
     letterSpacing: 10,
     marginVertical: 8,
   },
   waitingText: {
-    color: '#7DE2C4',
+    color: colors.text.success,
     fontSize: 22,
   },
   connectButton: {
     width: 280,
     height: 68,
     borderRadius: 8,
-    backgroundColor: '#2F9C7C',
+    backgroundColor: colors.fill.positive,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
   connectFocused: {
-    backgroundColor: '#36B28E',
+    backgroundColor: colors.fill.positiveFocus,
   },
   connectText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 28,
     fontWeight: '800',
   },
   warningText: {
-    color: '#f0c674',
+    color: colors.text.warning,
     fontSize: 17,
     lineHeight: 24,
     marginTop: 10,
   },
   errorText: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 24,
     marginTop: 18,
   },
