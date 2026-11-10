@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {ActivityIndicator, Text, View} from 'react-native';
+import {Text, View} from 'react-native';
 import {
   useKeplerAppStateManager,
   useTVEventHandler,
@@ -15,7 +15,6 @@ import {
   KeplerVideoSurfaceView,
   VideoPlayer,
 } from '@amazon-devices/react-native-w3cmedia';
-import {FocusableItem} from '../../components/FocusableItem';
 import {
   canServerTranscodeVideo,
   getStreamUrl,
@@ -37,43 +36,24 @@ import {
   neighbourChannel,
 } from '../../services/jellyfin/liveTv';
 import {LiveChannelBanner} from './LiveChannelBanner';
-import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
-import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {collectGarbage} from '../../services/memoryTrim';
 import {resetTraces, trace} from '../../services/logging/trace';
-import {
-  emitError,
-  flushTelemetry,
-  isTelemetryArmed,
-  setTelemetrySession,
-} from '../../services/telemetry';
-import {
-  emitPlaybackDecision,
-  emitSessionEnd,
-} from '../../services/telemetry/playbackFacts';
+import {emitError, setTelemetrySession} from '../../services/telemetry';
 import {
   beginPlayback,
   endPlayback,
   notePlaybackReady,
-  notePlaybackSession,
   notePlaybackStream,
 } from '../../services/telemetry/playbackStats';
 import type {ShakaPlayer as ShakaPlayerInstance} from '../../w3cmedia/shakaplayer/ShakaPlayer';
-import {UNPROBED_SOURCE_ATTRIBUTES} from '../../w3cmedia/hlsUnprobedVariant';
 import {
-  calibrateTimelineOffset,
   logicalToMediaTime,
   mediaToLogicalTime,
   logicalDurationSeconds,
-  isFrozenAtEnd,
-  isPrematureEnd,
   isStalledAtEnd,
   requiresStreamReload,
 } from '../../w3cmedia/mediaTimeline';
-import {
-  getNextPlaybackRecovery,
-  unloadPlayer,
-} from '../../w3cmedia/playerLifecycle';
+import {getNextPlaybackRecovery} from '../../w3cmedia/playerLifecycle';
 import {
   isPlaybackCancelled,
   OrderedPlaybackReporter,
@@ -83,20 +63,15 @@ import {
 import {
   isMediaFailure,
   PlaybackFailure,
-  shakaFailure,
   formatPlaybackFailure,
   PlaybackHealthMonitor,
   shouldAbandonForcedDecoderTranscode,
-  shouldTripForcedDecoderTranscode,
   shouldForceVideoConversion,
   assessDecoderRisk,
-  computeBufferBudget,
-  liveBufferBudget,
   shouldTranscodeForDecoder,
   shouldWarnAboutDecoderRisk,
   decoderRiskWarning,
   MAX_PLAYBACK_RECOVERIES,
-  shouldResetRecoveryBudget,
   shouldRetryFailedRecovery,
 } from '../../services/playbackHealth';
 import {
@@ -158,12 +133,9 @@ import {
 } from './types';
 import {
   assertPlayableUrl,
-  episodeLabel,
   isAdaptiveStream,
   RELOAD_JUMP_THRESHOLD_SECONDS,
   seriesPickFor,
-  shouldUseHlsSequenceMode,
-  shouldUseSequenceModeForMidFileStart,
   startupFailureMessage,
   toTicks,
 } from './playbackPolicy';
@@ -179,17 +151,23 @@ import {useExternalSubtitleCues} from './useExternalSubtitleCues';
 import {usePlaybackDiagnostics} from './usePlaybackDiagnostics';
 import {usePlaybackPreferences} from './usePlaybackPreferences';
 import {useServerTranscodeCapability} from './useServerTranscodeCapability';
+import {attachPlaybackEvents as listenToPlaybackEvents} from './attachPlaybackEvents';
+import {loadVideoSource as loadSourceIntoVideo} from './loadVideoSource';
+import {
+  ControlsBar,
+  CreditsPrompt,
+  EndOfEpisodePrompt,
+  ExitConfirm,
+  SleepNotice,
+  StartupPanel,
+} from './PlayerPanels';
+import type {PlayerRefs} from './playerRefs';
+import {releaseNativePlayer} from './releaseNativePlayer';
+import {closeOutSessionTelemetry, emitStreamDecision} from './sessionTelemetry';
+import {usePlaybackWatchdog} from './usePlaybackWatchdog';
 
-// After a background release, how long Shaka may take to clean up before a
-// new player is allowed to attach.
-const BACKGROUND_UNLOAD_WAIT_MS = 3000;
 /** Pause before restarting after a restart that failed to start. */
 const RECOVERY_RETRY_DELAY_MS = 2000;
-// How long the background switch blocks on the native player teardown. The
-// OS holds the background transition while JS is blocked and only checks for a
-// held decoder after it, so blocking is what keeps the app alive. A paused
-// player takes ~0.4 s to let go on one stick and ~0.9 s on another.
-const BACKGROUND_DEINIT_WAIT_MS = 1500;
 
 // The overlays and pure helpers live beside this file; the names below are
 // the module's public surface and stay importable from here.
@@ -432,6 +410,41 @@ export const PlayerScreen = ({
   const {decoderTranscodeUnusable, transcodeProbeArmed} =
     useServerTranscodeCapability(serverKey);
   const transcodeSuccessRecorded = useRef(false);
+  // The refs the player's other files work on, as one stable object.
+  const playerRefs = useRef<PlayerRefs>({
+    activeContext,
+    controlsAwaitingProgress,
+    controlsProgressPosition,
+    decodedFramesThisSession,
+    decoderTranscodeUnusable,
+    detachPlaybackEvents,
+    finishAtEndRef,
+    firstAvailableSeconds,
+    forcedDecoderTranscode,
+    forcedTranscodeReadyAtMs,
+    healthMonitor,
+    isPausedRef,
+    lastActivePosition,
+    latestPositionTicks,
+    mediaTimelineOffsetSeconds,
+    pendingAdaptiveResumeSeconds,
+    playbackDiagnosticsStartedAt,
+    playbackErrorHandler,
+    playbackEventDiagnostics,
+    playbackGeneration,
+    playbackReadyAtMs,
+    playbackRecoveryAttempt,
+    seekController,
+    sessionReady,
+    shakaPlayerRef,
+    sleepingRef,
+    streamInfo,
+    syncPlayPlayer,
+    trackReloadInProgress,
+    unmountedRef,
+    videoRef,
+    wakeFromSleepRef,
+  }).current;
 
   const [isStarting, setStarting] = useState(true);
   const onSurfaceViewCreatedRef = useRef<
@@ -594,11 +607,7 @@ export const PlayerScreen = ({
           latestPositionTicks.current = toTicks(clampedTarget);
           applyPosition(clampedTarget);
           setStatusText(
-            t('player.resumedAt', {
-              time: `${Math.floor(clampedTarget / 60)}:${String(
-                Math.floor(clampedTarget % 60),
-              ).padStart(2, '0')}`,
-            }),
+            t('player.resumedAt', {time: formatDiagnosticTime(clampedTarget)}),
           );
         } catch (error) {
           console.warn('Failed to apply resume position', error);
@@ -658,47 +667,16 @@ export const PlayerScreen = ({
       // Telemetry closes out before the media refs go away, in the same spirit
       // as reportStopped() above: snapshot, never own the media lifetime.
       heartbeatRef.current?.stop();
-      if (telemetrySessionStartedMs.current !== null) {
-        const sample = lastTelemetrySample.current;
-        const diagnostics = playbackEventDiagnostics.current;
-        notePlaybackSession({
-          failed: sessionFailed.current,
-          watchedSec: (Date.now() - telemetrySessionStartedMs.current) / 1000,
-          bufferingSec: sample?.bufferingTimeSeconds,
-          dropped: sample?.droppedFrames,
-          decoded: sample?.decodedFrames,
-          errors: diagnostics.errorEventCount,
-          stalls: diagnostics.stalledEventCount,
-          waiting: diagnostics.waitingEventCount,
-          lastError: diagnostics.lastError,
-        });
-      } else if (sessionFailed.current) {
-        notePlaybackSession({
-          failed: true,
-          lastError: playbackEventDiagnostics.current.lastError,
-        });
-      }
-      if (isTelemetryArmed() && telemetrySessionStartedMs.current !== null) {
-        const sample = lastTelemetrySample.current;
-        const startedMs = telemetrySessionStartedMs.current;
-        emitSessionEnd({
-          reason: sessionFailed.current ? 'error' : 'ended',
-          failed: sessionFailed.current,
-          positionSec: currentPositionTicks() / TICKS_PER_SECOND,
-          durationSec:
-            (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
-            TICKS_PER_SECOND,
-          watchedSec: (Date.now() - startedMs) / 1000,
-          bufferingTimeSec: sample?.bufferingTimeSeconds,
-          droppedFrames: sample?.droppedFrames,
-          decodedFrames: sample?.decodedFrames,
-          errorsSeen: playbackEventDiagnostics.current.errorEventCount,
-          stalledEvents: playbackEventDiagnostics.current.stalledEventCount,
-          waitingEvents: playbackEventDiagnostics.current.waitingEventCount,
-          lastError: playbackEventDiagnostics.current.lastError,
-        });
-        void flushTelemetry();
-      }
+      closeOutSessionTelemetry({
+        diagnostics: playbackEventDiagnostics.current,
+        durationSec:
+          (streamInfo.current?.runTimeTicks ?? item.runTimeTicks ?? 0) /
+          TICKS_PER_SECOND,
+        failed: sessionFailed.current,
+        positionSec: () => currentPositionTicks() / TICKS_PER_SECOND,
+        sample: lastTelemetrySample.current,
+        startedMs: telemetrySessionStartedMs.current,
+      });
       telemetrySessionStartedMs.current = null;
       lastTelemetrySample.current = null;
       setTelemetrySession(undefined);
@@ -735,57 +713,7 @@ export const PlayerScreen = ({
         clearTimeout(initialSeekTimer.current);
         initialSeekTimer.current = null;
       }
-      // The surface goes first, before anything that waits: unloading can take
-      // seconds while appends finish, and a surface the system destroys in that
-      // time must not still be attached when the player is finally torn down.
-      try {
-        if (handle) {
-          video?.clearSurfaceHandle(handle);
-        }
-      } catch {
-        /* Already detached by the native surface. */
-      }
-      try {
-        video?.pause();
-      } catch {
-        /* Already detached by the native surface. */
-      }
-      let deinitialized: Promise<void> | undefined;
-      if (immediate) {
-        try {
-          if (video && typeof video.deinitializeSync === 'function') {
-            const status = video.deinitializeSync(BACKGROUND_DEINIT_WAIT_MS);
-            trace('session.background', `decoder release ${status}`);
-            deinitialized = Promise.resolve();
-          } else {
-            deinitialized = Promise.resolve(video?.deinitialize());
-          }
-        } catch (error) {
-          deinitialized = Promise.reject(error);
-        }
-      }
-      const unloaded = deinitialized
-        ? (async () => {
-            try {
-              await deinitialized;
-            } finally {
-              // Bounded: appends cut off by the release may never report back,
-              // and a later player must not wait on them forever.
-              await Promise.race([
-                shaka?.unload().catch(() => undefined),
-                new Promise((resolve) =>
-                  setTimeout(resolve, BACKGROUND_UNLOAD_WAIT_MS),
-                ),
-              ]);
-            }
-          })()
-        : (async () => {
-            try {
-              await shaka?.unload();
-            } finally {
-              await video?.deinitialize();
-            }
-          })();
+      const unloaded = releaseNativePlayer(video, shaka, handle, immediate);
       // The release is not done until the live stream is closed: the next
       // channel opens straight after, and a single tuner cannot hold both.
       const cleanup = closingLiveStream
@@ -983,13 +911,7 @@ export const PlayerScreen = ({
         setSettingsPanel(null);
       }
       scheduleControlsHide();
-      setStatusText(
-        t('player.jumpedTo', {
-          time: `${Math.floor(target / 60)}:${String(
-            Math.floor(target % 60),
-          ).padStart(2, '0')}`,
-        }),
-      );
+      setStatusText(t('player.jumpedTo', {time: formatDiagnosticTime(target)}));
 
       reportProgress(positionTicks, paused);
     },
@@ -1461,374 +1383,51 @@ export const PlayerScreen = ({
     }
   }, [item.id]);
 
-  const unloadAdaptivePlayer = useCallback(async () => {
-    await unloadPlayer(shakaPlayerRef);
-  }, []);
-
   const loadVideoSource = useCallback(
-    async (
+    (
       video: VideoPlayer,
       stream: JellyfinStreamInfo,
       startTimeSeconds?: number,
       context?: PlaybackSessionContext,
-    ) => {
-      context?.assertCurrent();
-      if (!isAdaptiveStream(stream.url)) {
-        pendingAdaptiveResumeSeconds.current = null;
-        mediaTimelineOffsetSeconds.current = 0;
-        await unloadAdaptivePlayer();
-        context?.assertCurrent();
-        video.src = stream.url;
-        video.load();
-        return;
-      }
-
-      const {ShakaPlayer} = await import(
-        '../../w3cmedia/shakaplayer/ShakaPlayer'
-      );
-      context?.assertCurrent();
-      const sequenceMode =
-        shouldUseHlsSequenceMode(stream.outputContainer) ||
-        shouldUseSequenceModeForMidFileStart(
-          stream.outputContainer,
-          startTimeSeconds,
-        ) ||
-        isPluginLive;
-      trace(
-        'shaka.mode',
-        `${sequenceMode ? 'sequence' : 'segments'} container=${
-          stream.outputContainer ?? '?'
-        } start=${(startTimeSeconds ?? 0).toFixed(0)}s`,
-      );
-      const hdrSupport = await getHdrSupport();
-      context?.assertCurrent();
-      // stream.bitrate is the server's figure for the delivered stream. It is
-      // the closest thing available before the manifest is parsed; the goals
-      // only need to be right to within a segment.
-      const bufferBudget = liveBufferBudget(
-        computeBufferBudget(stream.bitrate),
-        isLive,
-      );
-      trace(
-        'shaka.buffer',
-        `ahead=${bufferBudget.bufferingGoal}s resume=${
-          bufferBudget.rebufferingGoal
-        }s behind=${bufferBudget.bufferBehind}s bitrate=${
-          stream.bitrate ?? '?'
-        }`,
-      );
-      const settings = {
-        bufferingGoalSeconds: bufferBudget.bufferingGoal,
-        rebufferingGoalSeconds: bufferBudget.rebufferingGoal,
-        bufferBehindSeconds: bufferBudget.bufferBehind,
-        preferredVideoHdrLevel: preferredVideoHdrLevel(
-          hdrSupport,
-          stream.sourceVideoRangeType,
-        ),
-        secure: stream.url.startsWith('https://'),
-        abrEnabled: false,
-        abrMaxWidth: 3840,
-        abrMaxHeight: 2160,
-        // Physical testing rejected sequence mode for MPEG-TS because A/V
-        // drift still accumulated over an hour. Retain the accepted
-        // segments-mode path while evaluating W3C Media 2.2 in isolation.
-        hlsSequenceMode: sequenceMode,
-        hlsIgnoreManifestTimestampsInSegmentsMode: !sequenceMode,
-        // Only a source Jellyfin knows nothing about lacks codecs, and its
-        // fallback encode is always H.264 and AAC.
-        hlsUnprobedAttributes: UNPROBED_SOURCE_ATTRIBUTES,
-        hlsResumePositionSeconds:
-          startTimeSeconds && startTimeSeconds > 0
-            ? startTimeSeconds
-            : undefined,
-        onError: (failure: PlaybackFailure) => {
-          if (context?.isCurrent()) {
-            playbackErrorHandler.current(failure);
-          }
-        },
-        onTimelineReady: ({skippedSeconds}: {skippedSeconds: number}) => {
-          if (!context?.isCurrent()) {
-            return;
-          }
-          firstAvailableSeconds.current = skippedSeconds;
-          pendingAdaptiveResumeSeconds.current = skippedSeconds;
-        },
-      };
-
-      await unloadAdaptivePlayer();
-      context?.assertCurrent();
-      pendingAdaptiveResumeSeconds.current =
-        startTimeSeconds && startTimeSeconds > 0 ? startTimeSeconds : null;
-      mediaTimelineOffsetSeconds.current = 0;
-      const shakaPlayer = new ShakaPlayer(video, settings);
-      shakaPlayerRef.current = shakaPlayer;
-      const cancel = () => {
-        void shakaPlayer.cancelLoad().catch(() => undefined);
-      };
-      context?.signal.addEventListener('abort', cancel, {once: true});
-      try {
-        await shakaPlayer.load(
-          {
-            uri: stream.url,
-            format: stream.url.includes('.mpd') ? 'DASH' : 'HLS',
-            secure: settings.secure,
-            drm_scheme: '',
-            drm_license_uri: '',
-            // Jellyfin's dynamic HLS URL is already positioned at the saved
-            // movie time. Passing that absolute time again makes Shaka append
-            // every shortened-playlist segment until it reaches the same
-            // number. Start at the playlist edge and map its relative media
-            // clock back to logical movie time once playback begins.
-            startTime: 0,
-          },
-          false,
-        );
-        context?.assertCurrent();
-      } catch (error) {
-        // Shaka rejects with shaka.util.Error, which is not an Error
-        // instance — without this it surfaces as a blank "Unable to start
-        // playback" with no diagnostic trail.
-        const shakaError = shakaFailure(error);
-        const failureDetail = formatPlaybackFailure(shakaError);
-        trace('shaka.load.error', failureDetail);
-        console.error('[Astra] Shaka load failed:', failureDetail);
-        throw error instanceof Error
-          ? error
-          : new Error(`Stream engine error: ${failureDetail}`);
-      } finally {
-        context?.signal.removeEventListener('abort', cancel);
-      }
-    },
-    [isLive, isPluginLive, unloadAdaptivePlayer],
+    ) =>
+      loadSourceIntoVideo(
+        {isLive, isPluginLive, refs: playerRefs},
+        video,
+        stream,
+        startTimeSeconds,
+        context,
+      ),
+    [isLive, isPluginLive, playerRefs],
   );
 
   const attachPlaybackEvents = useCallback(
-    (video: VideoPlayer, generation: number) => {
-      const isCurrentPlayer = () =>
-        !unmountedRef.current &&
-        Boolean(activeContext.current?.isCurrent()) &&
-        videoRef.current === video &&
-        playbackGeneration.current === generation;
-      const removers: Array<() => void> = [];
-      const listen = (event: string, handler: () => void) => {
-        video.addEventListener(event, handler);
-        removers.push(() => video.removeEventListener(event, handler));
-      };
-      detachPlaybackEvents.current = () =>
-        removers.forEach((remove) => remove());
-      const recordPlaybackEvent = (
-        event: string,
-        counter?: 'errorEventCount' | 'stalledEventCount' | 'waitingEventCount',
-      ) => {
-        const diagnostics = playbackEventDiagnostics.current;
-        diagnostics.lastPlaybackEvent = event;
-        diagnostics.lastPlaybackEventSeconds = Math.max(
-          0,
-          (Date.now() - playbackDiagnosticsStartedAt.current) / 1000,
-        );
-        if (counter) {
-          diagnostics[counter] += 1;
-          const stream = streamInfo.current;
-          console.info('[Astra] Playback health event:', {
-            event,
-            generation,
-            hlsSegmentTargetSeconds: stream?.hlsSegmentTargetSeconds,
-            outputContainer: stream?.outputContainer,
-            sourceContainer: stream?.sourceContainer,
-            videoDeliveryMethod: stream?.videoDeliveryMethod,
-          });
-        }
-      };
-
-      listen('playing', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        // Alexa and the system media controls play the video directly.
-        if (sleepingRef.current) {
-          video.pause();
-          wakeFromSleepRef.current();
-          return;
-        }
-        recordPlaybackEvent('playing');
-        syncPlay.notifyPlayerPlaying(syncPlayPlayer.current);
-        controlsAwaitingProgress.current = false;
-        setBuffering(false);
-        isPausedRef.current = false;
-        const resumeTarget = pendingAdaptiveResumeSeconds.current;
-        if (
-          resumeTarget !== null &&
-          typeof video.currentTime === 'number' &&
-          Number.isFinite(video.currentTime)
-        ) {
-          mediaTimelineOffsetSeconds.current = calibrateTimelineOffset(
-            resumeTarget,
-            video.currentTime,
-          );
-          pendingAdaptiveResumeSeconds.current = null;
-          latestPositionTicks.current = toTicks(resumeTarget);
-          applyPosition(resumeTarget);
-          console.info('[Astra] Calibrated server-positioned HLS timeline:', {
-            logicalStartSeconds: resumeTarget,
-            mediaStartSeconds: video.currentTime,
-            timelineOffsetSeconds: mediaTimelineOffsetSeconds.current,
-          });
-        }
-        setPaused(false);
-        setPlaybackFinished(false);
-        const videoWithDimensions = video as VideoPlayer & {
-          videoWidth?: number;
-          videoHeight?: number;
-        };
-        // The w3cmedia element doesn't populate videoWidth/videoHeight, so
-        // fall back to the source dimensions from PlaybackInfo — with
-        // stream copy (and unscaled HDR re-encodes) output equals source.
-        const width =
-          videoWithDimensions.videoWidth || streamInfo.current?.width;
-        const height =
-          videoWithDimensions.videoHeight || streamInfo.current?.height;
-        const resolution = width && height ? ` ${width}x${height}` : '';
-        setStatusText(
-          t('player.playingMethod', {
-            method: `${
-              streamInfo.current?.playMethod ?? 'stream'
-            }${resolution}`,
-          }),
-        );
-        scheduleControlsHide();
-      });
-      listen('pause', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        recordPlaybackEvent('pause');
-        isPausedRef.current = true;
-        setPaused(true);
-        // A finished item is paused by its own end; the status line already
-        // says so and must not flip back to "Paused" when the native event
-        // arrives a moment later.
-        if (sessionReady.current) {
-          setStatusText(t('nowPlaying.paused'));
-        }
-        revealControls(false);
-      });
-      listen('loadedmetadata', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        recordPlaybackEvent('loadedmetadata');
-        setStatusText(t('player.streamLoaded'));
-        applyPendingInitialSeek(video);
-      });
-      listen('canplay', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        recordPlaybackEvent('canplay');
-        setStatusText(t('player.ready'));
-        applyPendingInitialSeek(video);
-      });
-      listen('waiting', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        recordPlaybackEvent('waiting', 'waitingEventCount');
-        syncPlay.notifyPlayerBuffering(syncPlayPlayer.current);
-        controlsAwaitingProgress.current = true;
-        setBuffering(true);
-        controlsProgressPosition.current = video.currentTime;
-        revealControls(false);
-        setStatusText(t('player.buffering'));
-      });
-      listen('stalled', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        recordPlaybackEvent('stalled', 'stalledEventCount');
-        controlsAwaitingProgress.current = true;
-        setBuffering(true);
-        controlsProgressPosition.current = video.currentTime;
-        revealControls(false);
-        setStatusText(t('player.stalled'));
-      });
-      listen('timeupdate', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        if (
-          sessionReady.current &&
-          !seekController.current?.seeking &&
-          typeof video.currentTime === 'number' &&
-          Number.isFinite(video.currentTime)
-        ) {
-          // Some Vega streams resume with timeupdate but no new playing event.
-          // Rearm once on real progress, not on every subtitle clock tick.
-          if (
-            controlsAwaitingProgress.current &&
-            !isPausedRef.current &&
-            !video.paused &&
-            video.currentTime > controlsProgressPosition.current + 0.05
-          ) {
-            controlsAwaitingProgress.current = false;
-            setBuffering(false);
-          }
-          controlsProgressPosition.current = video.currentTime;
-          const logicalTime =
-            pendingAdaptiveResumeSeconds.current ??
-            mediaToLogicalTime(
-              video.currentTime,
-              mediaTimelineOffsetSeconds.current,
-            );
-          latestPositionTicks.current = toTicks(logicalTime);
-          // Store only. The 1 Hz interval below owns `positionSeconds`.
-          positionStore.set(logicalTime);
-        }
-      });
-      listen('error', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        recordPlaybackEvent('error');
-        revealControls(false);
-        playbackErrorHandler.current({
-          source: 'native',
-          code: (video as VideoPlayer & {error?: {code?: number}}).error?.code,
-        });
-      });
-      listen('ended', () => {
-        if (!isCurrentPlayer()) {
-          return;
-        }
-        if (!sessionReady.current) {
-          return;
-        }
-        // A live channel never ends on purpose: the upstream dropped, so
-        // tune in again rather than finish.
-        if (isLive) {
-          recordPlaybackEvent('live-ended');
-          playbackErrorHandler.current({source: 'early-end'});
-          return;
-        }
-        if (
-          isPrematureEnd(
-            currentPositionTicks() / TICKS_PER_SECOND,
-            streamInfo.current?.runTimeTicks ?? item.runTimeTicks,
-          )
-        ) {
-          recordPlaybackEvent('early-ended');
-          playbackErrorHandler.current({source: 'early-end'});
-          return;
-        }
-        recordPlaybackEvent('ended');
-        finishAtEndRef.current(generation);
-      });
-    },
+    (video: VideoPlayer, generation: number) =>
+      listenToPlaybackEvents(
+        {
+          applyPendingInitialSeek,
+          applyPosition,
+          currentPositionTicks,
+          isLive,
+          itemRunTimeTicks: item.runTimeTicks,
+          positionStore,
+          refs: playerRefs,
+          revealControls,
+          scheduleControlsHide,
+          setBuffering,
+          setPaused,
+          setPlaybackFinished,
+          setStatusText,
+        },
+        video,
+        generation,
+      ),
     [
       applyPendingInitialSeek,
       applyPosition,
       currentPositionTicks,
       isLive,
       item.runTimeTicks,
+      playerRefs,
       positionStore,
       revealControls,
       scheduleControlsHide,
@@ -2028,33 +1627,7 @@ export const PlayerScreen = ({
         stream,
         selectedBitrate.current ?? preferredMaxBitrate,
       );
-      if (isTelemetryArmed()) {
-        emitPlaybackDecision({
-          itemId: item.id,
-          title: item.name,
-          playMethod: stream.playMethod,
-          transcodeReasons: stream.transcodeReasons,
-          container: stream.container,
-          sourceContainer: stream.sourceContainer,
-          outputContainer: stream.outputContainer,
-          videoCodec: stream.sourceVideoCodec,
-          outputVideoCodec: stream.outputVideoCodec,
-          audioCodec: stream.sourceAudioCodec,
-          outputAudioCodec: stream.outputAudioCodec,
-          audioTranscodePolicy: stream.audioTranscodePolicy,
-          width: stream.width,
-          height: stream.height,
-          bitrate: stream.bitrate,
-          subtitleStreamIndex: stream.subtitleStreamIndex,
-          subtitleBurnIn: stream.subtitleBurnIn,
-          hlsSegmentTargetSeconds: stream.hlsSegmentTargetSeconds,
-          hlsMinimumSegmentCount: stream.hlsMinimumSegmentCount,
-          runTimeTicks: stream.runTimeTicks,
-          startPositionTicks: stream.startPositionTicks,
-          streamUrl: stream.url,
-          transcodeUrl: stream.transcodeUrl,
-        });
-      }
+      emitStreamDecision({id: item.id, name: item.name}, stream);
       if (
         selectedAudioIndex.current === undefined &&
         stream.audioTracks.length
@@ -2721,103 +2294,13 @@ export const PlayerScreen = ({
     reportStopped,
   ]);
 
-  useEffect(() => {
-    const endByStall = (video: VideoPlayer, ticks: number) => {
-      trace('playback.endedByStall', 'position=' + ticks);
-      playbackEventDiagnostics.current.lastPlaybackEvent = 'ended-by-stall';
-      lastActivePosition.current = null;
-      healthMonitor.current.reset();
-      video.pause();
-      finishAtEndRef.current(playbackGeneration.current);
-    };
-    const interval = setInterval(() => {
-      const video = videoRef.current;
-      if (!video || !sessionReady.current || unmountedRef.current) {
-        lastActivePosition.current = null;
-        return;
-      }
-      const ticks = currentPositionTicks();
-      applyPosition(ticks / TICKS_PER_SECOND);
-      reportProgress(ticks);
-      // Beat the stall watchdog to a verdict it is going to reach anyway. The
-      // cheap flags are tested first so getDebugStats() -- which costs
-      // JS-thread time, this app's signature failure mode -- is only read
-      // while a forced session is actually overdue.
-      const forcedReadyAtMs = forcedTranscodeReadyAtMs.current;
-      if (
-        forcedDecoderTranscode.current &&
-        !decoderTranscodeUnusable.current &&
-        decodedFramesThisSession.current === 0 &&
-        forcedReadyAtMs !== null &&
-        shouldTripForcedDecoderTranscode(
-          forcedDecoderTranscode.current,
-          decoderTranscodeUnusable.current,
-          decodedFramesThisSession.current,
-          shakaPlayerRef.current?.getDebugStats()?.buffered?.total?.length ?? 0,
-          Date.now() - forcedReadyAtMs,
-        )
-      ) {
-        playbackErrorHandler.current({source: 'decoder-dead-start'});
-        return;
-      }
-      const positionSeconds = ticks / TICKS_PER_SECOND;
-      const runTimeTicks =
-        streamInfo.current?.runTimeTicks ?? item.runTimeTicks;
-      const active =
-        !isPausedRef.current &&
-        !trackReloadInProgress.current &&
-        !seekController.current?.seeking;
-      const previousSeconds = lastActivePosition.current;
-      lastActivePosition.current = active ? positionSeconds : null;
-      if (
-        shouldResetRecoveryBudget(
-          playbackRecoveryAttempt.current,
-          playbackReadyAtMs.current,
-          Date.now(),
-          active &&
-            previousSeconds !== null &&
-            positionSeconds > previousSeconds,
-        )
-      ) {
-        trace('playback.recovered', 'budget reset');
-        playbackRecoveryAttempt.current = 0;
-      }
-      if (
-        active &&
-        isFrozenAtEnd(positionSeconds, previousSeconds, runTimeTicks)
-      ) {
-        endByStall(video, ticks);
-        return;
-      }
-      if (healthMonitor.current.observe(Date.now(), positionSeconds, active)) {
-        const ranges = shakaPlayerRef.current?.getDebugStats()?.buffered;
-        // Ranges contain only numeric media times; never record segment URLs.
-        trace(
-          'playback.stall',
-          'media=' +
-            video.currentTime +
-            ' duration=' +
-            video.duration +
-            ' offset=' +
-            mediaTimelineOffsetSeconds.current +
-            ' ranges=' +
-            JSON.stringify(ranges ?? {}).slice(0, 500),
-        );
-        if (isStalledAtEnd(positionSeconds, runTimeTicks)) {
-          endByStall(video, ticks);
-          return;
-        }
-        playbackErrorHandler.current({source: 'watchdog'});
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [
+  usePlaybackWatchdog({
     applyPosition,
     currentPositionTicks,
-    decoderTranscodeUnusable,
-    item.runTimeTicks,
+    itemRunTimeTicks: item.runTimeTicks,
+    refs: playerRefs,
     reportProgress,
-  ]);
+  });
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -2946,17 +2429,6 @@ export const PlayerScreen = ({
     videoRef.current?.duration,
     mediaTimelineOffsetSeconds.current,
   );
-  const progressPercent =
-    durationSeconds > 0
-      ? `${Math.min(
-          100,
-          Math.max(
-            0,
-            ((seekPreview ?? positionSeconds) / durationSeconds) * 100,
-          ),
-        )}%`
-      : '0%';
-  const progressWidth = progressPercent as `${number}%`;
   const liveSession = useMemo(
     () => ({accessToken, serverUrl, userId: userId ?? ''}),
     [accessToken, serverUrl, userId],
@@ -2966,12 +2438,11 @@ export const PlayerScreen = ({
     seekPreview !== null ||
     Boolean(settingsPanel) ||
     showExitConfirm;
-  const startupFailedTitle =
-    item.type === 'Episode'
-      ? t('player.couldNotStartEpisode')
-      : item.type === 'Movie'
-      ? t('player.couldNotStartMovie')
-      : t('player.couldNotStartItem');
+  const playNextEpisode = (next: JellyfinMediaItem) => {
+    advanceToEpisode(next, false).catch((error) => {
+      console.warn('[Astra] Unable to play the next episode:', error);
+    });
+  };
 
   return (
     <View style={styles.screen} testID="player-screen">
@@ -3010,48 +2481,15 @@ export const PlayerScreen = ({
           stillOffline={connectionStillOffline}
         />
       ) : null}
-      {sleeping ? (
-        <View style={styles.sleepNotice} testID="player-sleep-notice">
-          <Text style={styles.settingsTitle}>{t('player.sleepEnded')}</Text>
-          <Text style={styles.startupText}>{t('player.sleepResume')}</Text>
-        </View>
-      ) : null}
+      {sleeping ? <SleepNotice /> : null}
       {(isStarting || startupError) && !connection.lost ? (
-        <View style={styles.startupOverlay} testID="player-startup-state">
-          <Text numberOfLines={1} style={styles.startupTitle}>
-            {item.name}
-          </Text>
-          {isStarting ? (
-            <View style={styles.startupRow}>
-              <ActivityIndicator color="#4CC9F0" size="large" />
-              <Text style={styles.startupText}>
-                {t('player.startingPlayback')}
-              </Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.startupText}>{startupFailedTitle}</Text>
-              <Text style={styles.startupDetail}>{startupError}</Text>
-              <View style={styles.startupButtons}>
-                <FocusableItem
-                  focusedStyle={styles.focusedButton}
-                  hasTVPreferredFocus={true}
-                  onPress={retryStartup}
-                  style={styles.button}
-                  testID="player-startup-retry">
-                  <Text style={styles.buttonText}>{t('common.retry')}</Text>
-                </FocusableItem>
-                <FocusableItem
-                  focusedStyle={styles.focusedButton}
-                  onPress={handleBack}
-                  style={styles.button}
-                  testID="player-startup-back">
-                  <Text style={styles.buttonText}>{t('common.back')}</Text>
-                </FocusableItem>
-              </View>
-            </>
-          )}
-        </View>
+        <StartupPanel
+          error={isStarting ? null : startupError}
+          itemType={item.type}
+          onBack={handleBack}
+          onRetry={retryStartup}
+          title={item.name}
+        />
       ) : null}
       {decoderRiskWarned ? (
         <View style={styles.decoderWarning}>
@@ -3068,27 +2506,15 @@ export const PlayerScreen = ({
         />
       ) : null}
       {controlsVisible && !isLive ? (
-        <View style={styles.overlay} testID="player-controls-overlay">
-          <Text numberOfLines={1} style={styles.title}>
-            {item.name}
-          </Text>
-          <Text style={styles.status} testID="player-seek-preview">
-            {seekPreview === null
-              ? statusText
-              : `${formatDiagnosticTime(seekPreview)} / ${formatDiagnosticTime(
-                  durationSeconds,
-                )}${
-                  seekInProgress
-                    ? `  •  ${t('player.seeking')}`
-                    : `  •  ${t('player.seekHint', {
-                        seconds: scanStep ?? preferredSeekSeconds,
-                      })}`
-                }`}
-          </Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, {width: progressWidth}]} />
-          </View>
-        </View>
+        <ControlsBar
+          durationSeconds={durationSeconds}
+          positionSeconds={positionSeconds}
+          seekInProgress={seekInProgress}
+          seekPreview={seekPreview}
+          seekStepSeconds={scanStep ?? preferredSeekSeconds}
+          statusText={statusText}
+          title={item.name}
+        />
       ) : null}
       {settingsPanel && currentStream ? (
         <PlaybackSettingsOverlay
@@ -3131,126 +2557,40 @@ export const PlayerScreen = ({
         />
       ) : null}
       {showExitConfirm ? (
-        <View style={styles.exitOverlay} testID="player-exit-confirm">
-          <Text style={styles.exitTitle}>{t('player.stopConfirm')}</Text>
-          <View style={styles.exitButtons}>
-            <FocusableItem
-              focusedStyle={styles.focusedButton}
-              hasTVPreferredFocus={true}
-              onPress={() => setShowExitConfirm(false)}
-              style={styles.button}
-              testID="player-exit-stay">
-              <Text style={styles.buttonText}>{t('player.stay')}</Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.focusedButton}
-              onPress={handleBack}
-              style={styles.button}
-              testID="player-exit-leave">
-              <Text style={styles.buttonText}>{t('player.leave')}</Text>
-            </FocusableItem>
-          </View>
-        </View>
+        <ExitConfirm
+          onLeave={handleBack}
+          onStay={() => setShowExitConfirm(false)}
+        />
       ) : null}
       {creditsPrompt && !endPrompt && !showExitConfirm && !settingsPanel ? (
-        <View style={styles.promptCard} testID="player-credits-prompt">
-          <Text style={styles.promptTitle}>{t('player.credits')}</Text>
-          <View style={styles.exitButtons}>
-            <FocusableItem
-              focusedStyle={styles.focusedButton}
-              hasTVPreferredFocus={true}
-              onPress={() => {
-                skipCredits(creditsPrompt).catch((error) => {
-                  console.warn('[Astra] Unable to skip credits:', error);
-                });
-              }}
-              style={styles.button}
-              testID="player-skip-credits">
-              <Text style={styles.buttonText}>{t('player.skipCredits')}</Text>
-            </FocusableItem>
-            {nextEpisode && onPlayNext ? (
-              <FocusableItem
-                focusedStyle={styles.focusedButton}
-                onPress={() => {
-                  advanceToEpisode(nextEpisode, false).catch((error) => {
-                    console.warn(
-                      '[Astra] Unable to play the next episode:',
-                      error,
-                    );
-                  });
-                }}
-                style={styles.button}
-                testID="player-next-episode">
-                <Text style={styles.buttonText}>{t('detail.nextEpisode')}</Text>
-              </FocusableItem>
-            ) : null}
-          </View>
-        </View>
+        <CreditsPrompt
+          onNextEpisode={
+            nextEpisode && onPlayNext
+              ? () => playNextEpisode(nextEpisode)
+              : undefined
+          }
+          onSkip={() => {
+            skipCredits(creditsPrompt).catch((error) => {
+              console.warn('[Astra] Unable to skip credits:', error);
+            });
+          }}
+        />
       ) : null}
       {endPrompt && nextEpisode && !showExitConfirm ? (
-        <View style={styles.exitOverlay} testID="player-end-prompt">
-          <Text style={styles.exitTitle}>
-            {endPrompt.kind === 'countdown'
-              ? t('player.upNext')
-              : t('player.continueWatching')}
-          </Text>
-          <Text numberOfLines={1} style={styles.promptSubtitle}>
-            {episodeLabel(nextEpisode)}
-          </Text>
-          <Text style={styles.promptHint}>
-            {endPrompt.kind === 'countdown'
-              ? t('player.playingIn', {seconds: endPrompt.remainingSeconds})
-              : t('player.pressNextEpisode')}
-          </Text>
-          <View style={styles.exitButtons}>
-            <FocusableItem
-              focusedStyle={styles.focusedButton}
-              hasTVPreferredFocus={true}
-              onPress={() => {
-                advanceToEpisode(nextEpisode, false).catch((error) => {
-                  console.warn(
-                    '[Astra] Unable to play the next episode:',
-                    error,
-                  );
-                });
-              }}
-              style={styles.button}
-              testID={
-                endPrompt.kind === 'countdown'
-                  ? 'player-up-next-play'
-                  : 'player-continue-watching'
-              }>
-              <Text style={styles.buttonText}>
-                {endPrompt.kind === 'countdown'
-                  ? t('player.playNow')
-                  : t('detail.nextEpisode')}
-              </Text>
-            </FocusableItem>
-            <FocusableItem
-              focusedStyle={styles.focusedButton}
-              onPress={() => {
-                if (endPrompt.kind === 'countdown') {
-                  cancelCountdown();
-                  setEndPrompt(null);
-                  setStatusText(t('player.finished'));
-                } else {
-                  handleBack();
-                }
-              }}
-              style={styles.button}
-              testID={
-                endPrompt.kind === 'countdown'
-                  ? 'player-up-next-cancel'
-                  : 'player-finished-done'
-              }>
-              <Text style={styles.buttonText}>
-                {endPrompt.kind === 'countdown'
-                  ? t('common.cancel')
-                  : t('player.done')}
-              </Text>
-            </FocusableItem>
-          </View>
-        </View>
+        <EndOfEpisodePrompt
+          nextEpisode={nextEpisode}
+          onDecline={() => {
+            if (endPrompt.kind === 'countdown') {
+              cancelCountdown();
+              setEndPrompt(null);
+              setStatusText(t('player.finished'));
+            } else {
+              handleBack();
+            }
+          }}
+          onPlayNext={() => playNextEpisode(nextEpisode)}
+          prompt={endPrompt}
+        />
       ) : null}
       <VideoPauseIdleVisual
         artworkUrl={item.backdropUrl ?? item.imageUrl}
