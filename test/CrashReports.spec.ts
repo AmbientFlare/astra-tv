@@ -55,9 +55,10 @@ describe('crash reports', () => {
     const body = crashReportBody(tail('see http://10.0.0.5/x'));
     expect(body).not.toHaveProperty('inst');
     expect(body).not.toHaveProperty('sid');
-    expect(
-      crashReportBody(tail('x'), '0123456789abcdef'),
-    ).toHaveProperty('inst', '0123456789abcdef');
+    expect(crashReportBody(tail('x'), '0123456789abcdef')).toHaveProperty(
+      'inst',
+      '0123456789abcdef',
+    );
     expect(body.ev).toBe('app.crashtail');
     expect(body.model).toBe('AFTCA002');
     expect(body.d.traces[0].detail).toBe('see <url>');

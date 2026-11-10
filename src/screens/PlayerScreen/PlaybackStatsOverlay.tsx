@@ -9,10 +9,7 @@ import {
 } from '../../services/deviceModel';
 import {getTraces} from '../../services/logging/trace';
 import {telemetryStatus} from '../../services/telemetry';
-import {
-  describeJsHeap,
-  readJsHeap,
-} from '../../services/telemetry/jsHeap';
+import {describeJsHeap, readJsHeap} from '../../services/telemetry/jsHeap';
 import {formatBufferingTime} from '../../services/playbackHealth';
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {

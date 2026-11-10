@@ -1,3 +1,4 @@
+/* global globalThis */
 /**
  * The JavaScript engine's own memory numbers, in whole megabytes.
  *
