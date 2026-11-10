@@ -76,3 +76,9 @@ fi
 echo
 echo "Package: $PACKAGE"
 cat "build/$TARGET-release/vpkg-info.json"
+
+# A package is not ready to submit until it has passed on a real stick. See
+# section 0 of docs/device-test-checklist-vega-2026.md.
+echo
+echo "Before submitting, run it on a stick:"
+echo "  npm run test:stick -- --install $PACKAGE"

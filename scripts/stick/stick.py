@@ -32,9 +32,15 @@ class StickError(Exception):
 
 
 def _run(args: List[str], timeout: int = 60) -> str:
-    result = subprocess.run(
-        args, capture_output=True, text=True, timeout=timeout, check=False
-    )
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired:
+        # A stick that has gone to sleep accepts a command and never answers.
+        raise StickError(
+            'The stick did not answer within %d s: %s' % (timeout, args[-1])
+        )
     return (result.stdout or '') + (result.stderr or '')
 
 
@@ -212,6 +218,22 @@ class Stick:
         )
         self.cmd('rm -f ' + DEVICE_LOG)
         return path if os.path.exists(path) else None
+
+    def standby_time(self, log_path: str) -> Optional[str]:
+        """When the TV told the stick to go to sleep during the run, if it did.
+
+        A TV that switches itself off sends standby over HDMI. The stick
+        then turns its display off and ends every app, which looks exactly
+        like Astra crashing.
+        """
+        try:
+            with open(log_path, errors='replace') as log:
+                for line in log:
+                    if '[CEC] [RX]' in line and 'Standby' in line:
+                        return ' '.join(line.split()[:3])
+        except OSError:
+            pass
+        return None
 
     # -- screen ------------------------------------------------------------
 

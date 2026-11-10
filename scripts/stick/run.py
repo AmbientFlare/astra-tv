@@ -9,10 +9,11 @@ every later step would be starting from the wrong screen.
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from stick import Stats, Stick, StickError
 
@@ -29,8 +30,61 @@ BACKGROUND_HOLD_SECONDS = 20
 RESUME_MIN_SECONDS = 480
 
 
+# How long a pause must last before the server's sweep, run with a one-minute
+# limit, counts the session as idle.
+SWEEP_IDLE_SECONDS = 80
+
+
 class Failed(Exception):
     pass
+
+
+class Skipped(Exception):
+    pass
+
+
+class Server:
+    """The media server's transcode folder, read over ssh.
+
+    Only the steps that check what the server keeps on disk need it, and
+    they are skipped when it is not configured.
+    """
+
+    def __init__(self) -> None:
+        self.host = os.environ.get('ASTRA_STICK_SERVER')
+        self.folder = os.environ.get('ASTRA_STICK_TRANSCODES')
+        self.sweep_command = os.environ.get('ASTRA_STICK_SWEEP')
+
+    def require(self, sweep: bool = False) -> None:
+        if not self.host or not self.folder:
+            raise Skipped('set ASTRA_STICK_SERVER and ASTRA_STICK_TRANSCODES')
+        if sweep and not self.sweep_command:
+            raise Skipped('set ASTRA_STICK_SWEEP')
+
+    def run(self, command: str) -> str:
+        result = subprocess.run(
+            ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+             str(self.host), command],
+            capture_output=True, text=True, timeout=90, check=False,
+        )
+        if result.returncode != 0:
+            raise Failed(
+                'Could not run a command on the server: '
+                + (result.stderr.strip() or 'exit %d' % result.returncode)
+            )
+        return result.stdout
+
+    def sessions(self) -> Dict[str, int]:
+        """Files held per transcode session, keyed by the session's prefix."""
+        counts: Dict[str, int] = {}
+        listing = self.run('ls -- %s' % shlex.quote(str(self.folder)))
+        for name in listing.split():
+            if re.match(r'[0-9a-f]{32}', name):
+                counts[name[:32]] = counts.get(name[:32], 0) + 1
+        return counts
+
+    def sweep(self) -> None:
+        self.run(str(self.sweep_command))
 
 
 def expected_build() -> str:
@@ -48,6 +102,7 @@ class Session:
         # The process the run started with. A different one later means the
         # app crashed or was ended and came back, whatever the screen shows.
         self.pid: Optional[int] = None
+        self.server = Server()
 
     def expect_same_process(self, state: str = 'VISIBLE') -> None:
         pid, now = self.stick.process()
@@ -132,6 +187,38 @@ class Session:
                 return
             self.stick.press('BACK')
             time.sleep(1)
+
+    def play_from_detail(self, name: str) -> None:
+        if 'Play from Start' in self.stick.screen_text(name + '-buttons'):
+            self.stick.press('RIGHT', 'ENTER')
+        else:
+            self.stick.press('ENTER')
+        self.expect_advancing(name)
+
+    def finished_transcode(self, before: Dict[str, int]) -> Tuple[str, int]:
+        """Waits for the server to finish transcoding what is playing.
+
+        Returns the session's prefix and how many files it holds. A server
+        that throttles never finishes early; these steps are about one that
+        does not.
+        """
+        deadline = time.time() + 420
+        last: Tuple[str, int] = ('', 0)
+        while time.time() < deadline:
+            new = {
+                prefix: count
+                for prefix, count in self.server.sessions().items()
+                if prefix not in before
+            }
+            if new:
+                current = max(new.items(), key=lambda item: item[1])
+                if current == last:
+                    return current
+                last = current
+            time.sleep(15)
+        if not last[1]:
+            raise Skipped('this title is not transcoded on the server')
+        raise Skipped('the server did not finish the transcode in 7 minutes')
 
     # -- steps -------------------------------------------------------------
 
@@ -282,6 +369,72 @@ class Session:
         self.expect_text('end', 'Favorite', 15)
 
 
+    def force_close(self) -> None:
+        # An app ended mid-film never tells the server it stopped, and the
+        # server keeps the whole transcode. The next launch has to say so.
+        self.server.require()
+        before = self.server.sessions()
+        self.play_from_detail('force-close')
+        prefix, files = self.finished_transcode(before)
+        self.stick.terminate()
+        time.sleep(20)
+        if not self.server.sessions().get(prefix):
+            raise Skipped('the server removed the transcode by itself')
+        self.stick.launch()
+        time.sleep(6)
+        self.expect_text('relaunch', 'Settings', 30)
+        self.pid, state = self.stick.process()
+        if self.pid is None or state != 'VISIBLE':
+            raise Failed('Astra is not in the foreground after relaunch.')
+        deadline = time.time() + 45
+        while self.server.sessions().get(prefix):
+            if time.time() > deadline:
+                raise Failed(
+                    'The server still holds the %d files of the session '
+                    'that was cut off.' % files
+                )
+            time.sleep(5)
+
+    def sweep(self) -> None:
+        # The server deletes transcodes nobody has read for a while. A
+        # viewer who comes back to a paused film after that must still be
+        # able to carry on.
+        self.server.require(sweep=True)
+        # The step before leaves Astra on Home, unless it was skipped.
+        if 'Favorite' not in self.stick.screen_text('sweep-where'):
+            self.stick.press(*self.item_path, gap=2.5)
+            self.expect_text('sweep-detail', 'Favorite', 20)
+        before = self.server.sessions()
+        self.play_from_detail('sweep')
+        prefix, files = self.finished_transcode(before)
+        self.stick.press('PLAYPAUSE')
+        time.sleep(2)
+        paused = self.position('sweep-paused')
+        time.sleep(SWEEP_IDLE_SECONDS)
+        self.server.sweep()
+        if self.server.sessions().get(prefix):
+            raise Skipped('the sweep left the paused session in place')
+        self.stick.press('PLAYPAUSE')
+        # Well past what the player had buffered when it was paused.
+        deadline = time.time() + 120
+        reached = paused
+        while reached < paused + 45:
+            if time.time() > deadline:
+                raise Failed(
+                    'Paused at %d s; after the sweep playback only reached '
+                    '%d s.' % (paused, reached)
+                )
+            time.sleep(5)
+            stats = self.read('sweep-after', tries=1)
+            if stats.position is not None:
+                if not stats.no_failure:
+                    raise Failed('The player recorded a failure:\n' + stats.text)
+                reached = stats.position
+        self.open_exit_prompt()
+        self.stick.press('RIGHT', 'ENTER')
+        self.expect_text('sweep-end', 'Favorite', 15)
+
+
 STEPS: List[Tuple[str, str]] = [
     ('launch', 'Cold start reaches Home'),
     ('open_item', 'Home to a detail page'),
@@ -295,6 +448,8 @@ STEPS: List[Tuple[str, str]] = [
     ('play_again', 'A second session starts after the first'),
     ('resume', 'Leaving mid-film offers Resume, and it picks up there'),
     ('background', 'Home during playback: Astra survives and plays again'),
+    ('force_close', 'Ended mid-film: the next launch frees the transcode'),
+    ('sweep', 'Playback carries on after the server sweeps a paused film'),
 ]
 
 
@@ -334,15 +489,32 @@ def main() -> int:
             log = None
         if log:
             print('Stick log: %s' % log)
+            standby = stick.standby_time(log)
+            if standby:
+                print(
+                    'The TV told the stick to sleep at %s (stick time). The '
+                    'stick ends every app when that happens, so a failure '
+                    'after it is not Astra\'s. Keep the TV on and run again.'
+                    % standby
+                )
 
 
 def run_steps(stick: Stick, session: Session) -> int:
+    skipped_steps = 0
     for index, (name, title) in enumerate(STEPS):
         step: Callable[[], None] = getattr(session, name)
         started = time.time()
         try:
             step()
             session.expect_same_process()
+        except Skipped as reason:
+            skipped_steps += 1
+            print('skip  %s (%s)' % (title, reason))
+            try:
+                session.leave_player()
+            except (Failed, StickError):
+                pass
+            continue
         except (Failed, StickError) as error:
             print('FAIL  %s' % title)
             print('      %s' % str(error).replace('\n', '\n      '))
@@ -351,11 +523,20 @@ def run_steps(stick: Stick, session: Session) -> int:
                 session.leave_player()
             except (Failed, StickError):
                 pass
-            skipped = len(STEPS) - index - 1
-            print('\n%d passed, 1 failed, %d not run.' % (index, skipped))
+            print(
+                '\n%d passed, 1 failed, %d skipped, %d not run.'
+                % (index - skipped_steps, skipped_steps,
+                   len(STEPS) - index - 1)
+            )
             return 1
         print('ok    %s (%.0f s)' % (title, time.time() - started))
-    print('\nAll %d steps passed.' % len(STEPS))
+    if skipped_steps:
+        print(
+            '\n%d steps passed, %d skipped.'
+            % (len(STEPS) - skipped_steps, skipped_steps)
+        )
+    else:
+        print('\nAll %d steps passed.' % len(STEPS))
     return 0
 
 

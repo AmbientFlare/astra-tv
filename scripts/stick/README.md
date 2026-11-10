@@ -9,7 +9,11 @@ npm run test:stick -- --install build/armv7-release/astra_armv7.vpkg
 npm run test:stick -- --list
 ```
 
-A run takes about twelve minutes and stops at the first failure. Screenshots
+This run is a release gate: no version is submitted until it passes on the
+package to be uploaded (section 0 of
+[`docs/device-test-checklist-vega-2026.md`](../../docs/device-test-checklist-vega-2026.md)).
+
+A run takes about twenty minutes and stops at the first failure. Screenshots
 of every check go to `tmp/stick-test/<time>/`; the one named `FAILED-…` shows
 the screen at the moment a step failed.
 
@@ -31,6 +35,14 @@ the screen at the moment a step failed.
 10. Home during playback: the same Astra process is still there 20 s later,
    returning to it shows the detail page, and it plays again.
 
+11. Astra ended mid-film: the server is left holding the whole transcode,
+    and the next launch of Astra makes it let go.
+12. A film left paused until the server's clean-up deletes its transcode
+    still carries on when Play is pressed.
+
+Steps 11 and 12 look at the server's disk, so they need the server settings
+below and are reported as skipped without them.
+
 After every step it also checks that Astra is still the process the run
 started with, so a crash and restart fails the run even if the screen looks
 right.
@@ -43,7 +55,13 @@ the player sits on "Stream loaded" and steps fail with "Playback is not
 advancing"; the Bandwidth line in the failure screenshot shows the network
 speed the player measured.
 
+If the TV switches itself off mid-run it tells the stick to sleep over HDMI,
+and the stick ends every app. That looks like Astra crashing. The run checks
+its saved log for that and says so.
+
 ## What it needs
+
+- The TV on for the whole run, with any auto power-off out of the way.
 
 - One stick connected (`vega device list`). With several, set `ASTRA_STICK`
   to a serial.
@@ -54,6 +72,18 @@ speed the player measured.
   fresh Home to its detail page; the default, `DOWN,RIGHT,ENTER,ENTER`, is
   the first title of the second library in the first row under Live TV on
   the lab server.
+
+For the two transcode steps, which are skipped otherwise:
+
+- `ASTRA_STICK_SERVER`: an ssh host for the media server, reachable without
+  a password prompt.
+- `ASTRA_STICK_TRANSCODES`: the server's transcode folder on that host.
+- `ASTRA_STICK_SWEEP`: a command on that host that deletes transcodes idle
+  for a minute. It is run while the test film is paused, and it will also
+  delete the transcode of anyone else who has been paused that long; their
+  playback carries on the same way.
+- A server that transcodes the test title and finishes well ahead of
+  playback (throttling off). The steps skip themselves otherwise.
 
 The title is played for a few minutes and left about ten minutes in, so the
 server will show it as in progress for the signed-in user.
