@@ -71,8 +71,29 @@ const PAGE_AHEAD_ROWS = 10;
 // Ignore arrows for a moment after it gains focus so it does not also move.
 const FOCUS_SETTLE_MS = 300;
 
+// A block that fails to load is asked for again after each of these waits. A
+// server that is briefly unreachable then fills in on its own; one that stays
+// down is given up on, and shown as having no guide information.
+const RETRY_DELAYS_MS = [4000, 15000];
+// A block that was given up on is asked for once more when the viewer moves
+// in the guide with it in view this much later.
+const GIVEN_UP_RETRY_MS = 60000;
+
+// Guide data is kept only for channels this many rows either side of the
+// screen. Further away it is dropped and fetched again on the way back, so a
+// long lineup scrolled end to end does not hold every channel's day in memory.
+const KEEP_ROWS = 60;
+
+type BlockState =
+  | {status: 'loading'; attempts: number}
+  | {status: 'done'}
+  /** Failed; asked for again once `retryAt` passes. */
+  | {status: 'retrying' | 'givenUp'; attempts: number; retryAt: number};
+
 const blockKey = (channelId: string, blockStart: number) =>
   `${channelId}:${blockStart}`;
+
+const channelOfBlock = (key: string) => key.slice(0, key.lastIndexOf(':'));
 
 const mergePrograms = (
   existing: LiveTvProgram[] | undefined,
@@ -113,10 +134,23 @@ export const LiveTvGuide = ({
   }));
   const [programs, setPrograms] = useState<Record<string, LiveTvProgram[]>>({});
   // Which channel and time blocks have been asked for, and which answered.
-  const blocks = useRef(new Map<string, 'loading' | 'done'>());
+  const blocks = useRef(new Map<string, BlockState>());
   const [, setBlocksVersion] = useState(0);
-  // Bumped to fetch the rows on screen again after a recording change.
+  // Bumped to fetch the rows on screen again: after a recording change, and
+  // when a failed block is due another try.
   const [refreshCount, setRefreshCount] = useState(0);
+  const retryTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const timers = retryTimers.current;
+
+    return () => {
+      mounted.current = false;
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
   const [recordTarget, setRecordTarget] = useState<{
     channel: LiveTvChannel;
     program: LiveTvProgram;
@@ -192,10 +226,20 @@ export const LiveTvGuide = ({
       firstRow + visibleRows + ROW_PREFETCH,
     );
 
+    const due = (id: string, blockStart: number) => {
+      const state = blocks.current.get(blockKey(id, blockStart));
+
+      return (
+        !state ||
+        ((state.status === 'retrying' || state.status === 'givenUp') &&
+          Date.now() >= state.retryAt)
+      );
+    };
+
     timeBlocks.forEach((blockStart) => {
       const missing = rows
         .map((channel) => channel.id)
-        .filter((id) => !blocks.current.has(blockKey(id, blockStart)));
+        .filter((id) => due(id, blockStart));
 
       for (
         let index = 0;
@@ -203,33 +247,114 @@ export const LiveTvGuide = ({
         index += CHANNELS_PER_REQUEST
       ) {
         const ids = missing.slice(index, index + CHANNELS_PER_REQUEST);
+        // Each request is one state object shared by its channels, so a
+        // block that was dropped or asked for again in the meantime is told
+        // apart from this one when the answer comes.
+        const loading: BlockState = {
+          status: 'loading',
+          attempts: Math.max(
+            ...ids.map((id) => {
+              const state = blocks.current.get(blockKey(id, blockStart));
+              return state && 'attempts' in state ? state.attempts : 0;
+            }),
+          ),
+        };
         ids.forEach((id) =>
-          blocks.current.set(blockKey(id, blockStart), 'loading'),
+          blocks.current.set(blockKey(id, blockStart), loading),
         );
+        const settle = (state: BlockState) => {
+          ids.forEach((id) => {
+            const key = blockKey(id, blockStart);
+            if (blocks.current.get(key) === loading) {
+              blocks.current.set(key, state);
+            }
+          });
+        };
 
         getGuidePrograms(session, ids, blockStart, blockStart + TIME_BLOCK_MS)
           .then((result) => {
+            if (!mounted.current) {
+              return;
+            }
+            // Channels dropped for being far off screen stay dropped.
+            const wanted = ids.filter(
+              (id) => blocks.current.get(blockKey(id, blockStart)) === loading,
+            );
+            settle({status: 'done'});
             setPrograms((existing) => {
               const next = {...existing};
-              ids.forEach((id) => {
+              wanted.forEach((id) => {
                 next[id] = mergePrograms(existing[id], result[id] ?? []);
               });
               return next;
             });
           })
           .catch((error) => {
-            // Shown as no guide information rather than retried in a loop.
             console.warn('[Astra] Unable to load the guide:', error);
+            if (!mounted.current) {
+              return;
+            }
+            const attempts = loading.attempts + 1;
+            const delay = RETRY_DELAYS_MS[attempts - 1];
+
+            if (delay === undefined) {
+              // Shown as no guide information rather than retried in a loop.
+              settle({
+                status: 'givenUp',
+                attempts,
+                retryAt: Date.now() + GIVEN_UP_RETRY_MS,
+              });
+              return;
+            }
+
+            settle({status: 'retrying', attempts, retryAt: Date.now() + delay});
+            const timer = setTimeout(() => {
+              retryTimers.current.delete(timer);
+              setRefreshCount((count) => count + 1);
+            }, delay);
+            retryTimers.current.add(timer);
           })
           .finally(() => {
-            ids.forEach((id) =>
-              blocks.current.set(blockKey(id, blockStart), 'done'),
-            );
-            setBlocksVersion((version) => version + 1);
+            if (mounted.current) {
+              setBlocksVersion((version) => version + 1);
+            }
           });
       }
     });
   }, [channels, firstRow, refreshCount, session, timeBlocks, visibleRows]);
+
+  // Drop the guide for channels far from the screen.
+  useEffect(() => {
+    const keep = new Set(
+      channels
+        .slice(
+          Math.max(0, firstRow - KEEP_ROWS),
+          firstRow + visibleRows + KEEP_ROWS,
+        )
+        .map((channel) => channel.id),
+    );
+
+    blocks.current.forEach((_state, key) => {
+      if (!keep.has(channelOfBlock(key))) {
+        blocks.current.delete(key);
+      }
+    });
+    setPrograms((existing) => {
+      const ids = Object.keys(existing);
+
+      if (ids.every((id) => keep.has(id))) {
+        return existing;
+      }
+
+      const next: Record<string, LiveTvProgram[]> = {};
+      ids.forEach((id) => {
+        if (keep.has(id)) {
+          next[id] = existing[id];
+        }
+      });
+      return next;
+    });
+  }, [channels, firstRow, visibleRows]);
 
   useEffect(() => {
     if (channels.length && row >= channels.length - PAGE_AHEAD_ROWS) {
@@ -360,11 +485,16 @@ export const LiveTvGuide = ({
     setSize({height, width});
   };
 
+  // A block that was given up on counts as loaded: there is nothing more
+  // coming for it, so the row says it has no guide information.
   const isRowLoaded = (channelId: string) =>
-    timeBlocks.every(
-      (blockStart) =>
-        blocks.current.get(blockKey(channelId, blockStart)) === 'done',
-    );
+    timeBlocks.every((blockStart) => {
+      const status = blocks.current.get(
+        blockKey(channelId, blockStart),
+      )?.status;
+
+      return status === 'done' || status === 'givenUp';
+    });
 
   const nowX = (now - windowStart) * pxPerMs;
 

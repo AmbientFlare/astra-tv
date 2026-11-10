@@ -573,6 +573,9 @@ describe('recordings', () => {
     expect(calls[0].pathname).toBe('/LiveTv/Recordings');
     expect(calls[0].searchParams.get('UserId')).toBe('user-1');
     expect(calls[0].searchParams.get('Fields')).toContain('DateCreated');
+    // A page at a time, never the whole DVR in one response.
+    expect(calls[0].searchParams.get('Limit')).toBe('100');
+    expect(calls[0].searchParams.get('StartIndex')).toBe('0');
     expect(recordings.map((entry) => entry.id)).toEqual(['r-now', 'r-old']);
     expect(recordings[0]).toMatchObject({inProgress: true, timerId: 't-9'});
     expect(recordings[0].imageUrl).toContain('/Items/series-1/Images/Thumb');
@@ -584,6 +587,15 @@ describe('recordings', () => {
     });
     expect(recordings[1].imageUrl).toContain('/Items/r-old/Images/Primary');
     expect(recordings[1].item).toMatchObject({id: 'r-old'});
+  });
+
+  it('asks for a later page of recordings from where the last ended', async () => {
+    const calls = mockFetch(() => ({Items: []}));
+
+    await getRecordings(session, {limit: 50, startIndex: 200});
+
+    expect(calls[0].searchParams.get('Limit')).toBe('50');
+    expect(calls[0].searchParams.get('StartIndex')).toBe('200');
   });
 
   it('lists only airings still to come as scheduled, soonest first', async () => {

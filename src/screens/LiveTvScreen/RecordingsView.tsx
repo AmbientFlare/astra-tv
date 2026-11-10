@@ -19,6 +19,7 @@ import {
   getSeriesRecordings,
   LiveTvRecording,
   LiveTvSession,
+  RECORDINGS_PAGE_SIZE,
   ScheduledRecording,
   SeriesRecording,
 } from '../../services/jellyfin/liveTv';
@@ -47,12 +48,17 @@ const formatDay = (time: number) =>
     weekday: 'short',
   })}, ${formatClockTime(time)}`;
 
+const recordingKey = (recording: LiveTvRecording) =>
+  `recording-${recording.id}`;
+const scheduledKey = (entry: ScheduledRecording) => `scheduled-${entry.id}`;
+const seriesKey = (entry: SeriesRecording) => `series-${entry.id}`;
+
 const targetKey = (target: Target) =>
   target.kind === 'recording'
-    ? `recording-${target.recording.id}`
+    ? recordingKey(target.recording)
     : target.kind === 'scheduled'
-    ? `scheduled-${target.scheduled.id}`
-    : `series-${target.series.id}`;
+    ? scheduledKey(target.scheduled)
+    : seriesKey(target.series);
 
 /** Card keys in the order the rows show them. */
 const cardKeys = (
@@ -69,6 +75,12 @@ const cardKeys = (
   ...scheduled.map((entry) => `scheduled-${entry.id}`),
   ...series.map((entry) => `series-${entry.id}`),
 ];
+
+// A row draws this many cards to begin with and this many more each time
+// focus nears the last one drawn, so a long row costs only as far as it is
+// scrolled. Every card holds an image.
+const ROW_BATCH = 24;
+const ROW_AHEAD = 6;
 
 // The card last opened, kept past the view: playing a recording unmounts this
 // view, and coming back should land on the same card.
@@ -91,13 +103,35 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
   // Counts finished loads; each one puts focus back on a card.
   const [loaded, setLoaded] = useState(0);
 
+  // Whether the server may hold recordings past the pages loaded so far.
+  const hasMore = useRef(false);
+  const loadingMore = useRef(false);
+  // Counts whole reloads, so an answer to an earlier one is dropped.
+  const loadId = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const load = useCallback(async () => {
+    const id = ++loadId.current;
     const [recorded, upcoming, rules] = await Promise.allSettled([
-      getRecordings(session),
+      getRecordings(session, {limit: RECORDINGS_PAGE_SIZE, startIndex: 0}),
       getScheduledRecordings(session),
       getSeriesRecordings(session),
     ]);
 
+    if (id !== loadId.current || !mounted.current) {
+      return;
+    }
+
+    loadingMore.current = false;
+    hasMore.current =
+      recorded.status === 'fulfilled' &&
+      recorded.value.length >= RECORDINGS_PAGE_SIZE;
     setRecordings(recorded.status === 'fulfilled' ? recorded.value : []);
     // Users who cannot manage Live TV may be refused the schedule.
     setScheduled(upcoming.status === 'fulfilled' ? upcoming.value : []);
@@ -138,6 +172,48 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  const recordingsRef = useRef(recordings);
+  recordingsRef.current = recordings;
+
+  // The next page of recordings, asked for as focus nears the end of the row.
+  const loadMore = useCallback(async () => {
+    if (!hasMore.current || loadingMore.current) {
+      return;
+    }
+
+    const id = loadId.current;
+    loadingMore.current = true;
+    try {
+      const page = await getRecordings(session, {
+        limit: RECORDINGS_PAGE_SIZE,
+        startIndex: recordingsRef.current.length,
+      });
+
+      if (id !== loadId.current || !mounted.current) {
+        return;
+      }
+
+      const known = new Set(
+        recordingsRef.current.map((recording) => recording.id),
+      );
+      const fresh = page.filter((recording) => !known.has(recording.id));
+      // A page with nothing new is the end, whatever its size: a server that
+      // ignored the paging would otherwise be asked for ever.
+      hasMore.current = page.length >= RECORDINGS_PAGE_SIZE && fresh.length > 0;
+      if (fresh.length) {
+        setRecordings((existing) => [...existing, ...fresh]);
+      }
+    } catch (error) {
+      // The rows already loaded stay; the next approach to the end asks again.
+      console.warn('[Astra] Unable to load more recordings:', error);
+    } finally {
+      // A reload in the meantime has already cleared this for itself.
+      if (id === loadId.current) {
+        loadingMore.current = false;
+      }
+    }
+  }, [session]);
 
   const open = (next: Target) => {
     lastTarget.current = targetKey(next);
@@ -224,11 +300,14 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Row title={t('liveTv.recordings.now')}>
-          {inProgress.map((recording) => (
+        <Row
+          items={inProgress}
+          keepKey={lastTarget.current}
+          keyOf={recordingKey}
+          renderCard={(recording, onFocus) => (
             <Card
               badge={t('liveTv.recordings.rec')}
-              focusRef={register(`recording-${recording.id}`)}
+              focusRef={register(recordingKey(recording))}
               imageUrl={recording.imageUrl}
               key={recording.id}
               lines={[
@@ -239,48 +318,64 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
                     )} – ${formatClockTime(recording.endTime)}`
                   : undefined,
               ]}
+              onFocus={onFocus}
               onPress={() => open({kind: 'recording', recording})}
-              testID={`recording-${recording.id}`}
+              testID={recordingKey(recording)}
               title={recording.name}
             />
-          ))}
-        </Row>
-        <Row title={t('liveTv.recordings.done')}>
-          {finished.map((recording) => (
+          )}
+          title={t('liveTv.recordings.now')}
+        />
+        <Row
+          items={finished}
+          keepKey={lastTarget.current}
+          keyOf={recordingKey}
+          onNearEnd={loadMore}
+          renderCard={(recording, onFocus) => (
             <Card
-              focusRef={register(`recording-${recording.id}`)}
+              focusRef={register(recordingKey(recording))}
               imageUrl={recording.imageUrl}
               key={recording.id}
               lines={[
                 recording.episodeTitle ?? recording.channelName,
                 recording.startTime ? formatDay(recording.startTime) : '',
               ]}
+              onFocus={onFocus}
               onPress={() => open({kind: 'recording', recording})}
-              testID={`recording-${recording.id}`}
+              testID={recordingKey(recording)}
               title={recording.name}
             />
-          ))}
-        </Row>
-        <Row title={t('liveTv.recordings.scheduled')}>
-          {scheduled.map((entry) => (
+          )}
+          title={t('liveTv.recordings.done')}
+        />
+        <Row
+          items={scheduled}
+          keepKey={lastTarget.current}
+          keyOf={scheduledKey}
+          renderCard={(entry, onFocus) => (
             <Card
-              focusRef={register(`scheduled-${entry.id}`)}
+              focusRef={register(scheduledKey(entry))}
               imageUrl={entry.imageUrl}
               key={entry.id}
               lines={[
                 entry.episodeTitle ?? entry.channelName,
                 formatDay(entry.startTime),
               ]}
+              onFocus={onFocus}
               onPress={() => open({kind: 'scheduled', scheduled: entry})}
-              testID={`scheduled-${entry.id}`}
+              testID={scheduledKey(entry)}
               title={entry.name}
             />
-          ))}
-        </Row>
-        <Row title={t('liveTv.recordings.series')}>
-          {series.map((entry) => (
+          )}
+          title={t('liveTv.recordings.scheduled')}
+        />
+        <Row
+          items={series}
+          keepKey={lastTarget.current}
+          keyOf={seriesKey}
+          renderCard={(entry, onFocus) => (
             <Card
-              focusRef={register(`series-${entry.id}`)}
+              focusRef={register(seriesKey(entry))}
               imageUrl={entry.imageUrl}
               key={entry.id}
               lines={[
@@ -291,12 +386,14 @@ export const RecordingsView = ({canManage, onPlay, session}: Props) => {
                   ? t('liveTv.recordings.anyChannel')
                   : entry.channelName,
               ]}
+              onFocus={onFocus}
               onPress={() => open({kind: 'series', series: entry})}
-              testID={`series-${entry.id}`}
+              testID={seriesKey(entry)}
               title={entry.name}
             />
-          ))}
-        </Row>
+          )}
+          title={t('liveTv.recordings.series')}
+        />
       </ScrollView>
       {target ? (
         <ActionPanel
@@ -386,21 +483,73 @@ const panelMeta = (target: Target) => {
   return target.series.channelName;
 };
 
-const Row = ({children, title}: {children: React.ReactNode[]; title: string}) =>
-  children.length ? (
+/**
+ * A titled row of cards that draws only as far as it has been scrolled.
+ *
+ * The row is a plain sideways ScrollView, as on the home screen, rather than
+ * a recycling list: focus moving between cards is device behaviour that is
+ * known to work this way. What keeps a long row cheap is that it starts with
+ * one batch of cards and adds another each time focus nears the last drawn.
+ */
+const Row = <Item,>({
+  items,
+  keepKey,
+  keyOf,
+  onNearEnd,
+  renderCard,
+  title,
+}: {
+  items: Item[];
+  /** A card that must be drawn from the start, to hand focus back to. */
+  keepKey?: string;
+  keyOf: (item: Item) => string;
+  /** Focus is close to the last item there is; more may be fetched. */
+  onNearEnd?: () => void;
+  renderCard: (item: Item, onFocus: () => void) => React.ReactNode;
+  title: string;
+}) => {
+  const [drawn, setDrawn] = useState(() => {
+    const keep = keepKey
+      ? items.findIndex((item) => keyOf(item) === keepKey)
+      : -1;
+
+    return Math.max(ROW_BATCH, keep + 1 + ROW_AHEAD);
+  });
+
+  if (!items.length) {
+    return null;
+  }
+
+  return (
     <>
       <Text style={styles.rowTitle}>{title}</Text>
       <ScrollView horizontal={true} style={styles.scroller}>
-        <TVFocusGuideView style={styles.row}>{children}</TVFocusGuideView>
+        <TVFocusGuideView style={styles.row}>
+          {items.slice(0, drawn).map((item, index) =>
+            renderCard(item, () => {
+              // Past the end on purpose when the row is short for now: a
+              // page that arrives while focus rests on the last card is then
+              // drawn without waiting for another move.
+              if (index >= drawn - ROW_AHEAD) {
+                setDrawn((count) => Math.max(count, index + 1 + ROW_BATCH));
+              }
+              if (index >= items.length - ROW_AHEAD) {
+                onNearEnd?.();
+              }
+            }),
+          )}
+        </TVFocusGuideView>
       </ScrollView>
     </>
-  ) : null;
+  );
+};
 
 const Card = ({
   badge,
   focusRef,
   imageUrl,
   lines,
+  onFocus,
   onPress,
   testID,
   title,
@@ -409,6 +558,7 @@ const Card = ({
   focusRef: (node: any) => void;
   imageUrl?: string;
   lines: Array<string | undefined>;
+  onFocus?: () => void;
   onPress: () => void;
   testID: string;
   title: string;
@@ -417,6 +567,7 @@ const Card = ({
     accessibilityLabel={title}
     focusRef={focusRef}
     focusedStyle={styles.focused}
+    onFocus={onFocus}
     onPress={onPress}
     style={styles.card}
     testID={testID}>
