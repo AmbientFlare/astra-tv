@@ -16,6 +16,7 @@
     "clean": "rm -rf node_modules buildinfo.json dist build",
     "start": "react-native start",
     "test": "jest --colors ",
+    "test:stick": "python3 scripts/stick/run.py",
     "test:snapshot": "jest --colors --updateSnapshot",
     "lint": "eslint src test --ext .ts,.tsx",
     "lint:fix": "eslint src test --ext .ts,.tsx --fix",
