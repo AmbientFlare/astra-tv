@@ -36,6 +36,10 @@ import {
   neighbourChannel,
 } from '../../services/jellyfin/liveTv';
 import {LiveChannelBanner} from './LiveChannelBanner';
+import {
+  noteSessionClosed,
+  noteSessionOpen,
+} from '../../services/playbackSession/openSession';
 import {collectGarbage} from '../../services/memoryTrim';
 import {resetTraces, trace} from '../../services/logging/trace';
 import {emitError, setTelemetrySession} from '../../services/telemetry';
@@ -1789,12 +1793,19 @@ export const PlayerScreen = ({
           reporter.current = new OrderedPlaybackReporter<PlaybackReportInput>(
             async (event, value) => {
               await previousReports;
+              // Kept on disk so that, if the app is ended before the stop
+              // report, the next launch can send it and free the transcode.
+              const owner = {serverUrl, userId: userId ?? ''};
               if (event === 'start') {
+                void noteSessionOpen(owner, value);
                 return reportPlaybackStart(serverUrl, accessToken, value);
               }
               if (event === 'stop') {
-                return reportPlaybackStopped(serverUrl, accessToken, value);
+                await reportPlaybackStopped(serverUrl, accessToken, value);
+                void noteSessionClosed(value.playSessionId);
+                return;
               }
+              void noteSessionOpen(owner, value);
               return reportPlaybackProgress(serverUrl, accessToken, value);
             },
             () => trace('report.error', 'Jellyfin playback report failed'),
@@ -1923,6 +1934,7 @@ export const PlayerScreen = ({
       reportStopped,
       scheduleControlsHide,
       serverUrl,
+      userId,
     ],
   );
   startPlaybackRef.current = startPlayback;

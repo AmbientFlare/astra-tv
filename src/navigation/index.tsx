@@ -12,6 +12,8 @@ import {CapabilityNotice} from '../components/CapabilityNotice';
 import {SupportCard} from '../components/SupportCard';
 import {trimMemory} from '../services/memoryTrim';
 import {trace} from '../services/logging/trace';
+import {closeLeftoverSession} from '../services/playbackSession/openSession';
+import {reportPlaybackStopped} from '../services/jellyfin';
 import {
   noteMemoryWarning,
   noteScreen,
@@ -184,6 +186,30 @@ export const RootNavigator = () => {
       mounted = false;
     };
   }, []);
+
+  // A previous run that was ended mid-film left its session open on the
+  // server, which keeps that transcode until it hears the session stopped.
+  const leftoverServerUrl = serverProfile?.serverUrl;
+  const leftoverAccessToken = serverProfile?.accessToken;
+  const leftoverUserId = serverProfile?.userId;
+  useEffect(() => {
+    if (!leftoverServerUrl || !leftoverAccessToken || !leftoverUserId) {
+      return;
+    }
+    closeLeftoverSession(
+      {serverUrl: leftoverServerUrl, userId: leftoverUserId},
+      (report) =>
+        reportPlaybackStopped(leftoverServerUrl, leftoverAccessToken, report),
+    )
+      .then((closed) => {
+        if (closed) {
+          trace('report.leftover', 'closed a session left open');
+        }
+      })
+      .catch(() => {
+        // Server unreachable: the note is kept and tried at the next launch.
+      });
+  }, [leftoverAccessToken, leftoverServerUrl, leftoverUserId]);
 
   const dismissNotice = useCallback(() => {
     setNoticeVisible(false);
