@@ -264,17 +264,12 @@ export const MusicScreen = ({
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <FocusableItem
-          focusedStyle={styles.pillFocused}
-          onPress={onBack}
-          style={styles.pill}
-          testID="music-back">
+        <FocusableItem onPress={onBack} style={styles.pill} testID="music-back">
           <Text style={styles.pillText}>{t('common.back')}</Text>
         </FocusableItem>
         <TVFocusGuideView style={styles.tabs}>
           {MUSIC_TABS.map((entry) => (
             <FocusableItem
-              focusedStyle={styles.tabFocused}
               hasTVPreferredFocus={entry.key === initialTab}
               key={entry.key}
               onPress={() => {
@@ -288,7 +283,6 @@ export const MusicScreen = ({
           ))}
         </TVFocusGuideView>
         <FocusableItem
-          focusedStyle={styles.pillFocused}
           onPress={toggleViewMode}
           style={styles.pill}
           testID="music-view-mode">
@@ -330,7 +324,6 @@ export const MusicScreen = ({
         <TVFocusGuideView style={styles.jumpRail}>
           {JUMP_LETTERS.map((entry) => (
             <FocusableItem
-              focusedStyle={styles.jumpFocused}
               key={entry}
               onPress={() => setLetter(letter === entry ? null : entry)}
               style={styles.jumpItem}
@@ -378,7 +371,7 @@ const BrowseTile = ({
   onPress: () => void;
 }) => (
   <FocusableItem
-    focusedStyle={styles.tileFocused}
+    focus="card"
     onPress={onPress}
     style={mode === 'poster' ? styles.posterTile : styles.listTile}
     testID={`music-item-${item.id}`}>
@@ -422,17 +415,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   tabActive: {backgroundColor: colors.surface.raised},
-  tabFocused: {backgroundColor: colors.fill.accent},
   tabText: {color: colors.text.primary, fontSize: 20, fontWeight: '600'},
   pill: {borderRadius: 8, paddingHorizontal: 18, paddingVertical: 8},
-  pillFocused: {backgroundColor: colors.fill.accent},
   pillText: {color: colors.text.secondary, fontSize: 18},
   count: {color: colors.text.faint, fontSize: 15, marginBottom: 10},
   body: {flexDirection: 'row', flex: 1},
   listContent: {paddingRight: 12},
   posterTile: {margin: 6, width: 140},
   listTile: {alignItems: 'center', flexDirection: 'row', margin: 6},
-  tileFocused: {opacity: 1, transform: [{scale: 1.05}]},
   posterImage: {
     backgroundColor: colors.surface.card,
     borderRadius: 8,
@@ -451,8 +441,7 @@ const styles = StyleSheet.create({
   tileTitle: {color: colors.text.primary, fontSize: 17},
   tileSubtitle: {color: colors.text.muted, fontSize: 14},
   jumpRail: {paddingLeft: 8, width: 62},
-  jumpItem: {alignItems: 'center', paddingVertical: 1},
-  jumpFocused: {backgroundColor: colors.fill.accent, borderRadius: 4},
+  jumpItem: {alignItems: 'center', borderRadius: 4, paddingVertical: 1},
   jumpText: {color: colors.text.faint, fontSize: 15},
   jumpTextActive: {color: colors.text.accent, fontWeight: '700'},
   jumpTextHere: {color: colors.text.secondary, fontWeight: '600'},

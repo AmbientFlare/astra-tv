@@ -64,9 +64,6 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  focusedButton: {
-    backgroundColor: colors.surface.focus,
-  },
   buttonText: {
     color: colors.text.primary,
     fontSize: 22,

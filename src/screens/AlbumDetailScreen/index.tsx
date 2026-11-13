@@ -134,7 +134,6 @@ export const AlbumDetailScreen = ({
           {errorText ?? t('music.albumNotFound')}
         </Text>
         <FocusableItem
-          focusedStyle={styles.actionFocused}
           hasTVPreferredFocus={true}
           onPress={onBack}
           style={styles.action}
@@ -180,7 +179,6 @@ export const AlbumDetailScreen = ({
 
             <TVFocusGuideView style={styles.actions}>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 hasTVPreferredFocus={true}
                 onPress={() => playFrom(0)}
                 style={styles.action}
@@ -188,7 +186,6 @@ export const AlbumDetailScreen = ({
                 <Text style={styles.actionText}>{t('player.play')}</Text>
               </FocusableItem>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={() => playFrom(0, true)}
                 style={styles.action}
                 testID="album-shuffle">
@@ -196,7 +193,6 @@ export const AlbumDetailScreen = ({
               </FocusableItem>
               {album.albumArtistId ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() =>
                     onViewArtist?.(album.albumArtistId!, album.albumArtist)
                   }
@@ -206,7 +202,6 @@ export const AlbumDetailScreen = ({
                 </FocusableItem>
               ) : null}
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={onBack}
                 style={styles.action}
                 testID="album-back">
@@ -263,7 +258,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  actionFocused: {backgroundColor: colors.fill.accent},
   actionText: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   trackList: {paddingBottom: 40, paddingHorizontal: 26},
   status: {color: colors.text.muted, fontSize: 17, padding: 14},

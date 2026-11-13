@@ -154,7 +154,6 @@ export const PersonDetailScreen = ({
           <TVFocusGuideView style={styles.actions}>
             <FocusableItem
               disabled={!person || isUpdatingFavorite}
-              focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={true}
               onPress={updateFavorite}
               style={styles.actionButton}
@@ -166,7 +165,6 @@ export const PersonDetailScreen = ({
               </Text>
             </FocusableItem>
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               onPress={onBack}
               style={styles.actionButton}
               testID="person-back-button">
@@ -262,9 +260,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
-  },
-  actionFocused: {
-    backgroundColor: colors.surface.focus,
   },
   actionText: {
     color: colors.text.primary,

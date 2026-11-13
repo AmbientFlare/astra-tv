@@ -86,7 +86,6 @@ export const ProfileSwitcher = ({
               return (
                 <FocusableItem
                   focusRef={index === 0 ? firstRowRef : undefined}
-                  focusedStyle={styles.rowFocused}
                   hasTVPreferredFocus={index === 0}
                   key={profile.id}
                   onPress={() => (isCurrent ? onClose() : onSelect(profile))}
@@ -116,7 +115,6 @@ export const ProfileSwitcher = ({
             })}
             <FocusableItem
               focusRef={profiles.length === 0 ? firstRowRef : undefined}
-              focusedStyle={styles.rowFocused}
               hasTVPreferredFocus={profiles.length === 0}
               onPress={onAddUser}
               style={styles.row}
@@ -178,9 +176,6 @@ const styles = StyleSheet.create({
   },
   rowCurrent: {
     backgroundColor: colors.surface.selected,
-  },
-  rowFocused: {
-    backgroundColor: colors.surface.focus,
   },
   avatar: {
     alignItems: 'center',

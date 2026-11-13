@@ -405,7 +405,6 @@ export const ItemDetailScreen = ({
             />
             <TVFocusGuideView style={styles.actions}>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 hasTVPreferredFocus={true}
                 onPress={() => {
                   if (!hasChildren) {
@@ -437,7 +436,6 @@ export const ItemDetailScreen = ({
               </FocusableItem>
               {detail.type === 'Movie' && detail.resumePositionTicks ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => onPlay?.({...detail, resumePositionTicks: 0})}
                   style={styles.actionButton}
                   testID="detail-play-from-start-button">
@@ -448,7 +446,6 @@ export const ItemDetailScreen = ({
               ) : null}
               {hasChildren && episodes.length ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => {
                     const unwatched =
                       episodes.filter((episode) => !episode.isPlayed) ??
@@ -471,7 +468,6 @@ export const ItemDetailScreen = ({
               {isLiveItem(detail) ? null : (
                 <FocusableItem
                   disabled={isUpdatingUserData}
-                  focusedStyle={styles.actionFocused}
                   onPress={updatePlayed}
                   style={styles.actionButton}
                   testID="detail-watched-button">
@@ -484,7 +480,6 @@ export const ItemDetailScreen = ({
               )}
               <FocusableItem
                 disabled={isUpdatingUserData}
-                focusedStyle={styles.actionFocused}
                 onPress={updateFavorite}
                 style={styles.actionButton}
                 testID="detail-favorite-button">
@@ -496,7 +491,6 @@ export const ItemDetailScreen = ({
               </FocusableItem>
               {detail.type === 'Movie' && firstTrailer ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => Linking.openURL(firstTrailer.url)}
                   style={styles.actionButton}
                   testID="detail-trailer-button">
@@ -504,7 +498,6 @@ export const ItemDetailScreen = ({
                 </FocusableItem>
               ) : null}
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={onBack}
                 style={styles.actionButton}
                 testID="detail-back-button">
@@ -645,7 +638,6 @@ const PersonCard = ({
   role?: string;
 }) => (
   <FocusableItem
-    focusedStyle={styles.personFocused}
     onPress={onPress}
     style={styles.personCard}
     testID={`person-${name}`}>
@@ -737,9 +729,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   actionText: {
     color: colors.text.primary,
     fontSize: 22,
@@ -768,9 +757,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.surface.card,
     padding: 12,
-  },
-  personFocused: {
-    backgroundColor: colors.surface.focus,
   },
   personImage: {
     width: 146,

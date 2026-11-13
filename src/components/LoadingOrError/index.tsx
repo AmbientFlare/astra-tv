@@ -46,7 +46,6 @@ export const LoadingOrError = ({
         <Text style={styles.error}>{errorText}</Text>
         {onRetry ? (
           <FocusableItem
-            focusedStyle={styles.retryFocused}
             onPress={onRetry}
             style={styles.retry}
             testID={`${testID}-retry`}>
@@ -63,7 +62,6 @@ export const LoadingOrError = ({
         <Text style={styles.status}>{emptyText}</Text>
         {onRetry ? (
           <FocusableItem
-            focusedStyle={styles.retryFocused}
             onPress={onRetry}
             style={styles.retry}
             testID={`${testID}-retry`}>
@@ -101,9 +99,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 110,
     paddingHorizontal: 18,
-  },
-  retryFocused: {
-    backgroundColor: colors.surface.focus,
   },
   retryText: {
     color: colors.text.primary,

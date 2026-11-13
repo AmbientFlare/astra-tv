@@ -82,10 +82,7 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
 };
 
 const Action = ({label, onPress}: {label: string; onPress: () => void}) => (
-  <FocusableItem
-    focusedStyle={styles.controlFocused}
-    onPress={onPress}
-    style={styles.control}>
+  <FocusableItem onPress={onPress} style={styles.control}>
     <Text style={styles.controlText}>{label}</Text>
   </FocusableItem>
 );
@@ -124,6 +121,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
-  controlFocused: {backgroundColor: colors.fill.accent},
   controlText: {color: colors.text.primary, fontSize: 19, fontWeight: '700'},
 });

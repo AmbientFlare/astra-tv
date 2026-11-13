@@ -134,21 +134,14 @@ const PanelButton = ({
   onPress: () => void;
   testID: string;
 }) => {
-  const [isFocused, setFocused] = useState(false);
-
   return (
     <FocusableItem
       focusRef={focusRef}
-      focusedStyle={styles.buttonFocused}
       hasTVPreferredFocus={Boolean(focusRef)}
-      onBlur={() => setFocused(false)}
-      onFocus={() => setFocused(true)}
       onPress={onPress}
       style={styles.button}
       testID={testID}>
-      <Text style={[styles.buttonText, isFocused && styles.buttonTextFocused]}>
-        {label}
-      </Text>
+      <Text style={styles.buttonText}>{label}</Text>
     </FocusableItem>
   );
 };
@@ -182,8 +175,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 14,
   },
-  buttonFocused: {backgroundColor: colors.fill.accent},
   buttonText: {color: colors.text.primary, fontSize: 20, fontWeight: '600'},
-  buttonTextFocused: {color: colors.text.onAccent},
   error: {color: colors.text.error, fontSize: 18, marginTop: 14},
 });

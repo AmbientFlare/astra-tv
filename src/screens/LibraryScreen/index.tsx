@@ -954,7 +954,6 @@ export const LibraryScreen = ({
           </View>
           <TVFocusGuideView style={styles.toolbar}>
             <FocusableItem
-              focusedStyle={styles.toolbarButtonFocused}
               hasTVPreferredFocus={!menuVisible && toolbarFocus === 'search'}
               onPress={() => openPanel('search')}
               style={[
@@ -969,7 +968,6 @@ export const LibraryScreen = ({
               </Text>
             </FocusableItem>
             <FocusableItem
-              focusedStyle={styles.toolbarButtonFocused}
               hasTVPreferredFocus={!menuVisible && toolbarFocus === 'genre'}
               onPress={() => openPanel('genre')}
               style={[
@@ -1076,7 +1074,6 @@ export const LibraryScreen = ({
           />
           {searchDraft ? (
             <FocusableItem
-              focusedStyle={styles.panelButtonFocused}
               onPress={() => {
                 setSearchDraft('');
                 setSearchTerm('');
@@ -1102,7 +1099,6 @@ export const LibraryScreen = ({
                 {t('library.genresFailed')}
               </Text>
               <FocusableItem
-                focusedStyle={styles.panelButtonFocused}
                 hasTVPreferredFocus={true}
                 onPress={() => loadGenres()}
                 style={styles.panelButton}
@@ -1125,7 +1121,6 @@ export const LibraryScreen = ({
                 const selected = (item?.id ?? null) === (genre?.id ?? null);
                 return (
                   <FocusableItem
-                    focusedStyle={styles.panelButtonFocused}
                     hasTVPreferredFocus={selected}
                     onPress={() => {
                       setGenre(item);
@@ -1210,7 +1205,6 @@ const Panel = ({
         {children}
       </TVFocusGuideView>
       <FocusableItem
-        focusedStyle={styles.panelButtonFocused}
         onPress={onClose}
         style={styles.panelButton}
         testID="library-panel-close">
@@ -1275,9 +1269,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 16,
   },
-  retryFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   retryText: {
     color: colors.text.primary,
     fontSize: 20,
@@ -1300,9 +1291,6 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     minHeight: 50,
     paddingHorizontal: 18,
-  },
-  toolbarButtonFocused: {
-    backgroundColor: colors.surface.focus,
   },
   toolbarButtonActive: {
     borderColor: colors.border.focus,
@@ -1378,9 +1366,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
     paddingHorizontal: 14,
-  },
-  panelButtonFocused: {
-    backgroundColor: colors.surface.focus,
   },
   panelButtonText: {
     color: colors.text.primary,

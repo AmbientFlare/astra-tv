@@ -38,7 +38,7 @@ import {
   slotMarks,
   windowFor,
 } from './guideLayout';
-import {colors} from '../../theme';
+import {colors, focusStyles} from '../../theme';
 
 interface Props {
   /** Whether selecting a programme that has not started offers to record it. */
@@ -513,7 +513,7 @@ export const LiveTvGuide = ({
         trapFocusRight
         trapFocusUp={row > 0}>
         <FocusableItem
-          focusedStyle={styles.gridFocused}
+          focus="none"
           hasTVPreferredFocus={hasTVPreferredFocus}
           onBlur={() => setFocused(false)}
           onFocus={() => {
@@ -746,7 +746,7 @@ const GuideCellView = ({
       styles.cell,
       isOnNow && styles.cellOnNow,
       !program && styles.cellEmpty,
-      isFocused && styles.cellFocused,
+      isFocused && focusStyles.control,
       {left, width},
     ]}>
     <Text
@@ -777,7 +777,6 @@ const styles = StyleSheet.create({
   detailsOverview: {color: colors.text.secondary, fontSize: 16, marginTop: 6},
   gridArea: {flex: 1},
   grid: {borderRadius: 10, flex: 1},
-  gridFocused: {borderColor: 'transparent'},
   gridInner: {flex: 1, overflow: 'hidden'},
   ruler: {height: RULER_HEIGHT},
   rulerText: {
@@ -823,13 +822,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border.selected,
   },
   cellEmpty: {backgroundColor: colors.surface.screen},
-  cellFocused: {
-    backgroundColor: colors.fill.accent,
-    borderColor: colors.border.focus,
-  },
   cellTitle: {color: colors.text.primary, fontSize: 17, fontWeight: '600'},
   cellSub: {color: colors.text.muted, fontSize: 14, marginTop: 2},
-  cellTitleFocused: {color: colors.text.onAccent},
+  cellTitleFocused: {color: colors.text.primary},
   cellEmptyText: {color: colors.text.faint, fontWeight: '400'},
   recDot: {color: colors.text.live},
   nowLine: {

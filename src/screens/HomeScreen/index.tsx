@@ -346,7 +346,6 @@ export const HomeScreen = ({
         style={styles.content}>
         <View style={styles.topBar}>
           <FocusableItem
-            focusedStyle={styles.profileFocused}
             onPress={onProfiles ?? onSettings}
             style={styles.profileButton}
             testID="home-profile-button">
@@ -365,20 +364,17 @@ export const HomeScreen = ({
           </FocusableItem>
           <TVFocusGuideView style={styles.actions}>
             <FocusableItem
-              focusedStyle={styles.pillFocused}
               style={[styles.pillButton, styles.pillSelected]}
               testID="home-pill-button">
               <Text style={styles.pillText}>{t('home.home')}</Text>
             </FocusableItem>
             <FocusableItem
-              focusedStyle={styles.pillFocused}
               onPress={onSearch}
               style={styles.pillButton}
               testID="home-search-button">
               <Text style={styles.pillText}>{t('search.title')}</Text>
             </FocusableItem>
             <FocusableItem
-              focusedStyle={styles.pillFocused}
               onPress={onSettings}
               style={styles.pillButton}
               testID="home-settings-button">
@@ -569,9 +565,6 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
     paddingRight: 22,
   },
-  profileFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   profileBadge: {
     alignItems: 'center',
     backgroundColor: colors.surface.focus,
@@ -595,9 +588,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 14,
   },
-  actionFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   pillButton: {
     alignItems: 'center',
     backgroundColor: colors.surface.raised,
@@ -609,9 +599,6 @@ const styles = StyleSheet.create({
   },
   pillSelected: {
     backgroundColor: colors.surface.selected,
-  },
-  pillFocused: {
-    backgroundColor: colors.surface.focus,
   },
   pillText: {
     color: colors.text.primary,
@@ -667,10 +654,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.card,
     overflow: 'hidden',
     justifyContent: 'flex-end',
-  },
-  libraryTileFocused: {
-    borderColor: colors.border.focus,
-    borderWidth: 4,
   },
   libraryImage: {
     ...StyleSheet.absoluteFillObject,

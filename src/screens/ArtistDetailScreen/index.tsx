@@ -260,7 +260,6 @@ export const ArtistDetailScreen = ({
       <View style={styles.centered}>
         <Text style={styles.error}>{errorText}</Text>
         <FocusableItem
-          focusedStyle={styles.actionFocused}
           hasTVPreferredFocus={true}
           onPress={onBack}
           style={styles.action}
@@ -307,7 +306,6 @@ export const ArtistDetailScreen = ({
 
             <TVFocusGuideView style={styles.actions}>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 hasTVPreferredFocus={true}
                 onPress={() => playAll(false)}
                 style={styles.action}
@@ -315,14 +313,12 @@ export const ArtistDetailScreen = ({
                 <Text style={styles.actionText}>{t('music.playAll')}</Text>
               </FocusableItem>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={() => playAll(true)}
                 style={styles.action}
                 testID="artist-shuffle">
                 <Text style={styles.actionText}>{t('music.shuffle')}</Text>
               </FocusableItem>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={toggleExpand}
                 style={styles.action}
                 testID="artist-expand">
@@ -335,7 +331,6 @@ export const ArtistDetailScreen = ({
                 </Text>
               </FocusableItem>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={onBack}
                 style={styles.action}
                 testID="artist-back">
@@ -409,7 +404,7 @@ export const ArtistDetailScreen = ({
               <TVFocusGuideView style={styles.albumRow}>
                 {albums.map((album) => (
                   <FocusableItem
-                    focusedStyle={styles.albumFocused}
+                    focus="card"
                     key={album.id}
                     onPress={() => onSelectAlbum?.(album.id)}
                     style={styles.albumTile}
@@ -477,7 +472,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  actionFocused: {backgroundColor: colors.fill.accent},
   actionText: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   section: {paddingBottom: 26, paddingHorizontal: 26},
   sectionTitle: {
@@ -514,7 +508,6 @@ const styles = StyleSheet.create({
   albumHeadingYear: {color: colors.text.faint, fontSize: 15, marginTop: 3},
   albumRow: {flexDirection: 'row'},
   albumTile: {marginRight: 16, width: 200},
-  albumFocused: {transform: [{scale: 1.05}]},
   albumCover: {
     backgroundColor: colors.surface.card,
     borderRadius: 8,

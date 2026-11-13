@@ -165,7 +165,6 @@ export const MusicCollectionScreen = ({
             {kind === 'playlist' && tracks.length ? (
               <>
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   hasTVPreferredFocus={true}
                   onPress={() => playFrom(0)}
                   style={styles.action}
@@ -173,7 +172,6 @@ export const MusicCollectionScreen = ({
                   <Text style={styles.actionText}>{t('player.play')}</Text>
                 </FocusableItem>
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => playFrom(0, true)}
                   style={styles.action}
                   testID="collection-shuffle">
@@ -182,7 +180,6 @@ export const MusicCollectionScreen = ({
               </>
             ) : null}
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={kind === 'genre'}
               onPress={onBack}
               style={styles.action}
@@ -214,7 +211,7 @@ export const MusicCollectionScreen = ({
           <View style={styles.grid}>
             {albums.map((album) => (
               <FocusableItem
-                focusedStyle={styles.tileFocused}
+                focus="card"
                 key={album.id}
                 onPress={() => onSelectAlbum?.(album.id)}
                 style={styles.tile}
@@ -265,7 +262,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  actionFocused: {backgroundColor: colors.fill.accent},
   actionText: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   trackList: {paddingBottom: 40, paddingHorizontal: 26},
   grid: {
@@ -275,7 +271,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   tile: {margin: 8, width: 180},
-  tileFocused: {transform: [{scale: 1.05}]},
   cover: {
     backgroundColor: colors.surface.card,
     borderRadius: 8,

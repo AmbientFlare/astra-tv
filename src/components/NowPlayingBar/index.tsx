@@ -58,7 +58,7 @@ export const NowPlayingBar = ({
         name: status.track?.name ?? '',
         action: status.isPlaying ? t('player.pause') : t('player.play'),
       })}
-      focusedStyle={styles.focused}
+      focus="outline"
       onPress={onOpen ?? (() => audioPlayback.togglePlayPause())}
       style={styles.bar}
       testID="now-playing-bar">
@@ -124,7 +124,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingBottom: 8,
   },
-  focused: {borderColor: colors.border.focus},
   progressTrack: {
     backgroundColor: colors.fill.trackSolid,
     flexDirection: 'row',

@@ -9,7 +9,7 @@ import {
   releaseHighlights,
 } from '../../config/releaseNotes';
 import {t} from '../../i18n';
-import {colors} from '../../theme';
+import {FOCUS_BORDER_WIDTH, colors, focusStyles} from '../../theme';
 
 /**
  * Shown once after an update, then never again for that version.
@@ -78,7 +78,7 @@ export const WhatsNewNotice = ({onDismiss}: WhatsNewNoticeProps) => {
           onFocus={() => setFocused(true)}
           onPress={onDismiss}
           ref={buttonRef}
-          style={[styles.button, isFocused && styles.buttonFocused]}
+          style={[styles.button, isFocused && focusStyles.control]}
           testID="whats-new-notice-ok">
           <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
         </TouchableOpacity>
@@ -140,12 +140,11 @@ const styles = StyleSheet.create({
   button: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surface.control,
+    borderColor: 'transparent',
     borderRadius: 10,
-    paddingHorizontal: 44,
-    paddingVertical: 16,
-  },
-  buttonFocused: {
-    backgroundColor: colors.surface.focus,
+    borderWidth: FOCUS_BORDER_WIDTH,
+    paddingHorizontal: 44 - FOCUS_BORDER_WIDTH,
+    paddingVertical: 16 - FOCUS_BORDER_WIDTH,
   },
   buttonLabel: {
     color: colors.text.primary,

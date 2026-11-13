@@ -336,7 +336,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
   const backButton = (label: string, onPress: () => void) => (
     <FocusableItem
       accessibilityLabel={label}
-      focusedStyle={styles.backFocused}
       onPress={onPress}
       style={styles.backButton}
       testID="setup-back-button">
@@ -362,7 +361,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
                     isComingSoon ? t('setup.embyComingSoonLabel') : 'Jellyfin'
                   }
                   disabled={isComingSoon}
-                  focusedStyle={styles.segmentFocused}
                   hasTVPreferredFocus={index === 0}
                   key={type}
                   onPress={
@@ -421,7 +419,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             {discoveredServers.map((server) => (
               <FocusableItem
                 accessibilityLabel={server.name}
-                focusedStyle={styles.discoveredFocused}
                 key={server.address}
                 onPress={() => setServerUrl(server.address)}
                 style={styles.discoveredServer}
@@ -432,7 +429,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             ))}
             <FocusableItem
               disabled={isScanning}
-              focusedStyle={styles.discoveredFocused}
               onPress={scanForServers}
               style={styles.scanButton}
               testID="setup-scan-button">
@@ -477,6 +473,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             <FocusableItem
               accessibilityLabel={t('setup.connect')}
               disabled={isBusy}
+              focus="outline"
               focusedStyle={styles.connectFocused}
               onPress={handleServerConnect}
               style={styles.connectButton}
@@ -503,7 +500,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             <FocusableItem
               accessibilityLabel={t('setup.quickConnectLabel')}
               disabled={isBusy}
-              focusedStyle={styles.methodFocused}
               hasTVPreferredFocus={true}
               onPress={startQuickConnect}
               style={[styles.methodButton, styles.methodRecommended]}
@@ -517,7 +513,6 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
             <FocusableItem
               accessibilityLabel={t('setup.passwordMethodLabel')}
               disabled={isBusy}
-              focusedStyle={styles.methodFocused}
               onPress={() => {
                 setErrorText(null);
                 changeStep('password');
@@ -626,6 +621,7 @@ export const SetupScreen = ({onConnected}: SetupScreenProps) => {
           <FocusableItem
             accessibilityLabel={t('setup.signIn')}
             disabled={isBusy}
+            focus="outline"
             focusedStyle={styles.connectFocused}
             onPress={handlePasswordSignIn}
             style={styles.connectButton}
@@ -713,9 +709,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  discoveredFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   scanButton: {
     width: 180,
     height: 48,
@@ -796,9 +789,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border.disabled,
     opacity: 0.55,
   },
-  segmentFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   segmentText: {
     color: colors.text.primary,
     fontSize: 24,
@@ -829,9 +819,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     width: 180,
   },
-  backFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   backText: {
     color: colors.text.primary,
     fontSize: 26,
@@ -857,9 +844,6 @@ const styles = StyleSheet.create({
   methodRecommended: {
     borderColor: colors.border.focus,
     borderWidth: 2,
-  },
-  methodFocused: {
-    backgroundColor: colors.surface.focus,
   },
   methodBadge: {
     color: colors.text.accent,

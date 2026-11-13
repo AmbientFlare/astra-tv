@@ -59,7 +59,6 @@ export const StartupPanel = ({
         <Text style={styles.startupDetail}>{error}</Text>
         <View style={styles.startupButtons}>
           <FocusableItem
-            focusedStyle={styles.focusedButton}
             hasTVPreferredFocus={true}
             onPress={onRetry}
             style={styles.button}
@@ -67,7 +66,6 @@ export const StartupPanel = ({
             <Text style={styles.buttonText}>{t('common.retry')}</Text>
           </FocusableItem>
           <FocusableItem
-            focusedStyle={styles.focusedButton}
             onPress={onBack}
             style={styles.button}
             testID="player-startup-back">
@@ -143,7 +141,6 @@ export const ExitConfirm = ({onLeave, onStay}: ExitConfirmProps) => (
     <Text style={styles.exitTitle}>{t('player.stopConfirm')}</Text>
     <View style={styles.exitButtons}>
       <FocusableItem
-        focusedStyle={styles.focusedButton}
         hasTVPreferredFocus={true}
         onPress={onStay}
         style={styles.button}
@@ -151,7 +148,6 @@ export const ExitConfirm = ({onLeave, onStay}: ExitConfirmProps) => (
         <Text style={styles.buttonText}>{t('player.stay')}</Text>
       </FocusableItem>
       <FocusableItem
-        focusedStyle={styles.focusedButton}
         onPress={onLeave}
         style={styles.button}
         testID="player-exit-leave">
@@ -172,7 +168,6 @@ export const CreditsPrompt = ({onNextEpisode, onSkip}: CreditsPromptProps) => (
     <Text style={styles.promptTitle}>{t('player.credits')}</Text>
     <View style={styles.exitButtons}>
       <FocusableItem
-        focusedStyle={styles.focusedButton}
         hasTVPreferredFocus={true}
         onPress={onSkip}
         style={styles.button}
@@ -181,7 +176,6 @@ export const CreditsPrompt = ({onNextEpisode, onSkip}: CreditsPromptProps) => (
       </FocusableItem>
       {onNextEpisode ? (
         <FocusableItem
-          focusedStyle={styles.focusedButton}
           onPress={onNextEpisode}
           style={styles.button}
           testID="player-next-episode">
@@ -222,7 +216,6 @@ export const EndOfEpisodePrompt = ({
       </Text>
       <View style={styles.exitButtons}>
         <FocusableItem
-          focusedStyle={styles.focusedButton}
           hasTVPreferredFocus={true}
           onPress={onPlayNext}
           style={styles.button}
@@ -234,7 +227,6 @@ export const EndOfEpisodePrompt = ({
           </Text>
         </FocusableItem>
         <FocusableItem
-          focusedStyle={styles.focusedButton}
           onPress={onDecline}
           style={styles.button}
           testID={countdown ? 'player-up-next-cancel' : 'player-finished-done'}>

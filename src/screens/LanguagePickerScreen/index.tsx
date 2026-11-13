@@ -27,7 +27,6 @@ export const LanguagePickerScreen = ({onSelect}: LanguagePickerScreenProps) => (
       {LANGUAGES.map((language, index) => (
         <FocusableItem
           accessibilityLabel={language.name}
-          focusedStyle={styles.optionFocused}
           hasTVPreferredFocus={index === 0}
           key={language.locale}
           onPress={() => onSelect(language.locale)}
@@ -81,9 +80,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  optionFocused: {
-    backgroundColor: colors.surface.focus,
   },
   optionText: {
     color: colors.text.primary,

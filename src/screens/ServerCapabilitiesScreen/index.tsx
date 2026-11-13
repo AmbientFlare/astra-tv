@@ -91,7 +91,6 @@ export const ServerCapabilitiesScreen = ({
     onSelect: (value: Value) => void,
   ) => (
     <FocusableItem
-      focusedStyle={styles.choiceFocused}
       hasTVPreferredFocus={index === 0}
       key={String(choice.value)}
       onPress={() => onSelect(choice.value)}
@@ -165,9 +164,6 @@ const styles = StyleSheet.create({
     minHeight: 88,
     paddingHorizontal: 22,
     paddingVertical: 14,
-  },
-  choiceFocused: {
-    backgroundColor: colors.surface.focus,
   },
   choiceLabel: {
     color: colors.text.primary,

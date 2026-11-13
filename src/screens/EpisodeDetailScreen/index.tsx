@@ -312,7 +312,6 @@ export const EpisodeDetailScreen = ({
           />
           <TVFocusGuideView style={styles.actions}>
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={true}
               onPress={() => onPlay?.(detail)}
               style={styles.actionButton}
@@ -321,7 +320,6 @@ export const EpisodeDetailScreen = ({
             </FocusableItem>
             <FocusableItem
               disabled={isUpdatingUserData}
-              focusedStyle={styles.actionFocused}
               onPress={updatePlayed}
               style={styles.actionButton}
               testID="episode-watched-button">
@@ -331,7 +329,6 @@ export const EpisodeDetailScreen = ({
             </FocusableItem>
             <FocusableItem
               disabled={isUpdatingUserData}
-              focusedStyle={styles.actionFocused}
               onPress={updateFavorite}
               style={styles.actionButton}
               testID="episode-favorite-button">
@@ -343,7 +340,6 @@ export const EpisodeDetailScreen = ({
             </FocusableItem>
             {previousEpisode ? (
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={() => onSelectEpisode?.(previousEpisode)}
                 style={styles.actionButton}
                 testID="episode-previous-button">
@@ -352,7 +348,6 @@ export const EpisodeDetailScreen = ({
             ) : null}
             {seriesItem ? (
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={() => onGoToSeries?.(seriesItem)}
                 style={styles.actionButton}
                 testID="episode-series-button">
@@ -360,7 +355,6 @@ export const EpisodeDetailScreen = ({
               </FocusableItem>
             ) : null}
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               onPress={onBack}
               style={styles.actionButton}
               testID="episode-back-button">
@@ -428,7 +422,6 @@ export const EpisodeDetailScreen = ({
             <TVFocusGuideView style={styles.row}>
               {detail.chapters.map((chapter, index) => (
                 <FocusableItem
-                  focusedStyle={styles.chapterFocused}
                   key={`${chapter.startPositionTicks}-${index}`}
                   onPress={() =>
                     onPlay?.({
@@ -469,7 +462,6 @@ const PersonCard = ({
   role?: string;
 }) => (
   <FocusableItem
-    focusedStyle={styles.personFocused}
     onPress={onPress}
     style={styles.personCard}
     testID={`episode-person-${name}`}>
@@ -563,9 +555,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  actionFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   actionText: {
     color: colors.text.primary,
     fontSize: 21,
@@ -595,9 +584,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface.card,
     padding: 12,
   },
-  personFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   personImage: {
     width: 146,
     height: 146,
@@ -620,9 +606,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.surface.card,
     overflow: 'hidden',
-  },
-  chapterFocused: {
-    backgroundColor: colors.surface.focus,
   },
   chapterImage: {
     width: 260,

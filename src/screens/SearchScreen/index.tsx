@@ -102,7 +102,6 @@ export const SearchScreen = ({
     <View style={styles.screen} testID="search-screen">
       <Text style={styles.title}>{t('search.title')}</Text>
       <FocusableItem
-        focusedStyle={styles.backFocused}
         onPress={handleBack}
         style={styles.backButton}
         testID="search-back-button">
@@ -129,7 +128,6 @@ export const SearchScreen = ({
       {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
       {errorText ? (
         <FocusableItem
-          focusedStyle={styles.backFocused}
           onPress={() => runSearch(query.trim())}
           style={styles.retryButton}
           testID="search-retry-button">
@@ -196,9 +194,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,
-  },
-  backFocused: {
-    backgroundColor: colors.surface.focus,
   },
   backText: {
     color: colors.text.primary,

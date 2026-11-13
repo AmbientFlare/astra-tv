@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {t} from '../../i18n';
-import {colors} from '../../theme';
+import {FOCUS_BORDER_WIDTH, colors, focusStyles} from '../../theme';
 
 interface ConnectionNoticeProps {
   checking: boolean;
@@ -36,7 +36,7 @@ const NoticeButton = ({
       onFocus={() => setFocused(true)}
       onPress={onPress}
       ref={buttonRef}
-      style={[styles.button, isFocused && styles.buttonFocused]}
+      style={[styles.button, isFocused && focusStyles.control]}
       testID={testID}>
       <Text style={styles.buttonLabel}>{label}</Text>
     </TouchableOpacity>
@@ -137,12 +137,11 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: colors.surface.control,
+    borderColor: 'transparent',
     borderRadius: 10,
-    paddingHorizontal: 44,
-    paddingVertical: 16,
-  },
-  buttonFocused: {
-    backgroundColor: colors.surface.focus,
+    borderWidth: FOCUS_BORDER_WIDTH,
+    paddingHorizontal: 44 - FOCUS_BORDER_WIDTH,
+    paddingVertical: 16 - FOCUS_BORDER_WIDTH,
   },
   buttonLabel: {
     color: colors.text.primary,

@@ -45,7 +45,7 @@ export const MediaCard = ({
   <FocusableItem
     accessibilityLabel={title}
     focusRef={focusRef}
-    focusedStyle={styles.focused}
+    focus="card"
     hasTVPreferredFocus={hasTVPreferredFocus}
     onFocus={onFocus}
     onPress={onPress}
@@ -99,10 +99,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.surface.control,
     overflow: 'hidden',
-  },
-  focused: {
-    backgroundColor: colors.surface.control,
-    transform: [{scale: 1.04}],
   },
   badge: {
     alignItems: 'center',

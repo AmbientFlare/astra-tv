@@ -98,7 +98,7 @@ const OnNowCard = ({
 }) => (
   <FocusableItem
     accessibilityLabel={`${program.name}, ${program.channel.name}`}
-    focusedStyle={styles.focused}
+    focus="card"
     onFocus={onFocus}
     onPress={onPress}
     style={styles.card}
@@ -164,10 +164,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     width: CARD_WIDTH,
-  },
-  focused: {
-    backgroundColor: colors.surface.control,
-    transform: [{scale: 1.04}],
   },
   art: {
     backgroundColor: colors.surface.card,

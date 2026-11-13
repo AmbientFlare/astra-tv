@@ -694,7 +694,6 @@ export const RootNavigator = () => {
               {t('app.loadFailed')}
             </Text>
             <FocusableItem
-              focusedStyle={styles.retryFocused}
               hasTVPreferredFocus={true}
               onPress={() => setBootstrapAttempt((attempt) => attempt + 1)}
               style={styles.retryButton}
@@ -1060,7 +1059,6 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
       <Text style={styles.exitCopy}>{t('exit.body')}</Text>
       <TVFocusGuideView style={styles.exitActions}>
         <FocusableItem
-          focusedStyle={styles.exitButtonFocused}
           hasTVPreferredFocus={true}
           onPress={onCancel}
           style={styles.exitButton}
@@ -1068,7 +1066,7 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
           <Text style={styles.exitButtonText}>{t('exit.stay')}</Text>
         </FocusableItem>
         <FocusableItem
-          focusedStyle={styles.exitDangerFocused}
+          focus="danger"
           onPress={onExit}
           style={[styles.exitButton, styles.exitDangerButton]}
           testID="exit-confirm-button">
@@ -1104,9 +1102,6 @@ const styles = StyleSheet.create({
     minWidth: 180,
     paddingHorizontal: 28,
     paddingVertical: 16,
-  },
-  retryFocused: {
-    backgroundColor: colors.surface.focus,
   },
   retryText: {
     color: colors.text.primary,
@@ -1154,12 +1149,6 @@ const styles = StyleSheet.create({
   },
   exitDangerButton: {
     backgroundColor: colors.surface.danger,
-  },
-  exitButtonFocused: {
-    backgroundColor: colors.surface.focus,
-  },
-  exitDangerFocused: {
-    backgroundColor: colors.surface.dangerFocus,
   },
   exitButtonText: {
     color: colors.text.primary,

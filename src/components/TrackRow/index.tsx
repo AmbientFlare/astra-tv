@@ -34,7 +34,6 @@ export const TrackRow = ({
   const number = position ?? track.indexNumber;
   return (
     <FocusableItem
-      focusedStyle={styles.focused}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onFocus={onFocus}
       onPress={onPress}
@@ -69,11 +68,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 14,
     paddingVertical: 9,
-  },
-  focused: {
-    backgroundColor: colors.surface.raised,
-    borderBottomColor: colors.border.focus,
-    borderBottomWidth: 4,
   },
   number: {
     color: colors.text.faint,

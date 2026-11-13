@@ -176,7 +176,6 @@ const SettingsButton = ({
   selected?: boolean;
 }) => (
   <FocusableItem
-    focusedStyle={styles.settingsButtonFocused}
     onPress={onPress}
     style={[styles.settingsButton, selected && styles.settingsButtonSelected]}>
     <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
@@ -249,9 +248,6 @@ const styles = StyleSheet.create({
   },
   settingsButtonSelected: {
     backgroundColor: colors.surface.selected,
-  },
-  settingsButtonFocused: {
-    backgroundColor: colors.surface.focus,
   },
   settingsButtonText: {
     color: colors.text.primary,

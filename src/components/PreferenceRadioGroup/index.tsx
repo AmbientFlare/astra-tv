@@ -35,7 +35,6 @@ export const PreferenceRadioGroup = <Value extends RadioValue>({
 
         return (
           <FocusableItem
-            focusedStyle={styles.optionFocused}
             hasTVPreferredFocus={
               claimsFocus &&
               option.value === (preferredFocusValue ?? selectedValue)
@@ -78,9 +77,6 @@ const styles = StyleSheet.create({
     minHeight: 52,
     minWidth: 150,
     paddingHorizontal: 14,
-  },
-  optionFocused: {
-    backgroundColor: colors.surface.focus,
   },
   circle: {
     alignItems: 'center',

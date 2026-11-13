@@ -39,9 +39,6 @@ export const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 18,
   },
-  rowFocused: {
-    backgroundColor: colors.surface.focus,
-  },
   icon: {
     color: colors.text.accentSoft,
     fontSize: 30,
@@ -145,8 +142,5 @@ export const styles = StyleSheet.create({
   },
   dangerButton: {
     backgroundColor: colors.surface.danger,
-  },
-  dangerFocused: {
-    backgroundColor: colors.surface.dangerFocus,
   },
 });

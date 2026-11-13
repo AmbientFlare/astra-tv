@@ -2,7 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {t} from '../../i18n';
-import {colors} from '../../theme';
+import {FOCUS_BORDER_WIDTH, colors, focusStyles} from '../../theme';
 
 export const capabilityNoticeTitle = () => t('capabilityNotice.title');
 
@@ -64,7 +64,7 @@ export const CapabilityNotice = ({
           onFocus={() => setFocused(true)}
           onPress={onDismiss}
           ref={buttonRef}
-          style={[styles.button, isFocused && styles.buttonFocused]}
+          style={[styles.button, isFocused && focusStyles.control]}
           testID="capability-notice-ok">
           <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
         </TouchableOpacity>
@@ -109,13 +109,12 @@ const styles = StyleSheet.create({
   button: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surface.control,
+    borderColor: 'transparent',
     borderRadius: 10,
+    borderWidth: FOCUS_BORDER_WIDTH,
     marginTop: 14,
-    paddingHorizontal: 44,
-    paddingVertical: 16,
-  },
-  buttonFocused: {
-    backgroundColor: colors.surface.focus,
+    paddingHorizontal: 44 - FOCUS_BORDER_WIDTH,
+    paddingVertical: 16 - FOCUS_BORDER_WIDTH,
   },
   buttonLabel: {
     color: colors.text.primary,

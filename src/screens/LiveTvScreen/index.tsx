@@ -291,7 +291,6 @@ export const LiveTvScreen = ({
     <View style={styles.root}>
       <View style={styles.header}>
         <FocusableItem
-          focusedStyle={styles.pillFocused}
           onPress={onBack}
           style={styles.pill}
           testID="livetv-back">
@@ -301,7 +300,6 @@ export const LiveTvScreen = ({
         <TVFocusGuideView style={styles.tabs}>
           {(isRecordings ? [] : filters).map((entry) => (
             <FocusableItem
-              focusedStyle={styles.tabFocused}
               hasTVPreferredFocus={view === 'channels' && entry === 'all'}
               key={entry}
               onPress={() => {
@@ -317,7 +315,6 @@ export const LiveTvScreen = ({
         <TVFocusGuideView style={styles.views}>
           {(['guide', 'channels', 'recordings'] as const).map((entry) => (
             <FocusableItem
-              focusedStyle={styles.tabFocused}
               key={entry}
               onPress={() => changeView(entry)}
               style={[styles.tab, view === entry && styles.tabActive]}
@@ -407,7 +404,6 @@ const ChannelRow = ({
 
   return (
     <FocusableItem
-      focusedStyle={styles.rowFocused}
       onPress={onPress}
       style={styles.row}
       testID={`livetv-channel-${channel.id}`}>
@@ -499,10 +495,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   tabActive: {backgroundColor: colors.surface.raised},
-  tabFocused: {backgroundColor: colors.fill.accent},
   tabText: {color: colors.text.primary, fontSize: 20, fontWeight: '600'},
   pill: {borderRadius: 8, paddingHorizontal: 18, paddingVertical: 8},
-  pillFocused: {backgroundColor: colors.fill.accent},
   pillText: {color: colors.text.secondary, fontSize: 18},
   count: {color: colors.text.faint, fontSize: 15, marginBottom: 10},
   listContent: {paddingBottom: 24},
@@ -515,7 +509,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  rowFocused: {backgroundColor: colors.surface.raised},
   number: {
     color: colors.text.muted,
     fontSize: 18,
