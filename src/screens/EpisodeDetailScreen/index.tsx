@@ -305,6 +305,24 @@ export const EpisodeDetailScreen = ({
           <Text numberOfLines={5} style={styles.overview}>
             {detail.overview ?? t('detail.noSynopsis')}
           </Text>
+          {detail.resumePositionTicks && detail.runTimeTicks ? (
+            <View style={styles.progressTrack} testID="episode-progress">
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.min(
+                      100,
+                      Math.round(
+                        (detail.resumePositionTicks / detail.runTimeTicks) *
+                          100,
+                      ),
+                    )}%`,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
           <LoadingOrError
             errorText={errorText}
             onRetry={() => loadDetail()}
@@ -316,7 +334,11 @@ export const EpisodeDetailScreen = ({
               onPress={() => onPlay?.(detail)}
               style={styles.actionButton}
               testID="episode-play-button">
-              <Text style={styles.actionText}>{t('player.play')}</Text>
+              <Text style={styles.actionText}>
+                {detail.resumePositionTicks
+                  ? t('detail.resume')
+                  : t('player.play')}
+              </Text>
             </FocusableItem>
             <FocusableItem
               disabled={isUpdatingUserData}
@@ -528,6 +550,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
+  progressTrack: {
+    backgroundColor: colors.fill.track,
+    borderRadius: 3,
+    height: 6,
+    marginTop: 22,
+    overflow: 'hidden',
+    width: 420,
+  },
+  progressFill: {backgroundColor: colors.fill.accent, height: '100%'},
   overview: {
     color: colors.text.body,
     fontSize: 25,

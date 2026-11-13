@@ -610,11 +610,14 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontSize: 26,
     fontWeight: '800',
-    marginBottom: 12,
+    marginBottom: 2,
+    marginLeft: 10,
     marginTop: 12,
   },
-  scroller: {flexGrow: 0, marginBottom: 18},
-  row: {flexDirection: 'row', gap: 24},
+  scroller: {flexGrow: 0, marginBottom: 8},
+  // The padding is room for a focused card to grow into: the scroller clips
+  // anything that leaves it.
+  row: {flexDirection: 'row', gap: 24, padding: 10},
   card: {
     backgroundColor: colors.surface.control,
     borderRadius: 8,
