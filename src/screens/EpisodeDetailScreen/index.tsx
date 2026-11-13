@@ -279,7 +279,7 @@ export const EpisodeDetailScreen = ({
             {detail.seriesName ?? t('detail.episode')}
           </Text>
           <Text style={styles.title}>{detail.name}</Text>
-          <Text style={styles.meta}>{meta.join('  |  ')}</Text>
+          <Text style={styles.meta}>{meta.join('  ·  ')}</Text>
           {badges.length ? (
             <View style={styles.badges}>
               {badges.map((badge) => (
@@ -291,7 +291,7 @@ export const EpisodeDetailScreen = ({
           ) : null}
           <Text style={styles.meta}>
             {[
-              detail.genres?.join(' / '),
+              detail.genres?.join(', '),
               formatRuntime(detail.runTimeTicks),
               formatEndsAt(detail.runTimeTicks)
                 ? t('detail.endsAt', {
@@ -300,7 +300,7 @@ export const EpisodeDetailScreen = ({
                 : null,
             ]
               .filter(Boolean)
-              .join('  |  ')}
+              .join('  ·  ')}
           </Text>
           <Text numberOfLines={5} style={styles.overview}>
             {detail.overview ?? t('detail.noSynopsis')}

@@ -520,6 +520,11 @@ const HomeMediaRow = ({
                 onFocusBackdrop?.(item.backdropUrl ?? item.imageUrl)
               }
               onPress={() => onSelectItem?.(item)}
+              progress={
+                item.resumePositionTicks && item.runTimeTicks
+                  ? item.resumePositionTicks / item.runTimeTicks
+                  : undefined
+              }
               subtitle={
                 item.seriesName ??
                 (item.productionYear
@@ -552,7 +557,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 30,
+    marginBottom: 14,
   },
   profileButton: {
     alignItems: 'center',

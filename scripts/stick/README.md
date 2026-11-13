@@ -69,9 +69,9 @@ its saved log for that and says so.
   tests read the position, build and failure line from that panel.
 - `tesseract` and Python 3 with Pillow on this machine.
 - A playable title. `ASTRA_STICK_ITEM_PATH` is the remote presses from a
-  fresh Home to its detail page; the default, `DOWN,RIGHT,ENTER,ENTER`, is
-  the first title of the second library in the first row under Live TV on
-  the lab server.
+  fresh Home to its detail page; the default,
+  `RIGHT,RIGHT,RIGHT,ENTER,ENTER`, is the first title of the fourth library
+  on Home's rail on the lab server.
 
 For the two transcode steps, which are skipped otherwise:
 

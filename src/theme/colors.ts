@@ -70,6 +70,8 @@ export const colors = {
     heavy: 'rgba(0,0,0,0.84)',
     backdrop: 'rgba(12,17,22,0.52)',
     hero: 'rgba(12,17,22,0.62)',
+    /** A lighter step of `hero`, for fading artwork into the screen. */
+    heroFade: 'rgba(12,17,22,0.32)',
     panel: 'rgba(12,17,22,0.94)',
     idle: '#020304',
   },

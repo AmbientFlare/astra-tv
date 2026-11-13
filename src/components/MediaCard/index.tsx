@@ -15,6 +15,8 @@ interface MediaCardProps {
   onFocus?: () => void;
   onPress?: () => void;
   badgeText?: string;
+  /** How far through the title the viewer is, 0 to 1. Drawn when above 0. */
+  progress?: number;
 }
 
 export const formatUnplayedBadge = (count?: number) =>
@@ -39,6 +41,7 @@ export const MediaCard = ({
   imageScale = 1,
   onFocus,
   onPress,
+  progress,
   subtitle,
   title,
 }: MediaCardProps) => (
@@ -79,6 +82,18 @@ export const MediaCard = ({
         <Text style={styles.badgeText}>{badgeText}</Text>
       </View>
     ) : null}
+    {progress && progress > 0 ? (
+      <View
+        style={[styles.progressTrack, {top: Math.round(330 * imageScale) - 6}]}
+        testID={`media-card-progress-${title}`}>
+        <View
+          style={[
+            styles.progressFill,
+            {width: `${Math.min(100, Math.round(progress * 100))}%`},
+          ]}
+        />
+      </View>
+    ) : null}
     <View style={styles.caption}>
       <Text numberOfLines={2} style={styles.title}>
         {title}
@@ -110,6 +125,15 @@ const styles = StyleSheet.create({
     top: 0,
     width: 50,
   },
+  // Lies along the bottom edge of the poster.
+  progressTrack: {
+    backgroundColor: colors.fill.trackOnArt,
+    height: 6,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+  },
+  progressFill: {backgroundColor: colors.fill.accent, height: '100%'},
   badgeText: {color: colors.text.primary, fontSize: 18, fontWeight: '800'},
   image: {
     width: '100%',

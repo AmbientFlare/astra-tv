@@ -383,18 +383,48 @@ export const ItemDetailScreen = ({
         {detail.backdropUrl ? (
           <Image source={{uri: detail.backdropUrl}} style={styles.backdrop} />
         ) : null}
+        <View style={styles.heroFade}>
+          <View style={styles.heroFadeFar} />
+          <View style={styles.heroFadeNear} />
+        </View>
         <View style={styles.heroContent}>
           {detail.imageUrl ? (
             <Image source={{uri: detail.imageUrl}} style={styles.poster} />
           ) : null}
           <View style={styles.copy}>
             <Text style={styles.title}>{detail.name}</Text>
-            <Text style={styles.meta}>{meta.join('  |  ')}</Text>
+            <Text style={styles.meta}>{meta.join('  ·  ')}</Text>
+            {detail.genres?.length ? (
+              <View style={styles.genres}>
+                {detail.genres.map((genre) => (
+                  <Text key={genre} style={styles.genre}>
+                    {genre}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             <Text numberOfLines={5} style={styles.overview}>
               {detail.overview ?? t('detail.noSynopsis')}
             </Text>
-            {detail.genres?.length ? (
-              <Text style={styles.genres}>{detail.genres.join(' / ')}</Text>
+            {!hasChildren &&
+            detail.resumePositionTicks &&
+            detail.runTimeTicks ? (
+              <View style={styles.progressTrack} testID="detail-progress">
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          (detail.resumePositionTicks / detail.runTimeTicks) *
+                            100,
+                        ),
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
             ) : null}
             <LoadingOrError
               errorText={errorText}
@@ -690,17 +720,43 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginTop: 10,
   },
+  // Capped so a line never runs the width of the screen.
   overview: {
     color: colors.text.body,
     fontSize: 26,
     lineHeight: 34,
-    marginTop: 22,
+    marginTop: 20,
+    maxWidth: 1180,
   },
   genres: {
-    color: colors.text.accentSoft,
-    fontSize: 22,
-    marginTop: 18,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 14,
   },
+  genre: {
+    backgroundColor: colors.surface.control,
+    borderRadius: 14,
+    color: colors.text.body,
+    fontSize: 18,
+    overflow: 'hidden',
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  progressTrack: {
+    backgroundColor: colors.fill.track,
+    borderRadius: 3,
+    height: 6,
+    marginTop: 22,
+    overflow: 'hidden',
+    width: 420,
+  },
+  progressFill: {backgroundColor: colors.fill.accent, height: '100%'},
+  // Two steps that let the backdrop sink into the page instead of ending
+  // on a hard line.
+  heroFade: {bottom: 0, left: 0, position: 'absolute', right: 0},
+  heroFadeFar: {backgroundColor: colors.scrim.heroFade, height: 44},
+  heroFadeNear: {backgroundColor: colors.scrim.hero, height: 44},
   director: {
     color: colors.text.secondary,
     fontSize: 20,
