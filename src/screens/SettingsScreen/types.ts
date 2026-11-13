@@ -15,6 +15,7 @@ export type SettingsRoute =
   | {route: 'accountDetail'; profile: ServerProfile}
   | {route: 'homeSections'}
   | {route: 'displayPreferences'}
+  | {route: 'theme'}
   | {route: 'maxBitrate'}
   | {route: 'connectionTest'}
   | {route: 'liveConnection'}

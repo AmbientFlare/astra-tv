@@ -7,6 +7,7 @@ const SOURCE = path.join(__dirname, '../src');
 // white, so neither follows the theme.
 const EXEMPT = [
   'theme/colors.ts',
+  'theme/themes.ts',
   'components/QrCode/index.tsx',
   'screens/PlayerScreen/ExternalSubtitleOverlay.tsx',
 ];

@@ -8,7 +8,7 @@
  * Not here: subtitle colours, which the viewer picks, and the QR code, which
  * has to stay black on white.
  */
-export const colors = {
+const midnight = {
   text: {
     primary: '#ffffff',
     body: '#e4ecef',
@@ -76,3 +76,42 @@ export const colors = {
     idle: '#020304',
   },
 } as const;
+
+type Midnight = typeof midnight;
+export interface Palette {
+  text: Record<keyof Midnight['text'], string>;
+  surface: Record<keyof Midnight['surface'], string>;
+  fill: Record<keyof Midnight['fill'], string>;
+  border: Record<keyof Midnight['border'], string>;
+  scrim: Record<keyof Midnight['scrim'], string>;
+}
+export interface PaletteOverrides {
+  text?: Partial<Palette['text']>;
+  surface?: Partial<Palette['surface']>;
+  fill?: Partial<Palette['fill']>;
+  border?: Partial<Palette['border']>;
+  scrim?: Partial<Palette['scrim']>;
+}
+
+const copy = (): Palette => ({
+  text: {...midnight.text},
+  surface: {...midnight.surface},
+  fill: {...midnight.fill},
+  border: {...midnight.border},
+  scrim: {...midnight.scrim},
+});
+
+/**
+ * The palette in use. Screens read it once, as their styles are built, so a
+ * theme has to be written into it before any screen is loaded: see
+ * `applyPalette` and `Boot`.
+ */
+export const colors: Palette = copy();
+
+/** Sets `colors` to the default palette with a theme's changes on top. */
+export const applyPalette = (overrides: PaletteOverrides = {}) => {
+  const base = copy();
+  (Object.keys(base) as Array<keyof Palette>).forEach((group) => {
+    Object.assign(colors[group], base[group], overrides[group]);
+  });
+};
