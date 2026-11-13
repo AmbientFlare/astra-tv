@@ -137,6 +137,7 @@ import {
 } from './types';
 import {
   assertPlayableUrl,
+  episodeLabel,
   isAdaptiveStream,
   RELOAD_JUMP_THRESHOLD_SECONDS,
   seriesPickFor,
@@ -2525,7 +2526,19 @@ export const PlayerScreen = ({
           seekPreview={seekPreview}
           seekStepSeconds={scanStep ?? preferredSeekSeconds}
           statusText={statusText}
-          title={item.name}
+          subtitle={
+            item.type === 'Episode' && item.seriesName
+              ? episodeLabel(item)
+              : item.productionYear
+              ? String(item.productionYear)
+              : undefined
+          }
+          title={
+            item.type === 'Episode' && item.seriesName
+              ? item.seriesName
+              : item.name
+          }
+          titleVisible={!settingsPanel}
         />
       ) : null}
       {settingsPanel && currentStream ? (

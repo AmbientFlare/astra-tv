@@ -61,6 +61,9 @@ export const colors = {
     selected: '#2e5a72',
   },
   scrim: {
+    /** Three steps that stand in for a gradient under the player's text. */
+    fadeFar: 'rgba(0,0,0,0.16)',
+    fadeMid: 'rgba(0,0,0,0.36)',
     tile: 'rgba(0,0,0,0.28)',
     medium: 'rgba(0,0,0,0.56)',
     strong: 'rgba(0,0,0,0.76)',

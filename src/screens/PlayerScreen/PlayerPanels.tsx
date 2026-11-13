@@ -85,8 +85,22 @@ interface ControlsBarProps {
   seekPreview: number | null;
   seekStepSeconds: number;
   statusText: string;
+  /** A second line under the title: the episode, or the year. */
+  subtitle?: string;
   title: string;
+  /** False while a panel occupies the top of the screen. */
+  titleVisible?: boolean;
 }
+
+/** 1:02:03, or 2:03 for anything under an hour. */
+const clockTime = (seconds: number) => {
+  const whole = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor((whole % 3600) / 60);
+  const rest = String(whole % 60).padStart(2, '0');
+  return whole >= 3600
+    ? `${Math.floor(whole / 3600)}:${String(minutes).padStart(2, '0')}:${rest}`
+    : `${minutes}:${rest}`;
+};
 
 export const ControlsBar = ({
   durationSeconds,
@@ -95,37 +109,72 @@ export const ControlsBar = ({
   seekPreview,
   seekStepSeconds,
   statusText,
+  subtitle,
   title,
+  titleVisible = true,
 }: ControlsBarProps) => {
-  const progressWidth = (
+  const shown = seekPreview ?? positionSeconds;
+  const progress = (
     durationSeconds > 0
-      ? `${Math.min(
-          100,
-          Math.max(
-            0,
-            ((seekPreview ?? positionSeconds) / durationSeconds) * 100,
-          ),
-        )}%`
+      ? `${Math.min(100, Math.max(0, (shown / durationSeconds) * 100))}%`
       : '0%'
   ) as `${number}%`;
+  const seeking = seekPreview !== null;
   return (
-    <View style={styles.overlay} testID="player-controls-overlay">
-      <Text numberOfLines={1} style={styles.title}>
-        {title}
-      </Text>
-      <Text style={styles.status} testID="player-seek-preview">
-        {seekPreview === null
-          ? statusText
-          : `${formatDiagnosticTime(seekPreview)} / ${formatDiagnosticTime(
-              durationSeconds,
-            )}${
-              seekInProgress
-                ? `  •  ${t('player.seeking')}`
-                : `  •  ${t('player.seekHint', {seconds: seekStepSeconds})}`
-            }`}
-      </Text>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, {width: progressWidth}]} />
+    <View
+      pointerEvents="none"
+      style={styles.controls}
+      testID="player-controls-overlay">
+      {titleVisible ? (
+        <View>
+          <View style={styles.controlsTopText}>
+            <Text numberOfLines={1} style={styles.title}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text numberOfLines={1} style={styles.subtitle}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.fadeMid} />
+          <View style={styles.fadeFar} />
+        </View>
+      ) : (
+        <View />
+      )}
+      <View>
+        <View style={styles.fadeFar} />
+        <View style={styles.fadeMid} />
+        <View style={styles.controlsBottom}>
+          <Text style={styles.status} testID="player-seek-preview">
+            {seekPreview === null
+              ? statusText
+              : `${formatDiagnosticTime(seekPreview)} / ${formatDiagnosticTime(
+                  durationSeconds,
+                )}${
+                  seekInProgress
+                    ? `  •  ${t('player.seeking')}`
+                    : `  •  ${t('player.seekHint', {seconds: seekStepSeconds})}`
+                }`}
+          </Text>
+          <View style={styles.scrubRow}>
+            <Text style={[styles.clock, seeking && styles.clockSeeking]}>
+              {clockTime(shown)}
+            </Text>
+            <View style={styles.scrubber}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, {width: progress}]} />
+              </View>
+              <View style={[styles.thumbRail, {width: progress}]}>
+                <View style={[styles.thumb, seeking && styles.thumbSeeking]} />
+              </View>
+            </View>
+            <Text style={[styles.clock, styles.clockEnd]}>
+              {durationSeconds > 0 ? clockTime(durationSeconds) : ''}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
