@@ -2573,7 +2573,8 @@ export const PlayerScreen = ({
           streamInfo={currentStream}
         />
       ) : null}
-      {showPlaybackStats && currentStream ? (
+      {/* Hidden behind Playback Options, whose right-hand column it covers. */}
+      {showPlaybackStats && currentStream && !settingsPanel ? (
         <PlaybackStatsOverlay
           showTraces={showPlaybackTraces}
           diagnostics={playbackDebugInfo}
