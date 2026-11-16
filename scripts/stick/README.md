@@ -56,12 +56,14 @@ advancing"; the Bandwidth line in the failure screenshot shows the network
 speed the player measured.
 
 If the TV switches itself off mid-run it tells the stick to sleep over HDMI,
-and the stick ends every app. That looks like Astra crashing. The run checks
-its saved log for that and says so.
+and if it wakes or changes input the HDMI link drops for a moment. Either way
+the stick ends every app. That looks like Astra crashing. The run checks its
+saved log for both and says so.
 
 ## What it needs
 
-- The TV on for the whole run, with any auto power-off out of the way.
+- The TV on and showing the stick for the whole run, with any auto power-off
+  out of the way.
 
 - One stick connected (`vega device list`). With several, set `ASTRA_STICK`
   to a serial.

@@ -489,13 +489,14 @@ def main() -> int:
             log = None
         if log:
             print('Stick log: %s' % log)
-            standby = stick.standby_time(log)
-            if standby:
+            lost = stick.display_lost_time(log)
+            if lost:
                 print(
-                    'The TV told the stick to sleep at %s (stick time). The '
-                    'stick ends every app when that happens, so a failure '
-                    'after it is not Astra\'s. Keep the TV on and run again.'
-                    % standby
+                    'The stick lost its TV at %s (stick time): the TV went '
+                    'to standby or the HDMI link dropped. The stick ends '
+                    'every app when that happens, so a failure after it is '
+                    'not Astra\'s. Keep the TV on, on the stick\'s input, '
+                    'and run again.' % lost
                 )
 
 

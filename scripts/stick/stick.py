@@ -219,17 +219,21 @@ class Stick:
         self.cmd('rm -f ' + DEVICE_LOG)
         return path if os.path.exists(path) else None
 
-    def standby_time(self, log_path: str) -> Optional[str]:
-        """When the TV told the stick to go to sleep during the run, if it did.
+    def display_lost_time(self, log_path: str) -> Optional[str]:
+        """When the stick lost its TV during the run, if it did.
 
-        A TV that switches itself off sends standby over HDMI. The stick
-        then turns its display off and ends every app, which looks exactly
-        like Astra crashing.
+        A TV that switches itself off sends standby over HDMI, and one that
+        is waking or changing input drops the HDMI link for a moment. Either
+        way the stick turns its display off and ends every app, which looks
+        exactly like Astra crashing.
         """
         try:
             with open(log_path, errors='replace') as log:
                 for line in log:
-                    if '[CEC] [RX]' in line and 'Standby' in line:
+                    if ('[CEC] [RX]' in line and 'Standby' in line) or (
+                        'Killed processes in response to display disconnection'
+                        in line
+                    ):
                         return ' '.join(line.split()[:3])
         except OSError:
             pass
