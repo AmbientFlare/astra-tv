@@ -75,10 +75,14 @@ class Stats:
 
     @staticmethod
     def _seconds(text: str) -> Optional[int]:
-        match = re.search(r'Position\s+(?:(\d+):)?(\d+):(\d\d)', text)
+        # OCR reads a lone 0 before the colon as @ or O often enough to fail
+        # a paused step, where every retry sees the same frame.
+        match = re.search(r'Position\s+(?:([\d@Oo]+):)?([\d@Oo]+):(\d\d)', text)
         if not match:
             return None
-        hours, minutes, seconds = match.groups()
+        hours, minutes, seconds = (
+            part and re.sub('[@Oo]', '0', part) for part in match.groups()
+        )
         return int(hours or 0) * 3600 + int(minutes) * 60 + int(seconds)
 
     @property
