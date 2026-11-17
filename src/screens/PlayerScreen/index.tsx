@@ -409,6 +409,10 @@ export const PlayerScreen = ({
     return () => clearTimeout(timer);
   }, [decoderRiskWarned]);
   const forcedDecoderTranscode = useRef(false);
+  // A heavy title (see assessDecoderRisk) going out untouched because the
+  // server cannot re-encode it. The largest media load the device ever takes,
+  // so its buffers are held to budget and a recovery frees memory first.
+  const heavyPassthrough = useRef(false);
   const decodedFramesThisSession = useRef(0);
   const forcedTranscodeReadyAtMs = useRef<number | null>(null);
   const serverKey = serverCapabilityKey(serverUrl);
@@ -1396,7 +1400,12 @@ export const PlayerScreen = ({
       context?: PlaybackSessionContext,
     ) =>
       loadSourceIntoVideo(
-        {isLive, isPluginLive, refs: playerRefs},
+        {
+          isLive,
+          isPluginLive,
+          heavyPassthrough: heavyPassthrough.current,
+          refs: playerRefs,
+        },
         video,
         stream,
         startTimeSeconds,
@@ -1537,6 +1546,8 @@ export const PlayerScreen = ({
         serverCanTranscodeVideo,
       );
       forcedDecoderTranscode.current = transcodeForDecoder;
+      heavyPassthrough.current =
+        decoderRisk.risk === 'heavy' && !transcodeForDecoder;
       // Spend the probe here, where the request is genuinely going out.
       const probing = transcodeForDecoder && transcodeProbeArmed.current;
       if (probing) {
@@ -1742,6 +1753,14 @@ export const PlayerScreen = ({
         try {
           await releaseMedia();
           context.assertCurrent();
+          // Crash report 2026-11-06: a 31 Mbps 4K Dolby Vision passthrough
+          // failed, and the app died seconds after the recovery reload built a
+          // second 4K pipeline on top of the first one's leftovers. Hand the
+          // freed native memory back before asking for it again.
+          if (reason === 'recovery' && heavyPassthrough.current) {
+            collectGarbage();
+            trace('memory.trim', 'before heavy passthrough recovery');
+          }
           await audioPlayback.stop();
           context.assertCurrent();
           if (audioTrack) {

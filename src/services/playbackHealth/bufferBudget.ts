@@ -63,6 +63,45 @@ export const computeBufferBudget = (
   };
 };
 
+/** The least backward window a fitted budget keeps. */
+export const MIN_FITTED_BUFFER_BEHIND = 2;
+
+/**
+ * The floors in `computeBufferBudget` win over the byte budget at the top of
+ * the bitrate range: at 31 Mbps the 8s minimum on each side holds ~63 MB, a
+ * quarter over budget. That is a fair trade for an ordinary title, where the
+ * backward window is worth the memory. It is not for a heavy title delivered
+ * untouched (`assessDecoderRisk` heavy, server unable to re-encode), which is
+ * already the largest media allocation the device ever sees. Crash report
+ * 2026-11-06: 4K Dolby Vision at 31 Mbps passthrough, dead seconds after the
+ * recovery reload.
+ *
+ * Gives up backward window first, never the forward goal, so stall recovery is
+ * unchanged. Never shrinks below `MIN_FITTED_BUFFER_BEHIND`, and never grows a
+ * window that already fits.
+ */
+export const fitBufferBudget = (
+  budget: BufferBudget,
+  bitrateBps?: number,
+  budgetBytes: number = MEDIA_BUFFER_BUDGET_BYTES,
+): BufferBudget => {
+  if (
+    typeof bitrateBps !== 'number' ||
+    !Number.isFinite(bitrateBps) ||
+    bitrateBps <= 0
+  ) {
+    return budget;
+  }
+  const bytesPerSecond = bitrateBps / 8;
+  const room = budgetBytes / bytesPerSecond - budget.bufferingGoal;
+  const bufferBehind = round(
+    Math.max(MIN_FITTED_BUFFER_BEHIND, Math.min(budget.bufferBehind, room)),
+  );
+  return bufferBehind === budget.bufferBehind
+    ? budget
+    : {...budget, bufferBehind};
+};
+
 /** Seconds a live stream holds back before it plays, and after any stall. */
 export const LIVE_REBUFFERING_GOAL = 15;
 

@@ -4,6 +4,8 @@ import {
   DEFAULT_BUFFER_BUDGET,
   MEDIA_BUFFER_BUDGET_BYTES,
   computeBufferBudget,
+  fitBufferBudget,
+  MIN_FITTED_BUFFER_BEHIND,
 } from '../src/services/playbackHealth';
 
 const bytesHeld = (bitrateBps: number) => {
@@ -52,6 +54,56 @@ describe('computeBufferBudget', () => {
   it('biases forward of the playhead', () => {
     const budget = computeBufferBudget(24_836_532);
     expect(budget.bufferingGoal).toBeGreaterThan(budget.bufferBehind);
+  });
+});
+
+describe('fitBufferBudget', () => {
+  const heldBy = (
+    {
+      bufferingGoal,
+      bufferBehind,
+    }: {bufferingGoal: number; bufferBehind: number},
+    bitrateBps: number,
+  ) => ((bufferingGoal + bufferBehind) * bitrateBps) / 8;
+
+  it('brings the 31 Mbps Dolby Vision passthrough back inside the budget', () => {
+    // Crash report 2026-11-06: manifest BANDWIDTH 31,397,314.
+    const bitrate = 31_397_314;
+    const unfitted = computeBufferBudget(bitrate);
+    expect(heldBy(unfitted, bitrate)).toBeGreaterThan(
+      MEDIA_BUFFER_BUDGET_BYTES * 1.15,
+    );
+
+    const fitted = fitBufferBudget(unfitted, bitrate);
+
+    expect(heldBy(fitted, bitrate)).toBeLessThanOrEqual(
+      MEDIA_BUFFER_BUDGET_BYTES * 1.01,
+    );
+    expect(fitted.bufferingGoal).toBe(unfitted.bufferingGoal);
+    expect(fitted.rebufferingGoal).toBe(unfitted.rebufferingGoal);
+    expect(fitted.bufferBehind).toBeLessThan(unfitted.bufferBehind);
+  });
+
+  it('keeps a minimum backward window however high the bitrate', () => {
+    const fitted = fitBufferBudget(computeBufferBudget(80_000_000), 80_000_000);
+
+    expect(fitted.bufferBehind).toBe(MIN_FITTED_BUFFER_BEHIND);
+  });
+
+  it('leaves a budget that already fits untouched', () => {
+    for (const bitrate of [2_300_000, 7_600_000, 15_000_000]) {
+      const budget = computeBufferBudget(bitrate);
+      expect(fitBufferBudget(budget, bitrate)).toBe(budget);
+    }
+  });
+
+  it('leaves the budget alone when the bitrate is unknown', () => {
+    expect(fitBufferBudget(DEFAULT_BUFFER_BUDGET, undefined)).toBe(
+      DEFAULT_BUFFER_BUDGET,
+    );
+    expect(fitBufferBudget(DEFAULT_BUFFER_BUDGET, 0)).toBe(
+      DEFAULT_BUFFER_BUDGET,
+    );
   });
 });
 

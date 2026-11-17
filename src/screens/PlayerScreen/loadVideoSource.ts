@@ -6,6 +6,7 @@ import {getHdrSupport} from '../../services/mediaCapabilities/hdr';
 import {preferredVideoHdrLevel} from '../../services/mediaCapabilities/hdrPreference';
 import {
   computeBufferBudget,
+  fitBufferBudget,
   formatPlaybackFailure,
   liveBufferBudget,
   PlaybackFailure,
@@ -24,6 +25,9 @@ import type {PlayerRefs} from './playerRefs';
 interface LoadVideoSourceOptions {
   isLive: boolean;
   isPluginLive: boolean;
+  // A heavy title (see assessDecoderRisk) going out untouched because the
+  // server cannot re-encode it: its buffers are held to the memory budget.
+  heavyPassthrough?: boolean;
   refs: Pick<
     PlayerRefs,
     | 'firstAvailableSeconds'
@@ -40,7 +44,12 @@ interface LoadVideoSourceOptions {
  * earlier Shaka player is unloaded first.
  */
 export const loadVideoSource = async (
-  {isLive, isPluginLive, refs}: LoadVideoSourceOptions,
+  {
+    isLive,
+    isPluginLive,
+    heavyPassthrough = false,
+    refs,
+  }: LoadVideoSourceOptions,
   video: VideoPlayer,
   stream: JellyfinStreamInfo,
   startTimeSeconds?: number,
@@ -84,10 +93,13 @@ export const loadVideoSource = async (
   // stream.bitrate is the server's figure for the delivered stream. It is
   // the closest thing available before the manifest is parsed; the goals
   // only need to be right to within a segment.
-  const bufferBudget = liveBufferBudget(
+  const timeBudget = liveBufferBudget(
     computeBufferBudget(stream.bitrate),
     isLive,
   );
+  const bufferBudget = heavyPassthrough
+    ? fitBufferBudget(timeBudget, stream.bitrate)
+    : timeBudget;
   trace(
     'shaka.buffer',
     `ahead=${bufferBudget.bufferingGoal}s resume=${
