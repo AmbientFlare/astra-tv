@@ -884,6 +884,58 @@ describe('PlayerScreen native session integration', () => {
     view.unmount();
   });
 
+  it('releases the decoder first when the viewer leaves the player', async () => {
+    const onBack = jest.fn();
+    const view = render(
+      <PlayerScreen
+        accessToken="token"
+        item={item}
+        serverUrl="https://server"
+        onBack={onBack}
+      />,
+    );
+    await start(view);
+    const order: string[] = [];
+    mockVideos[0].deinitializeSync.mockImplementation(() => {
+      order.push('deinitializeSync');
+      return 'success';
+    });
+    mockShakas[0].unload.mockImplementation(async () => {
+      order.push('unload');
+    });
+    (releaseFreedMemory as jest.Mock).mockClear();
+    // Back first hides the controls, then asks to confirm. Presses closer
+    // than 350 ms apart collapse into one, so each waits that out.
+    for (let press = 0; press < 4 && !onBack.mock.calls.length; press += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      if (view.queryByTestId('player-exit-leave')) {
+        await act(async () => {
+          fireEvent.press(view.getByTestId('player-exit-leave'));
+          await flush();
+        });
+        break;
+      }
+      await act(async () => {
+        mockRemote({eventType: 'back'});
+        await flush();
+      });
+    }
+    // Amazon's documented order, the same as the background switch.
+    expect(order).toEqual(['deinitializeSync', 'unload']);
+    expect(mockVideos[0].deinitialize).not.toHaveBeenCalled();
+    expect(releaseFreedMemory).toHaveBeenCalled();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(
+      (releaseFreedMemory as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan(onBack.mock.invocationCallOrder[0]);
+    await act(async () => {
+      view.unmount();
+      await flush();
+    });
+    // The unmount's own stop must not release a second time.
+    expect(mockVideos[0].deinitializeSync).toHaveBeenCalledTimes(1);
+  });
+
   it('reports the stop on background while a load is still running', async () => {
     const load = deferred<void>();
     mockLoadGate = load.promise;

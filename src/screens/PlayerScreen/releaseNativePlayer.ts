@@ -16,7 +16,8 @@ const BACKGROUND_DEINIT_WAIT_MS = 1500;
  * Tears down one video element and its Shaka player. Resolves once both have
  * let go; rejects if the native release failed.
  *
- * `immediate` is for the background switch. Vega OS suspends JS once the app
+ * `immediate` is for the background switch and for the viewer leaving the
+ * player. Vega OS suspends JS once the app
  * is in the background and ends an app that still holds a decoder (Amazon
  * reports it as ReclaimMediaResource), so the decoder is released before
  * anything is awaited, in Amazon's documented order: the video player
@@ -27,6 +28,9 @@ export const releaseNativePlayer = (
   shaka: ShakaPlayer | null,
   surfaceHandle: string | null,
   immediate: boolean,
+  // Names the release in the crash tail: the background switch or the
+  // viewer leaving the player.
+  traceLabel = 'session.background',
 ): Promise<void> => {
   // The surface goes first, before anything that waits: unloading can take
   // seconds while appends finish, and a surface the system destroys in that
@@ -48,7 +52,7 @@ export const releaseNativePlayer = (
     try {
       if (video && typeof video.deinitializeSync === 'function') {
         const status = video.deinitializeSync(BACKGROUND_DEINIT_WAIT_MS);
-        trace('session.background', `decoder release ${status}`);
+        trace(traceLabel, `decoder release ${status}`);
         deinitialized = Promise.resolve();
       } else {
         deinitialized = Promise.resolve(video?.deinitialize());
