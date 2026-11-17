@@ -21,7 +21,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 # Remote presses that take a freshly started app from Home to the detail page
 # of something playable. The default suits the lab server: down to the Movies
 # row, second library, first title.
-DEFAULT_ITEM_PATH = 'DOWN,RIGHT,ENTER,ENTER'
+DEFAULT_ITEM_PATH = 'RIGHT,RIGHT,RIGHT,ENTER,ENTER'
 
 
 # Long enough for the system to suspend JS and look for a held decoder.

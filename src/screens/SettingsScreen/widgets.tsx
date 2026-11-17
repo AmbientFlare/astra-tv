@@ -20,7 +20,6 @@ export const Page = ({
     <Text style={styles.title}>{title}</Text>
     {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     <FocusableItem
-      focusedStyle={styles.rowFocused}
       onPress={onBack}
       style={styles.backButton}
       testID="settings-back-button">
@@ -45,7 +44,6 @@ export const MenuRow = ({
 }) => (
   <FocusableItem
     hasTVPreferredFocus={preferred}
-    focusedStyle={styles.rowFocused}
     onPress={onPress}
     style={styles.menuRow}
     testID={`settings-${title}`}>
@@ -73,7 +71,6 @@ export const ToggleRow = ({
   value: boolean;
 }) => (
   <FocusableItem
-    focusedStyle={styles.rowFocused}
     onPress={onToggle}
     style={styles.menuRow}
     testID={`settings-toggle-${title}`}>
@@ -125,13 +122,12 @@ export const ConfirmDialog = ({
       <TVFocusGuideView style={styles.confirmActions}>
         <FocusableItem
           hasTVPreferredFocus
-          focusedStyle={styles.rowFocused}
           onPress={onCancel}
           style={styles.confirmButton}>
           <Text style={styles.backText}>{t('common.cancel')}</Text>
         </FocusableItem>
         <FocusableItem
-          focusedStyle={styles.dangerFocused}
+          focus="danger"
           onPress={onConfirm}
           style={[styles.confirmButton, styles.dangerButton]}>
           <Text style={styles.backText}>{t('common.confirm')}</Text>

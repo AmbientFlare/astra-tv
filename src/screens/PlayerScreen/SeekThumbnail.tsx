@@ -6,6 +6,7 @@ import {
   getTrickplayInfo,
   TrickplayInfo,
 } from '../../services/jellyfin/trickplay';
+import {colors} from '../../theme';
 
 interface Props {
   serverUrl: string;
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     overflow: 'hidden',
     borderRadius: 6,
-    backgroundColor: '#161D24',
+    backgroundColor: colors.surface.card,
     marginBottom: 12,
   },
 });

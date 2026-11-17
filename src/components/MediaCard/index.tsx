@@ -3,6 +3,7 @@ import {Image, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
 import {isLiveItem} from '../../services/jellyfin/liveTv';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface MediaCardProps {
   imageUrl?: string;
@@ -14,6 +15,8 @@ interface MediaCardProps {
   onFocus?: () => void;
   onPress?: () => void;
   badgeText?: string;
+  /** How far through the title the viewer is, 0 to 1. Drawn when above 0. */
+  progress?: number;
 }
 
 export const formatUnplayedBadge = (count?: number) =>
@@ -38,13 +41,14 @@ export const MediaCard = ({
   imageScale = 1,
   onFocus,
   onPress,
+  progress,
   subtitle,
   title,
 }: MediaCardProps) => (
   <FocusableItem
     accessibilityLabel={title}
     focusRef={focusRef}
-    focusedStyle={styles.focused}
+    focus="card"
     hasTVPreferredFocus={hasTVPreferredFocus}
     onFocus={onFocus}
     onPress={onPress}
@@ -78,6 +82,18 @@ export const MediaCard = ({
         <Text style={styles.badgeText}>{badgeText}</Text>
       </View>
     ) : null}
+    {progress && progress > 0 ? (
+      <View
+        style={[styles.progressTrack, {top: Math.round(330 * imageScale) - 6}]}
+        testID={`media-card-progress-${title}`}>
+        <View
+          style={[
+            styles.progressFill,
+            {width: `${Math.min(100, Math.round(progress * 100))}%`},
+          ]}
+        />
+      </View>
+    ) : null}
     <View style={styles.caption}>
       <Text numberOfLines={2} style={styles.title}>
         {title}
@@ -96,16 +112,12 @@ const styles = StyleSheet.create({
     width: 248,
     height: 412,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     overflow: 'hidden',
-  },
-  focused: {
-    backgroundColor: '#24313A',
-    transform: [{scale: 1.04}],
   },
   badge: {
     alignItems: 'center',
-    backgroundColor: '#d6232f',
+    backgroundColor: colors.fill.badge,
     height: 50,
     justifyContent: 'center',
     left: 0,
@@ -113,16 +125,25 @@ const styles = StyleSheet.create({
     top: 0,
     width: 50,
   },
-  badgeText: {color: '#fff', fontSize: 18, fontWeight: '800'},
+  // Lies along the bottom edge of the poster.
+  progressTrack: {
+    backgroundColor: colors.fill.trackOnArt,
+    height: 6,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+  },
+  progressFill: {backgroundColor: colors.fill.accent, height: '100%'},
+  badgeText: {color: colors.text.primary, fontSize: 18, fontWeight: '800'},
   image: {
     width: '100%',
     height: 330,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
   },
   imagePlaceholder: {
     width: '100%',
     height: 330,
-    backgroundColor: '#1B2A30',
+    backgroundColor: colors.surface.card,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 18,
@@ -131,7 +152,7 @@ const styles = StyleSheet.create({
     // A card with no artwork has the whole poster area free, so a long name
     // (a release filename, say) is shown in full rather than clipped to the
     // two lines that suit a title sitting under a poster.
-    color: '#8CA1AA',
+    color: colors.text.muted,
     fontSize: 18,
     fontWeight: '700',
     lineHeight: 24,
@@ -145,13 +166,13 @@ const styles = StyleSheet.create({
   // Two title lines and the subtitle fill the caption; set line heights so
   // they fit inside it rather than running into the card's bottom edge.
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
     lineHeight: 26,
   },
   subtitle: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 18,
     lineHeight: 22,
     marginTop: 2,

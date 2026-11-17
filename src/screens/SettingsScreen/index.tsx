@@ -55,9 +55,11 @@ import {
   subtitleColorOptions,
   subtitleModeOptions,
   subtitleSizeOptions,
+  themeOptions,
   videoTranscodeOptions,
 } from './options';
 import {styles} from './styles';
+import {appliedTheme, getStoredTheme, storeTheme, ThemeId} from '../../theme';
 import {
   ConfirmDialog,
   DangerRow,
@@ -92,6 +94,19 @@ export const SettingsScreen = ({
   const changeLanguage = useChangeLanguage();
   const [stack, setStack] = useState<SettingsRoute[]>([{route: 'preferences'}]);
   const [profiles, setProfiles] = useState<ServerProfile[]>([]);
+  // The theme chosen for the next start, which may differ from the one drawn.
+  const [theme, setTheme] = useState<ThemeId>(appliedTheme());
+  useEffect(() => {
+    let mounted = true;
+    getStoredTheme().then((stored) => {
+      if (mounted) {
+        setTheme(stored);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const [preferences, setPreferences] = useState<UserPreferences>(
     defaultUserPreferences,
   );
@@ -404,6 +419,14 @@ export const SettingsScreen = ({
               subtitle={t('settings.displayPreferencesHint')}
               onPress={() => push({route: 'displayPreferences'})}
             />
+            <MenuRow
+              icon="◐"
+              title={t('settings.theme')}
+              subtitle={
+                themeOptions().find((option) => option.value === theme)?.label
+              }
+              onPress={() => push({route: 'theme'})}
+            />
             <ToggleRow
               title={t('settings.backdropBlur')}
               subtitle={t('settings.backdropBlurHint')}
@@ -455,6 +478,24 @@ export const SettingsScreen = ({
                 }
               />
             ))}
+          </Page>
+        );
+      case 'theme':
+        return (
+          <Page title={t('settings.theme')} onBack={pop}>
+            <PreferenceRadioGroup
+              options={themeOptions()}
+              selectedValue={theme}
+              onSelect={(next) => {
+                setTheme(next);
+                storeTheme(next).catch(() => undefined);
+              }}
+            />
+            {theme === appliedTheme() ? null : (
+              <Text style={styles.infoText}>
+                {t('settings.themeRestartNote')}
+              </Text>
+            )}
           </Page>
         );
       case 'displayPreferences':

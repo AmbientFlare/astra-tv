@@ -8,6 +8,7 @@ import {formatDiagnosticTime} from './formatDiagnostics';
 import {episodeLabel} from './playbackPolicy';
 import {styles} from './styles';
 import type {EndPrompt} from './types';
+import {colors} from '../../theme';
 
 /**
  * The panels the player draws over the video. Each one only displays what it
@@ -43,7 +44,7 @@ export const StartupPanel = ({
     </Text>
     {error === null ? (
       <View style={styles.startupRow}>
-        <ActivityIndicator color="#4CC9F0" size="large" />
+        <ActivityIndicator color={colors.text.accent} size="large" />
         <Text style={styles.startupText}>{t('player.startingPlayback')}</Text>
       </View>
     ) : (
@@ -58,7 +59,6 @@ export const StartupPanel = ({
         <Text style={styles.startupDetail}>{error}</Text>
         <View style={styles.startupButtons}>
           <FocusableItem
-            focusedStyle={styles.focusedButton}
             hasTVPreferredFocus={true}
             onPress={onRetry}
             style={styles.button}
@@ -66,7 +66,6 @@ export const StartupPanel = ({
             <Text style={styles.buttonText}>{t('common.retry')}</Text>
           </FocusableItem>
           <FocusableItem
-            focusedStyle={styles.focusedButton}
             onPress={onBack}
             style={styles.button}
             testID="player-startup-back">
@@ -86,8 +85,22 @@ interface ControlsBarProps {
   seekPreview: number | null;
   seekStepSeconds: number;
   statusText: string;
+  /** A second line under the title: the episode, or the year. */
+  subtitle?: string;
   title: string;
+  /** False while a panel occupies the top of the screen. */
+  titleVisible?: boolean;
 }
+
+/** 1:02:03, or 2:03 for anything under an hour. */
+const clockTime = (seconds: number) => {
+  const whole = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor((whole % 3600) / 60);
+  const rest = String(whole % 60).padStart(2, '0');
+  return whole >= 3600
+    ? `${Math.floor(whole / 3600)}:${String(minutes).padStart(2, '0')}:${rest}`
+    : `${minutes}:${rest}`;
+};
 
 export const ControlsBar = ({
   durationSeconds,
@@ -96,37 +109,72 @@ export const ControlsBar = ({
   seekPreview,
   seekStepSeconds,
   statusText,
+  subtitle,
   title,
+  titleVisible = true,
 }: ControlsBarProps) => {
-  const progressWidth = (
+  const shown = seekPreview ?? positionSeconds;
+  const progress = (
     durationSeconds > 0
-      ? `${Math.min(
-          100,
-          Math.max(
-            0,
-            ((seekPreview ?? positionSeconds) / durationSeconds) * 100,
-          ),
-        )}%`
+      ? `${Math.min(100, Math.max(0, (shown / durationSeconds) * 100))}%`
       : '0%'
   ) as `${number}%`;
+  const seeking = seekPreview !== null;
   return (
-    <View style={styles.overlay} testID="player-controls-overlay">
-      <Text numberOfLines={1} style={styles.title}>
-        {title}
-      </Text>
-      <Text style={styles.status} testID="player-seek-preview">
-        {seekPreview === null
-          ? statusText
-          : `${formatDiagnosticTime(seekPreview)} / ${formatDiagnosticTime(
-              durationSeconds,
-            )}${
-              seekInProgress
-                ? `  •  ${t('player.seeking')}`
-                : `  •  ${t('player.seekHint', {seconds: seekStepSeconds})}`
-            }`}
-      </Text>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, {width: progressWidth}]} />
+    <View
+      pointerEvents="none"
+      style={styles.controls}
+      testID="player-controls-overlay">
+      {titleVisible ? (
+        <View>
+          <View style={styles.controlsTopText}>
+            <Text numberOfLines={1} style={styles.title}>
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text numberOfLines={1} style={styles.subtitle}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.fadeMid} />
+          <View style={styles.fadeFar} />
+        </View>
+      ) : (
+        <View />
+      )}
+      <View>
+        <View style={styles.fadeFar} />
+        <View style={styles.fadeMid} />
+        <View style={styles.controlsBottom}>
+          <Text style={styles.status} testID="player-seek-preview">
+            {seekPreview === null
+              ? statusText
+              : `${formatDiagnosticTime(seekPreview)} / ${formatDiagnosticTime(
+                  durationSeconds,
+                )}${
+                  seekInProgress
+                    ? `  •  ${t('player.seeking')}`
+                    : `  •  ${t('player.seekHint', {seconds: seekStepSeconds})}`
+                }`}
+          </Text>
+          <View style={styles.scrubRow}>
+            <Text style={[styles.clock, seeking && styles.clockSeeking]}>
+              {clockTime(shown)}
+            </Text>
+            <View style={styles.scrubber}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, {width: progress}]} />
+              </View>
+              <View style={[styles.thumbRail, {width: progress}]}>
+                <View style={[styles.thumb, seeking && styles.thumbSeeking]} />
+              </View>
+            </View>
+            <Text style={[styles.clock, styles.clockEnd]}>
+              {durationSeconds > 0 ? clockTime(durationSeconds) : ''}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -142,7 +190,6 @@ export const ExitConfirm = ({onLeave, onStay}: ExitConfirmProps) => (
     <Text style={styles.exitTitle}>{t('player.stopConfirm')}</Text>
     <View style={styles.exitButtons}>
       <FocusableItem
-        focusedStyle={styles.focusedButton}
         hasTVPreferredFocus={true}
         onPress={onStay}
         style={styles.button}
@@ -150,7 +197,6 @@ export const ExitConfirm = ({onLeave, onStay}: ExitConfirmProps) => (
         <Text style={styles.buttonText}>{t('player.stay')}</Text>
       </FocusableItem>
       <FocusableItem
-        focusedStyle={styles.focusedButton}
         onPress={onLeave}
         style={styles.button}
         testID="player-exit-leave">
@@ -171,7 +217,6 @@ export const CreditsPrompt = ({onNextEpisode, onSkip}: CreditsPromptProps) => (
     <Text style={styles.promptTitle}>{t('player.credits')}</Text>
     <View style={styles.exitButtons}>
       <FocusableItem
-        focusedStyle={styles.focusedButton}
         hasTVPreferredFocus={true}
         onPress={onSkip}
         style={styles.button}
@@ -180,7 +225,6 @@ export const CreditsPrompt = ({onNextEpisode, onSkip}: CreditsPromptProps) => (
       </FocusableItem>
       {onNextEpisode ? (
         <FocusableItem
-          focusedStyle={styles.focusedButton}
           onPress={onNextEpisode}
           style={styles.button}
           testID="player-next-episode">
@@ -221,7 +265,6 @@ export const EndOfEpisodePrompt = ({
       </Text>
       <View style={styles.exitButtons}>
         <FocusableItem
-          focusedStyle={styles.focusedButton}
           hasTVPreferredFocus={true}
           onPress={onPlayNext}
           style={styles.button}
@@ -233,7 +276,6 @@ export const EndOfEpisodePrompt = ({
           </Text>
         </FocusableItem>
         <FocusableItem
-          focusedStyle={styles.focusedButton}
           onPress={onDecline}
           style={styles.button}
           testID={countdown ? 'player-up-next-cancel' : 'player-finished-done'}>

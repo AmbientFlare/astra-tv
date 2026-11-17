@@ -236,6 +236,11 @@ export const fr: Messages = {
   'settings.customization': 'Personnalisation',
   'settings.homeSections': 'Sections de l’accueil',
   'settings.homeSectionsHint': 'Choisir les rangées visibles sur l’accueil',
+  'settings.theme': 'Thème',
+  'settings.themeMidnight': 'Minuit',
+  'settings.themeBlack': 'Noir',
+  'settings.themeEmber': 'Braise',
+  'settings.themeRestartNote': 'S’applique au prochain démarrage d’Astra.',
   'settings.displayPreferences': 'Préférences d’affichage',
   'settings.displayPreferencesHint':
     'Taille d’image, type d’image, sens de la grille',

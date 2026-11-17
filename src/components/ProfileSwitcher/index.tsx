@@ -8,6 +8,7 @@ import {
   ServerProfile,
 } from '../../services/storage';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface ProfileSwitcherProps {
   currentProfileId?: string;
@@ -85,7 +86,6 @@ export const ProfileSwitcher = ({
               return (
                 <FocusableItem
                   focusRef={index === 0 ? firstRowRef : undefined}
-                  focusedStyle={styles.rowFocused}
                   hasTVPreferredFocus={index === 0}
                   key={profile.id}
                   onPress={() => (isCurrent ? onClose() : onSelect(profile))}
@@ -115,7 +115,6 @@ export const ProfileSwitcher = ({
             })}
             <FocusableItem
               focusRef={profiles.length === 0 ? firstRowRef : undefined}
-              focusedStyle={styles.rowFocused}
               hasTVPreferredFocus={profiles.length === 0}
               onPress={onAddUser}
               style={styles.row}
@@ -142,7 +141,7 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.74)',
+    backgroundColor: colors.scrim.strong,
     justifyContent: 'center',
     padding: 64,
   },
@@ -150,13 +149,13 @@ const styles = StyleSheet.create({
     width: 640,
     maxHeight: 760,
     borderRadius: 8,
-    backgroundColor: '#101820',
-    borderColor: '#324555',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.subtle,
     borderWidth: 2,
     padding: 36,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '700',
     marginBottom: 22,
@@ -169,31 +168,28 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: 'center',
-    backgroundColor: '#1A252E',
+    backgroundColor: colors.surface.raised,
     borderRadius: 8,
     flexDirection: 'row',
     gap: 18,
     padding: 16,
   },
   rowCurrent: {
-    backgroundColor: '#22333F',
-  },
-  rowFocused: {
-    backgroundColor: '#315066',
+    backgroundColor: colors.surface.selected,
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: '#2E5A72',
+    backgroundColor: colors.surface.focus,
     borderRadius: 26,
     height: 52,
     justifyContent: 'center',
     width: 52,
   },
   avatarAdd: {
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
   },
   avatarText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '800',
   },
@@ -201,22 +197,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
   },
   rowServer: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 18,
     marginTop: 2,
   },
   currentTag: {
-    color: '#4CC9F0',
+    color: colors.text.accent,
     fontSize: 18,
     fontWeight: '700',
   },
   hint: {
-    color: '#6E7F8A',
+    color: colors.text.faint,
     fontSize: 18,
     marginTop: 20,
   },

@@ -73,6 +73,7 @@ import type {ServerCapabilities} from '../services/serverCapabilities/types';
 import {readStoredLocale, setActiveLocale, t, useChangeLanguage} from '../i18n';
 import {ConnectionNotice} from '../components/ConnectionNotice';
 import {useConnectionLoss} from '../services/network/connection';
+import {colors} from '../theme';
 
 const EXIT_BACK_PRESS_COUNT = 3;
 const EXIT_BACK_PRESS_WINDOW_MS = 2200;
@@ -693,7 +694,6 @@ export const RootNavigator = () => {
               {t('app.loadFailed')}
             </Text>
             <FocusableItem
-              focusedStyle={styles.retryFocused}
               hasTVPreferredFocus={true}
               onPress={() => setBootstrapAttempt((attempt) => attempt + 1)}
               style={styles.retryButton}
@@ -703,7 +703,7 @@ export const RootNavigator = () => {
           </>
         ) : (
           <>
-            <ActivityIndicator color="#4CC9F0" size="large" />
+            <ActivityIndicator color={colors.text.accent} size="large" />
             <Text style={styles.loadingText}>{t('app.loading')}</Text>
           </>
         )}
@@ -1059,7 +1059,6 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
       <Text style={styles.exitCopy}>{t('exit.body')}</Text>
       <TVFocusGuideView style={styles.exitActions}>
         <FocusableItem
-          focusedStyle={styles.exitButtonFocused}
           hasTVPreferredFocus={true}
           onPress={onCancel}
           style={styles.exitButton}
@@ -1067,7 +1066,7 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
           <Text style={styles.exitButtonText}>{t('exit.stay')}</Text>
         </FocusableItem>
         <FocusableItem
-          focusedStyle={styles.exitDangerFocused}
+          focus="danger"
           onPress={onExit}
           style={[styles.exitButton, styles.exitDangerButton]}
           testID="exit-confirm-button">
@@ -1079,16 +1078,16 @@ const ExitPrompt = ({onCancel, onExit}: ExitPromptProps) => (
 );
 
 const styles = StyleSheet.create({
-  appShell: {backgroundColor: '#0b0d10', flex: 1},
+  appShell: {backgroundColor: colors.surface.screen, flex: 1},
   appScreen: {flex: 1},
   loading: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 30,
     marginTop: 24,
     maxWidth: 1100,
@@ -1096,7 +1095,7 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     alignItems: 'center',
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     justifyContent: 'center',
     marginTop: 28,
@@ -1104,36 +1103,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 16,
   },
-  retryFocused: {
-    backgroundColor: '#315066',
-  },
   retryText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
   },
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.74)',
+    backgroundColor: colors.scrim.strong,
     justifyContent: 'center',
     padding: 64,
   },
   exitDialog: {
     width: 620,
     borderRadius: 8,
-    backgroundColor: '#101820',
-    borderColor: '#324555',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.subtle,
     borderWidth: 2,
     padding: 36,
   },
   exitTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '700',
   },
   exitCopy: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     lineHeight: 30,
     marginTop: 14,
@@ -1145,23 +1141,17 @@ const styles = StyleSheet.create({
   },
   exitButton: {
     alignItems: 'center',
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 6,
     minWidth: 170,
     paddingHorizontal: 24,
     paddingVertical: 16,
   },
   exitDangerButton: {
-    backgroundColor: '#5A2D36',
-  },
-  exitButtonFocused: {
-    backgroundColor: '#315066',
-  },
-  exitDangerFocused: {
-    backgroundColor: '#7A3843',
+    backgroundColor: colors.surface.danger,
   },
   exitButtonText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
   },
