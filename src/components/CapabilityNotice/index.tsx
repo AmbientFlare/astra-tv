@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {t} from '../../i18n';
+import {FOCUS_BORDER_WIDTH, colors, focusStyles} from '../../theme';
 
 export const capabilityNoticeTitle = () => t('capabilityNotice.title');
 
@@ -63,7 +64,7 @@ export const CapabilityNotice = ({
           onFocus={() => setFocused(true)}
           onPress={onDismiss}
           ref={buttonRef}
-          style={[styles.button, isFocused && styles.buttonFocused]}
+          style={[styles.button, isFocused && focusStyles.control]}
           testID="capability-notice-ok">
           <Text style={styles.buttonLabel}>{t('common.ok')}</Text>
         </TouchableOpacity>
@@ -75,7 +76,7 @@ export const CapabilityNotice = ({
 const styles = StyleSheet.create({
   backdrop: {
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    backgroundColor: colors.scrim.heavy,
     bottom: 0,
     justifyContent: 'center',
     left: 0,
@@ -85,8 +86,8 @@ const styles = StyleSheet.create({
     zIndex: 40,
   },
   card: {
-    backgroundColor: '#14161c',
-    borderColor: '#2c313d',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.subtle,
     borderRadius: 18,
     borderWidth: 1,
     maxWidth: 900,
@@ -94,30 +95,29 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   title: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '700',
     marginBottom: 24,
   },
   body: {
-    color: '#c8cddb',
+    color: colors.text.secondary,
     fontSize: 22,
     lineHeight: 32,
     marginBottom: 18,
   },
   button: {
     alignSelf: 'flex-start',
-    backgroundColor: '#2c313d',
+    backgroundColor: colors.surface.control,
+    borderColor: 'transparent',
     borderRadius: 10,
+    borderWidth: FOCUS_BORDER_WIDTH,
     marginTop: 14,
-    paddingHorizontal: 44,
-    paddingVertical: 16,
-  },
-  buttonFocused: {
-    backgroundColor: '#4b8dff',
+    paddingHorizontal: 44 - FOCUS_BORDER_WIDTH,
+    paddingVertical: 16 - FOCUS_BORDER_WIDTH,
   },
   buttonLabel: {
-    color: '#ffffff',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '600',
   },

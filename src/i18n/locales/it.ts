@@ -232,6 +232,11 @@ export const it: Messages = {
   'settings.customization': 'Personalizzazione',
   'settings.homeSections': 'Sezioni della Home',
   'settings.homeSectionsHint': 'Scegli le righe visibili nella Home',
+  'settings.theme': 'Tema',
+  'settings.themeMidnight': 'Mezzanotte',
+  'settings.themeBlack': 'Nero',
+  'settings.themeEmber': 'Brace',
+  'settings.themeRestartNote': 'Si applica al prossimo avvio di Astra.',
   'settings.displayPreferences': 'Preferenze di visualizzazione',
   'settings.displayPreferencesHint':
     'Dimensione immagine, tipo di immagine, direzione della griglia',

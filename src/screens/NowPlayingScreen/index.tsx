@@ -6,6 +6,7 @@ import {useRemoteInput} from '../../hooks/useRemoteInput';
 import {audioPlayback, PlaybackStatus} from '../../services/audioPlayer';
 import {formatSeconds} from '../../utils/duration';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface NowPlayingScreenProps {
   onBack: () => void;
@@ -81,10 +82,7 @@ export const NowPlayingScreen = ({onBack}: NowPlayingScreenProps) => {
 };
 
 const Action = ({label, onPress}: {label: string; onPress: () => void}) => (
-  <FocusableItem
-    focusedStyle={styles.controlFocused}
-    onPress={onPress}
-    style={styles.control}>
+  <FocusableItem onPress={onPress} style={styles.control}>
     <Text style={styles.controlText}>{label}</Text>
   </FocusableItem>
 );
@@ -92,19 +90,28 @@ const Action = ({label, onPress}: {label: string; onPress: () => void}) => (
 const styles = StyleSheet.create({
   root: {
     alignItems: 'center',
-    backgroundColor: '#090c10',
+    backgroundColor: colors.surface.screen,
     flex: 1,
     flexDirection: 'row',
     padding: 48,
   },
   art: {borderRadius: 16, height: 410, width: 410},
-  placeholder: {backgroundColor: '#1d2530'},
+  placeholder: {backgroundColor: colors.surface.raised},
   summary: {flex: 1, paddingLeft: 48},
-  eyebrow: {color: '#54d38a', fontSize: 15, fontWeight: '800'},
-  title: {color: '#f4f6f8', fontSize: 48, fontWeight: '800', marginTop: 12},
-  subtitle: {color: '#a8b4c0', fontSize: 24, marginTop: 10},
-  time: {color: '#6f7d8c', fontSize: 18, marginTop: 18},
-  hint: {color: '#8b97a5', fontSize: 17, marginTop: 20},
+  eyebrow: {color: colors.text.accent, fontSize: 15, fontWeight: '800'},
+  title: {
+    color: colors.text.primary,
+    fontSize: 48,
+    fontWeight: '800',
+    marginTop: 12,
+  },
+  subtitle: {
+    color: colors.text.secondary,
+    fontSize: 24,
+    marginTop: 10,
+  },
+  time: {color: colors.text.faint, fontSize: 18, marginTop: 18},
+  hint: {color: colors.text.muted, fontSize: 17, marginTop: 20},
   // A column, not a row: Left and Right skip tracks on this screen, so a
   // row of buttons could only be reached by changing the song.
   controls: {alignItems: 'flex-start', marginTop: 22},
@@ -114,6 +121,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
-  controlFocused: {backgroundColor: '#54d38a'},
-  controlText: {color: '#f4f6f8', fontSize: 19, fontWeight: '700'},
+  controlText: {color: colors.text.primary, fontSize: 19, fontWeight: '700'},
 });

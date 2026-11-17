@@ -39,6 +39,7 @@ import {
 import {ServerProfile} from '../../services/storage';
 import {markerLetterFor} from './jumpMarker';
 import {MessageKey, t, tn} from '../../i18n';
+import {colors} from '../../theme';
 
 export type MusicTab = 'artists' | 'albums' | 'genres' | 'playlists';
 
@@ -263,17 +264,12 @@ export const MusicScreen = ({
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <FocusableItem
-          focusedStyle={styles.pillFocused}
-          onPress={onBack}
-          style={styles.pill}
-          testID="music-back">
+        <FocusableItem onPress={onBack} style={styles.pill} testID="music-back">
           <Text style={styles.pillText}>{t('common.back')}</Text>
         </FocusableItem>
         <TVFocusGuideView style={styles.tabs}>
           {MUSIC_TABS.map((entry) => (
             <FocusableItem
-              focusedStyle={styles.tabFocused}
               hasTVPreferredFocus={entry.key === initialTab}
               key={entry.key}
               onPress={() => {
@@ -287,7 +283,6 @@ export const MusicScreen = ({
           ))}
         </TVFocusGuideView>
         <FocusableItem
-          focusedStyle={styles.pillFocused}
           onPress={toggleViewMode}
           style={styles.pill}
           testID="music-view-mode">
@@ -329,7 +324,6 @@ export const MusicScreen = ({
         <TVFocusGuideView style={styles.jumpRail}>
           {JUMP_LETTERS.map((entry) => (
             <FocusableItem
-              focusedStyle={styles.jumpFocused}
               key={entry}
               onPress={() => setLetter(letter === entry ? null : entry)}
               style={styles.jumpItem}
@@ -377,7 +371,7 @@ const BrowseTile = ({
   onPress: () => void;
 }) => (
   <FocusableItem
-    focusedStyle={styles.tileFocused}
+    focus="card"
     onPress={onPress}
     style={mode === 'poster' ? styles.posterTile : styles.listTile}
     testID={`music-item-${item.id}`}>
@@ -411,7 +405,7 @@ const BrowseTile = ({
 );
 
 const styles = StyleSheet.create({
-  root: {backgroundColor: '#0b0d10', flex: 1, padding: 28},
+  root: {backgroundColor: colors.surface.screen, flex: 1, padding: 28},
   header: {alignItems: 'center', flexDirection: 'row', marginBottom: 10},
   tabs: {flex: 1, flexDirection: 'row', marginHorizontal: 16},
   tab: {
@@ -420,42 +414,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
   },
-  tabActive: {backgroundColor: '#1d2530'},
-  tabFocused: {backgroundColor: '#54d38a'},
-  tabText: {color: '#f4f6f8', fontSize: 20, fontWeight: '600'},
+  tabActive: {backgroundColor: colors.surface.raised},
+  tabText: {color: colors.text.primary, fontSize: 20, fontWeight: '600'},
   pill: {borderRadius: 8, paddingHorizontal: 18, paddingVertical: 8},
-  pillFocused: {backgroundColor: '#54d38a'},
-  pillText: {color: '#c8d2dc', fontSize: 18},
-  count: {color: '#6f7d8c', fontSize: 15, marginBottom: 10},
+  pillText: {color: colors.text.secondary, fontSize: 18},
+  count: {color: colors.text.faint, fontSize: 15, marginBottom: 10},
   body: {flexDirection: 'row', flex: 1},
   listContent: {paddingRight: 12},
   posterTile: {margin: 6, width: 140},
   listTile: {alignItems: 'center', flexDirection: 'row', margin: 6},
-  tileFocused: {opacity: 1, transform: [{scale: 1.05}]},
   posterImage: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 8,
     height: 140,
     width: 140,
   },
   listImage: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 6,
     height: 64,
     width: 64,
   },
   placeholder: {alignItems: 'center', justifyContent: 'center'},
-  placeholderText: {color: '#54d38a', fontSize: 30, fontWeight: '700'},
+  placeholderText: {color: colors.text.accent, fontSize: 30, fontWeight: '700'},
   tileText: {marginLeft: 10, marginTop: 6},
-  tileTitle: {color: '#f4f6f8', fontSize: 17},
-  tileSubtitle: {color: '#8b97a5', fontSize: 14},
+  tileTitle: {color: colors.text.primary, fontSize: 17},
+  tileSubtitle: {color: colors.text.muted, fontSize: 14},
   jumpRail: {paddingLeft: 8, width: 62},
-  jumpItem: {alignItems: 'center', paddingVertical: 1},
-  jumpFocused: {backgroundColor: '#54d38a', borderRadius: 4},
-  jumpText: {color: '#6f7d8c', fontSize: 15},
-  jumpTextActive: {color: '#54d38a', fontWeight: '700'},
-  jumpTextHere: {color: '#c8d2dc', fontWeight: '600'},
+  jumpItem: {alignItems: 'center', borderRadius: 4, paddingVertical: 1},
+  jumpText: {color: colors.text.faint, fontSize: 15},
+  jumpTextActive: {color: colors.text.accent, fontWeight: '700'},
+  jumpTextHere: {color: colors.text.secondary, fontWeight: '600'},
   spinner: {marginTop: 12},
-  status: {color: '#8b97a5', fontSize: 18, marginTop: 12},
-  error: {color: '#ff8a80', fontSize: 17, marginTop: 12},
+  status: {color: colors.text.muted, fontSize: 18, marginTop: 12},
+  error: {color: colors.text.error, fontSize: 17, marginTop: 12},
 });

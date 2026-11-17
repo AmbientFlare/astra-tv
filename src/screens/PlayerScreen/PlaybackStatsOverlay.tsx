@@ -9,6 +9,7 @@ import {
 } from '../../services/deviceModel';
 import {getTraces} from '../../services/logging/trace';
 import {telemetryStatus} from '../../services/telemetry';
+import {describeJsHeap, readJsHeap} from '../../services/telemetry/jsHeap';
 import {formatBufferingTime} from '../../services/playbackHealth';
 import {APP_VERSION, BUILD_NUMBER} from '../../config/app';
 import {
@@ -19,6 +20,7 @@ import {
   formatDropRatio,
 } from './formatDiagnostics';
 import type {PlaybackDebugInfo} from './types';
+import {colors} from '../../theme';
 
 export const PlaybackStatsOverlay = ({
   diagnostics,
@@ -135,6 +137,9 @@ export const PlaybackStatsOverlay = ({
       <Text style={styles.statsLine}>
         {`Device  ${describeDeviceModel(readDeviceModel())}`}
       </Text>
+      <Text style={styles.statsLine}>
+        {`JS memory  ${describeJsHeap(readJsHeap())}`}
+      </Text>
       {streamInfo.videoDecodeLimits ? (
         <Text style={styles.statsLine}>
           {`Decoder  ${describeDecodeLimits(
@@ -228,24 +233,24 @@ const styles = StyleSheet.create({
     top: 34,
     width: 650,
     borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.86)',
+    backgroundColor: colors.scrim.heavy,
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
   statsTitle: {
-    color: '#4CC9F0',
+    color: colors.text.accent,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 8,
   },
   statsLine: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontFamily: 'monospace',
     fontSize: 16,
     lineHeight: 23,
   },
   statsWarning: {
-    color: '#FFB86C',
+    color: colors.text.warning,
     fontWeight: '800',
   },
 });

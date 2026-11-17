@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {colors} from '../theme';
 
 export interface TileProps {
   label: string;
@@ -73,20 +74,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   default: {
-    backgroundColor: '#0074B8',
+    backgroundColor: colors.surface.tile,
   },
   focused: {
-    backgroundColor: '#FF6200',
+    backgroundColor: colors.surface.tileFocus,
     transform: [{scale: 1.1}],
     opacity: 1,
   },
   icon: {
     width: 80,
     height: 80,
-    tintColor: '#FFFFFF',
+    tintColor: colors.text.primary,
   },
   label: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 52,
     fontWeight: 'bold',
     textAlign: 'center',

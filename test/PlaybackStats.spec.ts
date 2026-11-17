@@ -276,3 +276,23 @@ describe('playback stats', () => {
     });
   });
 });
+
+describe('setup failure kinds', () => {
+  it('buckets errors without keeping their text', () => {
+    const {setupFailKind} = require('../src/services/telemetry/playbackStats');
+    const {ServerResponseError} = require('../src/services/jellyfin/http');
+    const named = (name: string) => Object.assign(new Error('x'), {name});
+    expect(setupFailKind(new ServerResponseError('x', 401))).toBe('wrongLogin');
+    expect(setupFailKind(new ServerResponseError('x', 404))).toBe('notFound');
+    expect(setupFailKind(new ServerResponseError('x', 502))).toBe(
+      'serverError',
+    );
+    expect(setupFailKind(named('AbortError'))).toBe('timeout');
+    expect(setupFailKind(new TypeError('Network request failed'))).toBe(
+      'unreachable',
+    );
+    expect(setupFailKind(new SyntaxError('JSON'))).toBe('notJellyfin');
+    expect(setupFailKind(named('SetupNoAddress'))).toBe('noAddress');
+    expect(setupFailKind('weird')).toBe('other');
+  });
+});

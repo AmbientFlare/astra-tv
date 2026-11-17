@@ -11,6 +11,13 @@ import type {
   UserPreferences,
 } from '../../services/storage';
 import {t, tn} from '../../i18n';
+import type {ThemeId} from '../../theme';
+
+export const themeOptions = (): Array<{label: string; value: ThemeId}> => [
+  {label: t('settings.themeMidnight'), value: 'midnight'},
+  {label: t('settings.themeBlack'), value: 'black'},
+  {label: t('settings.themeEmber'), value: 'ember'},
+];
 
 export const bitrateOptions = (): Array<{
   label: string;

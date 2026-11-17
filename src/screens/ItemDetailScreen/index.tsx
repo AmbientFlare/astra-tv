@@ -20,6 +20,7 @@ import {
 import {isLiveItem} from '../../services/jellyfin/liveTv';
 import {ServerProfile} from '../../services/storage';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface ItemDetailScreenProps {
   item: JellyfinMediaItem;
@@ -382,18 +383,48 @@ export const ItemDetailScreen = ({
         {detail.backdropUrl ? (
           <Image source={{uri: detail.backdropUrl}} style={styles.backdrop} />
         ) : null}
+        <View style={styles.heroFade}>
+          <View style={styles.heroFadeFar} />
+          <View style={styles.heroFadeNear} />
+        </View>
         <View style={styles.heroContent}>
           {detail.imageUrl ? (
             <Image source={{uri: detail.imageUrl}} style={styles.poster} />
           ) : null}
           <View style={styles.copy}>
             <Text style={styles.title}>{detail.name}</Text>
-            <Text style={styles.meta}>{meta.join('  |  ')}</Text>
+            <Text style={styles.meta}>{meta.join('  ·  ')}</Text>
+            {detail.genres?.length ? (
+              <View style={styles.genres}>
+                {detail.genres.map((genre) => (
+                  <Text key={genre} style={styles.genre}>
+                    {genre}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             <Text numberOfLines={5} style={styles.overview}>
               {detail.overview ?? t('detail.noSynopsis')}
             </Text>
-            {detail.genres?.length ? (
-              <Text style={styles.genres}>{detail.genres.join(' / ')}</Text>
+            {!hasChildren &&
+            detail.resumePositionTicks &&
+            detail.runTimeTicks ? (
+              <View style={styles.progressTrack} testID="detail-progress">
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          (detail.resumePositionTicks / detail.runTimeTicks) *
+                            100,
+                        ),
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
             ) : null}
             <LoadingOrError
               errorText={errorText}
@@ -404,7 +435,6 @@ export const ItemDetailScreen = ({
             />
             <TVFocusGuideView style={styles.actions}>
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 hasTVPreferredFocus={true}
                 onPress={() => {
                   if (!hasChildren) {
@@ -436,7 +466,6 @@ export const ItemDetailScreen = ({
               </FocusableItem>
               {detail.type === 'Movie' && detail.resumePositionTicks ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => onPlay?.({...detail, resumePositionTicks: 0})}
                   style={styles.actionButton}
                   testID="detail-play-from-start-button">
@@ -447,7 +476,6 @@ export const ItemDetailScreen = ({
               ) : null}
               {hasChildren && episodes.length ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => {
                     const unwatched =
                       episodes.filter((episode) => !episode.isPlayed) ??
@@ -470,7 +498,6 @@ export const ItemDetailScreen = ({
               {isLiveItem(detail) ? null : (
                 <FocusableItem
                   disabled={isUpdatingUserData}
-                  focusedStyle={styles.actionFocused}
                   onPress={updatePlayed}
                   style={styles.actionButton}
                   testID="detail-watched-button">
@@ -483,7 +510,6 @@ export const ItemDetailScreen = ({
               )}
               <FocusableItem
                 disabled={isUpdatingUserData}
-                focusedStyle={styles.actionFocused}
                 onPress={updateFavorite}
                 style={styles.actionButton}
                 testID="detail-favorite-button">
@@ -495,7 +521,6 @@ export const ItemDetailScreen = ({
               </FocusableItem>
               {detail.type === 'Movie' && firstTrailer ? (
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => Linking.openURL(firstTrailer.url)}
                   style={styles.actionButton}
                   testID="detail-trailer-button">
@@ -503,7 +528,6 @@ export const ItemDetailScreen = ({
                 </FocusableItem>
               ) : null}
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={onBack}
                 style={styles.actionButton}
                 testID="detail-back-button">
@@ -644,7 +668,6 @@ const PersonCard = ({
   role?: string;
 }) => (
   <FocusableItem
-    focusedStyle={styles.personFocused}
     onPress={onPress}
     style={styles.personCard}
     testID={`person-${name}`}>
@@ -663,7 +686,7 @@ const PersonCard = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
   },
   hero: {
     minHeight: 520,
@@ -681,45 +704,71 @@ const styles = StyleSheet.create({
     width: 250,
     height: 375,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
   },
   copy: {
     flex: 1,
     paddingTop: 12,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 54,
     fontWeight: '800',
   },
   meta: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 24,
     marginTop: 10,
   },
+  // Capped so a line never runs the width of the screen.
   overview: {
-    color: '#E4ECEF',
+    color: colors.text.body,
     fontSize: 26,
     lineHeight: 34,
-    marginTop: 22,
+    marginTop: 20,
+    maxWidth: 1180,
   },
   genres: {
-    color: '#89CFF0',
-    fontSize: 22,
-    marginTop: 18,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 14,
   },
+  genre: {
+    backgroundColor: colors.surface.control,
+    borderRadius: 14,
+    color: colors.text.body,
+    fontSize: 18,
+    overflow: 'hidden',
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  progressTrack: {
+    backgroundColor: colors.fill.track,
+    borderRadius: 3,
+    height: 6,
+    marginTop: 22,
+    overflow: 'hidden',
+    width: 420,
+  },
+  progressFill: {backgroundColor: colors.fill.accent, height: '100%'},
+  // Two steps that let the backdrop sink into the page instead of ending
+  // on a hard line.
+  heroFade: {bottom: 0, left: 0, position: 'absolute', right: 0},
+  heroFadeFar: {backgroundColor: colors.scrim.heroFade, height: 44},
+  heroFadeNear: {backgroundColor: colors.scrim.hero, height: 44},
   director: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 20,
     marginTop: 16,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 22,
     marginTop: 16,
   },
   status: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     marginTop: 16,
   },
@@ -732,20 +781,17 @@ const styles = StyleSheet.create({
     minWidth: 128,
     height: 58,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionFocused: {
-    backgroundColor: '#2E5A72',
-  },
   actionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '800',
     marginBottom: 14,
@@ -765,26 +811,23 @@ const styles = StyleSheet.create({
   personCard: {
     width: 170,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     padding: 12,
-  },
-  personFocused: {
-    backgroundColor: '#2E5A72',
   },
   personImage: {
     width: 146,
     height: 146,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     marginBottom: 10,
   },
   personName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '800',
   },
   personRole: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 17,
     marginTop: 4,
   },

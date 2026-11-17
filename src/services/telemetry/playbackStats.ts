@@ -24,6 +24,7 @@ import {getItem, setItem} from '../storageAdapter';
 import {STATS_ENDPOINT, TELEMETRY_REQUEST_TIMEOUT_MS} from './config';
 import {scrubForCrashReport} from './crashReports';
 import type {HeartbeatSample} from './heartbeat';
+import {readJsHeap} from './jsHeap';
 
 const INSTALL_KEY = 'astra.stats.install.v1';
 const QUEUE_KEY = 'astra.stats.queue.v1';
@@ -70,7 +71,27 @@ export type UsageName =
   | 'play.live'
   | 'play.music'
   | 'syncplay.create'
-  | 'syncplay.join';
+  | 'syncplay.join'
+  | SetupUsageName;
+
+/**
+ * Setup wizard counts: which steps a new viewer reaches and, when a connect
+ * or sign-in fails, what kind of failure it was. Kinds only, never the
+ * address, username or error text.
+ */
+export type SetupFailKind =
+  | 'noAddress'
+  | 'unreachable'
+  | 'timeout'
+  | 'notJellyfin'
+  | 'wrongLogin'
+  | 'notFound'
+  | 'serverError'
+  | 'other';
+export type SetupUsageName =
+  | `setup.step.${'serverType' | 'server' | 'authMethod' | 'code' | 'password'}`
+  | `setup.fail.${'connect' | 'signIn' | 'quickConnect'}.${SetupFailKind}`
+  | 'setup.connected';
 
 const utcDay = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
 const clip = (text: string | undefined, max = 48) =>
@@ -286,6 +307,30 @@ export const backgroundStats = (): void => {
   }
   save();
   void flushStats();
+};
+
+export const setupFailKind = (error: unknown): SetupFailKind => {
+  const status = (error as {status?: unknown} | null)?.status;
+  if (typeof status === 'number') {
+    if (status === 401 || status === 403) {
+      return 'wrongLogin';
+    }
+    return status === 404 ? 'notFound' : 'serverError';
+  }
+  const name = (error as {name?: unknown} | null)?.name;
+  if (name === 'AbortError') {
+    return 'timeout';
+  }
+  if (name === 'SyntaxError') {
+    return 'notJellyfin';
+  }
+  if (name === 'TypeError') {
+    return 'unreachable';
+  }
+  if (name === 'SetupNoAddress') {
+    return 'noAddress';
+  }
+  return 'other';
 };
 
 export const noteScreen = (route: string): void => {
@@ -549,6 +594,7 @@ export const crashContext = (): Record<string, unknown> => ({
   screen,
   uptimeSec: Math.round((Date.now() - startedAtMs) / 1000),
   memoryWarnings,
+  jsHeap: readJsHeap(),
   playback: playback && {
     live: playback.live,
     ...playback.stream,

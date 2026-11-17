@@ -14,6 +14,7 @@ import {
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 import {getLocaleTag, t} from '../../i18n';
+import {colors} from '../../theme';
 
 const TICKS_PER_SECOND = 10000000;
 
@@ -278,7 +279,7 @@ export const EpisodeDetailScreen = ({
             {detail.seriesName ?? t('detail.episode')}
           </Text>
           <Text style={styles.title}>{detail.name}</Text>
-          <Text style={styles.meta}>{meta.join('  |  ')}</Text>
+          <Text style={styles.meta}>{meta.join('  ·  ')}</Text>
           {badges.length ? (
             <View style={styles.badges}>
               {badges.map((badge) => (
@@ -290,7 +291,7 @@ export const EpisodeDetailScreen = ({
           ) : null}
           <Text style={styles.meta}>
             {[
-              detail.genres?.join(' / '),
+              detail.genres?.join(', '),
               formatRuntime(detail.runTimeTicks),
               formatEndsAt(detail.runTimeTicks)
                 ? t('detail.endsAt', {
@@ -299,11 +300,29 @@ export const EpisodeDetailScreen = ({
                 : null,
             ]
               .filter(Boolean)
-              .join('  |  ')}
+              .join('  ·  ')}
           </Text>
           <Text numberOfLines={5} style={styles.overview}>
             {detail.overview ?? t('detail.noSynopsis')}
           </Text>
+          {detail.resumePositionTicks && detail.runTimeTicks ? (
+            <View style={styles.progressTrack} testID="episode-progress">
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.min(
+                      100,
+                      Math.round(
+                        (detail.resumePositionTicks / detail.runTimeTicks) *
+                          100,
+                      ),
+                    )}%`,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
           <LoadingOrError
             errorText={errorText}
             onRetry={() => loadDetail()}
@@ -311,16 +330,18 @@ export const EpisodeDetailScreen = ({
           />
           <TVFocusGuideView style={styles.actions}>
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={true}
               onPress={() => onPlay?.(detail)}
               style={styles.actionButton}
               testID="episode-play-button">
-              <Text style={styles.actionText}>{t('player.play')}</Text>
+              <Text style={styles.actionText}>
+                {detail.resumePositionTicks
+                  ? t('detail.resume')
+                  : t('player.play')}
+              </Text>
             </FocusableItem>
             <FocusableItem
               disabled={isUpdatingUserData}
-              focusedStyle={styles.actionFocused}
               onPress={updatePlayed}
               style={styles.actionButton}
               testID="episode-watched-button">
@@ -330,7 +351,6 @@ export const EpisodeDetailScreen = ({
             </FocusableItem>
             <FocusableItem
               disabled={isUpdatingUserData}
-              focusedStyle={styles.actionFocused}
               onPress={updateFavorite}
               style={styles.actionButton}
               testID="episode-favorite-button">
@@ -342,7 +362,6 @@ export const EpisodeDetailScreen = ({
             </FocusableItem>
             {previousEpisode ? (
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={() => onSelectEpisode?.(previousEpisode)}
                 style={styles.actionButton}
                 testID="episode-previous-button">
@@ -351,7 +370,6 @@ export const EpisodeDetailScreen = ({
             ) : null}
             {seriesItem ? (
               <FocusableItem
-                focusedStyle={styles.actionFocused}
                 onPress={() => onGoToSeries?.(seriesItem)}
                 style={styles.actionButton}
                 testID="episode-series-button">
@@ -359,7 +377,6 @@ export const EpisodeDetailScreen = ({
               </FocusableItem>
             ) : null}
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               onPress={onBack}
               style={styles.actionButton}
               testID="episode-back-button">
@@ -427,7 +444,6 @@ export const EpisodeDetailScreen = ({
             <TVFocusGuideView style={styles.row}>
               {detail.chapters.map((chapter, index) => (
                 <FocusableItem
-                  focusedStyle={styles.chapterFocused}
                   key={`${chapter.startPositionTicks}-${index}`}
                   onPress={() =>
                     onPlay?.({
@@ -468,7 +484,6 @@ const PersonCard = ({
   role?: string;
 }) => (
   <FocusableItem
-    focusedStyle={styles.personFocused}
     onPress={onPress}
     style={styles.personCard}
     testID={`episode-person-${name}`}>
@@ -487,7 +502,7 @@ const PersonCard = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
   },
   hero: {
     minHeight: 560,
@@ -498,7 +513,7 @@ const styles = StyleSheet.create({
   },
   heroShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,17,22,0.62)',
+    backgroundColor: colors.scrim.hero,
   },
   heroContent: {
     paddingHorizontal: 72,
@@ -506,18 +521,18 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
   },
   seriesName: {
-    color: '#9FB0BA',
+    color: colors.text.muted,
     fontSize: 26,
     fontWeight: '700',
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 56,
     fontWeight: '800',
     marginTop: 8,
   },
   meta: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 23,
     marginTop: 12,
   },
@@ -527,23 +542,32 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   badge: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: '800',
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 6,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
+  progressTrack: {
+    backgroundColor: colors.fill.track,
+    borderRadius: 3,
+    height: 6,
+    marginTop: 22,
+    overflow: 'hidden',
+    width: 420,
+  },
+  progressFill: {backgroundColor: colors.fill.accent, height: '100%'},
   overview: {
-    color: '#E4ECEF',
+    color: colors.text.body,
     fontSize: 25,
     lineHeight: 34,
     marginTop: 22,
     maxWidth: 980,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 22,
     marginTop: 16,
   },
@@ -557,21 +581,18 @@ const styles = StyleSheet.create({
     minWidth: 128,
     height: 58,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  actionFocused: {
-    backgroundColor: '#2E5A72',
-  },
   actionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 21,
     fontWeight: '800',
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '800',
     marginBottom: 14,
@@ -591,45 +612,39 @@ const styles = StyleSheet.create({
   personCard: {
     width: 170,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     padding: 12,
-  },
-  personFocused: {
-    backgroundColor: '#2E5A72',
   },
   personImage: {
     width: 146,
     height: 146,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     marginBottom: 10,
   },
   personName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '800',
   },
   personRole: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 17,
     marginTop: 4,
   },
   chapterCard: {
     width: 260,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     overflow: 'hidden',
-  },
-  chapterFocused: {
-    backgroundColor: '#2E5A72',
   },
   chapterImage: {
     width: 260,
     height: 146,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
   },
   chapterTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '800',
     padding: 12,

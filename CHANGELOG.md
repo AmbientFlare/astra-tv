@@ -3,6 +3,44 @@
 Code from outside contributors is credited on its entry and, permanently,
 in [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
+## 1.7.0 - 2026-11-17
+
+### Added
+
+- Live TV (beta), for servers with a tuner or a channel plugin: a channel
+  list with what's on now and next, a guide grid, an On Now row on Home,
+  and Up/Down to change channels while watching. Record from the guide,
+  and see, cancel and delete recordings under Recordings. (#10)
+- Search inside a library, and filter it by genre. Both stay set when you
+  leave the library and come back. Genres and filtering come from the
+  Jellyfin server. (#50)
+- Subtitle size and color under Settings > Playback > Subtitle appearance,
+  for text subtitles. (#51)
+- A choice of themes under Settings > Customization > Theme. The choice
+  applies the next time Astra starts.
+
+### Changed
+
+- A new look. Everything you can select shows focus the same way, colors
+  come from one palette, the player's controls are redrawn with a title
+  strip and a scrubber, and Home keeps the libraries on one rail and shows
+  watch progress on cards. The remote works as before. (#53)
+
+### Fixed
+
+- If Astra was closed during a video, the server was never told it had
+  stopped and kept the whole conversion on disk. Astra now reports the
+  stop the next time it starts.
+- A film left paused until the server cleared its conversion carries on
+  when you press Play.
+- The Live TV guide retries after a failed load, keeps less of the guide
+  in memory, and loads long recording lists a page at a time.
+- The episode page shows resume progress, and recording cards are no
+  longer clipped.
+- The remote stays inside the profile switcher.
+- Card captions on Home are no longer clipped, and episode posters no
+  longer come up blank.
+
 ## 1.6.3 - 2026-11-04
 
 ### Added

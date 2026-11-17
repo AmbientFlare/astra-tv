@@ -1,6 +1,6 @@
 # Astra
 
-[![Latest release](https://img.shields.io/badge/release-1.6.3-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
+[![Latest release](https://img.shields.io/badge/release-1.7.0-c9a227?style=flat-square)](https://github.com/AmbientFlare/astra-tv/releases/latest)
 [![Amazon Appstore](https://img.shields.io/badge/Amazon%20Appstore-download-232f3e?style=flat-square&logo=amazon)](https://www.amazon.com/gp/mas/dl/android?p=com.astra.tv)
 [![Platform](https://img.shields.io/badge/platform-Fire%20TV%20%C2%B7%20Vega%20OS%201.2%2B-1f232d?style=flat-square)](https://developer.amazon.com/docs/vega/overview.html)
 [![Backend](https://img.shields.io/badge/backend-Jellyfin-00a4dc?style=flat-square&logo=jellyfin&logoColor=white)](https://jellyfin.org)
@@ -19,7 +19,7 @@ Website and install instructions: <https://watchastra.com>
 
 ## Project status
 
-The current release is Astra `1.6.3`, build `20261104.20`, for Fire TV
+The current release is Astra `1.7.0`, build `20261117.01`, for Fire TV
 devices running Vega OS 1.2 or later, including Vega OS 2.0. It is available from the Amazon
 Appstore.
 
@@ -32,7 +32,7 @@ Appstore.
 - Minimum Vega OS: `1.2`, as required by Vega SDK 0.24. Devices on an earlier
   Vega OS stay on 1.1.2.
 - Contributors: [CONTRIBUTORS.md](CONTRIBUTORS.md)
-- Release validation: 857 tests in 87 suites, ESLint, TypeScript, Vega
+- Release validation: 1008 tests in 104 suites, ESLint, TypeScript, Vega
   manifest, and Vega ABI. HDR picture quality, playback recovery, resume,
   track selection, library navigation and music browsing were accepted on the
   physical Fire TV Stick for 1.3.0. For 1.4.0, an uninterrupted 130-minute
@@ -52,7 +52,11 @@ Appstore.
   For 1.6.3, crash reports, playback stats and feature counts were received
   from a Vega OS 2.0 stick, and two sticks stayed open in the background
   after leaving a playing or paused video and after five minutes of
-  screensaver.
+  screensaver. For 1.7.0, the scripted on-stick suite (`scripts/stick/`)
+  passed all 14 steps on a Vega OS 2.0 stick with the Live TV build,
+  including the server clean-up after Astra is closed mid-film; the final
+  build with the new look passed the playback, seek, Playback Options,
+  leave and resume steps.
 - Future backends: Emby and Kodi are planned but are not supported today
 
 ## What Astra supports
@@ -61,14 +65,16 @@ Appstore.
 
 - Browse movie, series, season, and episode libraries.
 - Continue watching and resume from saved playback positions.
-- Search the connected Jellyfin server.
+- Search the connected Jellyfin server, or search inside one library and
+  filter it by genre. Genres and filtering come from the server.
 - View artwork, descriptions, ratings, genres, cast, chapters, and related
   metadata when supplied by Jellyfin.
 - Select audio and subtitle tracks and inspect playback diagnostics.
 - Render SRT/WebVTT subtitles in-app and request server burn-in for formats
   Vega cannot render reliably.
 - Choose shadowed text (default) or a dark subtitle background in
-  Settings > Playback > Subtitle appearance. Text subtitles remain visible
+  Settings > Playback > Subtitle appearance, along with text size and color.
+  Text subtitles remain visible
   when the title and controls hide and move above the controls when shown.
   Subtitles burned into the video keep their original appearance.
 - Show unwatched episode badges on series posters, capped at `99+`.
@@ -80,6 +86,16 @@ Appstore.
   for Nerds shows what the decoder reported.
 - Show how many episodes of the season are left on Next Up cards and episode
   pages.
+
+### Live TV (beta)
+
+For servers with a tuner or a channel plugin:
+
+- A channel list with what's on now and next, and a guide grid.
+- An On Now row on Home.
+- Up/Down changes channel while watching, with a channel banner.
+- Record from the guide, and see, cancel and delete recordings under
+  Recordings.
 
 ### Music
 
@@ -109,8 +125,10 @@ creation on Vega.
 
 ### TV interface and device behavior
 
-- Large Movies, TV Shows, and Music cards use collages of the newest posters
-  from each library.
+- Libraries sit on one rail on Home, with cards that use collages of the
+  newest posters from each library. Part-watched titles show a progress bar.
+- Every control shows focus the same way. Choose a theme (Midnight, Black or
+  Ember) in Settings > Customization > Theme; it applies at the next start.
 - Multiple Jellyfin users and servers can be saved and switched from Home.
 - Quick Connect, local server discovery, and password sign-in are supported.
 - Moving in-app idle visuals protect against burn-in during music playback and
@@ -151,6 +169,17 @@ published with notes on the
 [Releases page](https://github.com/AmbientFlare/astra-tv/releases). Customer
 facing notes for the same releases are at
 <https://watchastra.com/releases/>.
+
+### 1.7.0 — Live TV and a new look — 2026-11-17
+
+- Live TV (beta): channels with now and next, a guide, an On Now row on
+  Home, Up/Down to change channels, and recordings.
+- A new look: clearer focus, a redrawn player with a title strip and
+  scrubber, libraries on one rail on Home, and three themes.
+- Search and filter by genre inside a library.
+- Subtitle size and color.
+- If Astra is closed during a video, it tells the server at the next start,
+  so the server stops keeping the conversion on disk.
 
 ### 1.6.3 — Stays open in the background — 2026-11-04
 
