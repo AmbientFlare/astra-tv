@@ -82,6 +82,42 @@ export const rowCells = (
   return cells;
 };
 
+/** What a row draws: a programme, or one whole stretch without guide data. */
+export interface GuideBlock {
+  start: number;
+  end: number;
+  /** Index of the block's first cell in the row's cells. */
+  firstCell: number;
+  program?: LiveTvProgram;
+}
+
+/**
+ * The row's cells as drawn. Consecutive empty cells become one block, so a
+ * channel without guide data reads as one continuous bar instead of a column
+ * of half-hour boxes. The cells themselves stay half-hour sized for moving.
+ */
+export const rowBlocks = (cells: GuideCell[]): GuideBlock[] => {
+  const blocks: GuideBlock[] = [];
+
+  cells.forEach((cell, index) => {
+    const last = blocks[blocks.length - 1];
+
+    if (!cell.program && last && !last.program && last.end === cell.start) {
+      last.end = cell.end;
+      return;
+    }
+
+    blocks.push({
+      start: cell.start,
+      end: cell.end,
+      firstCell: index,
+      program: cell.program,
+    });
+  });
+
+  return blocks;
+};
+
 /** The cell under a time, or the nearest end cell if the time is outside. */
 export const cellIndexAt = (cells: GuideCell[], time: number) => {
   if (cells.length && time < cells[0].start) {

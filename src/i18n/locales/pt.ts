@@ -231,6 +231,11 @@ export const pt: Messages = {
   'settings.customization': 'Personalização',
   'settings.homeSections': 'Seções da tela inicial',
   'settings.homeSectionsHint': 'Escolha as fileiras visíveis no Início',
+  'settings.theme': 'Tema',
+  'settings.themeMidnight': 'Meia-noite',
+  'settings.themeBlack': 'Preto',
+  'settings.themeEmber': 'Brasa',
+  'settings.themeRestartNote': 'Aplica-se na próxima vez que o Astra iniciar.',
   'settings.displayPreferences': 'Preferências de exibição',
   'settings.displayPreferencesHint':
     'Tamanho da imagem, tipo de imagem, direção da grade',

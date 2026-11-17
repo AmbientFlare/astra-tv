@@ -25,7 +25,9 @@ fi
 # .1 and .12 keep a consistent width and stay monotonically increasing.
 BUILD_DATE=${BUILD_MARKER%%.*}
 BUILD_SEQ=${BUILD_MARKER##*.}
-VEGA_BUILD_NUMBER=$(printf '%s%02d' "$BUILD_DATE" "$BUILD_SEQ")
+# 10# reads the sequence as decimal; a bare "08" or "09" is taken for a bad
+# octal number and stops the build.
+VEGA_BUILD_NUMBER=$(printf '%s%02d' "$BUILD_DATE" "$((10#$BUILD_SEQ))")
 
 echo "Building Astra $APP_VERSION"
 echo "  app build marker:  $BUILD_MARKER"
@@ -41,7 +43,13 @@ PACKAGE=build/$TARGET-release/astra_$TARGET.vpkg
 # The app build stages each local turbomodule from its dist/ directory and
 # fails outright when the module has no build for the target, so rebuild it
 # for this target first rather than trusting a committed binary.
+# A folder without a package.json is build output left behind by a module
+# that has since been removed, and has nothing to build.
 for module in packages/astra-*/; do
+    if [ ! -f "$module/package.json" ]; then
+        echo "Skipping $module: no package.json"
+        continue
+    fi
     (cd "$module" && vega build --target "$TARGET" --buildType Release)
 done
 
@@ -76,3 +84,9 @@ fi
 echo
 echo "Package: $PACKAGE"
 cat "build/$TARGET-release/vpkg-info.json"
+
+# A package is not ready to submit until it has passed on a real stick. See
+# section 0 of docs/device-test-checklist-vega-2026.md.
+echo
+echo "Before submitting, run it on a stick:"
+echo "  npm run test:stick -- --install $PACKAGE"

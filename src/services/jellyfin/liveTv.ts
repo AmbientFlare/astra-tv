@@ -614,12 +614,22 @@ const recordingImage = (session: LiveTvSession, raw: RawRecording) => {
   return undefined;
 };
 
+/** How many recordings one request asks for. */
+export const RECORDINGS_PAGE_SIZE = 100;
+
 /**
- * The server's recordings, newest first. It ignores its own in-progress
- * filter, so recordings still being made are told apart by their status.
+ * One page of the server's recordings, newest first. It ignores its own
+ * in-progress filter, so recordings still being made are told apart by their
+ * status.
+ *
+ * Asked for a page at a time: a long-kept DVR holds thousands, and the whole
+ * list in one response is a single large parse on a device short of memory.
+ * The server sorts by date created, newest first, so the first page holds
+ * whatever is recording now.
  */
 export const getRecordings = async (
   session: LiveTvSession,
+  page: {limit?: number; startIndex?: number} = {},
 ): Promise<LiveTvRecording[]> => {
   const raw = await request<RawPage<RawRecording>>(
     session,
@@ -628,6 +638,9 @@ export const getRecordings = async (
       EnableImageTypes: 'Primary,Thumb',
       EnableTotalRecordCount: false,
       Fields: 'DateCreated,Overview',
+      ImageTypeLimit: 1,
+      Limit: page.limit ?? RECORDINGS_PAGE_SIZE,
+      StartIndex: page.startIndex ?? 0,
       UserId: session.userId,
     },
   );

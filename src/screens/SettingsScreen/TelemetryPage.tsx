@@ -5,6 +5,7 @@ import {
   telemetryStatus,
 } from '../../services/telemetry';
 import {MenuRow, Page} from './widgets';
+import {colors} from '../../theme';
 
 /**
  * Operator-only. Telemetry is off for everyone until the operator phrase is
@@ -27,12 +28,12 @@ export const TelemetryPage = ({onBack}: {onBack: () => void}) => {
         value={telemetryPhrase}
         onChangeText={setTelemetryPhrase}
         placeholder="Operator phrase"
-        placeholderTextColor="#aaaaaa"
+        placeholderTextColor={colors.text.secondary}
         autoCapitalize="none"
         autoCorrect={false}
         style={{
           color: 'white',
-          borderColor: '#aaaaaa',
+          borderColor: colors.border.control,
           borderWidth: 1,
           padding: 16,
           fontSize: 24,

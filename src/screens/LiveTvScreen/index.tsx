@@ -34,6 +34,7 @@ import type {JellyfinMediaItem} from '../../services/jellyfin/types';
 import {RecordingsView} from './RecordingsView';
 import {MessageKey, t, tn} from '../../i18n';
 import {LiveTvGuide} from './LiveTvGuide';
+import {colors} from '../../theme';
 
 interface Props {
   onBack: () => void;
@@ -290,7 +291,6 @@ export const LiveTvScreen = ({
     <View style={styles.root}>
       <View style={styles.header}>
         <FocusableItem
-          focusedStyle={styles.pillFocused}
           onPress={onBack}
           style={styles.pill}
           testID="livetv-back">
@@ -300,7 +300,6 @@ export const LiveTvScreen = ({
         <TVFocusGuideView style={styles.tabs}>
           {(isRecordings ? [] : filters).map((entry) => (
             <FocusableItem
-              focusedStyle={styles.tabFocused}
               hasTVPreferredFocus={view === 'channels' && entry === 'all'}
               key={entry}
               onPress={() => {
@@ -316,7 +315,6 @@ export const LiveTvScreen = ({
         <TVFocusGuideView style={styles.views}>
           {(['guide', 'channels', 'recordings'] as const).map((entry) => (
             <FocusableItem
-              focusedStyle={styles.tabFocused}
               key={entry}
               onPress={() => changeView(entry)}
               style={[styles.tab, view === entry && styles.tabActive]}
@@ -401,18 +399,20 @@ const ChannelRow = ({
   onPress: () => void;
 }) => {
   const {current, next} = nowAndNext(channel, now);
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => setLogoFailed(false), [channel.imageUrl]);
 
   return (
     <FocusableItem
-      focusedStyle={styles.rowFocused}
       onPress={onPress}
       style={styles.row}
       testID={`livetv-channel-${channel.id}`}>
       <Text numberOfLines={1} style={styles.number}>
         {channel.number ?? ''}
       </Text>
-      {channel.imageUrl ? (
+      {channel.imageUrl && !logoFailed ? (
         <Image
+          onError={() => setLogoFailed(true)}
           resizeMode="contain"
           source={{uri: channel.imageUrl}}
           style={styles.logo}
@@ -478,10 +478,10 @@ const ChannelRow = ({
 };
 
 const styles = StyleSheet.create({
-  root: {backgroundColor: '#0b0d10', flex: 1, padding: 28},
+  root: {backgroundColor: colors.surface.screen, flex: 1, padding: 28},
   header: {alignItems: 'center', flexDirection: 'row', marginBottom: 10},
   title: {
-    color: '#f4f6f8',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
     marginLeft: 12,
@@ -494,59 +494,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
   },
-  tabActive: {backgroundColor: '#1d2530'},
-  tabFocused: {backgroundColor: '#54d38a'},
-  tabText: {color: '#f4f6f8', fontSize: 20, fontWeight: '600'},
+  tabActive: {backgroundColor: colors.surface.raised},
+  tabText: {color: colors.text.primary, fontSize: 20, fontWeight: '600'},
   pill: {borderRadius: 8, paddingHorizontal: 18, paddingVertical: 8},
-  pillFocused: {backgroundColor: '#54d38a'},
-  pillText: {color: '#c8d2dc', fontSize: 18},
-  count: {color: '#6f7d8c', fontSize: 15, marginBottom: 10},
+  pillText: {color: colors.text.secondary, fontSize: 18},
+  count: {color: colors.text.faint, fontSize: 15, marginBottom: 10},
   listContent: {paddingBottom: 24},
   row: {
     alignItems: 'center',
-    backgroundColor: '#12161c',
+    backgroundColor: colors.surface.sunken,
     borderRadius: 10,
     flexDirection: 'row',
     marginVertical: 4,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  rowFocused: {backgroundColor: '#1d2530'},
   number: {
-    color: '#8b97a5',
+    color: colors.text.muted,
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'right',
     width: 64,
   },
   logo: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 6,
     height: 54,
     marginHorizontal: 16,
     width: 96,
   },
   placeholder: {alignItems: 'center', justifyContent: 'center'},
-  placeholderText: {color: '#54d38a', fontSize: 24, fontWeight: '700'},
+  placeholderText: {color: colors.text.accent, fontSize: 24, fontWeight: '700'},
   rowText: {flex: 1},
-  channelName: {color: '#8b97a5', fontSize: 15},
-  programName: {color: '#f4f6f8', fontSize: 19, fontWeight: '600'},
+  channelName: {color: colors.text.muted, fontSize: 15},
+  programName: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   progressRow: {alignItems: 'center', flexDirection: 'row', marginTop: 4},
   progressTrack: {
-    backgroundColor: '#2a313b',
+    backgroundColor: colors.fill.trackSolid,
     borderRadius: 2,
     flex: 1,
     height: 4,
     marginHorizontal: 10,
     maxWidth: 360,
   },
-  progressFill: {backgroundColor: '#54d38a', borderRadius: 2, height: 4},
-  time: {color: '#8b97a5', fontSize: 14},
-  noGuide: {color: '#6f7d8c', fontSize: 16, marginTop: 2},
+  progressFill: {
+    backgroundColor: colors.fill.accent,
+    borderRadius: 2,
+    height: 4,
+  },
+  time: {color: colors.text.muted, fontSize: 14},
+  noGuide: {color: colors.text.faint, fontSize: 16, marginTop: 2},
   nextColumn: {marginLeft: 16, width: 280},
-  nextLabel: {color: '#6f7d8c', fontSize: 14},
-  nextName: {color: '#c8d2dc', fontSize: 16},
+  nextLabel: {color: colors.text.faint, fontSize: 14},
+  nextName: {color: colors.text.secondary, fontSize: 16},
   spinner: {marginTop: 12},
-  status: {color: '#8b97a5', fontSize: 18, marginTop: 12},
-  error: {color: '#ff8a80', fontSize: 17, marginTop: 12},
+  status: {color: colors.text.muted, fontSize: 18, marginTop: 12},
+  error: {color: colors.text.error, fontSize: 17, marginTop: 12},
 });

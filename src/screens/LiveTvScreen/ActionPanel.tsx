@@ -6,6 +6,7 @@ import {
 } from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../../components/FocusableItem';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 export interface PanelAction<Key extends string> {
   key: Key;
@@ -133,21 +134,14 @@ const PanelButton = ({
   onPress: () => void;
   testID: string;
 }) => {
-  const [isFocused, setFocused] = useState(false);
-
   return (
     <FocusableItem
       focusRef={focusRef}
-      focusedStyle={styles.buttonFocused}
       hasTVPreferredFocus={Boolean(focusRef)}
-      onBlur={() => setFocused(false)}
-      onFocus={() => setFocused(true)}
       onPress={onPress}
       style={styles.button}
       testID={testID}>
-      <Text style={[styles.buttonText, isFocused && styles.buttonTextFocused]}>
-        {label}
-      </Text>
+      <Text style={styles.buttonText}>{label}</Text>
     </FocusableItem>
   );
 };
@@ -156,28 +150,31 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.74)',
+    backgroundColor: colors.scrim.strong,
     justifyContent: 'center',
   },
   dialog: {
-    backgroundColor: '#101820',
+    backgroundColor: colors.surface.sunken,
     borderRadius: 12,
     padding: 36,
     width: 820,
   },
-  title: {color: '#f4f6f8', fontSize: 32, fontWeight: '700'},
-  meta: {color: '#8b97a5', fontSize: 18, marginTop: 8},
-  overview: {color: '#c8d2dc', fontSize: 18, marginTop: 14},
-  status: {color: '#ff5a5f', fontSize: 18, fontWeight: '600', marginTop: 14},
+  title: {color: colors.text.primary, fontSize: 32, fontWeight: '700'},
+  meta: {color: colors.text.muted, fontSize: 18, marginTop: 8},
+  overview: {color: colors.text.secondary, fontSize: 18, marginTop: 14},
+  status: {
+    color: colors.text.live,
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 14,
+  },
   buttons: {flexDirection: 'row', gap: 16, marginTop: 18},
   button: {
-    backgroundColor: '#1d2530',
+    backgroundColor: colors.surface.raised,
     borderRadius: 8,
     paddingHorizontal: 24,
     paddingVertical: 14,
   },
-  buttonFocused: {backgroundColor: '#54d38a'},
-  buttonText: {color: '#f4f6f8', fontSize: 20, fontWeight: '600'},
-  buttonTextFocused: {color: '#0b0d10'},
-  error: {color: '#ff8a8a', fontSize: 18, marginTop: 14},
+  buttonText: {color: colors.text.primary, fontSize: 20, fontWeight: '600'},
+  error: {color: colors.text.error, fontSize: 18, marginTop: 14},
 });

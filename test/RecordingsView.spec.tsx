@@ -166,4 +166,83 @@ describe('RecordingsView', () => {
       await screen.findByText(/Nothing recorded or scheduled yet/),
     ).toBeTruthy();
   });
+
+  describe('a long DVR', () => {
+    const many = (from: number, count: number) =>
+      Array.from({length: count}, (_unused, offset) => ({
+        id: `m-${from + offset}`,
+        inProgress: false,
+        item: {id: `m-${from + offset}`, name: `Show ${from + offset}`},
+        name: `Show ${from + offset}`,
+        startTime: now - (from + offset + 1) * 3_600_000,
+      }));
+
+    beforeEach(() => {
+      (getScheduledRecordings as jest.Mock).mockResolvedValue([]);
+      (getSeriesRecordings as jest.Mock).mockResolvedValue([]);
+    });
+
+    it('draws a row a batch at a time as focus moves along it', async () => {
+      (getRecordings as jest.Mock).mockResolvedValue(many(0, 60));
+      const screen = renderView();
+
+      expect(await screen.findByTestId('recording-m-0')).toBeTruthy();
+      expect(screen.getByTestId('recording-m-23')).toBeTruthy();
+      expect(screen.queryByTestId('recording-m-24')).toBeNull();
+
+      fireEvent(screen.getByTestId('recording-m-20'), 'focus');
+
+      expect(await screen.findByTestId('recording-m-44')).toBeTruthy();
+      expect(screen.queryByTestId('recording-m-45')).toBeNull();
+      // Sixty is short of a full page, so there is nothing more to ask for.
+      expect(getRecordings).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for the next page as focus nears the end, once', async () => {
+      (getRecordings as jest.Mock)
+        .mockResolvedValueOnce(many(0, 100))
+        .mockResolvedValueOnce(many(100, 30));
+      const screen = renderView();
+      await screen.findByTestId('recording-m-0');
+      expect(getRecordings).toHaveBeenLastCalledWith(session, {
+        limit: 100,
+        startIndex: 0,
+      });
+
+      // Walk focus to the end of the first page.
+      for (const index of [20, 40, 60, 80, 99]) {
+        fireEvent(await screen.findByTestId(`recording-m-${index}`), 'focus');
+      }
+
+      await waitFor(() => expect(getRecordings).toHaveBeenCalledTimes(2));
+      expect(getRecordings).toHaveBeenLastCalledWith(session, {
+        limit: 100,
+        startIndex: 100,
+      });
+      // The new page is drawn without another move.
+      expect(await screen.findByTestId('recording-m-100')).toBeTruthy();
+
+      // Thirty is a short page: the end, so nothing more is asked for.
+      fireEvent(await screen.findByTestId('recording-m-120'), 'focus');
+      fireEvent(await screen.findByTestId('recording-m-129'), 'focus');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(getRecordings).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops asking a server that answers every page the same', async () => {
+      (getRecordings as jest.Mock).mockResolvedValue(many(0, 100));
+      const screen = renderView();
+      await screen.findByTestId('recording-m-0');
+
+      for (const index of [20, 40, 60, 80, 99]) {
+        fireEvent(await screen.findByTestId(`recording-m-${index}`), 'focus');
+      }
+      await waitFor(() => expect(getRecordings).toHaveBeenCalledTimes(2));
+      fireEvent(screen.getByTestId('recording-m-99'), 'focus');
+      fireEvent(screen.getByTestId('recording-m-98'), 'focus');
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(getRecordings).toHaveBeenCalledTimes(2);
+    });
+  });
 });

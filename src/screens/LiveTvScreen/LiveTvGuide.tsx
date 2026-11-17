@@ -33,10 +33,12 @@ import {
   GUIDE_WINDOW_MS,
   GuideCell,
   moveHorizontally,
+  rowBlocks,
   rowCells,
   slotMarks,
   windowFor,
 } from './guideLayout';
+import {colors, focusStyles} from '../../theme';
 
 interface Props {
   /** Whether selecting a programme that has not started offers to record it. */
@@ -70,8 +72,29 @@ const PAGE_AHEAD_ROWS = 10;
 // Ignore arrows for a moment after it gains focus so it does not also move.
 const FOCUS_SETTLE_MS = 300;
 
+// A block that fails to load is asked for again after each of these waits. A
+// server that is briefly unreachable then fills in on its own; one that stays
+// down is given up on, and shown as having no guide information.
+const RETRY_DELAYS_MS = [4000, 15000];
+// A block that was given up on is asked for once more when the viewer moves
+// in the guide with it in view this much later.
+const GIVEN_UP_RETRY_MS = 60000;
+
+// Guide data is kept only for channels this many rows either side of the
+// screen. Further away it is dropped and fetched again on the way back, so a
+// long lineup scrolled end to end does not hold every channel's day in memory.
+const KEEP_ROWS = 60;
+
+type BlockState =
+  | {status: 'loading'; attempts: number}
+  | {status: 'done'}
+  /** Failed; asked for again once `retryAt` passes. */
+  | {status: 'retrying' | 'givenUp'; attempts: number; retryAt: number};
+
 const blockKey = (channelId: string, blockStart: number) =>
   `${channelId}:${blockStart}`;
+
+const channelOfBlock = (key: string) => key.slice(0, key.lastIndexOf(':'));
 
 const mergePrograms = (
   existing: LiveTvProgram[] | undefined,
@@ -112,10 +135,23 @@ export const LiveTvGuide = ({
   }));
   const [programs, setPrograms] = useState<Record<string, LiveTvProgram[]>>({});
   // Which channel and time blocks have been asked for, and which answered.
-  const blocks = useRef(new Map<string, 'loading' | 'done'>());
+  const blocks = useRef(new Map<string, BlockState>());
   const [, setBlocksVersion] = useState(0);
-  // Bumped to fetch the rows on screen again after a recording change.
+  // Bumped to fetch the rows on screen again: after a recording change, and
+  // when a failed block is due another try.
   const [refreshCount, setRefreshCount] = useState(0);
+  const retryTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    const timers = retryTimers.current;
+
+    return () => {
+      mounted.current = false;
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
   const [recordTarget, setRecordTarget] = useState<{
     channel: LiveTvChannel;
     program: LiveTvProgram;
@@ -191,10 +227,20 @@ export const LiveTvGuide = ({
       firstRow + visibleRows + ROW_PREFETCH,
     );
 
+    const due = (id: string, blockStart: number) => {
+      const state = blocks.current.get(blockKey(id, blockStart));
+
+      return (
+        !state ||
+        ((state.status === 'retrying' || state.status === 'givenUp') &&
+          Date.now() >= state.retryAt)
+      );
+    };
+
     timeBlocks.forEach((blockStart) => {
       const missing = rows
         .map((channel) => channel.id)
-        .filter((id) => !blocks.current.has(blockKey(id, blockStart)));
+        .filter((id) => due(id, blockStart));
 
       for (
         let index = 0;
@@ -202,33 +248,114 @@ export const LiveTvGuide = ({
         index += CHANNELS_PER_REQUEST
       ) {
         const ids = missing.slice(index, index + CHANNELS_PER_REQUEST);
+        // Each request is one state object shared by its channels, so a
+        // block that was dropped or asked for again in the meantime is told
+        // apart from this one when the answer comes.
+        const loading: BlockState = {
+          status: 'loading',
+          attempts: Math.max(
+            ...ids.map((id) => {
+              const state = blocks.current.get(blockKey(id, blockStart));
+              return state && 'attempts' in state ? state.attempts : 0;
+            }),
+          ),
+        };
         ids.forEach((id) =>
-          blocks.current.set(blockKey(id, blockStart), 'loading'),
+          blocks.current.set(blockKey(id, blockStart), loading),
         );
+        const settle = (state: BlockState) => {
+          ids.forEach((id) => {
+            const key = blockKey(id, blockStart);
+            if (blocks.current.get(key) === loading) {
+              blocks.current.set(key, state);
+            }
+          });
+        };
 
         getGuidePrograms(session, ids, blockStart, blockStart + TIME_BLOCK_MS)
           .then((result) => {
+            if (!mounted.current) {
+              return;
+            }
+            // Channels dropped for being far off screen stay dropped.
+            const wanted = ids.filter(
+              (id) => blocks.current.get(blockKey(id, blockStart)) === loading,
+            );
+            settle({status: 'done'});
             setPrograms((existing) => {
               const next = {...existing};
-              ids.forEach((id) => {
+              wanted.forEach((id) => {
                 next[id] = mergePrograms(existing[id], result[id] ?? []);
               });
               return next;
             });
           })
           .catch((error) => {
-            // Shown as no guide information rather than retried in a loop.
             console.warn('[Astra] Unable to load the guide:', error);
+            if (!mounted.current) {
+              return;
+            }
+            const attempts = loading.attempts + 1;
+            const delay = RETRY_DELAYS_MS[attempts - 1];
+
+            if (delay === undefined) {
+              // Shown as no guide information rather than retried in a loop.
+              settle({
+                status: 'givenUp',
+                attempts,
+                retryAt: Date.now() + GIVEN_UP_RETRY_MS,
+              });
+              return;
+            }
+
+            settle({status: 'retrying', attempts, retryAt: Date.now() + delay});
+            const timer = setTimeout(() => {
+              retryTimers.current.delete(timer);
+              setRefreshCount((count) => count + 1);
+            }, delay);
+            retryTimers.current.add(timer);
           })
           .finally(() => {
-            ids.forEach((id) =>
-              blocks.current.set(blockKey(id, blockStart), 'done'),
-            );
-            setBlocksVersion((version) => version + 1);
+            if (mounted.current) {
+              setBlocksVersion((version) => version + 1);
+            }
           });
       }
     });
   }, [channels, firstRow, refreshCount, session, timeBlocks, visibleRows]);
+
+  // Drop the guide for channels far from the screen.
+  useEffect(() => {
+    const keep = new Set(
+      channels
+        .slice(
+          Math.max(0, firstRow - KEEP_ROWS),
+          firstRow + visibleRows + KEEP_ROWS,
+        )
+        .map((channel) => channel.id),
+    );
+
+    blocks.current.forEach((_state, key) => {
+      if (!keep.has(channelOfBlock(key))) {
+        blocks.current.delete(key);
+      }
+    });
+    setPrograms((existing) => {
+      const ids = Object.keys(existing);
+
+      if (ids.every((id) => keep.has(id))) {
+        return existing;
+      }
+
+      const next: Record<string, LiveTvProgram[]> = {};
+      ids.forEach((id) => {
+        if (keep.has(id)) {
+          next[id] = existing[id];
+        }
+      });
+      return next;
+    });
+  }, [channels, firstRow, visibleRows]);
 
   useEffect(() => {
     if (channels.length && row >= channels.length - PAGE_AHEAD_ROWS) {
@@ -359,11 +486,16 @@ export const LiveTvGuide = ({
     setSize({height, width});
   };
 
+  // A block that was given up on counts as loaded: there is nothing more
+  // coming for it, so the row says it has no guide information.
   const isRowLoaded = (channelId: string) =>
-    timeBlocks.every(
-      (blockStart) =>
-        blocks.current.get(blockKey(channelId, blockStart)) === 'done',
-    );
+    timeBlocks.every((blockStart) => {
+      const status = blocks.current.get(
+        blockKey(channelId, blockStart),
+      )?.status;
+
+      return status === 'done' || status === 'givenUp';
+    });
 
   const nowX = (now - windowStart) * pxPerMs;
 
@@ -381,7 +513,7 @@ export const LiveTvGuide = ({
         trapFocusRight
         trapFocusUp={row > 0}>
         <FocusableItem
-          focusedStyle={styles.gridFocused}
+          focus="none"
           hasTVPreferredFocus={hasTVPreferredFocus}
           onBlur={() => setFocused(false)}
           onFocus={() => {
@@ -428,6 +560,15 @@ export const LiveTvGuide = ({
                     ? cellIndexAt(cells, anchor)
                     : -1;
                 const loaded = isRowLoaded(channel.id);
+                const span = (range: {start: number; end: number}) => ({
+                  left:
+                    (Math.max(range.start, windowStart) - windowStart) *
+                    pxPerMs,
+                  width:
+                    (Math.min(range.end, windowEnd) -
+                      Math.max(range.start, windowStart)) *
+                    pxPerMs,
+                });
 
                 return (
                   <View
@@ -439,46 +580,49 @@ export const LiveTvGuide = ({
                       isCurrent={rowIndex === row}
                     />
                     <View style={styles.cells}>
-                      {cells.map((cell, cellIndex) => {
+                      {rowBlocks(cells).map((block) => {
                         if (
-                          cell.end <= windowStart ||
-                          cell.start >= windowEnd
+                          block.end <= windowStart ||
+                          block.start >= windowEnd
                         ) {
                           return null;
                         }
 
-                        const left =
-                          (Math.max(cell.start, windowStart) - windowStart) *
-                          pxPerMs;
-                        const width =
-                          (Math.min(cell.end, windowEnd) -
-                            Math.max(cell.start, windowStart)) *
-                          pxPerMs;
+                        const cursorCell = cells[focusedIndex];
+                        const focusedHere =
+                          focusedIndex >= 0 &&
+                          cursorCell.start < block.end &&
+                          block.start < cursorCell.end;
 
                         return (
                           <GuideCellView
-                            cell={cell}
                             clippedStart={
-                              (cell.program?.startTime ?? cell.start) <
+                              (block.program?.startTime ?? block.start) <
                               windowStart
                             }
-                            // One label per empty stretch, not one per half
-                            // hour.
-                            emptyLabel={
-                              loaded &&
-                              !cell.program &&
-                              (cellIndex === 0 ||
-                                Boolean(cells[cellIndex - 1].program) ||
-                                cells[cellIndex - 1].end <= windowStart)
-                            }
-                            isFocused={cellIndex === focusedIndex}
-                            isOnNow={cell.start <= now && now < cell.end}
-                            key={`${cell.start}`}
-                            left={left}
-                            width={width}
+                            emptyText={loaded ? channel.name : ''}
+                            isFocused={focusedHere && Boolean(block.program)}
+                            isOnNow={block.start <= now && now < block.end}
+                            key={`${block.start}`}
+                            program={block.program}
+                            {...span(block)}
                           />
                         );
                       })}
+                      {/* An empty stretch is one bar; the half hour the
+                          cursor is on is lit on top of it. */}
+                      {focusedIndex >= 0 &&
+                      !cells[focusedIndex].program &&
+                      cells[focusedIndex].end > windowStart &&
+                      cells[focusedIndex].start < windowEnd ? (
+                        <GuideCellView
+                          clippedStart={false}
+                          emptyText={loaded ? channel.name : ''}
+                          isFocused
+                          isOnNow={false}
+                          {...span(cells[focusedIndex])}
+                        />
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -522,11 +666,7 @@ const ProgramDetails = ({
     <View style={styles.details} testID="livetv-guide-details">
       <Text numberOfLines={1} style={styles.detailsTitle}>
         {isRecording(program) ? <Text style={styles.recDot}>● </Text> : null}
-        {program
-          ? program.name
-          : loaded
-          ? t('liveTv.noGuide')
-          : channel?.name ?? ''}
+        {program ? program.name : channel?.name ?? ''}
       </Text>
       <Text numberOfLines={1} style={styles.detailsMeta}>
         {[
@@ -536,6 +676,7 @@ const ProgramDetails = ({
               )}`
             : '',
           program?.episodeTitle ?? '',
+          !program && loaded ? t('liveTv.noGuide') : '',
           channel
             ? [channel.number, channel.name].filter(Boolean).join(' ')
             : '',
@@ -556,70 +697,73 @@ const ChannelLabel = ({
 }: {
   channel: LiveTvChannel;
   isCurrent: boolean;
-}) => (
-  <View style={[styles.channel, isCurrent && styles.channelCurrent]}>
-    <Text numberOfLines={1} style={styles.channelNumber}>
-      {channel.number ?? ''}
-    </Text>
-    {channel.imageUrl ? (
-      <Image
-        resizeMode="contain"
-        source={{uri: channel.imageUrl}}
-        style={styles.channelLogo}
-      />
-    ) : (
-      <Text numberOfLines={2} style={styles.channelName}>
-        {channel.name}
+}) => {
+  // A server can advertise a logo it then fails to serve; show the name then.
+  const [logoFailed, setLogoFailed] = useState(false);
+  useEffect(() => setLogoFailed(false), [channel.imageUrl]);
+
+  return (
+    <View style={[styles.channel, isCurrent && styles.channelCurrent]}>
+      <Text numberOfLines={1} style={styles.channelNumber}>
+        {channel.number ?? ''}
       </Text>
-    )}
-  </View>
-);
+      {channel.imageUrl && !logoFailed ? (
+        <Image
+          onError={() => setLogoFailed(true)}
+          resizeMode="contain"
+          source={{uri: channel.imageUrl}}
+          style={styles.channelLogo}
+        />
+      ) : (
+        <Text numberOfLines={2} style={styles.channelName}>
+          {channel.name}
+        </Text>
+      )}
+    </View>
+  );
+};
 
 const GuideCellView = ({
-  cell,
   clippedStart,
-  emptyLabel,
+  emptyText,
   isFocused,
   isOnNow,
   left,
+  program,
   width,
 }: {
-  cell: GuideCell;
   clippedStart: boolean;
-  /** Whether an empty cell says so. */
-  emptyLabel: boolean;
+  /** What a stretch without guide data says: the channel's own name. */
+  emptyText: string;
   isFocused: boolean;
   isOnNow: boolean;
   left: number;
+  program?: LiveTvProgram;
   width: number;
 }) => (
   <View
     style={[
       styles.cell,
       isOnNow && styles.cellOnNow,
-      !cell.program && styles.cellEmpty,
-      isFocused && styles.cellFocused,
+      !program && styles.cellEmpty,
+      isFocused && focusStyles.control,
       {left, width},
     ]}>
     <Text
       numberOfLines={1}
       style={[
         styles.cellTitle,
-        !cell.program && styles.cellEmptyText,
+        !program && styles.cellEmptyText,
         isFocused && styles.cellTitleFocused,
       ]}>
-      {isRecording(cell.program) ? <Text style={styles.recDot}>● </Text> : null}
-      {cell.program
-        ? `${clippedStart ? '‹ ' : ''}${cell.program.name}`
-        : emptyLabel || isFocused
-        ? t('liveTv.noGuide')
-        : ''}
+      {isRecording(program) ? <Text style={styles.recDot}>● </Text> : null}
+      {program ? `${clippedStart ? '‹ ' : ''}${program.name}` : emptyText}
     </Text>
-    {cell.program?.episodeTitle ? (
+    {program?.episodeTitle ? (
       <Text
         numberOfLines={1}
         style={[styles.cellSub, isFocused && styles.cellTitleFocused]}>
-        {cell.program.episodeTitle}
+        {program.episodeTitle}
       </Text>
     ) : null}
   </View>
@@ -628,16 +772,15 @@ const GuideCellView = ({
 const styles = StyleSheet.create({
   root: {flex: 1},
   details: {height: 118, justifyContent: 'flex-start', paddingBottom: 8},
-  detailsTitle: {color: '#f4f6f8', fontSize: 26, fontWeight: '700'},
-  detailsMeta: {color: '#8b97a5', fontSize: 16, marginTop: 4},
-  detailsOverview: {color: '#c8d2dc', fontSize: 16, marginTop: 6},
+  detailsTitle: {color: colors.text.primary, fontSize: 26, fontWeight: '700'},
+  detailsMeta: {color: colors.text.muted, fontSize: 16, marginTop: 4},
+  detailsOverview: {color: colors.text.secondary, fontSize: 16, marginTop: 6},
   gridArea: {flex: 1},
   grid: {borderRadius: 10, flex: 1},
-  gridFocused: {borderColor: 'transparent'},
   gridInner: {flex: 1, overflow: 'hidden'},
   ruler: {height: RULER_HEIGHT},
   rulerText: {
-    color: '#8b97a5',
+    color: colors.text.muted,
     fontSize: 15,
     position: 'absolute',
     top: 8,
@@ -645,7 +788,7 @@ const styles = StyleSheet.create({
   row: {flexDirection: 'row', height: ROW_HEIGHT},
   channel: {
     alignItems: 'center',
-    backgroundColor: '#12161c',
+    backgroundColor: colors.surface.sunken,
     borderRadius: 8,
     flexDirection: 'row',
     marginBottom: 4,
@@ -653,19 +796,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     width: CHANNEL_COLUMN - 4,
   },
-  channelCurrent: {backgroundColor: '#1d2530'},
+  channelCurrent: {backgroundColor: colors.surface.raised},
   channelNumber: {
-    color: '#8b97a5',
+    color: colors.text.muted,
     fontSize: 16,
     fontWeight: '600',
     width: 52,
   },
   channelLogo: {flex: 1, height: 48},
-  channelName: {color: '#c8d2dc', flex: 1, fontSize: 15},
+  channelName: {color: colors.text.secondary, flex: 1, fontSize: 15},
   cells: {flex: 1},
   cell: {
-    backgroundColor: '#12161c',
-    borderColor: '#0b0d10',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.screen,
     borderRadius: 6,
     borderWidth: 2,
     bottom: 4,
@@ -674,16 +817,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
   },
-  cellOnNow: {backgroundColor: '#1f3a2c', borderColor: '#2c5a40'},
-  cellEmpty: {backgroundColor: '#0f1217'},
-  cellFocused: {backgroundColor: '#54d38a', borderColor: '#54d38a'},
-  cellTitle: {color: '#f4f6f8', fontSize: 17, fontWeight: '600'},
-  cellSub: {color: '#8b97a5', fontSize: 14, marginTop: 2},
-  cellTitleFocused: {color: '#0b0d10'},
-  cellEmptyText: {color: '#6f7d8c', fontWeight: '400'},
-  recDot: {color: '#ff5a5f'},
+  cellOnNow: {
+    backgroundColor: colors.surface.success,
+    borderColor: colors.border.selected,
+  },
+  cellEmpty: {backgroundColor: colors.surface.screen},
+  cellTitle: {color: colors.text.primary, fontSize: 17, fontWeight: '600'},
+  cellSub: {color: colors.text.muted, fontSize: 14, marginTop: 2},
+  cellTitleFocused: {color: colors.text.primary},
+  cellEmptyText: {color: colors.text.faint, fontWeight: '400'},
+  recDot: {color: colors.text.live},
   nowLine: {
-    backgroundColor: '#ff5a5f',
+    backgroundColor: colors.fill.live,
     bottom: 0,
     position: 'absolute',
     top: RULER_HEIGHT - 4,

@@ -1,6 +1,6 @@
 {
   "name": "@amazon-devices/astra",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
   "files": [
@@ -16,6 +16,7 @@
     "clean": "rm -rf node_modules buildinfo.json dist build",
     "start": "react-native start",
     "test": "jest --colors ",
+    "test:stick": "python3 scripts/stick/run.py",
     "test:snapshot": "jest --colors --updateSnapshot",
     "lint": "eslint src test --ext .ts,.tsx",
     "lint:fix": "eslint src test --ext .ts,.tsx --fix",

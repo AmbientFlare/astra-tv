@@ -31,7 +31,9 @@ export const connect = async (
   const candidates = getServerUrlCandidates(serverUrl);
 
   if (!candidates.length) {
-    throw new Error(t('errors.enterServerAddress'));
+    const error = new Error(t('errors.enterServerAddress'));
+    error.name = 'SetupNoAddress';
+    throw error;
   }
 
   let firstError: unknown;

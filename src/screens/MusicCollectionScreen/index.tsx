@@ -29,6 +29,7 @@ import {audioPlayback} from '../../services/audioPlayer';
 import {ServerProfile} from '../../services/storage';
 import {formatTotalRuntime, metaLine} from '../../utils/duration';
 import {t, tn} from '../../i18n';
+import {colors} from '../../theme';
 
 export type MusicCollectionKind = 'genre' | 'playlist';
 
@@ -164,7 +165,6 @@ export const MusicCollectionScreen = ({
             {kind === 'playlist' && tracks.length ? (
               <>
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   hasTVPreferredFocus={true}
                   onPress={() => playFrom(0)}
                   style={styles.action}
@@ -172,7 +172,6 @@ export const MusicCollectionScreen = ({
                   <Text style={styles.actionText}>{t('player.play')}</Text>
                 </FocusableItem>
                 <FocusableItem
-                  focusedStyle={styles.actionFocused}
                   onPress={() => playFrom(0, true)}
                   style={styles.action}
                   testID="collection-shuffle">
@@ -181,7 +180,6 @@ export const MusicCollectionScreen = ({
               </>
             ) : null}
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={kind === 'genre'}
               onPress={onBack}
               style={styles.action}
@@ -213,7 +211,7 @@ export const MusicCollectionScreen = ({
           <View style={styles.grid}>
             {albums.map((album) => (
               <FocusableItem
-                focusedStyle={styles.tileFocused}
+                focus="card"
                 key={album.id}
                 onPress={() => onSelectAlbum?.(album.id)}
                 style={styles.tile}
@@ -246,16 +244,16 @@ export const MusicCollectionScreen = ({
 };
 
 const styles = StyleSheet.create({
-  root: {backgroundColor: '#0b0d10', flex: 1},
+  root: {backgroundColor: colors.surface.screen, flex: 1},
   centered: {
     alignItems: 'center',
-    backgroundColor: '#0b0d10',
+    backgroundColor: colors.surface.screen,
     flex: 1,
     justifyContent: 'center',
   },
   header: {paddingHorizontal: 30, paddingTop: 30},
-  title: {color: '#f4f6f8', fontSize: 40, fontWeight: '700'},
-  meta: {color: '#8b97a5', fontSize: 17, marginTop: 8},
+  title: {color: colors.text.primary, fontSize: 40, fontWeight: '700'},
+  meta: {color: colors.text.muted, fontSize: 17, marginTop: 8},
   actions: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 18},
   action: {
     borderRadius: 8,
@@ -264,8 +262,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 10,
   },
-  actionFocused: {backgroundColor: '#54d38a'},
-  actionText: {color: '#f4f6f8', fontSize: 19, fontWeight: '600'},
+  actionText: {color: colors.text.primary, fontSize: 19, fontWeight: '600'},
   trackList: {paddingBottom: 40, paddingHorizontal: 26},
   grid: {
     flexDirection: 'row',
@@ -274,17 +271,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   tile: {margin: 8, width: 180},
-  tileFocused: {transform: [{scale: 1.05}]},
   cover: {
-    backgroundColor: '#161b22',
+    backgroundColor: colors.surface.card,
     borderRadius: 8,
     height: 180,
     width: 180,
   },
   placeholder: {alignItems: 'center', justifyContent: 'center'},
-  placeholderText: {color: '#54d38a', fontSize: 44, fontWeight: '700'},
-  tileTitle: {color: '#f4f6f8', fontSize: 16, marginTop: 6},
-  tileSubtitle: {color: '#8b97a5', fontSize: 14},
-  status: {color: '#8b97a5', fontSize: 17, padding: 16},
-  error: {color: '#ff8a80', fontSize: 18, paddingHorizontal: 26},
+  placeholderText: {color: colors.text.accent, fontSize: 44, fontWeight: '700'},
+  tileTitle: {color: colors.text.primary, fontSize: 16, marginTop: 6},
+  tileSubtitle: {color: colors.text.muted, fontSize: 14},
+  status: {color: colors.text.muted, fontSize: 17, padding: 16},
+  error: {color: colors.text.error, fontSize: 18, paddingHorizontal: 26},
 });

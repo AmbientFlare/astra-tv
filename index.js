@@ -4,11 +4,12 @@
 import './src/services/logging/install';
 
 import { AppRegistry, LogBox } from 'react-native';
-import { App } from './src/App';
+// Boot loads the app itself, after the viewer's theme is in place.
+import { Boot } from './src/Boot';
 import { name as appName } from './app.json';
 
 // Temporary workaround for problem with nested text
 // not working currently.
 LogBox.ignoreAllLogs();
 
-AppRegistry.registerComponent(appName, () => App);
+AppRegistry.registerComponent(appName, () => Boot);

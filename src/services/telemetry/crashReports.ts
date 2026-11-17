@@ -72,9 +72,18 @@ const scrubContext = (
   return result;
 };
 
-export const crashReportBody = (tail: CrashTail & {cleanExit: boolean}) => ({
+/**
+ * `inst` is the same random id the usage stats carry, replaced every calendar
+ * month. It tells one stick crashing thirty times from thirty sticks crashing
+ * once, and cannot follow anyone past the month.
+ */
+export const crashReportBody = (
+  tail: CrashTail & {cleanExit: boolean},
+  inst?: string,
+) => ({
   v: 1,
   ts: Date.now(),
+  ...(inst ? {inst} : {}),
   app: APP_VERSION,
   build: BUILD_NUMBER,
   ...readDeviceModel(),
@@ -94,6 +103,7 @@ export const crashReportBody = (tail: CrashTail & {cleanExit: boolean}) => ({
 /** Resolves true once the endpoint has accepted the report. */
 export const sendCrashReport = async (
   tail: CrashTail & {cleanExit: boolean},
+  inst?: string,
 ): Promise<boolean> => {
   if (!CRASH_REPORT_ENDPOINT) {
     return false;
@@ -105,7 +115,7 @@ export const sendCrashReport = async (
     const response = await fetch(CRASH_REPORT_ENDPOINT, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(crashReportBody(tail)),
+      body: JSON.stringify(crashReportBody(tail, inst)),
       signal: abort?.signal,
     });
     return response.ok;

@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Animated, ImageStyle, StyleSheet, View} from 'react-native';
+import {colors} from '../../theme';
 
 interface FocusedBackdropProps {
   imageUrl?: string | null;
@@ -86,6 +87,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,17,22,0.52)',
+    backgroundColor: colors.scrim.backdrop,
   },
 });
