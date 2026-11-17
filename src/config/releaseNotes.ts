@@ -18,31 +18,37 @@ import {getLocale, Locale} from '../i18n';
 export const RELEASE_HIGHLIGHTS: Readonly<Record<Locale, readonly string[]>> = {
   en: [
     "Live TV (beta): a channel list with what's on now and next, a guide, an On Now row on Home, recording, and Up/Down to change channels.",
+    'A new look: clearer focus, a redrawn player with a title strip and scrubber, libraries on one rail on Home, and a choice of themes under Settings → Customization → Theme.',
     'Search and filter by genre inside a library.',
     'Choose the size and color of subtitles under Settings → Playback.',
   ],
   de: [
     'Live-TV (Beta): Senderliste mit dem, was jetzt und danach läuft, ein Programmführer, eine Zeile „Jetzt läuft“ auf der Startseite, Aufnahmen und Hoch/Runter zum Umschalten.',
+    'Neues Aussehen: deutlicherer Fokus, ein neu gezeichneter Player mit Titelleiste und Fortschrittsbalken, die Mediatheken in einer Leiste auf der Startseite und eine Auswahl an Designs unter Einstellungen → Anpassung → Design.',
     'In einer Mediathek nach Genre suchen und filtern.',
     'Größe und Farbe der Untertitel unter Einstellungen → Wiedergabe wählen.',
   ],
   es: [
     'TV en directo (beta): lista de canales con lo que se emite ahora y después, una guía, una fila «Ahora en directo» en el inicio, grabación y Arriba/Abajo para cambiar de canal.',
+    'Nuevo aspecto: un foco más claro, un reproductor rediseñado con franja de título y barra de progreso, las bibliotecas en una sola barra en el inicio y varios temas en Ajustes → Personalización → Tema.',
     'Busca y filtra por género dentro de una biblioteca.',
     'Elige el tamaño y el color de los subtítulos en Ajustes → Reproducción.',
   ],
   fr: [
     'TV en direct (bêta) : liste des chaînes avec le programme en cours et le suivant, un guide, une rangée « En ce moment » sur l’accueil, l’enregistrement, et Haut/Bas pour changer de chaîne.',
+    'Nouvelle apparence : un focus plus net, un lecteur redessiné avec un bandeau de titre et une barre de progression, les bibliothèques sur une seule barre à l’accueil et un choix de thèmes dans Paramètres → Personnalisation → Thème.',
     'Recherchez et filtrez par genre dans une bibliothèque.',
     'Choisissez la taille et la couleur des sous-titres dans Paramètres → Lecture.',
   ],
   it: [
     'TV in diretta (beta): elenco dei canali con il programma in onda e il successivo, una guida, una riga «In onda ora» nella Home, la registrazione e Su/Giù per cambiare canale.',
+    'Nuovo aspetto: un focus più chiaro, un player ridisegnato con fascia del titolo e barra di avanzamento, le librerie su un’unica barra nella Home e una scelta di temi in Impostazioni → Personalizzazione → Tema.',
     'Cerca e filtra per genere all’interno di una libreria.',
     'Scegli dimensione e colore dei sottotitoli in Impostazioni → Riproduzione.',
   ],
   pt: [
     'TV ao vivo (beta): lista de canais com o que passa agora e a seguir, um guia, uma fileira “Agora no ar” no Início, gravação e Cima/Baixo para trocar de canal.',
+    'Novo visual: foco mais nítido, um player redesenhado com faixa de título e barra de progresso, as bibliotecas em uma única barra no Início e uma escolha de temas em Configurações → Personalização → Tema.',
     'Pesquise e filtre por gênero dentro de uma biblioteca.',
     'Escolha o tamanho e a cor das legendas em Configurações → Reprodução.',
   ],
