@@ -28,6 +28,8 @@ DEFAULT_ITEM_PATH = 'DOWN,RIGHT,ENTER,ENTER'
 BACKGROUND_HOLD_SECONDS = 20
 # Far enough into a two-hour film for the server to keep a resume point.
 RESUME_MIN_SECONDS = 480
+# Three steps back is about 30 s; less than half of that is not a seek.
+SEEK_BACK_MIN_SECONDS = 12
 
 
 # How long a pause must last before the server's sweep, run with a one-minute
@@ -289,11 +291,17 @@ class Session:
 
     def seek_back(self) -> None:
         before = self.position('seek-back-before')
+        read_at = time.time()
         self.stick.press('LEFT', 'LEFT', 'LEFT')
         after = self.expect_advancing('seek-back-after')
-        if after >= before:
+        # Playback runs on while the screen is being read, and over a slow
+        # link that takes longer than the seek goes back. Compare with where
+        # the film would have been had nothing been pressed.
+        unseeked = before + int(time.time() - read_at)
+        if after >= unseeked - SEEK_BACK_MIN_SECONDS:
             raise Failed(
-                'Three steps back went from %d s to %d s.' % (before, after)
+                'Three steps back went from %d s to %d s, where playing on '
+                'would have reached %d s.' % (before, after, unseeked)
             )
 
     def options_panel(self) -> None:
