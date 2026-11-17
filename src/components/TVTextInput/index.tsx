@@ -14,6 +14,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import {TextInput} from '@amazon-devices/react-native-kepler';
+import {colors} from '../../theme';
 
 interface TVTextInputProps extends TextInputProps {
   auxOptions?: string;
@@ -124,7 +125,7 @@ export const TVTextInput = forwardRef<TextInput, TVTextInputProps>(
 
 const styles = StyleSheet.create({
   input: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
     padding: 0,
   },

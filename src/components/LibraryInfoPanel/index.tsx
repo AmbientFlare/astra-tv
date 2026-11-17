@@ -2,6 +2,7 @@ import React from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 import {JellyfinMediaItem as MediaItem} from '../../services/jellyfin';
 import {t, tn} from '../../i18n';
+import {colors} from '../../theme';
 
 const formatRuntime = (ticks: number | null): string => {
   if (!ticks) {
@@ -206,13 +207,13 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: 'bold',
     marginTop: 14,
   },
   metadata: {
-    color: '#AAAAAA',
+    color: colors.text.secondary,
     fontSize: 13,
     marginTop: 6,
   },
@@ -222,7 +223,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   genreChip: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: colors.fill.hairline,
     borderRadius: 12,
     marginBottom: 4,
     marginRight: 6,
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   genreText: {
-    color: '#CCCCCC',
+    color: colors.text.secondary,
     fontSize: 11,
   },
   ratingRow: {
@@ -239,16 +240,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   star: {
-    color: '#F5C518',
+    color: colors.text.star,
     fontSize: 14,
     marginRight: 5,
   },
   ratingText: {
-    color: '#AAAAAA',
+    color: colors.text.secondary,
     fontSize: 13,
   },
   overview: {
-    color: '#DDDDDD',
+    color: colors.text.body,
     fontSize: 15,
     lineHeight: 22,
     marginTop: 10,
@@ -262,18 +263,18 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   personLabel: {
-    color: '#AAAAAA',
+    color: colors.text.secondary,
   },
   personName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
   },
   seriesSummary: {
-    color: '#AAAAAA',
+    color: colors.text.secondary,
     fontSize: 15,
     marginTop: 10,
   },
   divider: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: colors.fill.hairline,
     height: 1,
     marginBottom: 10,
     marginTop: 14,
@@ -287,11 +288,11 @@ const styles = StyleSheet.create({
     width: '50%',
   },
   fileLabel: {
-    color: '#888888',
+    color: colors.text.muted,
     fontSize: 13,
   },
   fileValue: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 14,
   },
 });

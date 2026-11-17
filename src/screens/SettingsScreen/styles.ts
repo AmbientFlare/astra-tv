@@ -1,20 +1,21 @@
 import {StyleSheet} from 'react-native';
+import {colors} from '../../theme';
 
 /** Styles shared by the settings pages and their rows. */
 export const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
     paddingHorizontal: 84,
     paddingTop: 60,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 58,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#9FB0BA',
+    color: colors.text.muted,
     fontSize: 28,
     marginTop: 8,
   },
@@ -23,7 +24,7 @@ export const styles = StyleSheet.create({
     width: 960,
   },
   groupTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 12,
@@ -32,17 +33,14 @@ export const styles = StyleSheet.create({
   menuRow: {
     minHeight: 78,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
     paddingHorizontal: 18,
   },
-  rowFocused: {
-    backgroundColor: '#2E5A72',
-  },
   icon: {
-    color: '#89CFF0',
+    color: colors.text.accentSoft,
     fontSize: 30,
     fontWeight: '800',
     marginRight: 18,
@@ -53,17 +51,17 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   rowText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 24,
     fontWeight: '700',
   },
   rowValue: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 20,
     marginTop: 4,
   },
   description: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     marginBottom: 18,
   },
@@ -75,7 +73,7 @@ export const styles = StyleSheet.create({
   },
   subtitlePreview: {
     alignItems: 'center',
-    backgroundColor: '#46565E',
+    backgroundColor: colors.surface.subtitlePreview,
     borderRadius: 8,
     justifyContent: 'center',
     marginBottom: 22,
@@ -84,7 +82,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   infoText: {
-    color: '#9FB0BA',
+    color: colors.text.muted,
     fontSize: 19,
     fontStyle: 'italic',
     marginTop: -6,
@@ -94,37 +92,37 @@ export const styles = StyleSheet.create({
     width: 120,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,
   },
   backText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '700',
   },
   confirmOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.74)',
+    backgroundColor: colors.scrim.strong,
     justifyContent: 'center',
   },
   confirmDialog: {
     width: 620,
     borderRadius: 8,
-    backgroundColor: '#101820',
-    borderColor: '#324555',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.subtle,
     borderWidth: 2,
     padding: 34,
   },
   confirmTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 34,
     fontWeight: '800',
   },
   confirmBody: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     lineHeight: 30,
     marginTop: 14,
@@ -136,16 +134,13 @@ export const styles = StyleSheet.create({
   },
   confirmButton: {
     alignItems: 'center',
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     height: 56,
     justifyContent: 'center',
     minWidth: 150,
   },
   dangerButton: {
-    backgroundColor: '#5A2D36',
-  },
-  dangerFocused: {
-    backgroundColor: '#7A3843',
+    backgroundColor: colors.surface.danger,
   },
 });

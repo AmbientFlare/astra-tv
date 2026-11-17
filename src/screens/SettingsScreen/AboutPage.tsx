@@ -11,6 +11,7 @@ import {
 import {releaseHighlights} from '../../config/releaseNotes';
 import {t} from '../../i18n';
 import {Page} from './widgets';
+import {colors} from '../../theme';
 
 const EASTER_EGG_TEXT =
   'For Kimberly — whose love of Star Trek started all of this.';
@@ -68,35 +69,35 @@ export const AboutPage = ({onBack}: {onBack: () => void}) => (
 
 const styles = StyleSheet.create({
   about: {
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     borderRadius: 8,
     padding: 22,
   },
   aboutText: {
-    color: '#DDE7EB',
+    color: colors.text.body,
     fontSize: 22,
     marginBottom: 10,
   },
   releaseNotes: {
-    borderTopColor: '#34434B',
+    borderTopColor: colors.border.subtle,
     borderTopWidth: 1,
     marginTop: 22,
     paddingTop: 18,
   },
   releaseNotesTitle: {
-    color: '#89CFF0',
+    color: colors.text.accentSoft,
     fontSize: 24,
     fontWeight: '800',
     marginBottom: 12,
   },
   releaseNotesText: {
-    color: '#DDE7EB',
+    color: colors.text.body,
     fontSize: 20,
     lineHeight: 28,
     marginBottom: 8,
   },
   easterEgg: {
-    color: '#9FB0BA',
+    color: colors.text.muted,
     fontSize: 19,
     fontStyle: 'italic',
     marginTop: 16,

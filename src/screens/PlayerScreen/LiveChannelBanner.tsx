@@ -9,6 +9,7 @@ import {
   programProgress,
 } from '../../services/jellyfin/liveTv';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface Props {
   /** From the channel list when there is one; shown until the guide answers. */
@@ -135,7 +136,7 @@ export const LiveChannelBanner = ({
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: 'rgba(0,0,0,0.72)',
+    backgroundColor: colors.scrim.strong,
     bottom: 0,
     left: 0,
     paddingBottom: 44,
@@ -145,7 +146,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   channelName: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     flexShrink: 1,
     fontSize: 32,
     fontWeight: '800',
@@ -157,28 +158,42 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 10,
   },
-  hint: {color: '#8C99A3', fontSize: 20, marginLeft: 24},
+  hint: {color: colors.text.muted, fontSize: 20, marginLeft: 24},
   liveBadge: {
-    backgroundColor: '#D7263D',
+    backgroundColor: colors.fill.badge,
     borderRadius: 4,
     marginLeft: 18,
     paddingHorizontal: 10,
     paddingVertical: 2,
   },
-  liveText: {color: '#FFFFFF', fontSize: 18, fontWeight: '800'},
+  liveText: {color: colors.text.primary, fontSize: 18, fontWeight: '800'},
   logo: {height: 56, marginRight: 18, width: 96},
-  next: {color: '#B8C5CC', flexShrink: 1, fontSize: 22},
-  number: {color: '#B8C5CC', fontSize: 30, fontWeight: '700', marginRight: 16},
-  programme: {color: '#E6EDF2', fontSize: 26, fontWeight: '600', marginTop: 12},
-  progressFill: {backgroundColor: '#54d38a', borderRadius: 3, height: 6},
+  next: {color: colors.text.secondary, flexShrink: 1, fontSize: 22},
+  number: {
+    color: colors.text.secondary,
+    fontSize: 30,
+    fontWeight: '700',
+    marginRight: 16,
+  },
+  programme: {
+    color: colors.text.body,
+    fontSize: 26,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  progressFill: {
+    backgroundColor: colors.fill.accent,
+    borderRadius: 3,
+    height: 6,
+  },
   progressRow: {alignItems: 'center', flexDirection: 'row', marginTop: 10},
   progressTrack: {
-    backgroundColor: 'rgba(255,255,255,0.24)',
+    backgroundColor: colors.fill.track,
     borderRadius: 3,
     flex: 1,
     height: 6,
     marginHorizontal: 14,
     overflow: 'hidden',
   },
-  time: {color: '#B8C5CC', fontSize: 20},
+  time: {color: colors.text.secondary, fontSize: 20},
 });

@@ -10,6 +10,7 @@ import {
   programProgress,
 } from '../../services/jellyfin/liveTv';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 // Often enough for the progress bars, and for a finished programme to give
 // way to whatever replaced it.
@@ -97,7 +98,7 @@ const OnNowCard = ({
 }) => (
   <FocusableItem
     accessibilityLabel={`${program.name}, ${program.channel.name}`}
-    focusedStyle={styles.focused}
+    focus="card"
     onFocus={onFocus}
     onPress={onPress}
     style={styles.card}
@@ -144,7 +145,7 @@ const CARD_WIDTH = 280;
 
 const styles = StyleSheet.create({
   rowTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 30,
     fontWeight: '800',
     marginBottom: 14,
@@ -159,17 +160,13 @@ const styles = StyleSheet.create({
     gap: 28,
   },
   card: {
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     overflow: 'hidden',
     width: CARD_WIDTH,
   },
-  focused: {
-    backgroundColor: '#24313A',
-    transform: [{scale: 1.04}],
-  },
   art: {
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
     height: CARD_WIDTH,
     width: CARD_WIDTH,
   },
@@ -186,7 +183,7 @@ const styles = StyleSheet.create({
     width: '80%',
   },
   fallbackText: {
-    color: '#8CA1AA',
+    color: colors.text.muted,
     fontSize: 20,
     fontWeight: '700',
     textAlign: 'center',
@@ -196,7 +193,7 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   progressTrack: {
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: colors.fill.trackOnArt,
     bottom: 0,
     height: 6,
     left: 0,
@@ -204,7 +201,7 @@ const styles = StyleSheet.create({
     right: 0,
   },
   progressFill: {
-    backgroundColor: '#54d38a',
+    backgroundColor: colors.fill.accent,
     height: 6,
   },
   caption: {
@@ -213,17 +210,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
   },
   subtitle: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 18,
     marginTop: 4,
   },
   time: {
-    color: '#8CA1AA',
+    color: colors.text.muted,
     fontSize: 17,
     marginTop: 4,
   },

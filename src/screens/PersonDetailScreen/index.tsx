@@ -12,6 +12,7 @@ import {
 } from '../../services/jellyfin';
 import {ServerProfile} from '../../services/storage';
 import {getLocaleTag, t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface PersonDetailScreenProps {
   onBack?: () => void;
@@ -153,7 +154,6 @@ export const PersonDetailScreen = ({
           <TVFocusGuideView style={styles.actions}>
             <FocusableItem
               disabled={!person || isUpdatingFavorite}
-              focusedStyle={styles.actionFocused}
               hasTVPreferredFocus={true}
               onPress={updateFavorite}
               style={styles.actionButton}
@@ -165,7 +165,6 @@ export const PersonDetailScreen = ({
               </Text>
             </FocusableItem>
             <FocusableItem
-              focusedStyle={styles.actionFocused}
               onPress={onBack}
               style={styles.actionButton}
               testID="person-back-button">
@@ -209,7 +208,7 @@ export const PersonDetailScreen = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
   },
   hero: {
     flexDirection: 'row',
@@ -220,31 +219,31 @@ const styles = StyleSheet.create({
     width: 260,
     height: 390,
     borderRadius: 8,
-    backgroundColor: '#182027',
+    backgroundColor: colors.surface.card,
   },
   copy: {
     flex: 1,
     paddingTop: 8,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 58,
     fontWeight: '800',
   },
   meta: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 24,
     marginTop: 12,
   },
   overview: {
-    color: '#E4ECEF',
+    color: colors.text.body,
     fontSize: 25,
     lineHeight: 34,
     marginTop: 22,
     maxWidth: 980,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 22,
     marginTop: 16,
   },
@@ -257,21 +256,18 @@ const styles = StyleSheet.create({
     minWidth: 138,
     height: 58,
     borderRadius: 8,
-    backgroundColor: '#25313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  actionFocused: {
-    backgroundColor: '#2E5A72',
-  },
   actionText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 21,
     fontWeight: '800',
   },
   sectionTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 32,
     fontWeight: '800',
     marginBottom: 14,

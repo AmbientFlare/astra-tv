@@ -3,6 +3,7 @@ import {Animated, Image, StyleSheet, Text, View} from 'react-native';
 import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import {AUDIO_IDLE_DELAY_MS} from '../AudioIdleVisual';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface VideoPauseIdleVisualProps {
   artworkUrl?: string;
@@ -114,7 +115,7 @@ export const VideoPauseIdleVisual = ({
 const styles = StyleSheet.create({
   overlay: {
     alignItems: 'center',
-    backgroundColor: '#020304',
+    backgroundColor: colors.scrim.idle,
     bottom: 0,
     justifyContent: 'center',
     left: 0,
@@ -126,16 +127,16 @@ const styles = StyleSheet.create({
   art: {borderRadius: 18, height: 390, width: 390},
   placeholder: {
     alignItems: 'center',
-    backgroundColor: '#101820',
+    backgroundColor: colors.surface.sunken,
     justifyContent: 'center',
   },
-  mark: {color: '#54d38a', fontSize: 44, fontWeight: '900'},
+  mark: {color: colors.text.accent, fontSize: 44, fontWeight: '900'},
   title: {
-    color: '#e7edf2',
+    color: colors.text.body,
     fontSize: 28,
     fontWeight: '700',
     marginTop: 42,
     maxWidth: 820,
   },
-  hint: {color: '#596774', fontSize: 16, marginTop: 10},
+  hint: {color: colors.text.faint, fontSize: 16, marginTop: 10},
 });

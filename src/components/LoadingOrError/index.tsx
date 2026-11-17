@@ -7,6 +7,7 @@ import React from 'react';
 import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface LoadingOrErrorProps {
   /** Shown instead of the spinner row once loading has finished with nothing. */
@@ -33,7 +34,7 @@ export const LoadingOrError = ({
   if (isLoading) {
     return (
       <View style={styles.row} testID={`${testID}-loading`}>
-        <ActivityIndicator color="#4CC9F0" />
+        <ActivityIndicator color={colors.text.accent} />
         <Text style={styles.status}>{loadingText}</Text>
       </View>
     );
@@ -45,7 +46,6 @@ export const LoadingOrError = ({
         <Text style={styles.error}>{errorText}</Text>
         {onRetry ? (
           <FocusableItem
-            focusedStyle={styles.retryFocused}
             onPress={onRetry}
             style={styles.retry}
             testID={`${testID}-retry`}>
@@ -62,7 +62,6 @@ export const LoadingOrError = ({
         <Text style={styles.status}>{emptyText}</Text>
         {onRetry ? (
           <FocusableItem
-            focusedStyle={styles.retryFocused}
             onPress={onRetry}
             style={styles.retry}
             testID={`${testID}-retry`}>
@@ -85,27 +84,24 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   status: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 24,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 24,
   },
   retry: {
     alignItems: 'center',
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     height: 46,
     justifyContent: 'center',
     minWidth: 110,
     paddingHorizontal: 18,
   },
-  retryFocused: {
-    backgroundColor: '#315066',
-  },
   retryText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '700',
   },

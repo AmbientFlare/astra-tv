@@ -456,6 +456,7 @@ export const getStreamUrl = async (
       baseUrl,
       mediaSource.TranscodingUrl,
       accessToken,
+      mediaSource.Id ? undefined : itemId,
     );
     console.log(
       '[Astra] buildTranscodingUrl output:',

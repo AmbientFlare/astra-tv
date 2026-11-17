@@ -33,6 +33,7 @@ import {
   setDisplayPreferences,
 } from '../../services/storage';
 import {t} from '../../i18n';
+import {colors} from '../../theme';
 
 interface LibraryScreenProps {
   libraryId: string;
@@ -953,7 +954,6 @@ export const LibraryScreen = ({
           </View>
           <TVFocusGuideView style={styles.toolbar}>
             <FocusableItem
-              focusedStyle={styles.toolbarButtonFocused}
               hasTVPreferredFocus={!menuVisible && toolbarFocus === 'search'}
               onPress={() => openPanel('search')}
               style={[
@@ -968,7 +968,6 @@ export const LibraryScreen = ({
               </Text>
             </FocusableItem>
             <FocusableItem
-              focusedStyle={styles.toolbarButtonFocused}
               hasTVPreferredFocus={!menuVisible && toolbarFocus === 'genre'}
               onPress={() => openPanel('genre')}
               style={[
@@ -1068,14 +1067,13 @@ export const LibraryScreen = ({
               onMenuVisibleChange(false);
             }}
             placeholder={t('library.searchPlaceholder')}
-            placeholderTextColor="#7E9098"
+            placeholderTextColor={colors.text.faint}
             style={styles.searchInput}
             testID="library-search-input"
             value={searchDraft}
           />
           {searchDraft ? (
             <FocusableItem
-              focusedStyle={styles.panelButtonFocused}
               onPress={() => {
                 setSearchDraft('');
                 setSearchTerm('');
@@ -1101,7 +1099,6 @@ export const LibraryScreen = ({
                 {t('library.genresFailed')}
               </Text>
               <FocusableItem
-                focusedStyle={styles.panelButtonFocused}
                 hasTVPreferredFocus={true}
                 onPress={() => loadGenres()}
                 style={styles.panelButton}
@@ -1124,7 +1121,6 @@ export const LibraryScreen = ({
                 const selected = (item?.id ?? null) === (genre?.id ?? null);
                 return (
                   <FocusableItem
-                    focusedStyle={styles.panelButtonFocused}
                     hasTVPreferredFocus={selected}
                     onPress={() => {
                       setGenre(item);
@@ -1209,7 +1205,6 @@ const Panel = ({
         {children}
       </TVFocusGuideView>
       <FocusableItem
-        focusedStyle={styles.panelButtonFocused}
         onPress={onClose}
         style={styles.panelButton}
         testID="library-panel-close">
@@ -1222,7 +1217,7 @@ const Panel = ({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#0C1116',
+    backgroundColor: colors.surface.screen,
     paddingLeft: 84,
     paddingRight: 64,
     paddingTop: 64,
@@ -1245,40 +1240,37 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 58,
     fontWeight: '800',
     flex: 1,
   },
   countText: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     fontWeight: '700',
     minWidth: 96,
     textAlign: 'center',
   },
   status: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 30,
   },
   error: {
-    color: '#FFB4A8',
+    color: colors.text.error,
     fontSize: 28,
   },
   retryButton: {
     width: 130,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 16,
   },
-  retryFocused: {
-    backgroundColor: '#315066',
-  },
   retryText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '700',
   },
@@ -1291,7 +1283,7 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   toolbarButton: {
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderColor: 'transparent',
     borderRadius: 8,
     borderWidth: 2,
@@ -1300,20 +1292,17 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: 18,
   },
-  toolbarButtonFocused: {
-    backgroundColor: '#2E5A72',
-  },
   toolbarButtonActive: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
   },
   toolbarButtonText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '700',
   },
   searchInput: {
-    backgroundColor: '#182027',
-    borderColor: '#4CC9F0',
+    backgroundColor: colors.surface.card,
+    borderColor: colors.border.focus,
     borderRadius: 8,
     borderWidth: 2,
     height: 62,
@@ -1321,14 +1310,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   searchInputText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 26,
   },
   genreList: {
     maxHeight: 560,
   },
   panelStatus: {
-    color: '#B8C5CC',
+    color: colors.text.secondary,
     fontSize: 22,
     marginBottom: 14,
   },
@@ -1342,20 +1331,20 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.56)',
+    backgroundColor: colors.scrim.medium,
     paddingRight: 84,
     paddingTop: 122,
   },
   panel: {
     width: 780,
     borderRadius: 8,
-    backgroundColor: '#111A21',
-    borderColor: '#324555',
+    backgroundColor: colors.surface.sunken,
+    borderColor: colors.border.subtle,
     borderWidth: 2,
     padding: 22,
   },
   panelTitle: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 16,
@@ -1364,7 +1353,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   panelGroupTitle: {
-    color: '#9FB0BA',
+    color: colors.text.muted,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 8,
@@ -1373,16 +1362,13 @@ const styles = StyleSheet.create({
   panelButton: {
     minHeight: 50,
     borderRadius: 8,
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     justifyContent: 'center',
     marginBottom: 10,
     paddingHorizontal: 14,
   },
-  panelButtonFocused: {
-    backgroundColor: '#2E5A72',
-  },
   panelButtonText: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 20,
     fontWeight: '700',
   },

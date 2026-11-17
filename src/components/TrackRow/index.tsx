@@ -7,6 +7,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import {FocusableItem} from '../FocusableItem';
 import {MusicTrack} from '../../services/jellyfin/music';
 import {formatTrackDuration} from '../../utils/duration';
+import {colors} from '../../theme';
 
 interface TrackRowProps {
   hasTVPreferredFocus?: boolean;
@@ -33,7 +34,6 @@ export const TrackRow = ({
   const number = position ?? track.indexNumber;
   return (
     <FocusableItem
-      focusedStyle={styles.focused}
       hasTVPreferredFocus={hasTVPreferredFocus}
       onFocus={onFocus}
       onPress={onPress}
@@ -69,20 +69,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  focused: {
-    backgroundColor: '#1d2530',
-    borderBottomColor: '#54d38a',
-    borderBottomWidth: 4,
-  },
   number: {
-    color: '#6f7d8c',
+    color: colors.text.faint,
     fontSize: 16,
     textAlign: 'right',
     width: 34,
   },
   titles: {flex: 1, paddingHorizontal: 14},
-  title: {color: '#f4f6f8', fontSize: 18},
-  artist: {color: '#8b97a5', fontSize: 14, marginTop: 2},
-  duration: {color: '#6f7d8c', fontSize: 15, width: 64, textAlign: 'right'},
-  playing: {color: '#54d38a', fontWeight: '700'},
+  title: {color: colors.text.primary, fontSize: 18},
+  artist: {color: colors.text.muted, fontSize: 14, marginTop: 2},
+  duration: {
+    color: colors.text.faint,
+    fontSize: 15,
+    width: 64,
+    textAlign: 'right',
+  },
+  playing: {color: colors.text.accent, fontWeight: '700'},
 });

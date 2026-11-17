@@ -12,6 +12,30 @@ or n/a, with the build number and date.
 The model is in `/etc/platform-info`
 (`vega device run-cmd -d <serial> -c 'cat /etc/platform-info'`).
 
+## 0. Automated on-stick run (required before every release)
+
+No version is submitted until this passes on the package that will be
+uploaded. Jest passing is not enough: it has no decoder, no server and no
+remote.
+
+```bash
+npm run build:submission
+npm run test:stick -- --install build/armv7-release/astra_armv7.vpkg
+```
+
+- [ ] The run ends with every step passed. A step may only be skipped for a
+      reason that is written down here (for example, no server access for the
+      two transcode steps).
+- [ ] The build it reports is the one in `src/config/app.ts`.
+- [ ] Record the date, the build, the stick and the run's folder under
+      `tmp/stick-test/` in the release notes for the version.
+
+A failure blocks the release until it is explained. The run saves the
+stick's log as `stick.log` beside its screenshots; start there. What the
+suite covers, what it needs and how to point it at a server are in
+[`scripts/stick/README.md`](../scripts/stick/README.md). The sections below
+are the manual checks it does not cover.
+
 ## 1. Install and start
 
 - [ ] The armv7 package installs over the store build as an update, and saved

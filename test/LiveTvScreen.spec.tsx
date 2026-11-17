@@ -180,6 +180,36 @@ describe('LiveTvScreen', () => {
       [expect.objectContaining({id: 'ch-1'})],
     );
   });
+
+  it('shows the channel name when its logo fails to load', async () => {
+    (getLiveTvChannels as jest.Mock).mockResolvedValue({
+      items: [{...channel, imageUrl: 'http://server/broken-logo'}],
+      startIndex: 0,
+      totalCount: 1,
+    });
+    const {Image} = require('react-native');
+    const screen = render(
+      <LiveTvScreen onBack={jest.fn()} serverProfile={profile} />,
+    );
+
+    expect(await screen.findByTestId('livetv-guide-row-ch-1')).toBeTruthy();
+    const namesShown = screen.queryAllByText('Family Ties Channel').length;
+    const brokenLogos = () =>
+      screen
+        .UNSAFE_queryAllByType(Image)
+        .filter(
+          (image: {props: {source?: {uri?: string}}}) =>
+            image.props.source?.uri === 'http://server/broken-logo',
+        );
+    expect(brokenLogos()).toHaveLength(1);
+
+    fireEvent(brokenLogos()[0], 'error');
+
+    await waitFor(() => expect(brokenLogos()).toHaveLength(0));
+    expect(screen.getAllByText('Family Ties Channel')).toHaveLength(
+      namesShown + 1,
+    );
+  });
 });
 
 describe('nowAndNext', () => {

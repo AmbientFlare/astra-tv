@@ -2,6 +2,7 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {TVFocusGuideView} from '@amazon-devices/react-native-kepler';
 import {FocusableItem} from '../FocusableItem';
+import {colors} from '../../theme';
 
 type RadioValue = string | number | boolean;
 
@@ -34,7 +35,6 @@ export const PreferenceRadioGroup = <Value extends RadioValue>({
 
         return (
           <FocusableItem
-            focusedStyle={styles.optionFocused}
             hasTVPreferredFocus={
               claimsFocus &&
               option.value === (preferredFocusValue ?? selectedValue)
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 22,
     fontWeight: '800',
     marginBottom: 10,
@@ -71,19 +71,16 @@ const styles = StyleSheet.create({
   },
   option: {
     alignItems: 'center',
-    backgroundColor: '#24313A',
+    backgroundColor: colors.surface.control,
     borderRadius: 8,
     flexDirection: 'row',
     minHeight: 52,
     minWidth: 150,
     paddingHorizontal: 14,
   },
-  optionFocused: {
-    backgroundColor: '#2E5A72',
-  },
   circle: {
     alignItems: 'center',
-    borderColor: '#8CA1AA',
+    borderColor: colors.border.control,
     borderRadius: 10,
     borderWidth: 2,
     height: 20,
@@ -92,16 +89,16 @@ const styles = StyleSheet.create({
     width: 20,
   },
   circleSelected: {
-    borderColor: '#4CC9F0',
+    borderColor: colors.border.focus,
   },
   dot: {
-    backgroundColor: '#4CC9F0',
+    backgroundColor: colors.fill.accent,
     borderRadius: 5,
     height: 10,
     width: 10,
   },
   text: {
-    color: '#FFFFFF',
+    color: colors.text.primary,
     fontSize: 19,
     fontWeight: '700',
   },
